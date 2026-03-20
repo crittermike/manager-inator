@@ -12,17 +12,15 @@ import {
   Briefcase,
   FileText,
   MessageSquare,
-  Target,
   CheckSquare,
   Star,
   BookOpen,
   Sparkles,
-  Send,
   X,
   Clock
 } from 'lucide-react'
 
-type Tab = 'overview' | 'checkins' | 'transcripts' | 'feedback' | 'goals' | 'actions' | 'reviews'
+type Tab = 'overview' | 'checkins' | 'transcripts' | 'feedback' | 'actions' | 'reviews'
 
 export function ReportDetail() {
   const { name } = useParams<{ name: string }>()
@@ -55,7 +53,6 @@ export function ReportDetail() {
     { id: 'checkins', label: 'Check-ins', icon: FileText, count: report.checkIns.length },
     { id: 'transcripts', label: 'Transcripts', icon: MessageSquare, count: report.transcripts.length },
     { id: 'feedback', label: 'Feedback', icon: Star, count: report.feedback.length },
-    { id: 'goals', label: 'Goals', icon: Target, count: report.goals.length },
     { id: 'actions', label: 'Action items', icon: CheckSquare, count: report.actionItems.length },
     { id: 'reviews', label: 'Reviews', icon: BookOpen, count: report.reviews.length }
   ]
@@ -63,15 +60,25 @@ export function ReportDetail() {
   const handlePrepOneOnOne = async () => {
     setShowAI(true)
     reset()
-    const recentSummaries = report.summaries.slice(-5).map(s => s.date).join(', ')
+
+    // Load actual content for recent summaries
+    const recentSummaryDates = report.summaries.slice(-5)
+    const summaryContents = await Promise.all(
+      recentSummaryDates.map(async (s) => {
+        try {
+          const content = await window.api.getFileContent(`reports/${name}/summaries/${s.date}.md`)
+          return content
+        } catch { return '' }
+      })
+    )
+    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
     const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
 
     await generate('prep-one-on-one', {
       reportName: report.profile.displayName,
-      summaries: recentSummaries,
-      actionItems: openActions,
-      goals: report.goals.map(g => `${g.title}: ${g.status}`).join('\n'),
-      feedback: report.feedback.slice(-3).map(f => f.content).join('\n---\n')
+      summaries: summariesText || 'No recent summaries available.',
+      actionItems: openActions || 'No open action items.',
+      feedback: report.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n')
     })
   }
 
@@ -332,36 +339,6 @@ export function ReportDetail() {
                       View context →
                     </a>
                   )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Goals */}
-        {activeTab === 'goals' && (
-          <div className="space-y-3">
-            {report.goals.length === 0 ? (
-              <EmptyState icon={Target} text="No goals set yet" />
-            ) : (
-              report.goals.map((g, i) => (
-                <div key={i} className="p-4 bg-surface rounded-xl border border-border">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-zinc-200">{g.title}</span>
-                      <span className="text-[11px] bg-surface-raised text-zinc-500 px-2 py-0.5 rounded-full">
-                        {g.category}
-                      </span>
-                    </div>
-                    <span className="text-sm">{g.status}</span>
-                  </div>
-                  {g.description && (
-                    <p className="text-sm text-zinc-400 mb-2">{g.description}</p>
-                  )}
-                  <div className="flex items-center gap-4 text-xs text-zinc-500">
-                    {g.timeline && <span>📅 {g.timeline}</span>}
-                    {g.successCriteria && <span>✓ {g.successCriteria.slice(0, 60)}...</span>}
-                  </div>
                 </div>
               ))
             )}

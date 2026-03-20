@@ -11,7 +11,7 @@ import { Settings } from './pages/Settings'
 import { useState, useEffect } from 'react'
 
 export default function App() {
-  const { authenticated, loading } = useAuth()
+  const { authenticated, loading, refresh: refreshAuth } = useAuth()
   const [hasRepo, setHasRepo] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function App() {
   }
 
   if (!authenticated) {
-    return <AuthScreen />
+    return <AuthScreen onAuthenticated={refreshAuth} />
   }
 
   if (hasRepo === null) {

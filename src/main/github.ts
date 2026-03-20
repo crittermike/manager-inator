@@ -30,6 +30,7 @@ export function resetOctokit(): void {
 
 function repo() {
   const config = getRepoConfig()
+  console.log('[GitHub] repo config:', config)
   return { owner: config.owner, repo: config.name }
 }
 
@@ -55,8 +56,30 @@ async function listDirectory(path: string): Promise<string[]> {
   try {
     const { data } = await getOctokit().repos.getContent({ ...repo(), path })
     if (Array.isArray(data)) {
-      const names = data.map((f) => f.name)
+      // Only return directories, not files
+      const names = data
+        .filter((f) => f.type === 'dir')
+        .map((f) => f.name)
       setCache(`dir:${path}`, names)
+      return names
+    }
+  } catch {
+    return []
+  }
+  return []
+}
+
+async function listFiles(path: string): Promise<string[]> {
+  const cached = getCached<string[]>(`files:${path}`)
+  if (cached) return cached
+
+  try {
+    const { data } = await getOctokit().repos.getContent({ ...repo(), path })
+    if (Array.isArray(data)) {
+      const names = data
+        .filter((f) => f.type === 'file')
+        .map((f) => f.name)
+      setCache(`files:${path}`, names)
       return names
     }
   } catch {
@@ -268,13 +291,13 @@ export async function getReportData(name: string): Promise<Report> {
     reviewFiles,
     dashboardRaw
   ] = await Promise.all([
-    listDirectory(`reports/${name}/check-ins/monthly`),
-    listDirectory(`reports/${name}/summaries`),
-    listDirectory(`reports/${name}/transcripts`),
+    listFiles(`reports/${name}/check-ins/monthly`),
+    listFiles(`reports/${name}/summaries`),
+    listFiles(`reports/${name}/transcripts`),
     getFileContent(`reports/${name}/action-items.md`).catch(() => ''),
     getFileContent(`reports/${name}/feedback/log.md`).catch(() => ''),
     getFileContent(`reports/${name}/goals/current.md`).catch(() => ''),
-    listDirectory(`reports/${name}/reviews`),
+    listFiles(`reports/${name}/reviews`),
     getFileContent(`reports/${name}/DASHBOARD.md`).catch(() => '')
   ])
 
@@ -353,11 +376,12 @@ export async function getTeamOverview(): Promise<TeamOverview> {
   const reports: ReportStatus[] = []
 
   for (const name of reportNames) {
-    const data = await getReportData(name)
-    const lastTranscript =
-      data.transcripts.length > 0
-        ? data.transcripts[data.transcripts.length - 1].date
-        : null
+    try {
+      const data = await getReportData(name)
+      const lastTranscript =
+        data.transcripts.length > 0
+          ? data.transcripts[data.transcripts.length - 1].date
+          : null
 
     let daysGap = 999
     if (lastTranscript) {
@@ -381,6 +405,9 @@ export async function getTeamOverview(): Promise<TeamOverview> {
       openActionItems: openItems,
       status
     })
+    } catch (err) {
+      console.warn(`[GitHub] Skipping report ${name}:`, (err as Error).message)
+    }
   }
 
   const overview: TeamOverview = {

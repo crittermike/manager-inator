@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { Zap, Github, Copy, Check, ExternalLink } from 'lucide-react'
 
-export function AuthScreen() {
+interface AuthScreenProps {
+  onAuthenticated: () => void
+}
+
+export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const { login, poll } = useAuth()
   const [step, setStep] = useState<'idle' | 'waiting' | 'error'>('idle')
   const [userCode, setUserCode] = useState('')
@@ -14,20 +18,33 @@ export function AuthScreen() {
       const { userCode } = await login()
       setUserCode(userCode)
 
-      // Poll for completion
-      const interval = setInterval(async () => {
-        const success = await poll()
-        if (success) {
-          clearInterval(interval)
-          window.location.reload()
-        }
-      }, 5000)
+      // Poll with recursive setTimeout to respect backoff
+      let pollInterval = 6000 // Start at 6s (GitHub default is 5s, add buffer)
+      let timedOut = false
 
-      // Timeout after 10 minutes
-      setTimeout(() => {
-        clearInterval(interval)
+      const timeoutId = setTimeout(() => {
+        timedOut = true
         setStep('error')
       }, 600000)
+
+      const doPoll = async () => {
+        if (timedOut) return
+        try {
+          const success = await poll()
+          if (success) {
+            clearTimeout(timeoutId)
+            onAuthenticated()
+            return
+          }
+        } catch {
+          // Keep polling
+        }
+        // Increase interval slightly each time to avoid slow_down
+        pollInterval = Math.min(pollInterval + 1000, 15000)
+        setTimeout(doPoll, pollInterval)
+      }
+
+      setTimeout(doPoll, pollInterval)
     } catch {
       setStep('error')
     }

@@ -5,13 +5,14 @@ export function useAuth() {
   const [user, setUser] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    window.api.getAuthStatus().then(({ authenticated, user }) => {
-      setAuthenticated(authenticated)
-      setUser(user || null)
-      setLoading(false)
-    })
+  const checkAuth = useCallback(async () => {
+    const { authenticated, user } = await window.api.getAuthStatus()
+    setAuthenticated(authenticated)
+    setUser(user || null)
+    setLoading(false)
   }, [])
+
+  useEffect(() => { checkAuth() }, [checkAuth])
 
   const login = useCallback(async () => {
     const { userCode, verificationUri } = await window.api.startAuth()
@@ -21,12 +22,10 @@ export function useAuth() {
   const poll = useCallback(async () => {
     const success = await window.api.pollAuth()
     if (success) {
-      const { authenticated, user } = await window.api.getAuthStatus()
-      setAuthenticated(authenticated)
-      setUser(user || null)
+      await checkAuth()
     }
     return success
-  }, [])
+  }, [checkAuth])
 
   const logout = useCallback(async () => {
     await window.api.logout()
@@ -34,5 +33,5 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { authenticated, user, loading, login, poll, logout }
+  return { authenticated, user, loading, login, poll, logout, refresh: checkAuth }
 }

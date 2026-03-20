@@ -179,6 +179,17 @@ export function Dashboard() {
                     {r.openActionItems} open items
                   </span>
                 </div>
+                {r.status !== 'on-track' && (
+                  <div className={`mt-1.5 text-xs ${r.status === 'at-risk' ? 'text-danger/80' : 'text-warning/80'}`}>
+                    {r.daysGap > 14
+                      ? `⚠ No 1:1 in ${r.daysGap} days`
+                      : r.daysGap > 7
+                      ? `Last 1:1 was ${r.daysGap} days ago`
+                      : r.openActionItems > 100
+                      ? `${r.openActionItems} action items piling up`
+                      : `${r.openActionItems} open action items`}
+                  </div>
+                )}
               </div>
 
               <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors shrink-0" />

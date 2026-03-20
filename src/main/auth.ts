@@ -2,7 +2,7 @@ import { shell } from 'electron'
 import { getToken, setToken, clearToken } from './store'
 import { resetOctokit } from './github'
 
-const GITHUB_CLIENT_ID = 'Iv1.manager_inator_app'
+const GITHUB_CLIENT_ID = 'Ov23ctu9WlUlp4aqg2qi'
 const DEVICE_CODE_URL = 'https://github.com/login/device/code'
 const ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 
@@ -55,10 +55,14 @@ export async function startAuth(): Promise<{
     })
   })
 
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`GitHub device code request failed: ${res.status} ${text}`)
+  }
+
   const data: DeviceCodeResponse = await res.json()
   pendingDeviceCode = data
 
-  // Open the verification URL in the browser
   shell.openExternal(data.verification_uri)
 
   return {
@@ -68,6 +72,7 @@ export async function startAuth(): Promise<{
 }
 
 export async function pollAuth(): Promise<boolean> {
+  console.log('[Auth] pollAuth called, pendingDeviceCode:', !!pendingDeviceCode)
   if (!pendingDeviceCode) return false
 
   try {
@@ -85,6 +90,7 @@ export async function pollAuth(): Promise<boolean> {
     })
 
     const data = await res.json()
+    console.log('[Auth] poll response:', JSON.stringify(data))
 
     if (data.access_token) {
       setToken(data.access_token)
@@ -93,9 +99,9 @@ export async function pollAuth(): Promise<boolean> {
       return true
     }
 
-    // Still waiting for user to authorize
     return false
-  } catch {
+  } catch (err) {
+    console.error('[Auth] poll error:', err)
     return false
   }
 }

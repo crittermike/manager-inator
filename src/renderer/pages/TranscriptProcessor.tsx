@@ -10,6 +10,7 @@ import {
   Check,
   X,
   Save,
+  Star,
   ChevronDown
 } from 'lucide-react'
 
@@ -17,24 +18,28 @@ export function TranscriptProcessor() {
   const { profiles } = useReportProfiles()
   const { streaming, streamedText, generate, cancel, reset } = useAI()
   const [transcript, setTranscript] = useState('')
-  const [selectedReport, setSelectedReport] = useState('')
+  const [meetingTitle, setMeetingTitle] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [step, setStep] = useState<'input' | 'processing' | 'review'>('input')
   const [summaryResult, setSummaryResult] = useState('')
   const [actionItemsResult, setActionItemsResult] = useState('')
+  const [feedbackResult, setFeedbackResult] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const handleProcess = async () => {
-    if (!transcript.trim() || !selectedReport || !date) return
+    if (!transcript.trim() || !date) return
 
     setStep('processing')
     reset()
 
-    // Step 1: Summarize
-    const summary = await generate('summarize-transcript', {
-      reportName: profiles.find(p => p.name === selectedReport)?.displayName || selectedReport,
+    const reportNames = profiles.map(p => p.displayName).join(', ')
+
+    // Step 1: Summarize the meeting
+    const summary = await generate('summarize-meeting', {
+      meetingTitle: meetingTitle || 'Meeting',
       date,
+      reportNames,
       transcript
     })
     setSummaryResult(summary)
@@ -42,10 +47,18 @@ export function TranscriptProcessor() {
     // Step 2: Extract action items
     reset()
     const actions = await generate('extract-action-items', {
-      reportName: profiles.find(p => p.name === selectedReport)?.displayName || selectedReport,
+      reportName: reportNames,
       transcript
     })
     setActionItemsResult(actions)
+
+    // Step 3: Extract feedback for direct reports
+    reset()
+    const feedback = await generate('extract-feedback', {
+      reportNames,
+      transcript
+    })
+    setFeedbackResult(feedback)
 
     setStep('review')
   }
@@ -53,19 +66,24 @@ export function TranscriptProcessor() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      // Save transcript
+      // Save transcript to meetings directory
+      const slug = meetingTitle
+        ? meetingTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+        : 'meeting'
+      const filename = `${date}-${slug}`
+
       await window.api.commitFile(
-        `reports/${selectedReport}/transcripts/${date}.md`,
-        transcript,
-        `Add 1:1 transcript for ${selectedReport} on ${date}`
+        `meetings/${filename}.md`,
+        `# ${meetingTitle || 'Meeting'} — ${date}\n\n${transcript}`,
+        `Add meeting transcript: ${meetingTitle || 'meeting'} on ${date}`
       )
 
       // Save summary
       if (summaryResult) {
         await window.api.commitFile(
-          `reports/${selectedReport}/summaries/${date}.md`,
+          `meetings/${filename}-summary.md`,
           summaryResult,
-          `Add 1:1 summary for ${selectedReport} on ${date}`
+          `Add meeting summary: ${meetingTitle || 'meeting'} on ${date}`
         )
       }
 
@@ -79,11 +97,12 @@ export function TranscriptProcessor() {
 
   const handleReset = () => {
     setTranscript('')
-    setSelectedReport('')
+    setMeetingTitle('')
     setDate(new Date().toISOString().split('T')[0])
     setStep('input')
     setSummaryResult('')
     setActionItemsResult('')
+    setFeedbackResult('')
     setSaved(false)
     reset()
   }
@@ -93,7 +112,7 @@ export function TranscriptProcessor() {
       <div>
         <h1 className="text-2xl font-bold text-zinc-100">Process transcript</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Paste a 1:1 transcript to get an AI summary and action items
+          Paste any meeting transcript to get a summary, action items, and feedback for your reports
         </p>
       </div>
 
@@ -138,23 +157,15 @@ export function TranscriptProcessor() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                Direct report
+                Meeting title
               </label>
-              <div className="relative">
-                <select
-                  value={selectedReport}
-                  onChange={(e) => setSelectedReport(e.target.value)}
-                  className="w-full appearance-none px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors"
-                >
-                  <option value="">Select a report...</option>
-                  {profiles.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.displayName}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
-              </div>
+              <input
+                type="text"
+                value={meetingTitle}
+                onChange={(e) => setMeetingTitle(e.target.value)}
+                placeholder="e.g. 1:1 with Tara, Team standup, Sprint retro..."
+                className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">
@@ -184,7 +195,7 @@ export function TranscriptProcessor() {
 
           <button
             onClick={handleProcess}
-            disabled={!transcript.trim() || !selectedReport || !date}
+            disabled={!transcript.trim() || !date}
             className="flex items-center gap-2 px-5 py-3 bg-brand text-white rounded-xl font-medium text-sm hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" />
@@ -257,6 +268,21 @@ export function TranscriptProcessor() {
                   <div className="prose-dark">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {actionItemsResult}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback for reports */}
+              {feedbackResult && (
+                <div className="bg-surface rounded-xl border border-border p-5">
+                  <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+                    <Star className="w-4 h-4" />
+                    Feedback for direct reports
+                  </h3>
+                  <div className="prose-dark">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {feedbackResult}
                     </ReactMarkdown>
                   </div>
                 </div>

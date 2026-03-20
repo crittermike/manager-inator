@@ -30,8 +30,8 @@ export function AppShell({ children }: AppShellProps) {
       {/* Sidebar */}
       <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0">
         {/* Title bar drag region */}
-        <div className="drag-region h-12 flex items-end px-4 pb-2">
-          <div className="no-drag flex items-center gap-2">
+        <div className="drag-region h-14 flex items-end px-4 pb-2 pt-8">
+          <div className="no-drag flex items-center gap-2 pl-16">
             <Zap className="w-5 h-5 text-brand" />
             <span className="font-semibold text-sm tracking-tight">Manager-inator</span>
           </div>
@@ -98,8 +98,8 @@ export function AppShell({ children }: AppShellProps) {
       {/* Main content */}
       <main className="flex-1 overflow-hidden">
         {/* Drag region for the rest of the title bar */}
-        <div className="drag-region h-12 shrink-0" />
-        <div className="h-[calc(100vh-3rem)] overflow-y-auto px-8 pb-8">
+        <div className="drag-region h-14 shrink-0" />
+        <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
           {children}
         </div>
       </main>

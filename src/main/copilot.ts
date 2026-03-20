@@ -82,7 +82,8 @@ function buildMessages(
         role: 'user',
         content: `Summarize this 1:1 transcript for ${context.reportName}.
 
-Use this format:
+Use this exact markdown format with proper headings and bullet points:
+
 # 1:1 Summary — ${context.date}
 _Auto-generated summary of [transcript](../transcripts/${context.date}.md)_
 
@@ -90,26 +91,70 @@ _Auto-generated summary of [transcript](../transcripts/${context.date}.md)_
 [1-2 sentence context]
 
 ## Key discussion topics
-[bullet points]
+- [bullet point per topic]
 
 ## Wins and accomplishments
-[specific wins]
+- [specific wins]
 
 ## Challenges and concerns
-[challenges]
+- [challenges]
 
 ## Action items
 | Action | Owner | Due |
 |--------|-------|-----|
 
-## Career and growth notes
-[if applicable]
-
 ## Sentiment check
 [emotional/engagement tone]
 
 ## Follow-up needed
-[next steps]
+- [next steps]
+
+TRANSCRIPT:
+${context.transcript}`
+      })
+      break
+
+    case 'summarize-meeting':
+      messages.push({
+        role: 'user',
+        content: `Summarize this meeting transcript. My direct reports are: ${context.reportNames}.
+
+Use this exact markdown format with proper headings and bullet points:
+
+# Meeting summary: ${context.meetingTitle} — ${context.date}
+
+## Overview
+[2-3 sentence summary]
+
+## Key topics discussed
+- [bullet point per topic]
+
+## Decisions made
+- [any decisions]
+
+## Action items
+| Action | Owner | Due |
+|--------|-------|-----|
+
+## Relevant notes for my reports
+[anything noteworthy about specific direct reports]
+
+TRANSCRIPT:
+${context.transcript}`
+      })
+      break
+
+    case 'extract-feedback':
+      messages.push({
+        role: 'user',
+        content: `Review this meeting transcript and extract any feedback (positive, constructive, or notable observations) about any of my direct reports: ${context.reportNames}.
+
+For each piece of feedback, output markdown like:
+
+### [Report name] — [positive/constructive]
+> [specific observation with context]
+
+If there's no relevant feedback for a person, skip them. Only include concrete, behavior-anchored observations. No generic praise.
 
 TRANSCRIPT:
 ${context.transcript}`
@@ -158,17 +203,28 @@ ${context.actionItems ? `Action items:\n${context.actionItems}` : ''}`
         role: 'user',
         content: `Prepare notes for my upcoming 1:1 with ${context.reportName}.
 
-Include:
-1. Carry-forward action items (unchecked from recent meetings)
-2. Discussion topics based on recent activity
-3. Quick context notes
-4. Questions to ask
+Format your response as well-structured markdown with clear headings and bullet points.
+
+## Carry-forward action items
+List any unchecked action items from recent meetings.
+
+## Discussion topics
+Based on recent activity, what should we discuss?
+
+## Quick context
+Brief notes on what's been happening.
+
+## Questions to ask
+Specific questions for this person.
+
+---
 
 Context:
-${context.summaries ? `Recent summaries:\n${context.summaries}` : ''}
-${context.actionItems ? `Open action items:\n${context.actionItems}` : ''}
-${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}
-${context.goals ? `Goals:\n${context.goals}` : ''}`
+${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent summaries available.'}
+
+${context.actionItems ? `Open action items:\n${context.actionItems}` : 'No open action items.'}
+
+${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}`
       })
       break
 

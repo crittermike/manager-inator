@@ -14,7 +14,7 @@ function createWindow(): void {
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#09090b',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
@@ -27,9 +27,20 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // Log renderer errors
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
+    console.error('Failed to load:', code, desc)
+  })
+
+  mainWindow.webContents.on('console-message', (_e, _level, message) => {
+    console.log('[Renderer]', message)
+  })
+
   // Dev: load from vite server; Prod: load built files
   if (process.env['ELECTRON_RENDERER_URL']) {
+    console.log('Loading dev URL:', process.env['ELECTRON_RENDERER_URL'])
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }

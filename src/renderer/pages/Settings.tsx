@@ -6,13 +6,26 @@ import {
   FolderGit2,
   Save,
   Check,
-  User
+  User,
+  Cpu,
+  ChevronDown
 } from 'lucide-react'
+
+const AVAILABLE_MODELS = [
+  { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI' },
+  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI' },
+  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'Anthropic' },
+  { id: 'claude-haiku-3.5', name: 'Claude Haiku 3.5', provider: 'Anthropic' },
+  { id: 'o3-mini', name: 'o3-mini', provider: 'OpenAI' },
+  { id: 'o4-mini', name: 'o4-mini', provider: 'OpenAI' },
+]
 
 export function Settings() {
   const { user, logout } = useAuth()
   const [owner, setOwner] = useState('')
   const [repo, setRepo] = useState('')
+  const [model, setModel] = useState('gpt-4.1')
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -20,12 +33,13 @@ export function Settings() {
     window.api.getSettings().then((s) => {
       setOwner(s.repoOwner)
       setRepo(s.repoName)
+      setModel(s.defaultModel || 'gpt-4.1')
       setLoading(false)
     })
   }, [])
 
   const handleSave = async () => {
-    await window.api.saveSettings({ repoOwner: owner, repoName: repo })
+    await window.api.saveSettings({ repoOwner: owner, repoName: repo, defaultModel: model })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -120,6 +134,38 @@ export function Settings() {
               </>
             )}
           </button>
+        </div>
+      </section>
+
+      {/* AI Model */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+          AI Model
+        </h2>
+        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Cpu className="w-4 h-4 text-zinc-400" />
+            <span className="text-sm font-medium text-zinc-300">
+              Default model for AI features
+            </span>
+          </div>
+          <div className="relative">
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full appearance-none px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors"
+            >
+              {AVAILABLE_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.provider})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+          </div>
+          <p className="text-xs text-zinc-600">
+            Uses your GitHub Copilot subscription. Model availability depends on your plan.
+          </p>
         </div>
       </section>
 
