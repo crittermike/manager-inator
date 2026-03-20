@@ -11,6 +11,7 @@ import {
   X,
   Save,
   Star,
+  Trophy,
   ChevronDown
 } from 'lucide-react'
 
@@ -24,6 +25,7 @@ export function TranscriptProcessor() {
   const [summaryResult, setSummaryResult] = useState('')
   const [actionItemsResult, setActionItemsResult] = useState('')
   const [feedbackResult, setFeedbackResult] = useState('')
+  const [impactResult, setImpactResult] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -35,7 +37,7 @@ export function TranscriptProcessor() {
 
     const reportNames = profiles.map(p => p.displayName).join(', ')
 
-    // Step 1: Summarize the meeting
+    // Step 1: Summarize (includes speakers in YAML frontmatter)
     const summary = await generate('summarize-meeting', {
       meetingTitle: meetingTitle || 'Meeting',
       date,
@@ -60,31 +62,53 @@ export function TranscriptProcessor() {
     })
     setFeedbackResult(feedback)
 
+    // Step 4: Extract manager impact
+    reset()
+    const impact = await generate('extract-impact', {
+      transcript
+    })
+    setImpactResult(impact)
+
     setStep('review')
   }
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      // Save transcript to meetings directory
       const slug = meetingTitle
         ? meetingTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
         : 'meeting'
       const filename = `${date}-${slug}`
 
+      // Save transcript
       await window.api.commitFile(
         `meetings/${filename}.md`,
         `# ${meetingTitle || 'Meeting'} — ${date}\n\n${transcript}`,
         `Add meeting transcript: ${meetingTitle || 'meeting'} on ${date}`
       )
 
-      // Save summary
+      // Save summary (includes speakers in YAML frontmatter)
       if (summaryResult) {
         await window.api.commitFile(
           `meetings/${filename}-summary.md`,
           summaryResult,
           `Add meeting summary: ${meetingTitle || 'meeting'} on ${date}`
         )
+      }
+
+      // Append impact items to impact log
+      if (impactResult && !impactResult.includes('No manager impact')) {
+        try {
+          const currentLog = await window.api.getImpactLog()
+          const entry = `\n\n### ${date} — ${meetingTitle || 'Meeting'}\n\n${impactResult}`
+          await window.api.commitFile(
+            'mike-impact-log.md',
+            currentLog + entry,
+            `Add impact items from ${meetingTitle || 'meeting'} on ${date}`
+          )
+        } catch (e) {
+          console.error('Failed to save impact:', e)
+        }
       }
 
       setSaved(true)
@@ -103,6 +127,7 @@ export function TranscriptProcessor() {
     setSummaryResult('')
     setActionItemsResult('')
     setFeedbackResult('')
+    setImpactResult('')
     setSaved(false)
     reset()
   }
@@ -285,6 +310,22 @@ export function TranscriptProcessor() {
                       {feedbackResult}
                     </ReactMarkdown>
                   </div>
+                </div>
+              )}
+
+              {/* Manager impact */}
+              {impactResult && !impactResult.includes('No manager impact') && (
+                <div className="bg-surface rounded-xl border border-brand/20 p-5">
+                  <h3 className="text-sm font-medium text-brand-light mb-3 flex items-center gap-2">
+                    <Trophy className="w-4 h-4" />
+                    Your impact
+                  </h3>
+                  <div className="prose-dark">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {impactResult}
+                    </ReactMarkdown>
+                  </div>
+                  <p className="text-xs text-zinc-600 mt-3">Will be appended to your impact log on save.</p>
                 </div>
               )}
 

@@ -35,9 +35,9 @@ export function AppShell({ children }: AppShellProps) {
     <div className="h-screen w-screen flex bg-zinc-950 text-zinc-100">
       {/* Sidebar */}
       <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0">
-        {/* Title bar drag region */}
-        <div className="drag-region h-14 flex items-end px-4 pb-2 pt-8">
-          <div className="no-drag flex items-center gap-2 pl-16">
+        {/* Title bar drag region — sits below traffic lights */}
+        <div className="drag-region pt-10 pb-3 px-3">
+          <div className="no-drag flex items-center gap-2 px-3">
             <Zap className="w-5 h-5 text-brand" />
             <span className="font-semibold text-sm tracking-tight">Manager-inator</span>
           </div>

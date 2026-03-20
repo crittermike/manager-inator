@@ -357,15 +357,38 @@ export function ReportDetail() {
                   <span>{report.actionItems.filter(a => a.completed).length} completed</span>
                 </div>
                 {report.actionItems.filter(a => !a.completed).slice(0, 50).map((a, i) => (
-                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-surface transition-colors">
-                    <div className="w-4 h-4 mt-0.5 border border-zinc-600 rounded shrink-0" />
+                  <button
+                    key={i}
+                    onClick={async () => {
+                      // Mark as completed by updating action-items.md
+                      try {
+                        const content = await window.api.getFileContent(`reports/${name}/action-items.md`)
+                        const updated = content.replace(
+                          `- [ ] ${a.owner !== 'Unknown' ? `**${a.owner}**` + (a.text.startsWith(':') ? '' : ': ') : ''}${a.text}`,
+                          `- [x] ${a.owner !== 'Unknown' ? `**${a.owner}**` + (a.text.startsWith(':') ? '' : ': ') : ''}${a.text}`
+                        )
+                        if (updated !== content) {
+                          await window.api.commitFile(
+                            `reports/${name}/action-items.md`,
+                            updated,
+                            `Complete action item: ${a.text.slice(0, 50)}`
+                          )
+                          refresh()
+                        }
+                      } catch (e) {
+                        console.error('Failed to check off item:', e)
+                      }
+                    }}
+                    className="w-full flex items-start gap-3 p-2.5 rounded-lg hover:bg-surface transition-colors text-left group"
+                  >
+                    <div className="w-4 h-4 mt-0.5 border border-zinc-600 rounded shrink-0 group-hover:border-brand group-hover:bg-brand/20 transition-colors" />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm text-zinc-300">{a.text}</span>
                       {a.owner && a.owner !== 'Unknown' && (
                         <span className="ml-2 text-xs text-zinc-500">({a.owner})</span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </>
             )}

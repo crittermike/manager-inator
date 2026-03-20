@@ -27,23 +27,29 @@ function toTitleCase(str: string): string {
 }
 
 function parseSpeakers(content: string): string[] {
-  const speakers = new Set<string>()
-  // Match "Speaker:" or "**Speaker**:" or "Speaker -" patterns at start of line
-  const patterns = [
-    /^(?:\*\*)?([A-Z][a-z]+ ?[A-Z]?[a-z]*)(?:\*\*)?[\s]*:/gm,
-    /^([A-Z][a-z]+ [A-Z][a-z]+)\s*[-–]/gm,
-    /^\*\*([^*]+)\*\*:/gm
-  ]
-  for (const re of patterns) {
-    let m
-    while ((m = re.exec(content)) !== null) {
-      const name = m[1].trim()
-      if (name.length > 1 && name.length < 40 && !name.match(/^(Action|Note|Context|Summary|Overview|Meeting|Key|Follow)/)) {
-        speakers.add(name)
-      }
+  // Try YAML frontmatter first
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+  if (fmMatch) {
+    const yaml = fmMatch[1]
+    const speakerLines = yaml.match(/speakers:\n((?:\s+-\s+.+\n?)+)/)
+    if (speakerLines) {
+      return speakerLines[1]
+        .split('\n')
+        .map(l => l.replace(/^\s*-\s*/, '').trim())
+        .filter(Boolean)
     }
   }
-  return [...speakers].sort()
+
+  // Fallback: look for ## Attendees section
+  const attendeesMatch = content.match(/## Attendees\n([\s\S]*?)(?=\n##|$)/)
+  if (attendeesMatch) {
+    return attendeesMatch[1]
+      .split('\n')
+      .map(l => l.replace(/^[-*]\s*/, '').trim())
+      .filter(l => l.length > 1 && l.length < 40)
+  }
+
+  return []
 }
 
 type DetailTab = 'summary' | 'transcript'
@@ -78,25 +84,22 @@ export function Meetings() {
     setSpeakers([])
 
     try {
-      // Load the main file (could be summary or transcript)
+      // Load the main file (transcript)
       const content = await window.api.getFileContent(`meetings/${meeting.filename}`)
       setSummaryContent(content)
+      setTranscriptContent(content)
 
-      // Try loading a separate summary file
+      // Try loading a separate summary file (has speakers in frontmatter)
       const summaryName = meeting.filename.replace('.md', '-summary.md')
       try {
         const summary = await window.api.getFileContent(`meetings/${summaryName}`)
         setSummaryContent(summary)
-        setTranscriptContent(content)
+        // Parse speakers from summary frontmatter
+        setSpeakers(parseSpeakers(summary))
       } catch {
-        // No separate summary; main file is the content
-        setTranscriptContent(content)
+        // No separate summary — try parsing speakers from main content
+        setSpeakers(parseSpeakers(content))
       }
-
-      // Parse speakers from transcript content
-      const allContent = content
-      const found = parseSpeakers(allContent)
-      setSpeakers(found)
     } catch {
       setSummaryContent('_Failed to load meeting._')
       setTranscriptContent(null)

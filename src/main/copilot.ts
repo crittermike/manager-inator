@@ -176,9 +176,20 @@ ${context.transcript}`
         role: 'user',
         content: `Summarize this meeting transcript. My direct reports are: ${context.reportNames}.
 
-Use this exact markdown format with proper headings and bullet points:
+Start the output with a YAML frontmatter block listing the speakers, then the markdown summary.
+
+Use this EXACT format:
+
+---
+speakers:
+  - Name One
+  - Name Two
+---
 
 # Meeting summary: ${context.meetingTitle} — ${context.date}
+
+## Attendees
+[list each speaker with a bullet point]
 
 ## Overview
 [2-3 sentence summary]
@@ -225,6 +236,24 @@ For each piece of feedback, output markdown like:
 > [specific observation with context]
 
 If there's no relevant feedback for a person, skip them. Only include concrete, behavior-anchored observations. No generic praise.
+
+TRANSCRIPT:
+${context.transcript}`
+      })
+      break
+
+    case 'extract-impact':
+      messages.push({
+        role: 'user',
+        content: `Review this meeting transcript and extract any evidence of MY impact as a manager (Mike / crittermike). Look for:
+- Decisions I made or influenced
+- Problems I identified or solved
+- People I coached, unblocked, or supported
+- Process improvements I drove
+- Cross-team coordination I facilitated
+- Recognition I received from others
+
+Return as a markdown list with dates. Only include concrete, specific items. If there's nothing notable, return "No manager impact items found in this transcript."
 
 TRANSCRIPT:
 ${context.transcript}`
