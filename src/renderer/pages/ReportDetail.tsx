@@ -66,7 +66,7 @@ export function ReportDetail() {
     const summaryContents = await Promise.all(
       recentSummaryDates.map(async (s) => {
         try {
-          const content = await window.api.getFileContent(`reports/${name}/summaries/${s.date}.md`)
+          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1-summary.md`)
           return content
         } catch { return '' }
       })
@@ -285,7 +285,7 @@ export function ReportDetail() {
                   [...report.transcripts].reverse().map((t) => (
                     <button
                       key={t.date}
-                      onClick={() => setSelectedFile(`reports/${name}/transcripts/${t.date}.md`)}
+                      onClick={() => setSelectedFile(`meetings/${t.date}-${name}-1-1.md`)}
                       className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
                     >
                       <MessageSquare className="w-4 h-4 text-zinc-500 shrink-0" />

@@ -283,8 +283,7 @@ export async function getReportData(name: string): Promise<Report> {
   // Fetch all data in parallel
   const [
     checkInFiles,
-    summaryFiles,
-    transcriptFiles,
+    allMeetingFiles,
     actionItemsRaw,
     feedbackRaw,
     goalsRaw,
@@ -292,14 +291,21 @@ export async function getReportData(name: string): Promise<Report> {
     dashboardRaw
   ] = await Promise.all([
     listFiles(`reports/${name}/check-ins/monthly`),
-    listFiles(`reports/${name}/summaries`),
-    listFiles(`reports/${name}/transcripts`),
+    listFiles('meetings'),
     getFileContent(`reports/${name}/action-items.md`).catch(() => ''),
     getFileContent(`reports/${name}/feedback/log.md`).catch(() => ''),
     getFileContent(`reports/${name}/goals/current.md`).catch(() => ''),
     listFiles(`reports/${name}/reviews`),
     getFileContent(`reports/${name}/DASHBOARD.md`).catch(() => '')
   ])
+
+  // Filter meetings for this person (match name in filename)
+  const personMeetings = allMeetingFiles.filter(
+    (f) => f.includes(`${name}-1-1`) && !f.includes('-summary')
+  )
+  const personSummaries = allMeetingFiles.filter(
+    (f) => f.includes(`${name}-1-1-summary`)
+  )
 
   // Parse check-ins (load content for recent ones)
   const mdCheckIns = checkInFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
@@ -319,23 +325,28 @@ export async function getReportData(name: string): Promise<Report> {
     })
   )
 
-  // Parse summaries (metadata only, load content on demand)
-  const mdSummaries = summaryFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
-  const summaries: Summary[] = mdSummaries.map((f) => ({
-    date: f.replace('.md', ''),
-    content: '',
-    keyTopics: [],
-    actionItems: [],
-    sentiment: ''
-  }))
+  // Parse summaries from meetings/ (metadata only, load content on demand)
+  const summaries: Summary[] = personSummaries.map((f) => {
+    const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
+    return {
+      date: dateMatch?.[1] || f.replace('-summary.md', ''),
+      content: '',
+      keyTopics: [],
+      actionItems: [],
+      sentiment: ''
+    }
+  })
 
-  // Parse transcripts
-  const mdTranscripts = transcriptFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
-  const transcripts: Transcript[] = mdTranscripts.map((f) => ({
-    date: f.replace('.md', ''),
-    content: '',
-    hasSummary: mdSummaries.includes(f)
-  }))
+  // Parse transcripts from meetings/
+  const transcripts: Transcript[] = personMeetings.map((f) => {
+    const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
+    const date = dateMatch?.[1] || f.replace('.md', '')
+    return {
+      date,
+      content: '',
+      hasSummary: personSummaries.some((s) => s.startsWith(date))
+    }
+  })
 
   // Parse other data
   const actionItems = parseActionItems(actionItemsRaw)
