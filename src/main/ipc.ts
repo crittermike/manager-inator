@@ -11,7 +11,8 @@ import {
   listPeople,
   getPersonMeetings,
   findPersonByName,
-  getImpactLog
+  getImpactLog,
+  getSettingsOptions
 } from './github'
 import { getSettings, saveSettings } from './store'
 import { aiGenerate, aiCancel } from './copilot'
@@ -41,6 +42,7 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('github:person-meetings', (_e, slug) => getPersonMeetings(slug))
   ipcMain.handle('github:find-person', (_e, name) => findPersonByName(name))
   ipcMain.handle('github:impact-log', () => getImpactLog())
+  ipcMain.handle('github:settings-options', () => getSettingsOptions())
 
   // ── AI with streaming ──
   ipcMain.handle('ai:generate', async (event, action, context) => {

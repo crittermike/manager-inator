@@ -28,6 +28,11 @@ body {
 .drag-region { -webkit-app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; }
 
+/* Fix native date/select inputs in dark mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
 .prose-dark {
   h1, h2, h3, h4, h5, h6 { color: #f4f4f5; font-weight: 600; }
   h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }

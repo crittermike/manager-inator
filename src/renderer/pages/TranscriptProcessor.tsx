@@ -28,6 +28,7 @@ export function TranscriptProcessor() {
   const [impactResult, setImpactResult] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [processingStep, setProcessingStep] = useState('')
 
   const handleProcess = async () => {
     if (!transcript.trim() || !date) return
@@ -38,6 +39,7 @@ export function TranscriptProcessor() {
     const reportNames = profiles.map(p => p.displayName).join(', ')
 
     // Step 1: Summarize (includes speakers in YAML frontmatter)
+    setProcessingStep('Generating summary (1/4)...')
     const summary = await generate('summarize-meeting', {
       meetingTitle: meetingTitle || 'Meeting',
       date,
@@ -47,6 +49,7 @@ export function TranscriptProcessor() {
     setSummaryResult(summary)
 
     // Step 2: Extract action items
+    setProcessingStep('Extracting action items (2/4)...')
     reset()
     const actions = await generate('extract-action-items', {
       reportName: reportNames,
@@ -55,6 +58,7 @@ export function TranscriptProcessor() {
     setActionItemsResult(actions)
 
     // Step 3: Extract feedback for direct reports
+    setProcessingStep('Extracting feedback (3/4)...')
     reset()
     const feedback = await generate('extract-feedback', {
       reportNames,
@@ -63,6 +67,7 @@ export function TranscriptProcessor() {
     setFeedbackResult(feedback)
 
     // Step 4: Extract manager impact
+    setProcessingStep('Extracting your impact (4/4)...')
     reset()
     const impact = await generate('extract-impact', {
       transcript
@@ -236,7 +241,7 @@ export function TranscriptProcessor() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-sm font-medium text-brand-light">
                 <Sparkles className="w-4 h-4 animate-pulse" />
-                {summaryResult ? 'Extracting action items...' : 'Generating summary...'}
+                {processingStep}
               </div>
               <button
                 onClick={cancel}
@@ -244,6 +249,13 @@ export function TranscriptProcessor() {
               >
                 Cancel
               </button>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full h-1 bg-surface-raised rounded-full mb-3 overflow-hidden">
+              <div
+                className="h-full bg-brand rounded-full transition-all duration-500"
+                style={{ width: processingStep.includes('1/4') ? '25%' : processingStep.includes('2/4') ? '50%' : processingStep.includes('3/4') ? '75%' : '95%' }}
+              />
             </div>
             <div className={`prose-dark max-h-96 overflow-y-auto ${streaming ? 'cursor-blink' : ''}`}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

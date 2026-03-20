@@ -56,6 +56,10 @@ function parseSpeakers(content: string): string[] {
   return []
 }
 
+function stripFrontmatter(content: string): string {
+  return content.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()
+}
+
 type DetailTab = 'summary' | 'transcript'
 
 export function Meetings() {
@@ -251,7 +255,7 @@ export function Meetings() {
             <div className="prose-dark">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {detailTab === 'summary'
-                  ? (summaryContent || '_No summary available._')
+                  ? stripFrontmatter(summaryContent || '_No summary available._')
                   : (transcriptContent || '_No transcript available._')}
               </ReactMarkdown>
             </div>

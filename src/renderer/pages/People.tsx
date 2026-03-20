@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { ComboInput } from '../components/common/ComboInput'
 
 interface PersonEntry {
   name: string
@@ -53,14 +54,21 @@ export function People() {
   const [editNotes, setEditNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [roleOptions, setRoleOptions] = useState<string[]>([])
+  const [relOptions, setRelOptions] = useState<string[]>([])
   const navigate = useNavigate()
   const { slug: routeSlug } = useParams<{ slug: string }>()
 
   const loadPeople = async () => {
     setLoading(true)
     try {
-      const data = await window.api.listPeople()
+      const [data, opts] = await Promise.all([
+        window.api.listPeople(),
+        window.api.getSettingsOptions()
+      ])
       setPeople(data)
+      setRoleOptions(opts.roles || [])
+      setRelOptions(opts.relationships || [])
       // If route has a slug, auto-open that person
       if (routeSlug) {
         const person = data.find(p => p.slug === routeSlug)
@@ -231,11 +239,9 @@ ${editNotes}`
                   <div className="grid grid-cols-2 gap-4">
                     {[
                       { key: 'name', label: 'Name', placeholder: 'Full name' },
-                      { key: 'aliases', label: 'Aliases', placeholder: 'Other names, comma separated (e.g. Vlad, V. Lastname)' },
-                      { key: 'role', label: 'Role', placeholder: 'e.g. Staff Product Manager' },
+                      { key: 'aliases', label: 'Aliases', placeholder: 'Other names, comma separated' },
                       { key: 'github', label: 'GitHub', placeholder: 'username' },
                       { key: 'location', label: 'Location', placeholder: 'e.g. Seattle, WA' },
-                      { key: 'relationship', label: 'Relationship', placeholder: 'e.g. Manager, Skip-level, Peer' }
                     ].map(({ key, label, placeholder }) => (
                       <div key={key}>
                         <label className="block text-xs text-zinc-500 mb-1">{label}</label>
@@ -248,6 +254,20 @@ ${editNotes}`
                         />
                       </div>
                     ))}
+                    <ComboInput
+                      label="Role"
+                      value={editFields.role}
+                      onChange={(v) => setEditFields({ ...editFields, role: v })}
+                      options={roleOptions}
+                      placeholder="Start typing..."
+                    />
+                    <ComboInput
+                      label="Relationship"
+                      value={editFields.relationship}
+                      onChange={(v) => setEditFields({ ...editFields, relationship: v })}
+                      options={relOptions}
+                      placeholder="Start typing..."
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-zinc-500 mb-1">Notes</label>

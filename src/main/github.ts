@@ -397,3 +397,23 @@ export function getImpactLog(): string {
     return '# Impact log\n\n_No entries yet._'
   }
 }
+
+// ── Settings options (from settings.md) ──
+
+export function getSettingsOptions(): { roles: string[]; relationships: string[] } {
+  try {
+    const content = getFileContent('settings.md')
+    const rolesMatch = content.match(/## Roles\n([\s\S]*?)(?=\n##|$)/)
+    const relsMatch = content.match(/## Relationships\n([\s\S]*?)(?=\n##|$)/)
+
+    const parseList = (text: string) =>
+      text.split('\n').map(l => l.replace(/^-\s*/, '').trim()).filter(Boolean)
+
+    return {
+      roles: rolesMatch ? parseList(rolesMatch[1]) : [],
+      relationships: relsMatch ? parseList(relsMatch[1]) : []
+    }
+  } catch {
+    return { roles: [], relationships: [] }
+  }
+}
