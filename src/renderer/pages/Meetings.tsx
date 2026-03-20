@@ -192,22 +192,25 @@ export function Meetings() {
             <div className="flex items-center gap-2 flex-wrap">
               <Users className="w-4 h-4 text-zinc-500 shrink-0" />
               {speakers.map((s) => {
-                const slug = s.toLowerCase().replace(/\s+/g, '-')
+                // Clean name: strip parenthetical role/title suffixes for slug
+                const cleanName = s.replace(/\s*\(.*?\)\s*/g, '').trim()
+                const slug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
                 return (
                   <button
                     key={s}
                     onClick={async () => {
                       // Check if person already exists (by name, alias, or first name)
-                      const existingSlug = await window.api.findPersonByName(s)
+                      const existingSlug = await window.api.findPersonByName(cleanName)
                       if (existingSlug) {
                         navigate(`/people/${existingSlug}`)
                         return
                       }
-                      // Create new profile
+                      // Create new profile with original name as display, parenthetical as role hint
+                      const roleHint = s.match(/\(([^)]+)\)/)?.[1] || ''
                       await window.api.commitFile(
                         `people/${slug}.md`,
-                        `---\nname: ${s}\nslug: ${slug}\naliases: \nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${s}\n\n## Notes\n\n_No notes yet._\n`,
-                        `Create profile for ${s}`
+                        `---\nname: ${cleanName}\nslug: ${slug}\naliases: \nrole: ${roleHint}\ngithub: \nlocation: \nrelationship: \n---\n\n# ${cleanName}\n\n## Notes\n\n_No notes yet._\n`,
+                        `Create profile for ${cleanName}`
                       )
                       navigate(`/people/${slug}`)
                     }}

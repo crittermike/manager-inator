@@ -78,7 +78,8 @@ export function People() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { loadPeople() }, [])
+  // Reload when navigating back (routeSlug changes) or on mount
+  useEffect(() => { loadPeople() }, [routeSlug])
 
   const openPerson = async (person: PersonEntry) => {
     setSelected(person)

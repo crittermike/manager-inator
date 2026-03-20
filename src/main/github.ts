@@ -354,11 +354,34 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
 
   const slugFirst = slug.split('-')[0]
 
-  // Fast pass: filename matching only (covers 95% of cases)
+  // Fast pass: filename matching
+  const filenameMatched = new Set<string>()
   const matched = meetingFiles.filter(m => {
     const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-    return mSlug.includes(slugFirst) || mSlug.includes(slug)
+    if (mSlug.includes(slugFirst) || mSlug.includes(slug)) {
+      filenameMatched.add(m)
+      return true
+    }
+    return false
   })
+
+  // Also check: if this person has a summary with their name as speaker,
+  // add those meetings too. Only check summaries that exist alongside non-matched meetings.
+  // We do this lazily — scan summaries for just the first name (quick string search)
+  const allFirstNames = [personName, ...aliases].map(n => n.split(' ')[0].toLowerCase())
+  const summaryFiles = listFiles('meetings').filter(f => f.includes('-summary.md'))
+  for (const sf of summaryFiles) {
+    const meetingFile = sf.replace('-summary.md', '.md')
+    if (filenameMatched.has(meetingFile)) continue
+    if (!meetingFiles.includes(meetingFile)) continue
+
+    try {
+      // Quick check: just read first 500 chars for frontmatter speakers
+      const content = getFileContent(`meetings/${sf}`).slice(0, 500)
+      const hasMatch = allFirstNames.some(fn => content.toLowerCase().includes(fn))
+      if (hasMatch) matched.push(meetingFile)
+    } catch { /* skip */ }
+  }
 
   return matched
     .map(f => {
@@ -371,8 +394,10 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
 
 export function findPersonByName(name: string): string | null {
   const people = listPeople()
-  const nameLower = name.toLowerCase()
-  const firstName = name.split(' ')[0].toLowerCase()
+  // Strip parenthetical suffixes like "(VP Engineering)"
+  const cleanName = name.replace(/\s*\(.*?\)\s*/g, '').trim()
+  const nameLower = cleanName.toLowerCase()
+  const firstName = cleanName.split(' ')[0].toLowerCase()
 
   const exact = people.find(p => p.name.toLowerCase() === nameLower)
   if (exact) return exact.slug
