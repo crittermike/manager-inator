@@ -193,16 +193,18 @@ export function Meetings() {
                   <button
                     key={s}
                     onClick={async () => {
-                      // Auto-create profile if it doesn't exist
-                      try {
-                        await window.api.getFileContent(`people/${slug}.md`)
-                      } catch {
-                        await window.api.commitFile(
-                          `people/${slug}.md`,
-                          `---\nname: ${s}\nslug: ${slug}\nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${s}\n\n## Notes\n\n_No notes yet._\n`,
-                          `Create profile for ${s}`
-                        )
+                      // Check if person already exists (by name, alias, or first name)
+                      const existingSlug = await window.api.findPersonByName(s)
+                      if (existingSlug) {
+                        navigate(`/people/${existingSlug}`)
+                        return
                       }
+                      // Create new profile
+                      await window.api.commitFile(
+                        `people/${slug}.md`,
+                        `---\nname: ${s}\nslug: ${slug}\naliases: \nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${s}\n\n## Notes\n\n_No notes yet._\n`,
+                        `Create profile for ${s}`
+                      )
                       navigate(`/people/${slug}`)
                     }}
                     className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-raised hover:bg-brand/20 hover:text-brand-light rounded-full text-xs text-zinc-300 transition-colors cursor-pointer"

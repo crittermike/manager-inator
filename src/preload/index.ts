@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),
   getPersonMeetings: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
+  findPersonByName: (name: string) => ipcRenderer.invoke('github:find-person', name),
   getImpactLog: () => ipcRenderer.invoke('github:impact-log'),
   backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
   onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {

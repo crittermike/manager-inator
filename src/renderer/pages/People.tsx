@@ -49,7 +49,7 @@ export function People() {
   const [meetings, setMeetings] = useState<MeetingRef[]>([])
   const [profileContent, setProfileContent] = useState('')
   const [editing, setEditing] = useState(false)
-  const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
+  const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '', aliases: '' })
   const [editNotes, setEditNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -106,7 +106,8 @@ export function People() {
       role: fm.role || '',
       github: fm.github || '',
       location: fm.location || '',
-      relationship: fm.relationship || ''
+      relationship: fm.relationship || '',
+      aliases: fm.aliases || ''
     })
     // Body is everything after frontmatter, stripping the "# Name" heading
     const body = (fmMatch?.[2] || profileContent).replace(/^#\s+.+\n*/, '').trim()
@@ -122,6 +123,7 @@ export function People() {
       const content = `---
 name: ${editFields.name}
 slug: ${selected.slug}
+aliases: ${editFields.aliases}
 role: ${editFields.role}
 github: ${editFields.github}
 location: ${editFields.location}
@@ -229,6 +231,7 @@ ${editNotes}`
                   <div className="grid grid-cols-2 gap-4">
                     {[
                       { key: 'name', label: 'Name', placeholder: 'Full name' },
+                      { key: 'aliases', label: 'Aliases', placeholder: 'Other names, comma separated (e.g. Vlad, V. Lastname)' },
                       { key: 'role', label: 'Role', placeholder: 'e.g. Staff Product Manager' },
                       { key: 'github', label: 'GitHub', placeholder: 'username' },
                       { key: 'location', label: 'Location', placeholder: 'e.g. Seattle, WA' },

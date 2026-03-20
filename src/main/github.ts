@@ -461,6 +461,7 @@ export async function listMeetings(): Promise<MeetingEntry[]> {
 export interface PersonEntry {
   name: string
   slug: string
+  aliases: string[]
   meetingCount: number
   lastSeen: string
   role: string
@@ -518,16 +519,24 @@ async function buildSpeakerIndex(): Promise<Map<string, string[]>> {
 function personMatchesMeeting(
   personName: string,
   slug: string,
+  aliases: string[],
   meetingFilename: string,
   speakerIndex: Map<string, string[]>
 ): boolean {
+  // All names to check: display name + aliases + slug variations
+  const allNames = [personName, ...aliases]
+  const allFirstNames = allNames.map(n => n.split(' ')[0].toLowerCase())
+  const allLower = allNames.map(n => n.toLowerCase())
+
   // Check speaker frontmatter first
   const speakers = speakerIndex.get(meetingFilename)
   if (speakers) {
-    const nameLower = personName.toLowerCase()
-    const firstName = personName.split(' ')[0].toLowerCase()
-    if (speakers.some(s => s.toLowerCase() === nameLower || s.toLowerCase().startsWith(firstName))) {
-      return true
+    for (const speaker of speakers) {
+      const sLower = speaker.toLowerCase()
+      const sFirst = speaker.split(' ')[0].toLowerCase()
+      if (allLower.some(n => n === sLower) || allFirstNames.some(f => f === sFirst)) {
+        return true
+      }
     }
   }
 
@@ -561,9 +570,22 @@ export async function listPeople(): Promise<PersonEntry[]> {
         }
       }
 
+      // Parse aliases from frontmatter (comma-separated or YAML list)
+      const aliases: string[] = []
+      if (fm.aliases) {
+        aliases.push(...fm.aliases.split(',').map(a => a.trim()).filter(Boolean))
+      }
+      // Also check for YAML list format
+      if (fmMatch) {
+        const aliasBlock = fmMatch[1].match(/aliases:\n((?:\s+-\s+.+\n?)+)/)
+        if (aliasBlock) {
+          aliases.push(...aliasBlock[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean))
+        }
+      }
+
       const personName = fm.name || slug.replace(/-/g, ' ')
       const personMeetings = meetingFiles.filter(m =>
-        personMatchesMeeting(personName, slug, m, speakerIndex)
+        personMatchesMeeting(personName, slug, aliases, m, speakerIndex)
       )
 
       const dates = personMeetings
@@ -574,6 +596,7 @@ export async function listPeople(): Promise<PersonEntry[]> {
       people.push({
         name: personName,
         slug,
+        aliases,
         meetingCount: personMeetings.length,
         lastSeen: dates.length > 0 ? dates[dates.length - 1]! : '',
         role: fm.role || '',
@@ -594,16 +617,19 @@ export async function getPersonMeetings(slug: string): Promise<{ date: string; t
   const meetingFiles = allMeetings.filter(f => !f.includes('-summary'))
   const speakerIndex = await buildSpeakerIndex()
 
-  // Get the person's name from their profile
+  // Get the person's name and aliases from their profile
   let personName = slug.replace(/-/g, ' ')
+  let aliases: string[] = []
   try {
     const content = await getFileContent(`people/${slug}.md`)
     const nameMatch = content.match(/name:\s*(.+)/)
     if (nameMatch) personName = nameMatch[1].trim()
+    const aliasMatch = content.match(/aliases:\s*(.+)/)
+    if (aliasMatch) aliases = aliasMatch[1].split(',').map(a => a.trim()).filter(Boolean)
   } catch { /* use slug */ }
 
   return meetingFiles
-    .filter(m => personMatchesMeeting(personName, slug, m, speakerIndex))
+    .filter(m => personMatchesMeeting(personName, slug, aliases, m, speakerIndex))
     .map(f => {
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
@@ -614,6 +640,29 @@ export async function getPersonMeetings(slug: string): Promise<{ date: string; t
       }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// Find an existing person by name (fuzzy first-name match)
+export async function findPersonByName(name: string): Promise<string | null> {
+  const people = await listPeople()
+  const nameLower = name.toLowerCase()
+  const firstName = name.split(' ')[0].toLowerCase()
+
+  // Exact match first
+  const exact = people.find(p => p.name.toLowerCase() === nameLower)
+  if (exact) return exact.slug
+
+  // Check aliases
+  const aliasMatch = people.find(p =>
+    p.aliases.some(a => a.toLowerCase() === nameLower || a.toLowerCase() === firstName)
+  )
+  if (aliasMatch) return aliasMatch.slug
+
+  // First name match
+  const firstMatch = people.find(p => p.name.split(' ')[0].toLowerCase() === firstName)
+  if (firstMatch) return firstMatch.slug
+
+  return null
 }
 
 // ── Impact Log ──
