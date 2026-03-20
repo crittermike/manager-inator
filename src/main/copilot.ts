@@ -259,8 +259,10 @@ async function streamFromCopilot(
   if (!token) throw new Error('Not authenticated')
 
   const settings = getSettings()
-  const model = settings.defaultModel || 'claude-sonnet-4-5'
-  console.log('[Copilot] Using model:', model)
+  // Normalize model ID: replace dots with dashes for Claude/Gemini models (e.g. claude-opus-4.6 → claude-opus-4-6)
+  const rawModel = settings.defaultModel || 'claude-sonnet-4-5'
+  const model = rawModel.replace(/(\d+)\.(\d+)/g, '$1-$2')
+  console.log('[Copilot] Using model:', model, rawModel !== model ? `(normalized from ${rawModel})` : '')
 
   // Get a Copilot token by exchanging the GitHub token
   const tokenRes = await fetch('https://api.github.com/copilot_internal/v2/token', {
