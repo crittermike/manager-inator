@@ -469,13 +469,81 @@ export interface PersonEntry {
   relationship: string
 }
 
+// Build a map of meeting filename → speakers from summary frontmatter
+async function buildSpeakerIndex(): Promise<Map<string, string[]>> {
+  const cached = getCached<Record<string, string[]>>('speakerIndex')
+  if (cached) return new Map(Object.entries(cached))
+
+  const allFiles = await listFiles('meetings')
+  const summaryFiles = allFiles.filter(f => f.includes('-summary.md'))
+
+  const index = new Map<string, string[]>()
+  // Process in parallel batches of 10 to avoid rate limits
+  for (let i = 0; i < summaryFiles.length; i += 10) {
+    const batch = summaryFiles.slice(i, i + 10)
+    const results = await Promise.all(
+      batch.map(async (sf) => {
+        try {
+          const content = await getFileContent(`meetings/${sf}`)
+          const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+          if (fmMatch) {
+            const speakerBlock = fmMatch[1].match(/speakers:\n((?:\s+-\s+.+\n?)+)/)
+            if (speakerBlock) {
+              const speakers = speakerBlock[1]
+                .split('\n')
+                .map(l => l.replace(/^\s*-\s*/, '').trim())
+                .filter(Boolean)
+              // Map back to the transcript filename
+              const transcriptFile = sf.replace('-summary.md', '.md')
+              return { file: transcriptFile, speakers }
+            }
+          }
+          return null
+        } catch { return null }
+      })
+    )
+    for (const r of results) {
+      if (r) index.set(r.file, r.speakers)
+    }
+  }
+
+  // Cache it
+  const obj: Record<string, string[]> = {}
+  index.forEach((v, k) => { obj[k] = v })
+  setCache('speakerIndex', obj)
+
+  return index
+}
+
+function personMatchesMeeting(
+  personName: string,
+  slug: string,
+  meetingFilename: string,
+  speakerIndex: Map<string, string[]>
+): boolean {
+  // Check speaker frontmatter first
+  const speakers = speakerIndex.get(meetingFilename)
+  if (speakers) {
+    const nameLower = personName.toLowerCase()
+    const firstName = personName.split(' ')[0].toLowerCase()
+    if (speakers.some(s => s.toLowerCase() === nameLower || s.toLowerCase().startsWith(firstName))) {
+      return true
+    }
+  }
+
+  // Fallback: check filename
+  const mSlug = meetingFilename.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+  const slugFirst = slug.split('-')[0]
+  return mSlug.includes(slugFirst) || mSlug.includes(slug)
+}
+
 export async function listPeople(): Promise<PersonEntry[]> {
   const files = await listFiles('people')
   const mdFiles = files.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
 
-  // Also get all meeting filenames for matching
   const allMeetings = await listFiles('meetings')
   const meetingFiles = allMeetings.filter(f => !f.includes('-summary'))
+  const speakerIndex = await buildSpeakerIndex()
 
   const people: PersonEntry[] = []
   for (const f of mdFiles) {
@@ -493,14 +561,10 @@ export async function listPeople(): Promise<PersonEntry[]> {
         }
       }
 
-      // Match meetings: look for slug parts in meeting filenames
-      // e.g. "ashwin" matches "2026-03-19-ashwin-1-1.md"
-      // "tara-kintner" matches via first name "tara"
-      const firstName = slug.split('-')[0]
-      const personMeetings = meetingFiles.filter(m => {
-        const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-        return mSlug.includes(firstName) || mSlug.includes(slug)
-      })
+      const personName = fm.name || slug.replace(/-/g, ' ')
+      const personMeetings = meetingFiles.filter(m =>
+        personMatchesMeeting(personName, slug, m, speakerIndex)
+      )
 
       const dates = personMeetings
         .map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1])
@@ -508,7 +572,7 @@ export async function listPeople(): Promise<PersonEntry[]> {
         .sort()
 
       people.push({
-        name: fm.name || slug.replace(/-/g, ' '),
+        name: personName,
         slug,
         meetingCount: personMeetings.length,
         lastSeen: dates.length > 0 ? dates[dates.length - 1]! : '',
@@ -528,13 +592,18 @@ export async function listPeople(): Promise<PersonEntry[]> {
 export async function getPersonMeetings(slug: string): Promise<{ date: string; title: string; filename: string }[]> {
   const allMeetings = await listFiles('meetings')
   const meetingFiles = allMeetings.filter(f => !f.includes('-summary'))
-  const firstName = slug.split('-')[0]
+  const speakerIndex = await buildSpeakerIndex()
+
+  // Get the person's name from their profile
+  let personName = slug.replace(/-/g, ' ')
+  try {
+    const content = await getFileContent(`people/${slug}.md`)
+    const nameMatch = content.match(/name:\s*(.+)/)
+    if (nameMatch) personName = nameMatch[1].trim()
+  } catch { /* use slug */ }
 
   return meetingFiles
-    .filter(m => {
-      const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-      return mSlug.includes(firstName) || mSlug.includes(slug)
-    })
+    .filter(m => personMatchesMeeting(personName, slug, m, speakerIndex))
     .map(f => {
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)

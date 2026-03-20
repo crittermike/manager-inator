@@ -48,7 +48,8 @@ export function People() {
   const [meetings, setMeetings] = useState<MeetingRef[]>([])
   const [profileContent, setProfileContent] = useState('')
   const [editing, setEditing] = useState(false)
-  const [editContent, setEditContent] = useState('')
+  const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
+  const [editNotes, setEditNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const navigate = useNavigate()
@@ -83,16 +84,55 @@ export function People() {
     }
   }
 
+  const startEditing = () => {
+    // Parse frontmatter fields and body from profileContent
+    const fmMatch = profileContent.match(/^---\n([\s\S]*?)\n---\n*([\s\S]*)/)
+    const fm: Record<string, string> = {}
+    if (fmMatch) {
+      for (const line of fmMatch[1].split('\n')) {
+        const m = line.match(/^(\w+):\s*(.*)/)
+        if (m) fm[m[1]] = m[2].trim()
+      }
+    }
+    setEditFields({
+      name: fm.name || selected?.name || '',
+      role: fm.role || '',
+      github: fm.github || '',
+      location: fm.location || '',
+      relationship: fm.relationship || ''
+    })
+    // Body is everything after frontmatter, stripping the "# Name" heading
+    const body = (fmMatch?.[2] || profileContent).replace(/^#\s+.+\n*/, '').trim()
+    setEditNotes(body)
+    setEditing(true)
+  }
+
   const handleSave = async () => {
     if (!selected) return
     setSaving(true)
     try {
+      // Rebuild the file with frontmatter + body
+      const content = `---
+name: ${editFields.name}
+slug: ${selected.slug}
+role: ${editFields.role}
+github: ${editFields.github}
+location: ${editFields.location}
+relationship: ${editFields.relationship}
+---
+
+# ${editFields.name}
+
+${editNotes}`
+
       await window.api.commitFile(
         `people/${selected.slug}.md`,
-        editContent,
-        `Update profile for ${selected.name}`
+        content,
+        `Update profile for ${editFields.name}`
       )
-      setProfileContent(editContent)
+      setProfileContent(content)
+      // Update the selected person's display info
+      setSelected({ ...selected, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship })
       setEditing(false)
     } catch (e) {
       console.error('Failed to save:', e)
@@ -168,7 +208,7 @@ export function People() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setEditing(!editing); setEditContent(profileContent) }}
+                  onClick={() => editing ? setEditing(false) : startEditing()}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors shrink-0"
                 >
                   <Edit3 className="w-4 h-4" />
@@ -178,32 +218,64 @@ export function People() {
 
               {/* Edit mode */}
               {editing ? (
-                <div className="space-y-3">
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    rows={16}
-                    className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 font-mono focus:outline-none focus:border-brand transition-colors resize-none"
-                  />
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-colors"
-                  >
-                    {saving ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    Save profile
-                  </button>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { key: 'name', label: 'Name', placeholder: 'Full name' },
+                      { key: 'role', label: 'Role', placeholder: 'e.g. Staff Product Manager' },
+                      { key: 'github', label: 'GitHub', placeholder: 'username' },
+                      { key: 'location', label: 'Location', placeholder: 'e.g. Seattle, WA' },
+                      { key: 'relationship', label: 'Relationship', placeholder: 'e.g. Manager, Skip-level, Peer' }
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key}>
+                        <label className="block text-xs text-zinc-500 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={editFields[key as keyof typeof editFields]}
+                          onChange={(e) => setEditFields({ ...editFields, [key]: e.target.value })}
+                          placeholder={placeholder}
+                          className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">Notes</label>
+                    <textarea
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      rows={10}
+                      placeholder="Any notes about this person..."
+                      className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-colors"
+                    >
+                      {saving ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      Save profile
+                    </button>
+                    <button
+                      onClick={() => setEditing(false)}
+                      className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
                   {/* Profile content (strip frontmatter for display) */}
                   <div className="bg-surface rounded-xl border border-border p-5 prose-dark">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {profileContent.replace(/^---[\s\S]*?---\n*/, '')}
+                      {profileContent.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()}
                     </ReactMarkdown>
                   </div>
 
