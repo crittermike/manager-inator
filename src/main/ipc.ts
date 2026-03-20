@@ -52,4 +52,61 @@ export function setupIpcHandlers(): void {
   })
 
   ipcMain.handle('ai:cancel', () => aiCancel())
+
+  // ── Backfill meeting summaries ──
+  ipcMain.handle('ai:backfill-summaries', async (event, meetingFilenames: string[]) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const results: { filename: string; success: boolean; error?: string }[] = []
+
+    for (const filename of meetingFilenames) {
+      try {
+        // Read the transcript
+        const transcript = await getFileContent(`meetings/${filename}`)
+
+        // Extract title and date from filename
+        const name = filename.replace('.md', '')
+        const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
+        const date = dateMatch?.[1] || name
+        const title = dateMatch?.[2]?.replace(/-/g, ' ') || name
+
+        // Get report names for context
+        const reportNames = await getReports()
+        const profiles = await Promise.all(
+          reportNames.map(async (n) => {
+            try {
+              const p = await getReportProfile(n)
+              return p.displayName
+            } catch { return n }
+          })
+        )
+
+        win?.webContents.send('ai:backfill-progress', { filename, status: 'generating' })
+
+        // Generate summary with speakers
+        const summary = await aiGenerate('summarize-meeting', {
+          meetingTitle: title,
+          date,
+          reportNames: profiles.join(', '),
+          transcript
+        }, () => {})
+
+        // Save summary file
+        const summaryFilename = filename.replace('.md', '-summary.md')
+        await commitFile(
+          `meetings/${summaryFilename}`,
+          summary,
+          `Add meeting summary with speakers: ${title} on ${date}`
+        )
+
+        results.push({ filename, success: true })
+        win?.webContents.send('ai:backfill-progress', { filename, status: 'done' })
+      } catch (err) {
+        console.error(`[Backfill] Failed for ${filename}:`, (err as Error).message)
+        results.push({ filename, success: false, error: (err as Error).message })
+        win?.webContents.send('ai:backfill-progress', { filename, status: 'error', error: (err as Error).message })
+      }
+    }
+
+    return results
+  })
 }

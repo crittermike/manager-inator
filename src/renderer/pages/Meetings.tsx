@@ -10,7 +10,8 @@ import {
   Edit3,
   Save,
   X,
-  ScrollText
+  ScrollText,
+  Sparkles
 } from 'lucide-react'
 
 interface MeetingEntry {
@@ -65,6 +66,8 @@ export function Meetings() {
   const [speakers, setSpeakers] = useState<string[]>([])
   const [editingTitle, setEditingTitle] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillStatus, setBackfillStatus] = useState('')
 
   const loadMeetings = async () => {
     setLoading(true)
@@ -238,14 +241,50 @@ export function Meetings() {
                 {meetings.length} meetings on record
               </p>
             </div>
-            <button
-              onClick={loadMeetings}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  // Find meetings without summaries (no -summary.md companion)
+                  const withoutSummary = meetings.filter(m => !meetings.some(s => s.filename === m.filename.replace('.md', '-summary.md')))
+                  const batch = withoutSummary.slice(0, 5)
+                  if (batch.length === 0) { setBackfillStatus('All meetings have summaries!'); return }
+                  setBackfilling(true)
+                  setBackfillStatus(`Generating summaries for ${batch.length} meetings...`)
+                  const cleanup = window.api.onBackfillProgress((data: { filename: string; status: string }) => {
+                    setBackfillStatus(`${data.status === 'generating' ? '⏳' : data.status === 'done' ? '✅' : '❌'} ${data.filename}`)
+                  })
+                  try {
+                    await window.api.backfillSummaries(batch.map(m => m.filename))
+                    setBackfillStatus('Done! Refresh to see updates.')
+                    loadMeetings()
+                  } catch (e) {
+                    setBackfillStatus(`Error: ${(e as Error).message}`)
+                  } finally {
+                    setBackfilling(false)
+                    cleanup()
+                  }
+                }}
+                disabled={backfilling}
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                {backfilling ? 'Generating...' : 'Generate summaries'}
+              </button>
+              <button
+                onClick={loadMeetings}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+            </div>
           </div>
+
+          {backfillStatus && (
+            <div className="text-sm text-zinc-400 bg-surface rounded-lg px-4 py-2">
+              {backfillStatus}
+            </div>
+          )}
 
           {meetings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">

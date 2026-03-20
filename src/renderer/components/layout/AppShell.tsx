@@ -36,7 +36,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Sidebar */}
       <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0">
         {/* Title bar drag region — sits below traffic lights */}
-        <div className="drag-region pt-10 pb-3 px-3">
+        <div className="drag-region pt-14 pb-4 px-3">
           <div className="no-drag flex items-center gap-2 px-3">
             <Zap className="w-5 h-5 text-brand" />
             <span className="font-semibold text-sm tracking-tight">Manager-inator</span>

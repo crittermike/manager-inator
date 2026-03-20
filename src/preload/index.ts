@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('api', {
   listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),
   getImpactLog: () => ipcRenderer.invoke('github:impact-log'),
+  backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
+  onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {
+    const handler = (_event: unknown, data: { filename: string; status: string }) => cb(data)
+    ipcRenderer.on('ai:backfill-progress', handler)
+    return () => ipcRenderer.removeListener('ai:backfill-progress', handler)
+  },
 
   // AI
   aiGenerate: async (
