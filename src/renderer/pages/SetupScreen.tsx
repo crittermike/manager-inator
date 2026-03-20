@@ -6,15 +6,14 @@ interface SetupScreenProps {
 }
 
 export function SetupScreen({ onComplete }: SetupScreenProps) {
-  const [owner, setOwner] = useState('')
-  const [repo, setRepo] = useState('')
+  const [repoPath, setRepoPath] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!owner.trim() || !repo.trim()) {
-      setError('Both fields are required')
+    if (!repoPath.trim()) {
+      setError('Path is required')
       return
     }
 
@@ -22,17 +21,12 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     setError('')
 
     try {
-      await window.api.saveSettings({
-        repoOwner: owner.trim(),
-        repoName: repo.trim()
-      })
+      await window.api.saveSettings({ repoPath: repoPath.trim() })
 
-      // Validate the repo exists and has the right structure
+      // Validate the repo has the right structure
       const reports = await window.api.getReports()
       if (reports.length === 0) {
-        setError(
-          'This repo doesn\'t look like a Manager-inator repo (no reports/ directory found)'
-        )
+        setError('This path doesn\'t look like a Manager-inator repo (no reports/ directory found)')
         setSaving(false)
         return
       }
@@ -55,40 +49,25 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
           </div>
           <h1 className="text-2xl font-bold text-zinc-100">Connect your repo</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Point Manager-inator at your performance management repo
+            Point Manager-inator at your local repo clone
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Repository owner
+              Local repo path
             </label>
             <input
               type="text"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-              placeholder="e.g. crittermike"
-              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag"
+              value={repoPath}
+              onChange={(e) => setRepoPath(e.target.value)}
+              placeholder="/Users/you/Code/manager-inator"
+              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag font-mono"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Repository name
-            </label>
-            <input
-              type="text"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="e.g. manager-inator"
-              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-danger">{error}</p>
-          )}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
           <button
             type="submit"

@@ -1,6 +1,6 @@
 import { shell } from 'electron'
 import { getToken, setToken, clearToken } from './store'
-import { resetOctokit } from './github'
+
 
 const GITHUB_CLIENT_ID = 'Ov23ctu9WlUlp4aqg2qi'
 const DEVICE_CODE_URL = 'https://github.com/login/device/code'
@@ -94,7 +94,7 @@ export async function pollAuth(): Promise<boolean> {
 
     if (data.access_token) {
       setToken(data.access_token)
-      resetOctokit()
+      
       pendingDeviceCode = null
       return true
     }
@@ -108,5 +108,5 @@ export async function pollAuth(): Promise<boolean> {
 
 export async function logout(): Promise<void> {
   clearToken()
-  resetOctokit()
+  
 }

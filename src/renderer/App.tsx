@@ -20,7 +20,7 @@ export default function App() {
   useEffect(() => {
     if (authenticated) {
       window.api.getSettings().then((s) => {
-        setHasRepo(!!s.repoOwner && !!s.repoName)
+        setHasRepo(!!s.repoPath)
       })
     }
   }, [authenticated])

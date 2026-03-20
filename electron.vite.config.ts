@@ -11,7 +11,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/main/index.ts')
         },
-        external: ['electron', 'electron-store', '@octokit/rest']
+        external: ['electron', 'electron-store']
       }
     }
   },

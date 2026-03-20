@@ -4,6 +4,7 @@ interface StoreSchema {
   githubToken: string | null
   repoOwner: string
   repoName: string
+  repoPath: string
   defaultModel: string
   cachedReports: Record<string, { data: unknown; timestamp: number }>
 }
@@ -13,6 +14,7 @@ const store = new Store<StoreSchema>({
     githubToken: null,
     repoOwner: '',
     repoName: '',
+    repoPath: '',
     defaultModel: 'gpt-4.1',
     cachedReports: {}
   },
@@ -48,6 +50,7 @@ export function getSettings() {
     githubToken: store.get('githubToken'),
     repoOwner: store.get('repoOwner'),
     repoName: store.get('repoName'),
+    repoPath: store.get('repoPath'),
     defaultModel: store.get('defaultModel')
   }
 }

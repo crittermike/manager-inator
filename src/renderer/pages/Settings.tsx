@@ -30,23 +30,21 @@ const AVAILABLE_MODELS = [
 
 export function Settings() {
   const { user, logout } = useAuth()
-  const [owner, setOwner] = useState('')
-  const [repo, setRepo] = useState('')
+  const [repoPathVal, setRepoPathVal] = useState('')
   const [model, setModel] = useState('gpt-4.1')
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     window.api.getSettings().then((s) => {
-      setOwner(s.repoOwner)
-      setRepo(s.repoName)
+      setRepoPathVal(s.repoPath || '')
       setModel(s.defaultModel || 'gpt-4.1')
       setLoading(false)
     })
   }, [])
 
   const handleSave = async () => {
-    await window.api.saveSettings({ repoOwner: owner, repoName: repo, defaultModel: model })
+    await window.api.saveSettings({ repoPath: repoPathVal, defaultModel: model })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -98,31 +96,17 @@ export function Settings() {
           <div className="flex items-center gap-2 mb-1">
             <FolderGit2 className="w-4 h-4 text-zinc-400" />
             <span className="text-sm font-medium text-zinc-300">
-              Data source
+              Local repo path
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-zinc-500 mb-1">Owner</label>
-              <input
-                type="text"
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-zinc-500 mb-1">
-                Repository
-              </label>
-              <input
-                type="text"
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors"
-              />
-            </div>
+          <div>
+            <input
+              type="text"
+              value={repoPathVal}
+              onChange={(e) => setRepoPathVal(e.target.value)}
+              className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 font-mono focus:outline-none focus:border-brand transition-colors"
+            />
           </div>
 
           <button
