@@ -1,7 +1,6 @@
-import { getToken, getRepoConfig, getSettings } from './store'
-
-// Copilot SDK integration for AI-powered features
-// The SDK communicates with the Copilot backend for LLM inference
+import { CopilotClient, approveAll } from '@github/copilot-sdk'
+import { getSettings } from './store'
+import { execSync } from 'child_process'
 
 const SYSTEM_PROMPT = `You are an AI assistant for Manager-inator, an engineering management tool.
 You help managers with performance management tasks: writing check-ins, summarizing 1:1s,
@@ -30,7 +29,33 @@ interface CopilotMessage {
   content: string
 }
 
+let client: CopilotClient | null = null
 let activeAbortController: AbortController | null = null
+
+async function getClient(): Promise<CopilotClient> {
+  if (!client) {
+    let cliPath: string | undefined
+    try {
+      cliPath = execSync('which copilot', { encoding: 'utf-8' }).trim()
+    } catch {
+      // Try common paths
+      const fs = await import('fs')
+      for (const p of [`${process.env.HOME}/.local/bin/copilot`, '/usr/local/bin/copilot', '/opt/homebrew/bin/copilot']) {
+        try { fs.statSync(p); cliPath = p; break } catch { /* next */ }
+      }
+    }
+
+    console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
+    client = new CopilotClient({
+      ...(cliPath ? { cliPath } : {}),
+      useLoggedInUser: true,
+      autoStart: false
+    } as ConstructorParameters<typeof CopilotClient>[0])
+    await client.start()
+    console.log('[Copilot SDK] Client started')
+  }
+  return client
+}
 
 export async function aiGenerate(
   action: string,
@@ -38,18 +63,51 @@ export async function aiGenerate(
   onChunk: StreamCallback
 ): Promise<string> {
   activeAbortController = new AbortController()
-
   const messages = buildMessages(action, context)
   let fullResponse = ''
 
   try {
-    // Use the Copilot SDK for inference
-    // Falls back to direct API if SDK not available
-    fullResponse = await streamFromCopilot(messages, onChunk, activeAbortController.signal)
+    const c = await getClient()
+    const settings = getSettings()
+    const model = settings.defaultModel || 'claude-sonnet-4-5'
+    console.log('[Copilot SDK] Model:', model)
+
+    const systemMessages = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n')
+    const userMessage = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n')
+
+    const session = await c.createSession({
+      model,
+      systemMessage: systemMessages || undefined,
+      onPermissionRequest: approveAll
+    })
+
+    // Listen to all events for streaming
+    session.on((event: { type: string; data: Record<string, unknown> }) => {
+      console.log('[Copilot SDK] Event:', event.type)
+      if (event.type === 'assistant.message_delta') {
+        const delta = (event.data as { deltaContent?: string }).deltaContent
+        if (delta) {
+          fullResponse += delta
+          onChunk(delta)
+        }
+      } else if (event.type === 'assistant.message') {
+        const content = (event.data as { content?: string }).content
+        if (content && !fullResponse) {
+          fullResponse = content
+          onChunk(content)
+        }
+      }
+    })
+
+    console.log('[Copilot SDK] Sending message...')
+    await session.sendAndWait({ prompt: userMessage })
+    console.log('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
+
   } catch (error) {
     if ((error as Error).name === 'AbortError') {
       return fullResponse
     }
+    console.error('[Copilot SDK] Error:', (error as Error).message, (error as Error).stack)
     throw error
   } finally {
     activeAbortController = null
@@ -68,7 +126,6 @@ function buildMessages(
 ): CopilotMessage[] {
   const messages: CopilotMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }]
 
-  // Add custom instructions if available
   if (context.customInstructions) {
     messages.push({
       role: 'system',
@@ -144,6 +201,19 @@ ${context.transcript}`
       })
       break
 
+    case 'extract-action-items':
+      messages.push({
+        role: 'user',
+        content: `Extract action items from this transcript for ${context.reportName}.
+
+Return as a markdown checkbox list:
+- [ ] **Owner**: Action description
+
+TRANSCRIPT:
+${context.transcript}`
+      })
+      break
+
     case 'extract-feedback':
       messages.push({
         role: 'user',
@@ -155,19 +225,6 @@ For each piece of feedback, output markdown like:
 > [specific observation with context]
 
 If there's no relevant feedback for a person, skip them. Only include concrete, behavior-anchored observations. No generic praise.
-
-TRANSCRIPT:
-${context.transcript}`
-      })
-      break
-
-    case 'extract-action-items':
-      messages.push({
-        role: 'user',
-        content: `Extract action items from this 1:1 transcript for ${context.reportName}.
-
-Return as a markdown checkbox list:
-- [ ] **Owner**: Action description
 
 TRANSCRIPT:
 ${context.transcript}`
@@ -193,7 +250,6 @@ _${context.displayName}, ${context.monthName}_
 Context data:
 ${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent summaries available.'}
 ${context.feedback ? `Feedback log:\n${context.feedback}` : ''}
-${context.goals ? `Current goals:\n${context.goals}` : ''}
 ${context.actionItems ? `Action items:\n${context.actionItems}` : ''}`
       })
       break
@@ -233,7 +289,6 @@ ${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}`
         role: 'user',
         content: context.message as string
       })
-      // Add conversation history if provided
       if (Array.isArray(context.history)) {
         const historyMessages = context.history as CopilotMessage[]
         messages.splice(1, 0, ...historyMessages)
@@ -248,144 +303,4 @@ ${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}`
   }
 
   return messages
-}
-
-async function streamFromCopilot(
-  messages: CopilotMessage[],
-  onChunk: StreamCallback,
-  signal: AbortSignal
-): Promise<string> {
-  const token = getToken()
-  if (!token) throw new Error('Not authenticated')
-
-  const settings = getSettings()
-  // Normalize model ID: replace dots with dashes for Claude/Gemini models (e.g. claude-opus-4.6 → claude-opus-4-6)
-  const rawModel = settings.defaultModel || 'claude-sonnet-4-5'
-  const model = rawModel.replace(/(\d+)\.(\d+)/g, '$1-$2')
-  console.log('[Copilot] Using model:', model, rawModel !== model ? `(normalized from ${rawModel})` : '')
-
-  // Get a Copilot token by exchanging the GitHub token
-  const tokenRes = await fetch('https://api.github.com/copilot_internal/v2/token', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json'
-    },
-    signal
-  })
-
-  if (!tokenRes.ok) {
-    console.log('[Copilot] Token exchange failed, falling back to Models API')
-    return streamFromModelsApi(messages, onChunk, signal, token, model)
-  }
-
-  const tokenData = await tokenRes.json()
-  const copilotToken = tokenData.token
-
-  const res = await fetch(
-    'https://api.githubcopilot.com/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${copilotToken}`,
-        'Content-Type': 'application/json',
-        'Copilot-Integration-Id': 'manager-inator-app'
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        temperature: 0.3
-      }),
-      signal
-    }
-  )
-
-  if (!res.ok) {
-    const errText = await res.text()
-    console.error('[Copilot] Copilot API error:', res.status, errText)
-    // Fallback to Models API
-    return streamFromModelsApi(messages, onChunk, signal, token, model)
-  }
-
-  return processStream(res, onChunk)
-}
-
-async function streamFromModelsApi(
-  messages: CopilotMessage[],
-  onChunk: StreamCallback,
-  signal: AbortSignal,
-  token: string,
-  model: string
-): Promise<string> {
-  // Models API needs publisher/model format for non-OpenAI models
-  let apiModel = model
-  if (model.startsWith('claude-')) {
-    apiModel = `anthropic/${model}`
-  } else if (model.startsWith('gemini-')) {
-    apiModel = `google/${model}`
-  } else if (!model.includes('/')) {
-    apiModel = `openai/${model}`
-  }
-  console.log('[Copilot] Models API model:', apiModel)
-
-  const res = await fetch(
-    'https://models.github.ai/inference/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: apiModel,
-        messages,
-        stream: true,
-        temperature: 0.3
-      }),
-      signal
-    }
-  )
-
-  return processStream(res, onChunk)
-}
-
-async function processStream(
-  res: Response,
-  onChunk: StreamCallback
-): Promise<string> {
-  if (!res.ok) {
-    const error = await res.text()
-    throw new Error(`AI request failed: ${res.status} ${error}`)
-  }
-
-  let fullResponse = ''
-  const reader = res.body?.getReader()
-  if (!reader) throw new Error('No response body')
-
-  const decoder = new TextDecoder()
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    const text = decoder.decode(value, { stream: true })
-    const lines = text.split('\n')
-
-    for (const line of lines) {
-      if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-        try {
-          const data = JSON.parse(line.slice(6))
-          const delta = data.choices?.[0]?.delta?.content
-          if (delta) {
-            fullResponse += delta
-            onChunk(delta)
-          }
-        } catch {
-          // Skip malformed JSON
-        }
-      }
-    }
-  }
-
-  return fullResponse
 }
