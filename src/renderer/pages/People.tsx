@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -36,8 +36,9 @@ interface MeetingRef {
   filename: string
 }
 
-function toTitleCase(str: string): string {
-  return str.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+function formatMeetingTitle(str: string): string {
+  const fixed = str.replace(/\b1\s+1\b/g, '1-1')
+  return fixed.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
 }
 
 export function People() {
@@ -53,12 +54,18 @@ export function People() {
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const navigate = useNavigate()
+  const { slug: routeSlug } = useParams<{ slug: string }>()
 
   const loadPeople = async () => {
     setLoading(true)
     try {
       const data = await window.api.listPeople()
       setPeople(data)
+      // If route has a slug, auto-open that person
+      if (routeSlug) {
+        const person = data.find(p => p.slug === routeSlug)
+        if (person) openPerson(person)
+      }
     } catch { /* empty */ }
     finally { setLoading(false) }
   }
@@ -291,12 +298,12 @@ ${editNotes}`
                         {meetings.map((m) => (
                           <button
                             key={m.filename}
-                            onClick={() => navigate('/meetings')}
+                            onClick={() => navigate(`/meetings/${m.filename}`)}
                             className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
                           >
                             <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm text-zinc-300">{toTitleCase(m.title)}</span>
+                              <span className="text-sm text-zinc-300">{formatMeetingTitle(m.title)}</span>
                               <span className="ml-2 text-xs text-zinc-600">{m.date}</span>
                             </div>
                           </button>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -20,8 +21,10 @@ interface MeetingEntry {
   filename: string
 }
 
-function toTitleCase(str: string): string {
-  return str.replace(
+function formatMeetingTitle(str: string): string {
+  // Restore "1-1" from "1 1"
+  const fixed = str.replace(/\b1\s+1\b/g, '1-1')
+  return fixed.replace(
     /\b\w+/g,
     (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
   )
@@ -56,6 +59,8 @@ function parseSpeakers(content: string): string[] {
 type DetailTab = 'summary' | 'transcript'
 
 export function Meetings() {
+  const { filename: routeFilename } = useParams<{ filename: string }>()
+  const navigate = useNavigate()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<MeetingEntry | null>(null)
@@ -74,6 +79,11 @@ export function Meetings() {
     try {
       const data = await window.api.listMeetings()
       setMeetings(data)
+      // If route has a filename, auto-open that meeting
+      if (routeFilename) {
+        const meeting = data.find(m => m.filename === routeFilename || m.filename === routeFilename + '.md')
+        if (meeting) openMeeting(meeting)
+      }
     } catch { /* empty */ }
     finally { setLoading(false) }
   }
@@ -159,7 +169,7 @@ export function Meetings() {
               ) : (
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl font-bold text-zinc-100">
-                    {toTitleCase(selected.title || 'Meeting')}
+                    {formatMeetingTitle(selected.title || 'Meeting')}
                   </h1>
                   <button
                     onClick={() => { setEditingTitle(true); setNewTitle(selected.title) }}
@@ -173,18 +183,34 @@ export function Meetings() {
             </div>
           </div>
 
-          {/* Speakers */}
+          {/* Speakers — clickable to go to person profile */}
           {speakers.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <Users className="w-4 h-4 text-zinc-500 shrink-0" />
-              {speakers.map((s) => (
-                <span
-                  key={s}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-raised rounded-full text-xs text-zinc-300"
-                >
-                  {s}
-                </span>
-              ))}
+              {speakers.map((s) => {
+                const slug = s.toLowerCase().replace(/\s+/g, '-')
+                return (
+                  <button
+                    key={s}
+                    onClick={async () => {
+                      // Auto-create profile if it doesn't exist
+                      try {
+                        await window.api.getFileContent(`people/${slug}.md`)
+                      } catch {
+                        await window.api.commitFile(
+                          `people/${slug}.md`,
+                          `---\nname: ${s}\nslug: ${slug}\nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${s}\n\n## Notes\n\n_No notes yet._\n`,
+                          `Create profile for ${s}`
+                        )
+                      }
+                      navigate(`/people/${slug}`)
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-raised hover:bg-brand/20 hover:text-brand-light rounded-full text-xs text-zinc-300 transition-colors cursor-pointer"
+                  >
+                    {s}
+                  </button>
+                )
+              })}
             </div>
           )}
 
@@ -307,7 +333,7 @@ export function Meetings() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-zinc-200">
-                      {toTitleCase(m.title || 'Meeting')}
+                      {formatMeetingTitle(m.title || 'Meeting')}
                     </div>
                     <div className="text-xs text-zinc-500 mt-0.5">{m.date}</div>
                   </div>

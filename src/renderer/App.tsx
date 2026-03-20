@@ -60,7 +60,9 @@ export default function App() {
           <Route path="/report/:name" element={<ReportDetail />} />
           <Route path="/transcript" element={<TranscriptProcessor />} />
           <Route path="/meetings" element={<Meetings />} />
+          <Route path="/meetings/:filename" element={<Meetings />} />
           <Route path="/people" element={<People />} />
+          <Route path="/people/:slug" element={<People />} />
           <Route path="/impact" element={<ImpactLog />} />
           <Route path="/chat" element={<AIChat />} />
           <Route path="/settings" element={<Settings />} />
