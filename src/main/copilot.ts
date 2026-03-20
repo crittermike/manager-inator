@@ -1,0 +1,313 @@
+import { getToken, getRepoConfig } from './store'
+
+// Copilot SDK integration for AI-powered features
+// The SDK communicates with the Copilot backend for LLM inference
+
+const SYSTEM_PROMPT = `You are an AI assistant for Manager-inator, an engineering management tool.
+You help managers with performance management tasks: writing check-ins, summarizing 1:1s,
+tracking action items, giving feedback, and preparing for meetings.
+
+WRITING RULES (apply to ALL generated content):
+- Never use em dashes (—). Use commas, periods, colons, or restructure the sentence.
+- Never use "not just X, it was Y" pattern.
+- Always use sentence case for headings. Never Title Case.
+- Casual, direct tone. Short sentences. Conversational.
+- No filler. Skip "Great work!" or "I'd like to highlight..." Just state what happened.
+- Behavior-anchored feedback. Cite specific PRs, issues, meetings, decisions.
+
+NAME CORRECTIONS (always apply):
+- "Nick" → "Nic"
+- "gas" / "Gas" → "GHAS" (GitHub Advanced Security)
+- "Akash" → "Aakash"
+- "Chanakia" / "Chinakia" → "Chanakya"
+- "Katu" → "Catu"
+- Tara uses they/them pronouns`
+
+type StreamCallback = (chunk: string) => void
+
+interface CopilotMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+let activeAbortController: AbortController | null = null
+
+export async function aiGenerate(
+  action: string,
+  context: Record<string, unknown>,
+  onChunk: StreamCallback
+): Promise<string> {
+  activeAbortController = new AbortController()
+
+  const messages = buildMessages(action, context)
+  let fullResponse = ''
+
+  try {
+    // Use the Copilot SDK for inference
+    // Falls back to direct API if SDK not available
+    fullResponse = await streamFromCopilot(messages, onChunk, activeAbortController.signal)
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      return fullResponse
+    }
+    throw error
+  } finally {
+    activeAbortController = null
+  }
+
+  return fullResponse
+}
+
+export function aiCancel(): void {
+  activeAbortController?.abort()
+}
+
+function buildMessages(
+  action: string,
+  context: Record<string, unknown>
+): CopilotMessage[] {
+  const messages: CopilotMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }]
+
+  // Add custom instructions if available
+  if (context.customInstructions) {
+    messages.push({
+      role: 'system',
+      content: `Additional instructions for this person:\n${context.customInstructions}`
+    })
+  }
+
+  switch (action) {
+    case 'summarize-transcript':
+      messages.push({
+        role: 'user',
+        content: `Summarize this 1:1 transcript for ${context.reportName}.
+
+Use this format:
+# 1:1 Summary — ${context.date}
+_Auto-generated summary of [transcript](../transcripts/${context.date}.md)_
+
+## Meeting overview
+[1-2 sentence context]
+
+## Key discussion topics
+[bullet points]
+
+## Wins and accomplishments
+[specific wins]
+
+## Challenges and concerns
+[challenges]
+
+## Action items
+| Action | Owner | Due |
+|--------|-------|-----|
+
+## Career and growth notes
+[if applicable]
+
+## Sentiment check
+[emotional/engagement tone]
+
+## Follow-up needed
+[next steps]
+
+TRANSCRIPT:
+${context.transcript}`
+      })
+      break
+
+    case 'extract-action-items':
+      messages.push({
+        role: 'user',
+        content: `Extract action items from this 1:1 transcript for ${context.reportName}.
+
+Return as a markdown checkbox list:
+- [ ] **Owner**: Action description
+
+TRANSCRIPT:
+${context.transcript}`
+      })
+      break
+
+    case 'generate-checkin':
+      messages.push({
+        role: 'user',
+        content: `Generate a monthly check-in for ${context.reportName} for ${context.month}.
+
+Use this format:
+# Monthly check-in: ${context.month}
+_${context.displayName}, ${context.monthName}_
+
+> ⚠️ This document is for manager's records only.
+
+## Accomplishments
+## Concerns
+## Goal progress
+## Areas for growth
+
+Context data:
+${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent summaries available.'}
+${context.feedback ? `Feedback log:\n${context.feedback}` : ''}
+${context.goals ? `Current goals:\n${context.goals}` : ''}
+${context.actionItems ? `Action items:\n${context.actionItems}` : ''}`
+      })
+      break
+
+    case 'prep-one-on-one':
+      messages.push({
+        role: 'user',
+        content: `Prepare notes for my upcoming 1:1 with ${context.reportName}.
+
+Include:
+1. Carry-forward action items (unchecked from recent meetings)
+2. Discussion topics based on recent activity
+3. Quick context notes
+4. Questions to ask
+
+Context:
+${context.summaries ? `Recent summaries:\n${context.summaries}` : ''}
+${context.actionItems ? `Open action items:\n${context.actionItems}` : ''}
+${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}
+${context.goals ? `Goals:\n${context.goals}` : ''}`
+      })
+      break
+
+    case 'chat':
+      messages.push({
+        role: 'user',
+        content: context.message as string
+      })
+      // Add conversation history if provided
+      if (Array.isArray(context.history)) {
+        const historyMessages = context.history as CopilotMessage[]
+        messages.splice(1, 0, ...historyMessages)
+      }
+      break
+
+    default:
+      messages.push({
+        role: 'user',
+        content: `${action}: ${JSON.stringify(context)}`
+      })
+  }
+
+  return messages
+}
+
+async function streamFromCopilot(
+  messages: CopilotMessage[],
+  onChunk: StreamCallback,
+  signal: AbortSignal
+): Promise<string> {
+  // Use GitHub Copilot API for chat completions
+  // This uses the user's Copilot subscription via their GitHub token
+  const token = getToken()
+  if (!token) throw new Error('Not authenticated')
+
+  // Get a Copilot token by exchanging the GitHub token
+  const tokenRes = await fetch('https://api.github.com/copilot_internal/v2/token', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    },
+    signal
+  })
+
+  if (!tokenRes.ok) {
+    // Fallback: use the models API endpoint
+    return streamFromModelsApi(messages, onChunk, signal, token)
+  }
+
+  const tokenData = await tokenRes.json()
+  const copilotToken = tokenData.token
+
+  const res = await fetch(
+    'https://api.githubcopilot.com/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${copilotToken}`,
+        'Content-Type': 'application/json',
+        'Copilot-Integration-Id': 'manager-inator-app'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1',
+        messages,
+        stream: true,
+        temperature: 0.3
+      }),
+      signal
+    }
+  )
+
+  return processStream(res, onChunk)
+}
+
+async function streamFromModelsApi(
+  messages: CopilotMessage[],
+  onChunk: StreamCallback,
+  signal: AbortSignal,
+  token: string
+): Promise<string> {
+  // Use GitHub Models API as fallback
+  const res = await fetch(
+    'https://models.github.ai/inference/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4.1',
+        messages,
+        stream: true,
+        temperature: 0.3
+      }),
+      signal
+    }
+  )
+
+  return processStream(res, onChunk)
+}
+
+async function processStream(
+  res: Response,
+  onChunk: StreamCallback
+): Promise<string> {
+  if (!res.ok) {
+    const error = await res.text()
+    throw new Error(`AI request failed: ${res.status} ${error}`)
+  }
+
+  let fullResponse = ''
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const text = decoder.decode(value, { stream: true })
+    const lines = text.split('\n')
+
+    for (const line of lines) {
+      if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+        try {
+          const data = JSON.parse(line.slice(6))
+          const delta = data.choices?.[0]?.delta?.content
+          if (delta) {
+            fullResponse += delta
+            onChunk(delta)
+          }
+        } catch {
+          // Skip malformed JSON
+        }
+      }
+    }
+  }
+
+  return fullResponse
+}
