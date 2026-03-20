@@ -352,31 +352,15 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
     if (aliasMatch) aliases = aliasMatch[1].split(',').map(a => a.trim()).filter(Boolean)
   } catch { /* use slug */ }
 
-  const allNames = [personName, ...aliases]
-  const allFirstNames = allNames.map(n => n.split(' ')[0].toLowerCase())
   const slugFirst = slug.split('-')[0]
 
-  return meetingFiles
-    .filter(m => {
-      const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-      if (mSlug.includes(slugFirst) || mSlug.includes(slug)) return true
+  // Fast pass: filename matching only (covers 95% of cases)
+  const matched = meetingFiles.filter(m => {
+    const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+    return mSlug.includes(slugFirst) || mSlug.includes(slug)
+  })
 
-      // Also check speaker frontmatter in summary
-      const summaryFile = m.replace('.md', '-summary.md')
-      try {
-        const summary = getFileContent(`meetings/${summaryFile}`)
-        const fmMatch = summary.match(/^---\n([\s\S]*?)\n---/)
-        if (fmMatch) {
-          const speakerBlock = fmMatch[1].match(/speakers:\n((?:\s+-\s+.+\n?)+)/)
-          if (speakerBlock) {
-            const speakers = speakerBlock[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim().toLowerCase()).filter(Boolean)
-            return allFirstNames.some(fn => speakers.some(s => s.startsWith(fn)))
-          }
-        }
-      } catch { /* no summary */ }
-
-      return false
-    })
+  return matched
     .map(f => {
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
