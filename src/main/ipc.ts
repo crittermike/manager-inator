@@ -9,6 +9,7 @@ import {
   commitFile,
   listMeetings,
   listPeople,
+  getPersonMeetings,
   getImpactLog
 } from './github'
 import { getSettings, saveSettings } from './store'
@@ -36,6 +37,7 @@ export function setupIpcHandlers(): void {
   )
   ipcMain.handle('github:list-meetings', () => listMeetings())
   ipcMain.handle('github:list-people', () => listPeople())
+  ipcMain.handle('github:person-meetings', (_e, slug) => getPersonMeetings(slug))
   ipcMain.handle('github:impact-log', () => getImpactLog())
 
   // ── AI with streaming ──

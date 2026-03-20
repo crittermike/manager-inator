@@ -464,34 +464,58 @@ export interface PersonEntry {
   meetingCount: number
   lastSeen: string
   role: string
+  github: string
+  location: string
+  relationship: string
 }
 
 export async function listPeople(): Promise<PersonEntry[]> {
   const files = await listFiles('people')
   const mdFiles = files.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
 
+  // Also get all meeting filenames for matching
+  const allMeetings = await listFiles('meetings')
+  const meetingFiles = allMeetings.filter(f => !f.includes('-summary'))
+
   const people: PersonEntry[] = []
   for (const f of mdFiles) {
     try {
       const content = await getFileContent(`people/${f}`)
-      const nameMatch = content.match(/^#\s+(.+)/m)
-      const roleMatch = content.match(/\*\*Role\*\*:\s*(.+)/i) || content.match(/Role:\s*(.+)/i)
-      const meetingMatch = content.match(/## Meetings?\b/i)
+      const slug = f.replace('.md', '')
 
-      let meetingCount = 0
-      if (meetingMatch) {
-        const meetingSection = content.slice(content.indexOf(meetingMatch[0]))
-        meetingCount = (meetingSection.match(/^- /gm) || []).length
+      // Parse YAML frontmatter
+      const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+      const fm: Record<string, string> = {}
+      if (fmMatch) {
+        for (const line of fmMatch[1].split('\n')) {
+          const m = line.match(/^(\w+):\s*(.*)/)
+          if (m) fm[m[1]] = m[2].trim()
+        }
       }
 
-      const lastSeenMatch = content.match(/(\d{4}-\d{2}-\d{2})(?!.*\d{4}-\d{2}-\d{2})/)
+      // Match meetings: look for slug parts in meeting filenames
+      // e.g. "ashwin" matches "2026-03-19-ashwin-1-1.md"
+      // "tara-kintner" matches via first name "tara"
+      const firstName = slug.split('-')[0]
+      const personMeetings = meetingFiles.filter(m => {
+        const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+        return mSlug.includes(firstName) || mSlug.includes(slug)
+      })
+
+      const dates = personMeetings
+        .map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1])
+        .filter(Boolean)
+        .sort()
 
       people.push({
-        name: nameMatch?.[1] || f.replace('.md', ''),
-        slug: f.replace('.md', ''),
-        meetingCount,
-        lastSeen: lastSeenMatch?.[1] || '',
-        role: roleMatch?.[1]?.trim() || ''
+        name: fm.name || slug.replace(/-/g, ' '),
+        slug,
+        meetingCount: personMeetings.length,
+        lastSeen: dates.length > 0 ? dates[dates.length - 1]! : '',
+        role: fm.role || '',
+        github: fm.github || '',
+        location: fm.location || '',
+        relationship: fm.relationship || ''
       })
     } catch {
       // Skip malformed files
@@ -499,6 +523,28 @@ export async function listPeople(): Promise<PersonEntry[]> {
   }
 
   return people.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
+}
+
+export async function getPersonMeetings(slug: string): Promise<{ date: string; title: string; filename: string }[]> {
+  const allMeetings = await listFiles('meetings')
+  const meetingFiles = allMeetings.filter(f => !f.includes('-summary'))
+  const firstName = slug.split('-')[0]
+
+  return meetingFiles
+    .filter(m => {
+      const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+      return mSlug.includes(firstName) || mSlug.includes(slug)
+    })
+    .map(f => {
+      const name = f.replace('.md', '')
+      const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
+      return {
+        date: dateMatch?.[1] || name,
+        title: dateMatch?.[2]?.replace(/-/g, ' ') || name,
+        filename: f
+      }
+    })
+    .sort((a, b) => b.date.localeCompare(a.date))
 }
 
 // ── Impact Log ──
