@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('api', {
   getFileContent: (path: string) => ipcRenderer.invoke('github:file-content', path),
   commitFile: (path: string, content: string, message: string) =>
     ipcRenderer.invoke('github:commit-file', path, content, message),
+  listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
+  listPeople: () => ipcRenderer.invoke('github:list-people'),
+  getImpactLog: () => ipcRenderer.invoke('github:impact-log'),
 
   // AI
   aiGenerate: async (

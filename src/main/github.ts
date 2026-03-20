@@ -420,4 +420,84 @@ export async function getTeamOverview(): Promise<TeamOverview> {
   return overview
 }
 
+// ── Meetings ──
+
+export interface MeetingEntry {
+  date: string
+  title: string
+  filename: string
+}
+
+export async function listMeetings(): Promise<MeetingEntry[]> {
+  const files = await listFiles('meetings')
+  const mdFiles = files.filter((f) => f.endsWith('.md') && !f.includes('-summary'))
+
+  return mdFiles
+    .map((f) => {
+      const name = f.replace('.md', '')
+      const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
+      return {
+        date: dateMatch?.[1] || name,
+        title: dateMatch?.[2]?.replace(/-/g, ' ') || name,
+        filename: f
+      }
+    })
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// ── People ──
+
+export interface PersonEntry {
+  name: string
+  slug: string
+  meetingCount: number
+  lastSeen: string
+  role: string
+}
+
+export async function listPeople(): Promise<PersonEntry[]> {
+  const files = await listFiles('people')
+  const mdFiles = files.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
+
+  const people: PersonEntry[] = []
+  for (const f of mdFiles) {
+    try {
+      const content = await getFileContent(`people/${f}`)
+      const nameMatch = content.match(/^#\s+(.+)/m)
+      const roleMatch = content.match(/\*\*Role\*\*:\s*(.+)/i) || content.match(/Role:\s*(.+)/i)
+      const meetingMatch = content.match(/## Meetings?\b/i)
+
+      let meetingCount = 0
+      if (meetingMatch) {
+        const meetingSection = content.slice(content.indexOf(meetingMatch[0]))
+        meetingCount = (meetingSection.match(/^- /gm) || []).length
+      }
+
+      const lastSeenMatch = content.match(/(\d{4}-\d{2}-\d{2})(?!.*\d{4}-\d{2}-\d{2})/)
+
+      people.push({
+        name: nameMatch?.[1] || f.replace('.md', ''),
+        slug: f.replace('.md', ''),
+        meetingCount,
+        lastSeen: lastSeenMatch?.[1] || '',
+        role: roleMatch?.[1]?.trim() || ''
+      })
+    } catch {
+      // Skip malformed files
+    }
+  }
+
+  return people.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
+}
+
+// ── Impact Log ──
+
+export async function getImpactLog(): Promise<string> {
+  try {
+    return await getFileContent('mike-impact-log.md')
+  } catch {
+    return '# Impact log\n\n_No entries yet._'
+  }
+}
+
 export { getFileContent }

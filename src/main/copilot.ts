@@ -1,4 +1,4 @@
-import { getToken, getRepoConfig } from './store'
+import { getToken, getRepoConfig, getSettings } from './store'
 
 // Copilot SDK integration for AI-powered features
 // The SDK communicates with the Copilot backend for LLM inference
@@ -277,6 +277,9 @@ async function streamFromCopilot(
   const tokenData = await tokenRes.json()
   const copilotToken = tokenData.token
 
+  const settings = getSettings()
+  const model = settings.defaultModel || 'claude-sonnet-4.5'
+
   const res = await fetch(
     'https://api.githubcopilot.com/chat/completions',
     {
@@ -287,7 +290,7 @@ async function streamFromCopilot(
         'Copilot-Integration-Id': 'manager-inator-app'
       },
       body: JSON.stringify({
-        model: 'gpt-4.1',
+        model,
         messages,
         stream: true,
         temperature: 0.3
@@ -305,7 +308,9 @@ async function streamFromModelsApi(
   signal: AbortSignal,
   token: string
 ): Promise<string> {
-  // Use GitHub Models API as fallback
+  const settings = getSettings()
+  const model = settings.defaultModel || 'claude-sonnet-4.5'
+
   const res = await fetch(
     'https://models.github.ai/inference/chat/completions',
     {
@@ -315,7 +320,7 @@ async function streamFromModelsApi(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4.1',
+        model,
         messages,
         stream: true,
         temperature: 0.3

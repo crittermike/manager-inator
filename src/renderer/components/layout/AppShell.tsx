@@ -5,7 +5,10 @@ import {
   FileText,
   MessageSquare,
   Settings,
-  Zap
+  Zap,
+  Calendar,
+  Users,
+  Trophy
 } from 'lucide-react'
 import { useReportProfiles } from '../../hooks/useData'
 
@@ -15,7 +18,10 @@ interface AppShellProps {
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/meetings', icon: Calendar, label: 'Meetings' },
+  { path: '/people', icon: Users, label: 'People' },
   { path: '/transcript', icon: FileText, label: 'Process transcript' },
+  { path: '/impact', icon: Trophy, label: 'My impact' },
   { path: '/chat', icon: MessageSquare, label: 'AI assistant' },
   { path: '/settings', icon: Settings, label: 'Settings' }
 ]

@@ -8,6 +8,9 @@ import { ReportDetail } from './pages/ReportDetail'
 import { TranscriptProcessor } from './pages/TranscriptProcessor'
 import { AIChat } from './pages/AIChat'
 import { Settings } from './pages/Settings'
+import { Meetings } from './pages/Meetings'
+import { People } from './pages/People'
+import { ImpactLog } from './pages/ImpactLog'
 import { useState, useEffect } from 'react'
 
 export default function App() {
@@ -56,6 +59,9 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/report/:name" element={<ReportDetail />} />
           <Route path="/transcript" element={<TranscriptProcessor />} />
+          <Route path="/meetings" element={<Meetings />} />
+          <Route path="/people" element={<People />} />
+          <Route path="/impact" element={<ImpactLog />} />
           <Route path="/chat" element={<AIChat />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />

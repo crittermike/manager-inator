@@ -6,7 +6,10 @@ import {
   getReportData,
   getTeamOverview,
   getFileContent,
-  commitFile
+  commitFile,
+  listMeetings,
+  listPeople,
+  getImpactLog
 } from './github'
 import { getSettings, saveSettings } from './store'
 import { aiGenerate, aiCancel } from './copilot'
@@ -31,6 +34,9 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('github:commit-file', (_e, path, content, message) =>
     commitFile(path, content, message)
   )
+  ipcMain.handle('github:list-meetings', () => listMeetings())
+  ipcMain.handle('github:list-people', () => listPeople())
+  ipcMain.handle('github:impact-log', () => getImpactLog())
 
   // ── AI with streaming ──
   ipcMain.handle('ai:generate', async (event, action, context) => {
