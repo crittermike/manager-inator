@@ -255,10 +255,12 @@ async function streamFromCopilot(
   onChunk: StreamCallback,
   signal: AbortSignal
 ): Promise<string> {
-  // Use GitHub Copilot API for chat completions
-  // This uses the user's Copilot subscription via their GitHub token
   const token = getToken()
   if (!token) throw new Error('Not authenticated')
+
+  const settings = getSettings()
+  const model = settings.defaultModel || 'claude-sonnet-4-5'
+  console.log('[Copilot] Using model:', model)
 
   // Get a Copilot token by exchanging the GitHub token
   const tokenRes = await fetch('https://api.github.com/copilot_internal/v2/token', {
@@ -270,15 +272,12 @@ async function streamFromCopilot(
   })
 
   if (!tokenRes.ok) {
-    // Fallback: use the models API endpoint
-    return streamFromModelsApi(messages, onChunk, signal, token)
+    console.log('[Copilot] Token exchange failed, falling back to Models API')
+    return streamFromModelsApi(messages, onChunk, signal, token, model)
   }
 
   const tokenData = await tokenRes.json()
   const copilotToken = tokenData.token
-
-  const settings = getSettings()
-  const model = settings.defaultModel || 'claude-sonnet-4.5'
 
   const res = await fetch(
     'https://api.githubcopilot.com/chat/completions',
@@ -299,6 +298,13 @@ async function streamFromCopilot(
     }
   )
 
+  if (!res.ok) {
+    const errText = await res.text()
+    console.error('[Copilot] Copilot API error:', res.status, errText)
+    // Fallback to Models API
+    return streamFromModelsApi(messages, onChunk, signal, token, model)
+  }
+
   return processStream(res, onChunk)
 }
 
@@ -306,10 +312,19 @@ async function streamFromModelsApi(
   messages: CopilotMessage[],
   onChunk: StreamCallback,
   signal: AbortSignal,
-  token: string
+  token: string,
+  model: string
 ): Promise<string> {
-  const settings = getSettings()
-  const model = settings.defaultModel || 'claude-sonnet-4.5'
+  // Models API needs publisher/model format for non-OpenAI models
+  let apiModel = model
+  if (model.startsWith('claude-')) {
+    apiModel = `anthropic/${model}`
+  } else if (model.startsWith('gemini-')) {
+    apiModel = `google/${model}`
+  } else if (!model.includes('/')) {
+    apiModel = `openai/${model}`
+  }
+  console.log('[Copilot] Models API model:', apiModel)
 
   const res = await fetch(
     'https://models.github.ai/inference/chat/completions',
@@ -320,7 +335,7 @@ async function streamFromModelsApi(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model,
+        model: apiModel,
         messages,
         stream: true,
         temperature: 0.3
