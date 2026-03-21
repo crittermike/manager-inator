@@ -42,5 +42,5 @@ export function useAI() {
     fullTextRef.current = ''
   }, [])
 
-  return { streaming, streamedText, error, generate, cancel, reset }
+  return { streaming, streamedText, error, generate, cancel, reset, fullTextRef }
 }

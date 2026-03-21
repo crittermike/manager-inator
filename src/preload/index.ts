@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld('api', {
   findPersonByName: (name: string) => ipcRenderer.invoke('github:find-person', name),
   getImpactLog: () => ipcRenderer.invoke('github:impact-log'),
   getSettingsOptions: () => ipcRenderer.invoke('github:settings-options'),
+  saveMeetingTitle: (filename: string, title: string) =>
+    ipcRenderer.invoke('github:save-meeting-title', filename, title),
+  toggleActionItem: (sourceFile: string, sourceLine: string) =>
+    ipcRenderer.invoke('github:toggle-action-item', sourceFile, sourceLine),
   backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
   onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {
     const handler = (_event: unknown, data: { filename: string; status: string }) => cb(data)

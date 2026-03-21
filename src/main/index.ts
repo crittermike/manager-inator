@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { setupIpcHandlers } from './ipc'
+import { preWarmCaches } from './github'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -49,6 +50,9 @@ function createWindow(): void {
 app.whenReady().then(() => {
   setupIpcHandlers()
   createWindow()
+
+  // Pre-warm caches after window is shown so first navigation is instant
+  setTimeout(() => preWarmCaches(), 500)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

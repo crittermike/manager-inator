@@ -219,7 +219,7 @@ ${editNotes}`
                     )}
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-xs text-zinc-600">
-                    <span>{selected.meetingCount} meetings</span>
+                    <span>{meetings.length > 0 ? meetings.length : selected.meetingCount} meetings</span>
                     {selected.lastSeen && (
                       <span>Last seen {formatDistanceToNow(new Date(selected.lastSeen), { addSuffix: true })}</span>
                     )}

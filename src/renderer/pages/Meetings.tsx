@@ -57,7 +57,18 @@ function parseSpeakers(content: string): string[] {
 }
 
 function stripFrontmatter(content: string): string {
-  return content.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()
+  let cleaned = content
+  // Remove YAML frontmatter at start
+  cleaned = cleaned.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()
+  // Remove AI preamble lines like "Here's your meeting summary:"
+  cleaned = cleaned.replace(/^Here(?:'s| is) (?:your |the )?(?:meeting )?summary:?\s*\n*/i, '').trim()
+  // Remove stray --- separator at start (after preamble removal)
+  cleaned = cleaned.replace(/^---\n*/m, '').trim()
+  // Remove bold **speakers:** block rendered as markdown (AI sometimes does this instead of YAML)
+  cleaned = cleaned.replace(/\*\*speakers:\*\*\n(?:[-*]\s+.+\n?)*/im, '').trim()
+  // Remove Attendees section (redundant with speaker pills)
+  cleaned = cleaned.replace(/## Attendees\n(?:[-*]\s+.+\n?)*/m, '').trim()
+  return cleaned
 }
 
 type DetailTab = 'summary' | 'transcript'
@@ -127,8 +138,16 @@ export function Meetings() {
 
   const handleSaveTitle = async () => {
     if (!selected || !newTitle.trim()) return
-    // We'd need to rename the file; for now just update local state
-    setSelected({ ...selected, title: newTitle.trim() })
+    try {
+      await window.api.saveMeetingTitle(selected.filename, newTitle.trim())
+      setSelected({ ...selected, title: newTitle.trim() })
+      // Update in meetings list too
+      setMeetings(prev => prev.map(m =>
+        m.filename === selected.filename ? { ...m, title: newTitle.trim() } : m
+      ))
+    } catch (e) {
+      console.error('Failed to save title:', e)
+    }
     setEditingTitle(false)
   }
 

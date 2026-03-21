@@ -92,11 +92,21 @@ export function TranscriptProcessor() {
         `Add meeting transcript: ${meetingTitle || 'meeting'} on ${date}`
       )
 
-      // Save summary (includes speakers in YAML frontmatter)
+      // Save summary (includes speakers in YAML frontmatter, add title)
       if (summaryResult) {
+        let summaryToSave = summaryResult
+        // Inject title into frontmatter if it exists
+        if (meetingTitle) {
+          const fmMatch = summaryToSave.match(/^---\n([\s\S]*?)\n---/)
+          if (fmMatch) {
+            summaryToSave = `---\ntitle: ${meetingTitle}\n${fmMatch[1]}\n---` + summaryToSave.slice(fmMatch[0].length)
+          } else {
+            summaryToSave = `---\ntitle: ${meetingTitle}\n---\n\n${summaryToSave}`
+          }
+        }
         await window.api.commitFile(
           `meetings/${filename}-summary.md`,
-          summaryResult,
+          summaryToSave,
           `Add meeting summary: ${meetingTitle || 'meeting'} on ${date}`
         )
       }
@@ -282,6 +292,21 @@ export function TranscriptProcessor() {
             </div>
           ) : (
             <>
+              {/* Meeting title (editable before save) */}
+              <div className="bg-surface rounded-xl border border-border p-5">
+                <label className="block text-sm font-medium text-zinc-300 mb-2">
+                  Meeting title
+                </label>
+                <input
+                  type="text"
+                  value={meetingTitle}
+                  onChange={(e) => setMeetingTitle(e.target.value)}
+                  placeholder="e.g. Nic 1-1, Team standup..."
+                  className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+                />
+                <p className="text-xs text-zinc-600 mt-1">This title will be saved in the meeting metadata.</p>
+              </div>
+
               {/* Summary */}
               <div className="bg-surface rounded-xl border border-border p-5">
                 <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">

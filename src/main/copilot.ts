@@ -83,7 +83,7 @@ export async function aiGenerate(
 
     // Listen to all events for streaming
     session.on((event: { type: string; data: Record<string, unknown> }) => {
-      console.log('[Copilot SDK] Event:', event.type)
+      console.log('[Copilot SDK] Event:', event.type, JSON.stringify(event.data).slice(0, 200))
       if (event.type === 'assistant.message_delta') {
         const delta = (event.data as { deltaContent?: string }).deltaContent
         if (delta) {
@@ -97,10 +97,31 @@ export async function aiGenerate(
           onChunk(content)
         }
       }
+      // Catch-all: try to extract content from any event with a content field
+      if (!fullResponse && event.data) {
+        const possibleContent = (event.data as Record<string, unknown>).content ||
+          (event.data as Record<string, unknown>).text ||
+          (event.data as Record<string, unknown>).message
+        if (typeof possibleContent === 'string' && possibleContent.length > 10) {
+          fullResponse = possibleContent
+          onChunk(possibleContent)
+        }
+      }
     })
 
     console.log('[Copilot SDK] Sending message...')
-    await session.sendAndWait({ prompt: userMessage })
+    const response = await session.sendAndWait({ prompt: userMessage })
+    console.log('[Copilot SDK] sendAndWait returned:', typeof response, JSON.stringify(response)?.slice(0, 300))
+    // Some SDK versions return the content directly from sendAndWait
+    if (!fullResponse && response) {
+      if (typeof response === 'string') {
+        fullResponse = response
+      } else if (typeof response === 'object') {
+        const r = response as Record<string, unknown>
+        const content = (r.content || r.text || r.message) as string | undefined
+        if (content) fullResponse = content
+      }
+    }
     console.log('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
 
   } catch (error) {
@@ -188,9 +209,6 @@ speakers:
 
 # Meeting summary: ${context.meetingTitle} — ${context.date}
 
-## Attendees
-[list each speaker with a bullet point]
-
 ## Overview
 [2-3 sentence summary]
 
@@ -206,6 +224,8 @@ speakers:
 
 ## Relevant notes for my reports
 [anything noteworthy about specific direct reports]
+
+Do NOT include a separate "Attendees" section — the speakers frontmatter already captures who was in the meeting.
 
 TRANSCRIPT:
 ${context.transcript}`
@@ -253,7 +273,10 @@ ${context.transcript}`
 - Cross-team coordination I facilitated
 - Recognition I received from others
 
-Return as a markdown list with dates. Only include concrete, specific items. If there's nothing notable, return "No manager impact items found in this transcript."
+Format each item as a bullet point starting with a bold date and short title, like:
+- **YYYY-MM-DD — Short title:** Description of the impact.
+
+Only include concrete, specific items. Do NOT include any preamble like "Here's the impact..." — just the bullet list. If there's nothing notable, return "No manager impact items found in this transcript."
 
 TRANSCRIPT:
 ${context.transcript}`
@@ -288,19 +311,22 @@ ${context.actionItems ? `Action items:\n${context.actionItems}` : ''}`
         role: 'user',
         content: `Prepare notes for my upcoming 1:1 with ${context.reportName}.
 
-Format your response as well-structured markdown with clear headings and bullet points.
+Return ONLY a markdown document with the sections below. Use checkbox syntax (- [ ]) for every action item and discussion topic so I can check them off during the meeting. Be specific and actionable.
 
 ## Carry-forward action items
-List any unchecked action items from recent meetings.
+List any unchecked action items from recent meetings as checkboxes:
+- [ ] Owner: specific action item text
 
 ## Discussion topics
-Based on recent activity, what should we discuss?
+Based on recent activity, suggest topics as checkboxes:
+- [ ] Topic description (why it matters)
 
 ## Quick context
-Brief notes on what's been happening.
+Brief bullet points on what's been happening recently.
 
 ## Questions to ask
-Specific questions for this person.
+Specific questions as checkboxes:
+- [ ] Question text
 
 ---
 

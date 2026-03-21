@@ -44,6 +44,8 @@ export interface ActionItem {
   owner: string
   due?: string
   completed: boolean
+  sourceFile?: string // path to the file containing this item (e.g. meetings/2026-03-11-nic-1-1-summary.md)
+  sourceLine?: string // the exact line text for matching
 }
 
 // ── Feedback entry ──

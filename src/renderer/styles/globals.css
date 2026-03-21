@@ -40,7 +40,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   h3 { font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.25rem; }
   p { color: #a1a1aa; line-height: 1.7; margin-bottom: 0.5rem; }
   ul, ol { color: #a1a1aa; padding-left: 1.25rem; margin-bottom: 0.5rem; }
-  li { margin-bottom: 0.25rem; }
+  ul { list-style-type: disc; }
+  ol { list-style-type: decimal; }
+  li { margin-bottom: 0.25rem; line-height: 1.7; }
   blockquote { border-left: 3px solid var(--color-brand); padding-left: 1rem; color: #a1a1aa; font-style: italic; }
   code { background: var(--color-surface); padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.85em; color: #e4e4e7; }
   pre { background: var(--color-surface); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
