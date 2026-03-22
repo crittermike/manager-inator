@@ -7,7 +7,6 @@ import {
   getReportData,
   getTeamOverview,
   getFileContent,
-  fileExists,
   commitFile,
   listMeetings,
   listPeople,
@@ -133,13 +132,6 @@ export function setupIpcHandlers(): void {
     for (const filename of filenames) {
       if (_backfillAborted) break
       try {
-        const summaryFilename = filename.replace('.md', '-summary.md')
-        if (fileExists(`meetings/${summaryFilename}`)) {
-          results.push({ filename, success: true })
-          safeSend(win, 'ai:backfill-progress', { filename, status: 'done' })
-          continue
-        }
-
         const transcript = getFileContent(`meetings/${filename}`)
 
         const name = filename.replace('.md', '')
@@ -174,7 +166,7 @@ export function setupIpcHandlers(): void {
         }
 
         await commitFile(
-          `meetings/${summaryFilename}`,
+          `meetings/${filename}`,
           summary,
           `Add meeting summary with speakers: ${title} on ${date}`
         )

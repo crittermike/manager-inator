@@ -513,16 +513,17 @@ reports/{name}/              — One directory per direct report
   reviews/YYYY-HN.md         — Performance reviews (H1/H2)
   prep/YYYY-MM-DD.md         — 1:1 prep documents
   priorities.md              — Current weekly priorities/focus areas
-meetings/                    — Meeting transcripts and summaries
-  YYYY-MM-DD-slug.md         — Raw transcripts
-  YYYY-MM-DD-slug-summary.md — AI-generated summaries with YAML speaker frontmatter
+meetings/                    — AI-generated meeting summaries with YAML speaker frontmatter
+  YYYY-MM-DD-slug.md         — Each file is a summary (title + speakers in frontmatter, summary content in body)
+transcripts/processed/       — Raw meeting transcripts
+  YYYY-MM-DD-slug.txt        — Original unprocessed transcripts
 people/                      — Profiles for anyone (not just direct reports)
   firstname-lastname.md      — Person profiles with YAML frontmatter (name, role, relationship, etc.)
 mike-impact-log.md           — Manager's impact evidence log
 
 TIPS:
 - Start with list_directory to see what's available before reading specific files.
-- Meeting summaries have a -summary.md suffix. The raw transcript is the file without that suffix.
+- Every file in meetings/ is a summary. Raw transcripts are in transcripts/processed/.
 - Check-in files are in check-ins/monthly/ and named by YYYY-MM.
 - When looking for info about a person, check both reports/{name}/ and people/{slug}.md.`
       })

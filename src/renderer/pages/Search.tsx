@@ -50,18 +50,11 @@ export function SearchPage() {
     setMeetingLoading(true)
     setMeetingContent(null)
 
-    // Try summary first, fall back to raw transcript
-    const summaryFilename = filename.replace('.md', '-summary.md')
     try {
-      const content = await window.api.getFileContent(`meetings/${summaryFilename}`)
+      const content = await window.api.getFileContent(`meetings/${filename}`)
       setMeetingContent(cleanSummaryContent(content))
     } catch {
-      try {
-        const content = await window.api.getFileContent(`meetings/${filename}`)
-        setMeetingContent(content)
-      } catch {
-        setMeetingContent('_Unable to load meeting content._')
-      }
+      setMeetingContent('_Unable to load meeting content._')
     }
     setMeetingLoading(false)
   }, [])
@@ -87,7 +80,7 @@ export function SearchPage() {
         items.push({
           type: 'meeting',
           title: m.title,
-          subtitle: m.date + (m.hasSummary ? '' : ' · unprocessed'),
+          subtitle: m.date,
           route: '',
           date: m.date,
           filename: m.filename
@@ -238,7 +231,7 @@ export function SearchPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{m.title}</div>
-                        <div className="text-xs text-zinc-500 truncate">{m.date}{m.hasSummary ? '' : ' · unprocessed'}</div>
+                        <div className="text-xs text-zinc-500 truncate">{m.date}</div>
                       </div>
                     </button>
                   ))}

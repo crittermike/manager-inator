@@ -57,7 +57,7 @@ export function InlinePrep({
     const summaryContents = await Promise.all(
       recentSummaryDates.map(async (s) => {
         try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${reportName}-1-1-summary.md`)
+          const content = await window.api.getFileContent(`meetings/${s.date}-${reportName}-1-1.md`)
           return content
         } catch { return '' }
       })
@@ -76,13 +76,13 @@ export function InlinePrep({
     let crossMentions = ''
     try {
       const allMeetings = await window.api.listMeetings()
-      const otherWithSummaries = allMeetings
-        .filter(m => m.hasSummary && !m.filename.replace('.md', '').includes(ownSummaryPrefix))
+      const otherMeetings = allMeetings
+        .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
       const mentionResults = await Promise.all(
-        otherWithSummaries.map(async (m) => {
+        otherMeetings.map(async (m) => {
           try {
-            const content = await window.api.getFileContent(`meetings/${m.filename.replace('.md', '-summary.md')}`)
+            const content = await window.api.getFileContent(`meetings/${m.filename}`)
             if (namePattern.test(content)) {
               return `### ${m.title} (${m.date})\n${content}`
             }

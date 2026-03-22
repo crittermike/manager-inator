@@ -402,22 +402,6 @@ function computeTimelineItems(
     })
   }
 
-  const unprocessed = meetings
-    .filter(m => !m.hasSummary)
-    .sort((a, b) => b.date.localeCompare(a.date))
-
-  for (const m of unprocessed) {
-    items.push({
-      id: `inbox-${m.filename}`,
-      section: doneIds.has(`inbox-${m.filename}`) ? 'done' : 'inbox',
-      title: m.title,
-      subtitle: m.date,
-      meetingFilename: m.filename,
-      actionLabel: 'Process',
-      actionType: 'process'
-    })
-  }
-
   return items
 }
 

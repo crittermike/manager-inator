@@ -132,7 +132,6 @@ export function InlineProcessor({
       const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/)
       const date = dateMatch?.[1] || format(new Date(), 'yyyy-MM-dd')
       const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.md$/, '').replace(/-/g, ' ')
-      const summaryFilename = filename.replace('.md', '-summary.md')
 
       if (summary) {
         let summaryToSave = summary
@@ -145,7 +144,7 @@ export function InlineProcessor({
           }
         }
         await window.api.commitFile(
-          `meetings/${summaryFilename}`,
+          `meetings/${filename}`,
           summaryToSave,
           `Add meeting summary: ${titleSlug} on ${date}`
         )

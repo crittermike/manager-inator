@@ -172,7 +172,7 @@ export function ReportDetail() {
     const summaryContents = await Promise.all(
       recentSummaryDates.map(async (s) => {
         try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1-summary.md`)
+          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1.md`)
           return content
         } catch { return '' }
       })
@@ -190,13 +190,13 @@ export function ReportDetail() {
     try {
       const allMeetings = await window.api.listMeetings()
       const otherWithSummaries = allMeetings
-        .filter(m => m.hasSummary && !m.filename.replace('.md', '').includes(ownSummaryPrefix))
+        .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
 
       const mentionResults = await Promise.all(
         otherWithSummaries.map(async (m) => {
           try {
-            const content = await window.api.getFileContent(`meetings/${m.filename.replace('.md', '-summary.md')}`)
+            const content = await window.api.getFileContent(`meetings/${m.filename}`)
             if (namePattern.test(content)) {
               return `### ${m.title} (${m.date})\n${content}`
             }
@@ -248,7 +248,7 @@ export function ReportDetail() {
     const summaryContents = await Promise.all(
       recentSummaries.map(async (s) => {
         try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1-summary.md`)
+          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1.md`)
           return `### ${s.date}\n${content}`
         } catch { return '' }
       })
@@ -296,7 +296,7 @@ export function ReportDetail() {
     const summaryContents = await Promise.all(
       recentSummaries.map(async (s) => {
         try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1-summary.md`)
+          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1.md`)
           return `### ${s.date}\n${content}`
         } catch { return '' }
       })
@@ -1272,7 +1272,7 @@ function StreamEntryCard({
 // ── Detail sub-components ──
 
 function MeetingDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
-  const data = entry.data as { transcript: { date: string; hasSummary: boolean }; summary?: { keyTopics: string[]; content: string } }
+  const data = entry.data as { transcript: { date: string }; summary?: { keyTopics: string[]; content: string } }
 
   return (
     <div className="space-y-2">
@@ -1286,20 +1286,18 @@ function MeetingDetail({ entry, name, onViewContent }: { entry: StreamEntry; nam
         </div>
       )}
       <div className="flex gap-2">
-        {data.transcript.hasSummary && (
-          <button
-            onClick={() => onViewContent(
-              `meetings/${data.transcript.date}-${name}-1-1-summary.md`,
-              `1:1 Summary — ${formatDate(data.transcript.date)}`
-            )}
-            className="text-xs text-brand-light hover:text-brand transition-colors"
-          >
-            View summary →
-          </button>
-        )}
         <button
           onClick={() => onViewContent(
             `meetings/${data.transcript.date}-${name}-1-1.md`,
+            `1:1 Summary — ${formatDate(data.transcript.date)}`
+          )}
+          className="text-xs text-brand-light hover:text-brand transition-colors"
+        >
+          View summary →
+        </button>
+        <button
+          onClick={() => onViewContent(
+            `transcripts/processed/${data.transcript.date}-${name}-1-1.txt`,
             `1:1 Transcript — ${formatDate(data.transcript.date)}`
           )}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"

@@ -35,7 +35,6 @@ export interface Summary {
 export interface Transcript {
   date: string // YYYY-MM-DD
   content: string
-  hasSummary: boolean
 }
 
 // ── Action Item ──
@@ -44,7 +43,7 @@ export interface ActionItem {
   owner: string
   due?: string
   completed: boolean
-  sourceFile?: string // path to the file containing this item (e.g. meetings/2026-03-11-nic-1-1-summary.md)
+  sourceFile?: string // path to the file containing this item (e.g. meetings/2026-03-11-nic-1-1.md)
   sourceLine?: string // the exact line text (kept for display/debug)
   sourceLineNumber?: number // 0-based line index in sourceFile for precise toggle
 }
@@ -155,7 +154,6 @@ export interface MeetingEntry {
   date: string
   title: string
   filename: string
-  hasSummary: boolean
 }
 
 // ── Person entry (from listPeople) ──

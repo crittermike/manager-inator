@@ -14,7 +14,8 @@ import type {
   TeamOverview,
   ReportStatus,
   TeamActionItem,
-  TeamPriority
+  TeamPriority,
+  MeetingEntry
 } from '../shared/types'
 
 function repoPath(): string {
@@ -297,12 +298,9 @@ export function getReportData(name: string): Report {
   let jobExpectationsRaw = ''
   try { jobExpectationsRaw = getFileContent(`reports/${name}/job-expectations.md`) } catch {}
 
-  // Filter meetings for this person
+  // Filter meetings for this person (all meeting files are summaries now)
   const personMeetings = allMeetingFiles.filter(
-    (f) => f.includes(`${name}-1-1`) && !f.includes('-summary')
-  ).sort()
-  const personSummaries = allMeetingFiles.filter(
-    (f) => f.includes(`${name}-1-1-summary`)
+    (f) => f.includes(`${name}-1-1`)
   ).sort()
 
   // Parse check-ins
@@ -317,22 +315,22 @@ export function getReportData(name: string): Report {
     }
   })
 
-  // Parse summaries
-  const summaries: Summary[] = personSummaries.map((f) => {
+  // Parse summaries (every meeting file IS a summary)
+  const summaries: Summary[] = personMeetings.map((f) => {
     const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
-    return { date: dateMatch?.[1] || f.replace('-summary.md', ''), content: '', keyTopics: [], actionItems: [], sentiment: '' }
+    return { date: dateMatch?.[1] || f.replace('.md', ''), content: '', keyTopics: [], actionItems: [], sentiment: '' }
   })
 
-  // Parse transcripts
+  // Parse transcripts (derived from meeting files — raw transcripts live in transcripts/processed/)
   const transcripts: Transcript[] = personMeetings.map((f) => {
     const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
     const date = dateMatch?.[1] || f.replace('.md', '')
-    return { date, content: '', hasSummary: personSummaries.some((s) => s.startsWith(date)) }
+    return { date, content: '' }
   })
 
   // Extract action items from recent meeting summaries
   const actionItems: ActionItem[] = []
-  const recentSummaries = personSummaries.sort().slice(-5)
+  const recentSummaries = personMeetings.sort().slice(-5)
   for (const sf of recentSummaries) {
     try {
       const content = getFileContent(`meetings/${sf}`)
@@ -402,48 +400,37 @@ export function getTeamOverview(): TeamOverview {
 // Cache meeting file lists and speaker map to avoid re-scanning 300+ files on every call.
 // Invalidated on commit (which means we wrote new data).
 
-let _meetingsCache: { files: string[]; meetings: string[]; summaries: string[]; speakerMap: Map<string, string[]>; titleMap: Map<string, string> } | null = null
+let _meetingsCache: { files: string[]; meetings: string[]; speakerMap: Map<string, string[]>; titleMap: Map<string, string> } | null = null
 
 function invalidateMeetingsCache(): void { _meetingsCache = null }
 
 function getMeetingsCache() {
   if (_meetingsCache) return _meetingsCache
   const files = listFiles('meetings').sort()
-  const meetings = files.filter(f => f.endsWith('.md') && !f.includes('-summary'))
-  const summaries = files.filter(f => f.includes('-summary.md'))
+  const meetings = files.filter(f => f.endsWith('.md'))
 
-  // Build speaker map and title map from summary frontmatter
   const speakerMap = new Map<string, string[]>()
   const titleMap = new Map<string, string>()
-  for (const sf of summaries) {
+  for (const mf of meetings) {
     try {
-      const content = getFileContent(`meetings/${sf}`).slice(0, 800)
+      const content = getFileContent(`meetings/${mf}`).slice(0, 800)
       const speakers = parseSpeakers(content)
-      const meetingFile = sf.replace('-summary.md', '.md')
       if (speakers.length > 0) {
-        speakerMap.set(meetingFile, speakers)
+        speakerMap.set(mf, speakers)
       }
-      // Check for title override in frontmatter
       const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
       if (fmMatch) {
         const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
-        if (titleMatch) titleMap.set(meetingFile, titleMatch[1].trim())
+        if (titleMatch) titleMap.set(mf, titleMatch[1].trim())
       }
     } catch { /* skip */ }
   }
 
-  _meetingsCache = { files, meetings, summaries, speakerMap, titleMap }
+  _meetingsCache = { files, meetings, speakerMap, titleMap }
   return _meetingsCache
 }
 
 // ── Meetings ──
-
-export interface MeetingEntry {
-  date: string
-  title: string
-  filename: string
-  hasSummary: boolean
-}
 
 export function listMeetings(): MeetingEntry[] {
   const cache = getMeetingsCache()
@@ -452,11 +439,8 @@ export function listMeetings(): MeetingEntry[] {
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
       const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
-      // Use title from summary frontmatter if available
       const title = cache.titleMap.get(f) || filenameTitle
-      const summaryFile = f.replace('.md', '-summary.md')
-      const hasSummary = cache.summaries.includes(summaryFile)
-      return { date: dateMatch?.[1] || name, title, filename: f, hasSummary }
+      return { date: dateMatch?.[1] || name, title, filename: f }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
 }
@@ -469,14 +453,13 @@ function yamlEscapeValue(value: string): string {
   return sanitized
 }
 
-/** Save a title override into a meeting summary's YAML frontmatter */
+/** Save a title override into a meeting file's YAML frontmatter */
 export async function saveMeetingTitle(meetingFilename: string, title: string): Promise<void> {
-  const summaryFile = meetingFilename.replace('.md', '-summary.md')
-  const summaryPath = `meetings/${summaryFile}`
+  const meetingPath = `meetings/${meetingFilename}`
   const safeTitle = yamlEscapeValue(title)
 
   try {
-    let content = getFileContent(summaryPath)
+    let content = getFileContent(meetingPath)
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
     if (fmMatch) {
       let fm = fmMatch[1]
@@ -489,9 +472,9 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
     } else {
       content = `---\ntitle: ${safeTitle}\n---\n\n${content}`
     }
-    await commitFile(summaryPath, content, `Update meeting title: ${title}`)
+    await commitFile(meetingPath, content, `Update meeting title: ${title}`)
   } catch {
-    await commitFile(summaryPath, `---\ntitle: ${safeTitle}\n---\n`, `Set meeting title: ${title}`)
+    await commitFile(meetingPath, `---\ntitle: ${safeTitle}\n---\n`, `Set meeting title: ${title}`)
   }
   invalidateMeetingsCache()
 }

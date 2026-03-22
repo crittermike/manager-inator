@@ -156,17 +156,16 @@ export function TranscriptProcessor() {
         filename = `${filename}-${n}`
       }
 
-      // Save transcript
+      // Save raw transcript to transcripts/processed/
       await window.api.commitFile(
-        `meetings/${filename}.md`,
+        `transcripts/processed/${filename}.txt`,
         `# ${meetingTitle || 'Meeting'} — ${date}\n\n${transcript}`,
         `Add meeting transcript: ${meetingTitle || 'meeting'} on ${date}`
       )
 
-      // Save summary (includes speakers in YAML frontmatter, add title)
+      // Save summary to meetings/ (includes speakers in YAML frontmatter, add title)
       if (summaryResult) {
         let summaryToSave = summaryResult
-        // Inject title into frontmatter if it exists
         if (meetingTitle) {
           const fmMatch = summaryToSave.match(/^---\n([\s\S]*?)\n---/)
           if (fmMatch) {
@@ -176,7 +175,7 @@ export function TranscriptProcessor() {
           }
         }
         await window.api.commitFile(
-          `meetings/${filename}-summary.md`,
+          `meetings/${filename}.md`,
           summaryToSave,
           `Add meeting summary: ${meetingTitle || 'meeting'} on ${date}`
         )
