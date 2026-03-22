@@ -300,7 +300,7 @@ ${editNotes}`
             <>
               {/* Profile header */}
               <div className="flex items-start gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-brand/20 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
+                <div className="w-14 h-14 rounded-2xl bg-brand/15 flex items-center justify-center text-lg font-bold text-brand-light shrink-0 ring-1 ring-brand/10">
                   {selected.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1">
@@ -413,7 +413,7 @@ ${editNotes}`
               ) : (
                 <>
                   {/* Profile content (strip frontmatter for display) */}
-                  <div className="bg-surface rounded-xl border border-border p-5 prose-dark">
+                  <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {profileContent.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()}
                     </ReactMarkdown>
@@ -432,9 +432,9 @@ ${editNotes}`
                           <button
                             key={m.filename}
                             onClick={() => navigate(`/search`)}
-                            className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
+                            className="w-full flex items-center gap-3 p-3.5 bg-surface rounded-xl border border-border hover:border-brand/30 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group/meeting"
                           >
-                            <FileText className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
+                            <FileText className="w-4 h-4 text-zinc-500 shrink-0 group-hover/meeting:text-brand-light transition-colors" aria-hidden="true" />
                             <div className="flex-1 min-w-0">
                               <span className="text-sm text-zinc-300">{formatMeetingTitle(m.title)}</span>
                               <span className="ml-2 text-xs text-zinc-600">{m.date}</span>
@@ -514,21 +514,23 @@ ${editNotes}`
           )}
 
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" aria-hidden="true" />
+          <div className="relative group/search">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within/search:text-brand-light transition-colors" aria-hidden="true" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search people..."
               aria-label="Search people"
-              className="w-full pl-10 pr-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 transition-all"
             />
           </div>
 
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Users className="w-10 h-10 text-zinc-700 mb-4" aria-hidden="true" />
+            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
+              <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mb-5">
+                <Users className="w-7 h-7 text-zinc-700" aria-hidden="true" />
+              </div>
               {people.length === 0 ? (
                 <>
                   <p className="text-lg font-medium text-zinc-300 mb-2">No people yet</p>
@@ -559,9 +561,9 @@ ${editNotes}`
               <button
                 key={p.slug}
                 onClick={() => openPerson(p)}
-                className="flex items-center gap-3 p-4 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised transition-all text-left group"
+                className="flex items-center gap-4 p-4 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group"
               >
-                <div className="w-10 h-10 rounded-full bg-brand/20 flex items-center justify-center text-sm font-semibold text-brand-light shrink-0">
+                <div className="w-10 h-10 rounded-full bg-brand/15 flex items-center justify-center text-sm font-semibold text-brand-light shrink-0 group-hover:bg-brand/25 transition-colors">
                   {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">

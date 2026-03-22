@@ -428,7 +428,7 @@ function InlineProcessor({
 
   if (phase === 'processing') {
     return (
-      <div className="space-y-3 py-4 px-1">
+      <div className="space-y-3 py-4 px-1 animate-shimmer rounded-lg">
         <div className="flex items-center gap-3">
           <div className="relative">
             <Sparkles className="w-4 h-4 text-brand" />
@@ -646,10 +646,14 @@ export function Today() {
 
       {/* All clear state */}
       {totalActive === 0 && doneCount === 0 && (
-        <div className="bg-surface rounded-xl border border-border p-8 text-center">
-          <CheckCircle2 className="w-10 h-10 text-emerald-500/50 mx-auto mb-3" aria-hidden="true" />
-          <p className="text-zinc-300 font-medium">You're all caught up</p>
-          <p className="text-sm text-zinc-600 mt-1">No overdue items, no upcoming 1:1s to prep, and your inbox is clear.</p>
+        <div className="bg-surface rounded-xl border border-border p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-emerald-500/60" aria-hidden="true" />
+          </div>
+          <p className="text-lg font-medium text-zinc-200">You're all caught up</p>
+          <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto leading-relaxed">
+            No overdue items, no upcoming 1:1s to prep, and your inbox is clear. Enjoy the calm.
+          </p>
         </div>
       )}
 
@@ -661,7 +665,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface rounded-xl border border-border overflow-hidden border-l-2 ${config.border}`}>
+          <div key={section} className={`bg-surface rounded-xl border border-border overflow-hidden border-l-[3px] ${config.border} transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
@@ -682,15 +686,15 @@ export function Today() {
             </button>
 
             {isExpanded && (
-              <div className="border-t border-border">
+              <div className="border-t border-border animate-slide-down">
                 {sectionItems.map(item => {
                   const isItemExpanded = expandedItem === item.id
                   const isProcessing = processingItem === item.id
 
                   return (
-                    <div key={item.id} className="border-b border-border/50 last:border-b-0">
+                    <div key={item.id} className="border-b border-border/30 last:border-b-0">
                       <div
-                        className="flex items-center gap-3 px-5 py-3 group cursor-pointer hover:bg-surface-raised/30 transition-colors"
+                        className="flex items-center gap-3 px-5 py-3.5 group cursor-pointer hover:bg-surface-raised/40 transition-all duration-150"
                         onClick={() => {
                           if (item.actionType === 'navigate' && item.route) {
                             navigate(item.route)

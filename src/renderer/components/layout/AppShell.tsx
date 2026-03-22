@@ -53,9 +53,11 @@ export function AppShell({ children }: AppShellProps) {
       <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
         {/* Title bar drag region — sits below traffic lights */}
         <div className="drag-region pt-14 pb-4 px-3">
-          <div className="no-drag flex items-center gap-2 px-3">
-            <Zap className="w-5 h-5 text-brand" aria-hidden="true" />
-            <span className="font-semibold text-sm tracking-tight">Manager-inator</span>
+          <div className="no-drag flex items-center gap-2.5 px-3">
+            <div className="w-7 h-7 rounded-lg bg-brand/15 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-brand" aria-hidden="true" />
+            </div>
+            <span className="font-semibold text-sm tracking-tight text-zinc-200">Manager-inator</span>
           </div>
         </div>
 
@@ -97,13 +99,15 @@ export function AppShell({ children }: AppShellProps) {
                   <button
                     key={r.name}
                     onClick={() => navigate(path)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors no-drag ${
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors no-drag group ${
                       active
                         ? 'bg-brand/15 text-brand-light font-medium'
                         : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
                     }`}
                   >
-                    <div className="w-6 h-6 rounded-full bg-brand/20 flex items-center justify-center text-xs font-medium text-brand-light shrink-0">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 transition-colors ${
+                      active ? 'bg-brand/25 text-brand-light' : 'bg-zinc-800 text-zinc-500 group-hover:bg-brand/15 group-hover:text-brand-light'
+                    }`}>
                       {r.displayName.charAt(0)}
                     </div>
                     <span className="truncate">{r.displayName}</span>
@@ -145,15 +149,15 @@ export function AppShell({ children }: AppShellProps) {
         {/* AI chat floating button */}
         <button
           onClick={() => setAiPanelOpen(prev => !prev)}
-          className={`absolute bottom-6 right-6 w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 z-10 ${
+          className={`absolute bottom-6 right-6 w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-10 ${
             aiPanelOpen
-              ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25'
+              ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25 rotate-0'
               : 'bg-brand hover:bg-brand-dark shadow-brand/25'
           }`}
           aria-label={aiPanelOpen ? 'Close AI assistant' : 'Open AI assistant'}
           title={aiPanelOpen ? 'Close AI assistant' : 'Ask AI anything'}
         >
-          <MessageSquare className="w-5 h-5" aria-hidden="true" />
+          <MessageSquare className={`w-5 h-5 transition-transform duration-200 ${aiPanelOpen ? 'rotate-0' : ''}`} aria-hidden="true" />
         </button>
       </main>
     </div>

@@ -73,41 +73,44 @@ export function SearchPage() {
         <p className="text-sm text-zinc-500 mt-1">Find meetings, people, and notes</p>
       </div>
 
-      <div className="relative">
-        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" aria-hidden="true" />
+      <div className="relative group/search">
+        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within/search:text-brand-light transition-colors" aria-hidden="true" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search meetings, people, notes..."
-          className="w-full pl-12 pr-4 py-3 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/25 text-sm"
+          className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 text-sm transition-all"
           autoFocus
         />
       </div>
 
       {query.trim() && results.length === 0 && (
-        <div className="text-center py-12">
-          <SearchIcon className="w-8 h-8 text-zinc-700 mx-auto mb-3" aria-hidden="true" />
-          <p className="text-sm text-zinc-500">No results for "{query}"</p>
+        <div className="text-center py-16 animate-fade-in">
+          <div className="w-12 h-12 rounded-2xl bg-zinc-800/50 flex items-center justify-center mx-auto mb-4">
+            <SearchIcon className="w-6 h-6 text-zinc-600" aria-hidden="true" />
+          </div>
+          <p className="text-sm text-zinc-400 mb-1">No results for "{query}"</p>
+          <p className="text-xs text-zinc-600">Try a different search term</p>
         </div>
       )}
 
       {results.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1 animate-fade-in">
           {results.map((r, i) => (
             <button
               key={`${r.type}-${r.route}-${i}`}
               onClick={() => navigate(r.route)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left hover:bg-surface-raised transition-colors group"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group"
             >
-              <div className="p-1.5 rounded-md bg-surface-raised text-zinc-500 group-hover:text-zinc-300 transition-colors">
+              <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
                 {typeIcon(r.type)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-zinc-200 truncate">{r.title}</div>
+                <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
                 <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
               </div>
-              <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0">
+              <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
                 {r.type}
               </span>
             </button>
@@ -116,11 +119,14 @@ export function SearchPage() {
       )}
 
       {!query.trim() && (
-        <div className="text-center py-16">
-          <SearchIcon className="w-10 h-10 text-zinc-800 mx-auto mb-4" aria-hidden="true" />
-          <p className="text-sm text-zinc-600">
+        <div className="text-center py-20">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
+            <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
+          </div>
+          <p className="text-sm text-zinc-500 mb-1">
             Search across {meetings.length} meetings and {people.length} people
           </p>
+          <p className="text-xs text-zinc-600">Start typing to find transcripts, summaries, and profiles</p>
         </div>
       )}
     </div>

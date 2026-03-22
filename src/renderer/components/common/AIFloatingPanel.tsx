@@ -231,9 +231,9 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   ]
 
   return (
-    <div className="absolute bottom-20 right-6 w-[420px] h-[560px] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-fade-in">
+    <div className="absolute bottom-20 right-6 w-[420px] h-[560px] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-brand" aria-hidden="true" />
           <span className="text-sm font-medium text-zinc-200">AI assistant</span>
@@ -306,8 +306,10 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && !streaming && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <Bot className="w-8 h-8 text-zinc-700 mb-2" aria-hidden="true" />
-            <p className="text-xs text-zinc-500 mb-3 max-w-[280px]">
+            <div className="w-12 h-12 rounded-2xl bg-brand/10 flex items-center justify-center mb-3">
+              <Bot className="w-6 h-6 text-brand/60" aria-hidden="true" />
+            </div>
+            <p className="text-xs text-zinc-500 mb-4 max-w-[280px]">
               Ask about your team, prep for 1:1s, draft feedback, or analyze patterns.
             </p>
             <div className="grid grid-cols-2 gap-1.5 w-full">
@@ -315,7 +317,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                 <button
                   key={s}
                   onClick={() => { setInput(s); inputRef.current?.focus() }}
-                  className="text-left p-2.5 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-[11px] text-zinc-400"
+                  className="text-left p-2.5 bg-surface rounded-lg border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all duration-150 text-[11px] text-zinc-400 hover:text-zinc-300"
                 >
                   {s}
                 </button>
@@ -370,7 +372,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <div className="w-6 h-6 rounded-md bg-brand/15 flex items-center justify-center shrink-0 mt-0.5">
               <Bot className="w-3.5 h-3.5 text-brand" aria-hidden="true" />
             </div>
-            <div className="max-w-[85%] rounded-xl px-3 py-2 bg-surface border border-brand/20">
+            <div className="max-w-[85%] rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer">
               {streamedText ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedText}</ReactMarkdown>
@@ -398,8 +400,8 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       </div>
 
       {/* Input */}
-      <div className="shrink-0 px-3 py-2 border-t border-border bg-surface">
-        <div className="flex items-end gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/50 transition-colors">
+      <div className="shrink-0 px-3 py-2.5 border-t border-border bg-surface/80 backdrop-blur-sm">
+        <div className="flex items-end gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
           <textarea
             ref={inputRef}
             value={input}

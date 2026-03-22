@@ -682,7 +682,7 @@ export function ReportDetail() {
 
       {/* ── Profile header ── */}
       <div className="flex items-start gap-5">
-        <div className="w-14 h-14 rounded-2xl bg-brand/20 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
+        <div className="w-14 h-14 rounded-2xl bg-brand/20 ring-1 ring-brand/10 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
           {report.profile.displayName.split(' ').map(n => n[0]).join('')}
         </div>
         <div className="flex-1 min-w-0">
@@ -720,8 +720,8 @@ export function ReportDetail() {
 
       {/* ── Key Facts Bar ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-surface rounded-xl border border-border p-3.5">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1">Last 1:1</div>
+        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last 1:1</div>
           {lastTranscript ? (
             <>
               <div className="text-sm font-medium text-zinc-200">{formatDate(lastTranscript.date)}</div>
@@ -732,8 +732,8 @@ export function ReportDetail() {
           )}
         </div>
 
-        <div className="bg-surface rounded-xl border border-border p-3.5">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1">Next 1:1</div>
+        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Next 1:1</div>
           {nextMeeting ? (
             <div className="text-sm font-medium text-zinc-200">{formatDate(nextMeeting)}</div>
           ) : (
@@ -741,16 +741,16 @@ export function ReportDetail() {
           )}
         </div>
 
-        <div className="bg-surface rounded-xl border border-border p-3.5">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1">Open actions</div>
+        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Open actions</div>
           <div className="text-sm font-medium text-zinc-200">{openActionCount}</div>
           {report.actionItems.filter(a => a.completed).length > 0 && (
             <div className="text-xs text-zinc-500 mt-0.5">{report.actionItems.filter(a => a.completed).length} completed</div>
           )}
         </div>
 
-        <div className="bg-surface rounded-xl border border-border p-3.5">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1">Last feedback</div>
+        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last feedback</div>
           {daysSinceFeedback !== null ? (
             <>
               <div className="text-sm font-medium text-zinc-200">{daysSinceFeedback} day{daysSinceFeedback !== 1 ? 's' : ''} ago</div>
@@ -1008,22 +1008,28 @@ export function ReportDetail() {
         </div>
       ) : aboutText ? (
         <div className="bg-surface rounded-xl border border-border overflow-hidden">
-          <button
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => setAboutCollapsed(!aboutCollapsed)}
-            className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors"
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAboutCollapsed(!aboutCollapsed) } }}
+            className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors cursor-pointer"
           >
             <h3 className="text-sm font-medium text-zinc-300">About</h3>
             <div className="flex items-center gap-2">
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={e => { e.stopPropagation(); handleEditAbout() }}
-                className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all"
+                onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); handleEditAbout() } }}
+                className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                 aria-label="Edit about section"
               >
                 <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
+              </span>
               {aboutCollapsed ? <ChevronRight className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
             </div>
-          </button>
+          </div>
           {!aboutCollapsed && (
             <div className="px-4 pb-4 prose-dark text-sm">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{aboutText}</ReactMarkdown>
@@ -1072,22 +1078,28 @@ export function ReportDetail() {
         </div>
       ) : report.jobExpectations ? (
         <div className="bg-surface rounded-xl border border-border overflow-hidden">
-          <button
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => setJobExpCollapsed(!jobExpCollapsed)}
-            className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors"
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setJobExpCollapsed(!jobExpCollapsed) } }}
+            className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors cursor-pointer"
           >
             <h3 className="text-sm font-medium text-zinc-300">Job expectations</h3>
             <div className="flex items-center gap-2">
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={e => { e.stopPropagation(); handleEditJobExpectations() }}
-                className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all"
+                onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); handleEditJobExpectations() } }}
+                className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                 aria-label="Edit job expectations"
               >
                 <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
+              </span>
               {jobExpCollapsed ? <ChevronRight className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
             </div>
-          </button>
+          </div>
           {!jobExpCollapsed && (
             <div className="px-4 pb-4 prose-dark text-sm">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.jobExpectations}</ReactMarkdown>
@@ -1225,7 +1237,7 @@ function StreamEntryCard({
   const style = typeStyles[entry.type] || typeStyles['1:1']
 
   return (
-    <div className={`bg-surface rounded-xl border transition-all ${entry.pinned ? 'border-brand/20' : 'border-border hover:border-zinc-600'}`}>
+    <div className={`bg-surface rounded-xl border transition-all duration-150 ${entry.pinned ? 'border-brand/20' : 'border-border hover:border-zinc-500 hover:shadow-lg hover:shadow-black/10'}`}>
       {/* Collapsed header — always visible */}
       <button
         onClick={onToggle}
@@ -1252,7 +1264,7 @@ function StreamEntryCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-3.5 pb-3.5 pt-0 animate-fade-in">
+        <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
             {entry.type === '1:1' && <MeetingDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} />}
