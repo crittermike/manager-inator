@@ -1,13 +1,9 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamOverview } from '../hooks/useData'
-import { useAI } from '../hooks/useAI'
 import { useToast } from '../components/common/Toast'
-import { IMPACT_LOG_PATH } from '../../shared/constants'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, ActionItem, Report } from '../../shared/types'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem } from '../../shared/types'
 import {
   AlertCircle,
   Calendar,
@@ -15,18 +11,13 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Sparkles,
   FileText,
   RefreshCw,
   Users,
-  AlertTriangle,
-  Loader2,
-  Save
+  AlertTriangle
 } from 'lucide-react'
-
-// ── Timeline section config ──
-
-type TimelineSection = 'overdue' | 'upcoming' | 'inbox' | 'done'
+import { InlineProcessor, InlinePrep, InlineActions, InlinePrompt } from './today-components'
+import type { TimelineSection, TimelineItem } from './today-components'
 
 const sectionConfig: Record<TimelineSection, {
   label: string
@@ -65,24 +56,6 @@ const sectionConfig: Record<TimelineSection, {
   }
 }
 
-type PromptType = 'weekly-priorities' | 'sprint-goal' | 'weekly-reflection'
-
-interface TimelineItem {
-  id: string
-  section: TimelineSection
-  title: string
-  subtitle?: string
-  reportName?: string
-  route?: string
-  actionLabel?: string
-  actionType?: 'navigate' | 'process' | 'dismiss' | 'prep' | 'inline-actions' | 'prompt'
-  meetingFilename?: string
-  /** For 'prompt' actionType: which kind of free-text prompt */
-  promptType?: PromptType
-  /** For 'inline-actions' actionType: the stale action items to display */
-  staleActionItems?: TeamActionItem[]
-}
-
 function computeTimelineItems(
   reports: ReportStatus[],
   meetings: MeetingEntry[],
@@ -102,7 +75,6 @@ function computeTimelineItems(
   const isMonday = dayIndex === 1
   const isEndOfWeekDay = todayName === cadence.endOfWeekDay
 
-  // ── Overdue: 1:1s > 14 days ago ──
   for (const r of reports) {
     if (r.daysGap > 14 && r.lastOneOnOne) {
       items.push({
@@ -118,7 +90,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Overdue: stale feedback ──
   for (const r of reports) {
     if (!r.lastFeedback) {
       items.push({
@@ -150,7 +121,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Overdue: check-ins due ──
   const isCheckInWeek = isFirstWeek && (
     cadence.checkInFrequency === 'monthly' ||
     (cadence.checkInFrequency === 'bimonthly' && month % 2 === 0) ||
@@ -173,7 +143,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Overdue: stale action items (open 2+ days) ──
   const staleActions = teamActions.filter(a => {
     if (a.completed) return false
     if (!a.sourceFile) return false
@@ -202,7 +171,6 @@ function computeTimelineItems(
     })
   }
 
-  // ── Weekly: Monday "set priorities" prompt ──
   if (isMonday) {
     items.push({
       id: 'weekly-priorities',
@@ -215,7 +183,6 @@ function computeTimelineItems(
     })
   }
 
-  // ── Weekly: end-of-week reflection prompt ──
   if (isEndOfWeekDay) {
     items.push({
       id: 'weekly-reflection',
@@ -249,7 +216,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Before next 1:1 ──
   const isWeekend = dayIndex === 0 || dayIndex === 6
   if (!isWeekend) {
     const todayMeetings = reports.filter(r =>
@@ -306,7 +272,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Sprint cadence ──
   if (cadence.sprintStartDate) {
     const sprintStart = new Date(cadence.sprintStartDate)
     const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
@@ -338,7 +303,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Monthly: skip-level reminder ──
   if (isFirstWeek) {
     items.push({
       id: `monthly-skip-level-${currentMonth}`,
@@ -350,7 +314,6 @@ function computeTimelineItems(
     })
   }
 
-  // ── Monthly: peer EM sync ──
   if (dayOfMonth >= 15 && dayOfMonth <= 21) {
     items.push({
       id: `monthly-peer-sync-${currentMonth}`,
@@ -362,7 +325,6 @@ function computeTimelineItems(
     })
   }
 
-  // ── Quarterly: planning prompts (first 2 weeks of Q1/Q2/Q3/Q4) ──
   const isQuarterStart = [0, 3, 6, 9].includes(month) && dayOfMonth <= 14
   if (isQuarterStart) {
     items.push({
@@ -406,7 +368,6 @@ function computeTimelineItems(
     }
   }
 
-  // ── Semi-annual: January and July ──
   const isSemiAnnual = [0, 6].includes(month) && dayOfMonth <= 14
   if (isSemiAnnual) {
     for (const r of reports) {
@@ -441,7 +402,6 @@ function computeTimelineItems(
     })
   }
 
-  // ── Inbox: unprocessed meetings ──
   const unprocessed = meetings
     .filter(m => !m.hasSummary)
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -460,701 +420,6 @@ function computeTimelineItems(
 
   return items
 }
-
-// ── Inline transcript processor ──
-
-function InlineProcessor({
-  filename,
-  onDone,
-  onCancel
-}: {
-  filename: string
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const { streaming, streamedText, generate, cancel, reset } = useAI()
-  const toast = useToast()
-  const { overview } = useTeamOverview()
-  const reports = overview?.reports ?? []
-
-  const [phase, setPhase] = useState<'loading' | 'processing' | 'review' | 'saving'>('loading')
-  const [transcript, setTranscript] = useState('')
-  const [summary, setSummary] = useState('')
-  const [actionItems, setActionItems] = useState('')
-  const [feedback, setFeedback] = useState('')
-  const [impact, setImpact] = useState('')
-  const [processingLabel, setProcessingLabel] = useState('')
-  const mountedRef = useRef(true)
-  const cancelledRef = useRef(false)
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-      cancel()
-    }
-  }, [cancel])
-
-  useEffect(() => {
-    window.api.getFileContent(`meetings/${filename}`)
-      .then(content => {
-        if (mountedRef.current) {
-          setTranscript(content)
-          setPhase('processing')
-        }
-      })
-      .catch(() => {
-        toast.error('Failed to load transcript')
-        onCancel()
-      })
-  }, [filename, onCancel, toast])
-
-  useEffect(() => {
-    if (phase !== 'processing' || !transcript) return
-    let cancelled = false
-    cancelledRef.current = false
-
-    const run = async () => {
-      const reportNames = reports.map(r => r.displayName).join(', ')
-      const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/)
-      const date = dateMatch?.[1] || format(new Date(), 'yyyy-MM-dd')
-      const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.md$/, '').replace(/-/g, ' ')
-
-      setProcessingLabel('Generating summary...')
-      try {
-        const s = await generate('summarize-meeting', {
-          meetingTitle: titleSlug,
-          date,
-          reportNames,
-          transcript
-        })
-        if (cancelled || !mountedRef.current) return
-        setSummary(s)
-      } catch {
-        if (cancelled || !mountedRef.current) return
-      }
-
-      setProcessingLabel('Extracting action items...')
-      reset()
-      try {
-        const a = await generate('extract-action-items', {
-          reportName: reportNames,
-          transcript
-        })
-        if (cancelled || !mountedRef.current) return
-        setActionItems(a)
-      } catch {
-        if (cancelled || !mountedRef.current) return
-      }
-
-      setProcessingLabel('Extracting feedback...')
-      reset()
-      try {
-        const f = await generate('extract-feedback', {
-          reportNames,
-          transcript
-        })
-        if (cancelled || !mountedRef.current) return
-        setFeedback(f)
-      } catch {
-        if (cancelled || !mountedRef.current) return
-      }
-
-      setProcessingLabel('Extracting impact...')
-      reset()
-      try {
-        const imp = await generate('extract-impact', {
-          transcript
-        })
-        if (cancelled || !mountedRef.current) return
-        setImpact(imp)
-      } catch {
-        if (cancelled || !mountedRef.current) return
-      }
-
-      if (mountedRef.current && !cancelled) {
-        setPhase('review')
-      }
-    }
-
-    run()
-    return () => { cancelled = true; cancelledRef.current = true }
-  }, [phase, transcript, filename, reports, generate, reset])
-
-  const handleSave = async () => {
-    setPhase('saving')
-    try {
-      const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/)
-      const date = dateMatch?.[1] || format(new Date(), 'yyyy-MM-dd')
-      const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.md$/, '').replace(/-/g, ' ')
-      const summaryFilename = filename.replace('.md', '-summary.md')
-
-      if (summary) {
-        let summaryToSave = summary
-        if (titleSlug) {
-          const fmMatch = summaryToSave.match(/^---\n([\s\S]*?)\n---/)
-          if (fmMatch) {
-            summaryToSave = `---\ntitle: ${titleSlug}\n${fmMatch[1]}\n---` + summaryToSave.slice(fmMatch[0].length)
-          } else {
-            summaryToSave = `---\ntitle: ${titleSlug}\n---\n\n${summaryToSave}`
-          }
-        }
-        await window.api.commitFile(
-          `meetings/${summaryFilename}`,
-          summaryToSave,
-          `Add meeting summary: ${titleSlug} on ${date}`
-        )
-      }
-
-      if (impact && !impact.includes('No manager impact')) {
-        try {
-          const currentLog = await window.api.getImpactLog()
-          const entry = `\n\n### ${date} — ${titleSlug}\n\n${impact}`
-          await window.api.commitFile(
-            IMPACT_LOG_PATH,
-            currentLog + entry,
-            `Add impact items from ${titleSlug} on ${date}`
-          )
-        } catch {
-          // Impact log save is best-effort
-        }
-      }
-
-      toast.success('Meeting processed and saved')
-      onDone()
-    } catch (e) {
-      toast.error('Failed to save: ' + (e instanceof Error ? e.message : 'Unknown error'))
-      setPhase('review')
-    }
-  }
-
-  if (phase === 'loading') {
-    return (
-      <div className="flex items-center gap-3 py-4 px-1">
-        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
-        <span className="text-sm text-zinc-500">Loading transcript...</span>
-      </div>
-    )
-  }
-
-  if (phase === 'processing') {
-    return (
-      <div className="space-y-3 py-4 px-1 animate-shimmer rounded-lg">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Sparkles className="w-4 h-4 text-brand" />
-            <div className="absolute inset-0 animate-ping">
-              <Sparkles className="w-4 h-4 text-brand opacity-30" />
-            </div>
-          </div>
-          <span className="text-sm text-zinc-300">{processingLabel}</span>
-        </div>
-        {streaming && streamedText && (
-          <div className="text-xs text-zinc-600 max-h-24 overflow-hidden rounded-lg bg-surface-raised/50 p-3 line-clamp-4">
-            {streamedText.slice(-200)}
-          </div>
-        )}
-        <button
-          onClick={() => { cancelledRef.current = true; cancel(); onCancel() }}
-          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    )
-  }
-
-  if (phase === 'saving') {
-    return (
-      <div className="flex items-center gap-3 py-4 px-1">
-        <Loader2 className="w-4 h-4 text-brand animate-spin" />
-        <span className="text-sm text-zinc-400">Saving...</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4 py-4 px-1">
-      {summary && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Summary</h4>
-          <div className="prose-dark text-sm max-h-48 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-      {actionItems && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Action items</h4>
-          <div className="prose-dark text-sm max-h-32 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{actionItems}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-      {feedback && !feedback.includes('No feedback') && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Feedback</h4>
-          <div className="prose-dark text-sm max-h-32 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{feedback}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-      {impact && !impact.includes('No manager impact') && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Your impact</h4>
-          <div className="prose-dark text-sm max-h-32 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{impact}</ReactMarkdown>
-          </div>
-        </div>
-      )}
-      <div className="flex items-center gap-2 pt-2">
-        <button
-          onClick={handleSave}
-          className="px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors"
-        >
-          Approve & save
-        </button>
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Inline 1:1 prep (expands in Today view) ──
-
-function InlinePrep({
-  reportName,
-  onDone,
-  onCancel
-}: {
-  reportName: string
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const { streaming, streamedText, generate, cancel, reset, fullTextRef } = useAI()
-  const toast = useToast()
-  const mountedRef = useRef(true)
-
-  const [phase, setPhase] = useState<'loading' | 'context' | 'generating' | 'review'>('loading')
-  const [reportData, setReportData] = useState<Report | null>(null)
-  const [prepContent, setPrepContent] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false; cancel() }
-  }, [cancel])
-
-  useEffect(() => {
-    window.api.getReportData(reportName)
-      .then(data => {
-        if (mountedRef.current) {
-          setReportData(data)
-          setPhase('context')
-        }
-      })
-      .catch(() => {
-        toast.error('Failed to load report data')
-        onCancel()
-      })
-  }, [reportName, onCancel, toast])
-
-  const openActions = reportData?.actionItems.filter(a => !a.completed) ?? []
-  const recentFeedback = reportData?.feedback.slice(-3) ?? []
-  const lastSummary = reportData?.summaries.slice(-1)[0]
-
-  const handleGenerate = useCallback(async () => {
-    if (!reportData) return
-    setPhase('generating')
-    reset()
-
-    const recentSummaryDates = reportData.summaries.slice(-5)
-    const summaryContents = await Promise.all(
-      recentSummaryDates.map(async (s) => {
-        try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${reportName}-1-1-summary.md`)
-          return content
-        } catch { return '' }
-      })
-    )
-    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
-    if (!mountedRef.current) return
-
-    const openActionsText = openActions.map(a => `- [ ] ${a.text}`).join('\n')
-    const feedbackText = reportData.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n')
-
-    const displayName = reportData.profile.displayName
-    const firstName = displayName.split(' ')[0]
-    const namePattern = new RegExp(`\\b(${firstName}|${displayName})\\b`, 'i')
-    const ownSummaryPrefix = `${reportName}-1-1`
-
-    let crossMentions = ''
-    try {
-      const allMeetings = await window.api.listMeetings()
-      const otherWithSummaries = allMeetings
-        .filter(m => m.hasSummary && !m.filename.replace('.md', '').includes(ownSummaryPrefix))
-        .slice(0, 15)
-      const mentionResults = await Promise.all(
-        otherWithSummaries.map(async (m) => {
-          try {
-            const content = await window.api.getFileContent(`meetings/${m.filename.replace('.md', '-summary.md')}`)
-            if (namePattern.test(content)) {
-              return `### ${m.title} (${m.date})\n${content}`
-            }
-          } catch { /* skip */ }
-          return ''
-        })
-      )
-      crossMentions = mentionResults.filter(Boolean).slice(0, 5).join('\n\n---\n\n')
-    } catch { /* non-critical */ }
-    if (!mountedRef.current) return
-
-    try {
-      const result = await generate('prep-one-on-one', {
-        reportName: displayName,
-        about: reportData.profile.about || undefined,
-        jobExpectations: reportData.jobExpectations || undefined,
-        summaries: summariesText || 'No recent summaries available.',
-        actionItems: openActionsText || 'No open action items.',
-        feedback: feedbackText || undefined,
-        crossMeetingMentions: crossMentions || undefined
-      })
-      if (mountedRef.current) {
-        setPrepContent(result || fullTextRef.current)
-        setPhase('review')
-      }
-    } catch {
-      if (mountedRef.current) {
-        setPrepContent(fullTextRef.current || '_Failed to generate prep._')
-        setPhase('review')
-      }
-    }
-  }, [reportData, reportName, openActions, generate, reset, fullTextRef, cancel])
-
-  const handleSave = useCallback(async () => {
-    if (!prepContent) return
-    setSaving(true)
-    const today = format(new Date(), 'yyyy-MM-dd')
-    try {
-      await window.api.commitFile(
-        `reports/${reportName}/prep/${today}.md`,
-        prepContent,
-        `Save 1:1 prep for ${reportData?.profile.displayName ?? reportName} on ${today}`
-      )
-      toast.success('Prep saved')
-      onDone()
-    } catch {
-      toast.error('Failed to save prep')
-    } finally {
-      setSaving(false)
-    }
-  }, [prepContent, reportName, reportData, toast, onDone])
-
-  if (phase === 'loading') {
-    return (
-      <div className="flex items-center gap-3 py-4 px-1">
-        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
-        <span className="text-sm text-zinc-500">Loading context...</span>
-      </div>
-    )
-  }
-
-  if (phase === 'context') {
-    return (
-      <div className="space-y-3 py-4 px-1">
-        {lastSummary && (
-          <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Last meeting takeaways</h4>
-            <p className="text-sm text-zinc-400">
-              {lastSummary.keyTopics.length > 0
-                ? lastSummary.keyTopics.join(', ')
-                : `Meeting on ${lastSummary.date}`}
-            </p>
-          </div>
-        )}
-        {openActions.length > 0 && (
-          <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Open action items ({openActions.length})</h4>
-            <ul className="space-y-1">
-              {openActions.slice(0, 5).map((a, i) => (
-                <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
-                  <span className="text-zinc-600 mt-0.5">•</span>
-                  <span className="truncate">{a.text}</span>
-                </li>
-              ))}
-              {openActions.length > 5 && (
-                <li className="text-xs text-zinc-600">+{openActions.length - 5} more</li>
-              )}
-            </ul>
-          </div>
-        )}
-        {recentFeedback.length > 0 && (
-          <div>
-            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Recent feedback</h4>
-            <ul className="space-y-1">
-              {recentFeedback.map((f, i) => (
-                <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
-                  <span className="shrink-0">{f.type === 'positive' ? '🌟' : f.type === 'constructive' ? '🔧' : '💬'}</span>
-                  <span className="truncate">{f.content.length > 80 ? f.content.slice(0, 80) + '…' : f.content}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="flex items-center gap-2 pt-2">
-          <button
-            onClick={handleGenerate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors"
-          >
-            <Sparkles className="w-4 h-4" />
-            Generate prep notes
-          </button>
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-            Cancel
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (phase === 'generating') {
-    return (
-      <div className="space-y-3 py-4 px-1 animate-shimmer rounded-lg">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Sparkles className="w-4 h-4 text-brand" />
-            <div className="absolute inset-0 animate-ping">
-              <Sparkles className="w-4 h-4 text-brand opacity-30" />
-            </div>
-          </div>
-          <span className="text-sm text-zinc-300">Generating prep notes...</span>
-        </div>
-        {streaming && streamedText && (
-          <div className="text-xs text-zinc-600 max-h-24 overflow-hidden rounded-lg bg-surface-raised/50 p-3 line-clamp-4">
-            {streamedText.slice(-200)}
-          </div>
-        )}
-        <button
-          onClick={() => { cancel(); onCancel() }}
-          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4 py-4 px-1">
-      <div className="prose-dark text-sm max-h-64 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{prepContent}</ReactMarkdown>
-      </div>
-      <div className="flex items-center gap-2 pt-2">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving...' : 'Save prep'}
-        </button>
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Inline action items (expands in Today view) ──
-
-function InlineActions({
-  reportName,
-  actions,
-  onDone,
-  onCancel,
-  onRefresh
-}: {
-  reportName: string
-  actions: TeamActionItem[]
-  onDone: () => void
-  onCancel: () => void
-  onRefresh: () => void
-}) {
-  const toast = useToast()
-  const [togglingItems, setTogglingItems] = useState<Set<string>>(new Set())
-  const [localActions, setLocalActions] = useState(actions)
-
-  const handleToggle = useCallback(async (a: ActionItem) => {
-    if (!a.sourceFile || a.sourceLineNumber == null) return
-    const toggleKey = `${a.sourceFile}:${a.sourceLineNumber}`
-    setTogglingItems(prev => new Set(prev).add(toggleKey))
-    try {
-      await window.api.toggleActionItem(a.sourceFile, a.sourceLineNumber)
-      setLocalActions(prev => prev.filter(item =>
-        !(item.sourceFile === a.sourceFile && item.sourceLineNumber === a.sourceLineNumber)
-      ))
-      onRefresh()
-      toast.success('Action item completed')
-    } catch {
-      toast.error('Failed to toggle action item')
-    } finally {
-      setTogglingItems(prev => { const s = new Set(prev); s.delete(toggleKey); return s })
-    }
-  }, [onRefresh, toast])
-
-  if (localActions.length === 0) {
-    return (
-      <div className="py-4 px-1 text-center">
-        <CheckCircle2 className="w-6 h-6 text-emerald-500/60 mx-auto mb-2" />
-        <p className="text-sm text-zinc-400">All caught up!</p>
-        <button onClick={onDone} className="text-xs text-brand-light hover:text-brand mt-2 transition-colors">
-          Dismiss
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-1 py-3 px-1">
-      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
-        Stale action items for {actions[0]?.displayName ?? reportName}
-      </h4>
-      <div className="space-y-1 max-h-64 overflow-y-auto">
-        {localActions.map((a, i) => {
-          const toggleKey = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
-          const isToggling = togglingItems.has(toggleKey)
-          return (
-            <button
-              key={i}
-              disabled={isToggling || !a.sourceFile || a.sourceLineNumber == null}
-              onClick={() => handleToggle(a)}
-              className="w-full flex items-start gap-2.5 py-1.5 px-1 rounded-lg hover:bg-surface-raised transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isToggling ? (
-                <div className="w-4 h-4 mt-0.5 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0" />
-              ) : (
-                <div className="w-4 h-4 mt-0.5 border border-zinc-600 rounded shrink-0 group-hover:border-emerald-400 group-hover:bg-emerald-400/20 transition-colors" />
-              )}
-              <span className="text-sm text-zinc-300">{a.text}</span>
-              {a.owner && a.owner !== 'Unknown' && (
-                <span className="text-xs text-zinc-500 shrink-0 ml-auto">({a.owner})</span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-      <div className="flex items-center gap-2 pt-2">
-        <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-          Collapse
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Inline free-text prompt (expands in Today view) ──
-
-function InlinePrompt({
-  promptType,
-  onDone,
-  onCancel
-}: {
-  promptType: PromptType
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const toast = useToast()
-  const [text, setText] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const promptConfig: Record<PromptType, { placeholder: string; savePath: () => string; commitMsg: () => string }> = {
-    'weekly-priorities': {
-      placeholder: 'What are your top priorities this week? What must get done?',
-      savePath: () => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const weekNum = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
-        return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-priorities.md`
-      },
-      commitMsg: () => `Save weekly priorities for ${format(new Date(), 'yyyy-MM-dd')}`
-    },
-    'sprint-goal': {
-      placeholder: 'What does success look like for this sprint? What are the key deliverables?',
-      savePath: () => `weekly-log/sprint-goal-${format(new Date(), 'yyyy-MM-dd')}.md`,
-      commitMsg: () => `Save sprint goal for ${format(new Date(), 'yyyy-MM-dd')}`
-    },
-    'weekly-reflection': {
-      placeholder: 'What shipped this week? What\'s at risk? What did you learn?',
-      savePath: () => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const weekNum = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
-        return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-reflection.md`
-      },
-      commitMsg: () => `Save weekly reflection for ${format(new Date(), 'yyyy-MM-dd')}`
-    }
-  }
-
-  const config = promptConfig[promptType]
-
-  const handleSave = async () => {
-    if (!text.trim()) return
-    setSaving(true)
-    const today = format(new Date(), 'yyyy-MM-dd')
-    const header = promptType === 'weekly-priorities'
-      ? `# Weekly Priorities — ${today}`
-      : promptType === 'sprint-goal'
-      ? `# Sprint Goal — ${today}`
-      : `# Weekly Reflection — ${today}`
-
-    try {
-      await window.api.commitFile(
-        config.savePath(),
-        `${header}\n\n${text.trim()}\n`,
-        config.commitMsg()
-      )
-      toast.success('Saved')
-      onDone()
-    } catch {
-      toast.error('Failed to save')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="space-y-3 py-4 px-1">
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder={config.placeholder}
-        className="w-full h-28 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-        autoFocus
-      />
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleSave}
-          disabled={!text.trim() || saving}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Today page ──
 
 export function Today() {
   const { overview, loading, error, refresh } = useTeamOverview()
@@ -1190,7 +455,6 @@ export function Today() {
     localStorage.setItem(`today-done-${todayKey}`, JSON.stringify([...doneIds]))
   }, [doneIds])
 
-  // Clean up old done-keys (older than 7 days) on mount
   useEffect(() => {
     const now = Date.now()
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
@@ -1351,7 +615,7 @@ export function Today() {
           </div>
         </div>
       )}
-      {/* Header */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-100">Today</h1>
@@ -1372,7 +636,6 @@ export function Today() {
         </button>
       </div>
 
-      {/* All clear state */}
       {totalActive === 0 && doneCount === 0 && (
         <div className="bg-surface rounded-xl border border-border p-12 text-center">
           <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
@@ -1385,7 +648,18 @@ export function Today() {
         </div>
       )}
 
-      {/* Timeline sections */}
+      {totalActive === 0 && doneCount > 0 && (
+        <div className="bg-gradient-to-b from-emerald-500/5 to-transparent rounded-xl border border-emerald-500/20 p-8 text-center animate-fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 flex items-center justify-center mx-auto mb-3">
+            <CheckCircle2 className="w-7 h-7 text-emerald-400" aria-hidden="true" />
+          </div>
+          <p className="text-lg font-medium text-zinc-200">All done for today</p>
+          <p className="text-sm text-zinc-500 mt-1.5">
+            You knocked out {doneCount} item{doneCount !== 1 ? 's' : ''}. Nice work.
+          </p>
+        </div>
+      )}
+
       {activeSections.map(section => {
         const config = sectionConfig[section]
         const sectionItems = itemsBySection[section]
@@ -1511,7 +785,7 @@ export function Today() {
                       </div>
 
                       {isProcessing && isItemExpanded && item.meetingFilename && (
-                        <div className="px-5 pb-4 border-t border-border/30">
+                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
                           <InlineProcessor
                             filename={item.meetingFilename}
                             onDone={() => {
@@ -1529,7 +803,7 @@ export function Today() {
                       )}
 
                       {isItemExpanded && item.actionType === 'prep' && item.reportName && (
-                        <div className="px-5 pb-4 border-t border-border/30">
+                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
                           <InlinePrep
                             reportName={item.reportName}
                             onDone={() => {
@@ -1543,7 +817,7 @@ export function Today() {
                       )}
 
                       {isItemExpanded && item.actionType === 'inline-actions' && item.staleActionItems && (
-                        <div className="px-5 pb-4 border-t border-border/30">
+                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
                           <InlineActions
                             reportName={item.reportName ?? ''}
                             actions={item.staleActionItems}
@@ -1561,7 +835,7 @@ export function Today() {
                       )}
 
                       {isItemExpanded && item.actionType === 'prompt' && item.promptType && (
-                        <div className="px-5 pb-4 border-t border-border/30">
+                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
                           <InlinePrompt
                             promptType={item.promptType}
                             onDone={() => {

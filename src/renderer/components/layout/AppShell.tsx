@@ -143,19 +143,27 @@ export function AppShell({ children }: AppShellProps) {
           {children}
         </div>
 
+        {/* AI panel backdrop scrim */}
+        {aiPanelOpen && (
+          <div
+            className="absolute inset-0 bg-black/20 z-10 animate-backdrop-fade"
+            onClick={() => setAiPanelOpen(false)}
+          />
+        )}
+
         {/* AI floating panel */}
         <AIFloatingPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
 
         {/* AI chat floating button */}
         <button
           onClick={() => setAiPanelOpen(prev => !prev)}
-          className={`absolute bottom-6 right-6 w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-10 ${
+          className={`absolute bottom-6 right-6 w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 z-20 ${
             aiPanelOpen
               ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25 rotate-0'
               : 'bg-brand hover:bg-brand-dark shadow-brand/25'
           }`}
           aria-label={aiPanelOpen ? 'Close AI assistant' : 'Open AI assistant'}
-          title={aiPanelOpen ? 'Close AI assistant' : 'Ask AI anything'}
+          title={aiPanelOpen ? 'Close AI assistant (Esc)' : 'Ask AI anything'}
         >
           <MessageSquare className={`w-5 h-5 transition-transform duration-200 ${aiPanelOpen ? 'rotate-0' : ''}`} aria-hidden="true" />
         </button>

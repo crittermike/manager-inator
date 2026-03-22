@@ -231,7 +231,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   ]
 
   return (
-    <div className="absolute bottom-20 right-6 w-[420px] h-[560px] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
+    <div className="absolute bottom-20 right-6 w-[420px] max-w-[calc(100vw-18rem-3rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
