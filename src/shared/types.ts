@@ -58,6 +58,19 @@ export interface FeedbackEntry {
   content: string
 }
 
+// ── Team-wide action item (extends ActionItem with report context) ──
+export interface TeamActionItem extends ActionItem {
+  reportName: string
+  displayName: string
+}
+
+// ── Team priority (per-person weekly focus) ──
+export interface TeamPriority {
+  reportName: string
+  displayName: string
+  priorities: string  // markdown content from reports/{name}/priorities.md
+}
+
 // ── Cadence settings (customizable management rhythm) ──
 export type CheckInFrequency = 'monthly' | 'bimonthly' | 'quarterly'
 export interface CadenceSettings {
@@ -100,7 +113,7 @@ export interface ReportStatus {
 }
 
 // ── Manager workflow checklist item ──
-export type WorkflowCategory = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'weekend-preview'
+export type WorkflowCategory = 'daily' | 'weekly' | 'monthly' | 'weekend-preview'
 export type WorkflowPriority = 'high' | 'medium' | 'low'
 
 export interface WorkflowItem {
@@ -189,6 +202,9 @@ export interface IpcApi {
   getSettingsOptions: () => Promise<SettingsOptions>
   saveMeetingTitle: (filename: string, title: string) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
+  getTeamActionItems: () => Promise<TeamActionItem[]>
+  getTeamPriorities: () => Promise<TeamPriority[]>
+  saveReportPriorities: (reportName: string, content: string) => Promise<void>
   clearCaches: () => Promise<void>
   backfillSummaries: (filenames: string[]) => Promise<{ filename: string; success: boolean; error?: string }[]>
   onBackfillProgress: (cb: (data: { filename: string; status: string; error?: string }) => void) => () => void

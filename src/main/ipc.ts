@@ -17,6 +17,9 @@ import {
   getSettingsOptions,
   saveMeetingTitle,
   toggleActionItem,
+  getTeamActionItems,
+  getTeamPriorities,
+  saveReportPriorities,
   clearAllCaches,
   safeSend
 } from './github'
@@ -78,6 +81,9 @@ export function setupIpcHandlers(): void {
   safeHandle('github:settings-options', () => getSettingsOptions())
   safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
   safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
+  safeHandle('github:team-action-items', () => getTeamActionItems())
+  safeHandle('github:team-priorities', () => getTeamPriorities())
+  safeHandle('github:save-report-priorities', (_e, reportName, content) => saveReportPriorities(reportName as string, content as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
 
   // ── AI with streaming ──

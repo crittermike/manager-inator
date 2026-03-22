@@ -22,7 +22,6 @@ import {
   ChevronDown,
   ChevronUp,
   CircleDot,
-  Target,
   TrendingUp,
   Eye,
   Info
@@ -44,9 +43,6 @@ function computeWorkflowItems(
   const dayOfMonth = getDate(now)
   const month = getMonth(now)
   const isFirstWeek = dayOfMonth <= 7
-  const isLastWeek = dayOfMonth >= 24
-  const isQuarterEnd = [2, 5, 8, 11].includes(month) && isLastWeek
-  const isQuarterStart = [0, 3, 6, 9].includes(month) && isFirstWeek
 
   const isCheckInWeek = isFirstWeek && (
     cadence.checkInFrequency === 'monthly' ||
@@ -67,7 +63,7 @@ function computeWorkflowItems(
         description: 'Check on team members who are overdue for a 1:1 or have too many open items',
         category: 'daily',
         priority: 'high',
-        route: atRisk.length === 1 ? `/report/${atRisk[0].name}` : undefined,
+        route: atRisk.length === 1 ? `/report/${atRisk[0].name}` : '/actions',
         reportName: atRisk.length === 1 ? atRisk[0].name : undefined
       })
     }
@@ -79,7 +75,7 @@ function computeWorkflowItems(
         description: 'These team members may need a quick touchpoint',
         category: 'daily',
         priority: 'medium',
-        route: needsAttention.length === 1 ? `/report/${needsAttention[0].name}` : undefined,
+        route: needsAttention.length === 1 ? `/report/${needsAttention[0].name}` : '/actions',
         reportName: needsAttention.length === 1 ? needsAttention[0].name : undefined
       })
     }
@@ -125,7 +121,8 @@ function computeWorkflowItems(
         label: `Review open action items (${totalOpenItems} total)`,
         description: 'Scan for anything blocked or overdue across your team',
         category: 'daily',
-        priority: 'medium'
+        priority: 'medium',
+        route: '/actions'
       })
     }
   }
@@ -142,7 +139,7 @@ function computeWorkflowItems(
         description: 'These team members are overdue for a 1:1 or have too many open items',
         category: 'weekend-preview',
         priority: 'high',
-        route: atRisk.length === 1 ? `/report/${atRisk[0].name}` : undefined,
+        route: atRisk.length === 1 ? `/report/${atRisk[0].name}` : '/actions',
         reportName: atRisk.length === 1 ? atRisk[0].name : undefined
       })
     }
@@ -154,7 +151,7 @@ function computeWorkflowItems(
         description: 'These team members may need a quick touchpoint',
         category: 'weekend-preview',
         priority: 'medium',
-        route: needsAttention.length === 1 ? `/report/${needsAttention[0].name}` : undefined,
+        route: needsAttention.length === 1 ? `/report/${needsAttention[0].name}` : '/actions',
         reportName: needsAttention.length === 1 ? needsAttention[0].name : undefined
       })
     }
@@ -180,7 +177,8 @@ function computeWorkflowItems(
       label: 'Monday: set the week — review team priorities',
       description: 'Start the week by clarifying what matters most for each person',
       category: 'weekend-preview',
-      priority: 'medium'
+      priority: 'medium',
+      route: '/priorities'
     })
 
     const totalOpenItems = reports.reduce((sum, r) => sum + r.openActionItems, 0)
@@ -190,11 +188,12 @@ function computeWorkflowItems(
         label: `Monday: review open action items (${totalOpenItems} total)`,
         description: 'Scan for anything blocked or overdue across your team',
         category: 'weekend-preview',
-        priority: 'low'
+        priority: 'low',
+        route: '/actions'
       })
     }
 
-    // Monthly/quarterly items still show on weekends if applicable
+    // Monthly items still show on weekends if applicable
     const needsCheckIn = reports.filter(r => {
       if (!r.lastCheckIn) return true
       return r.lastCheckIn < currentMonth
@@ -223,14 +222,16 @@ function computeWorkflowItems(
       label: 'Set the week: review team priorities',
       description: 'Start the week by clarifying what matters most for each person',
       category: 'weekly',
-      priority: 'high'
+      priority: 'high',
+      route: '/priorities'
     })
     items.push({
       id: 'monday-past-actions',
       label: 'Audit last week\'s action items',
       description: 'Which items got done? Which are stale? Close or escalate',
       category: 'weekly',
-      priority: 'medium'
+      priority: 'medium',
+      route: '/actions'
     })
   }
 
@@ -250,7 +251,7 @@ function computeWorkflowItems(
         description: 'End the week by capturing at least one piece of feedback per person',
         category: 'weekly',
         priority: 'high',
-        route: staleReports.length === 1 ? `/report/${staleReports[0].name}?tab=feedback` : undefined
+        route: staleReports.length === 1 ? `/report/${staleReports[0].name}?tab=feedback` : '/feedback'
       })
     }
 
@@ -268,7 +269,8 @@ function computeWorkflowItems(
       label: 'Prep next week\'s 1:1 agendas',
       description: 'Skim each report and note topics to cover — you\'ll thank yourself Monday',
       category: 'weekly',
-      priority: 'low'
+      priority: 'low',
+      route: '/prep-overview'
     })
   }
 
@@ -299,35 +301,8 @@ function computeWorkflowItems(
       label: 'Review team health trends',
       description: 'Look at who improved, who slipped, and what changed this month',
       category: 'monthly',
-      priority: 'medium'
-    })
-  }
-
-  // ── Quarterly ──
-  if (isQuarterEnd) {
-    items.push({
-      id: 'quarterly-reviews',
-      label: 'Start performance review prep',
-      description: 'Gather feedback, check-ins, and impact evidence for each report',
-      category: 'quarterly',
-      priority: 'high'
-    })
-    items.push({
-      id: 'quarterly-goals-review',
-      label: 'Grade quarterly goals with each report',
-      description: 'Review OKRs and growth plans — what was hit, what was missed, and why',
-      category: 'quarterly',
-      priority: 'high'
-    })
-  }
-
-  if (isQuarterStart) {
-    items.push({
-      id: 'quarterly-new-goals',
-      label: 'Set new quarterly goals with each report',
-      description: 'Align on priorities, growth areas, and success criteria for the quarter',
-      category: 'quarterly',
-      priority: 'high'
+      priority: 'medium',
+      route: '/trends'
     })
   }
 
@@ -338,7 +313,6 @@ const categoryConfig: Record<WorkflowCategory, { label: string; icon: typeof Cir
   daily: { label: 'Today', icon: CircleDot, color: 'text-brand-light' },
   weekly: { label: 'This week', icon: Calendar, color: 'text-blue-400' },
   monthly: { label: 'This month', icon: TrendingUp, color: 'text-amber-400' },
-  quarterly: { label: 'This quarter', icon: Target, color: 'text-emerald-400' },
   'weekend-preview': { label: 'Monday preview', icon: Eye, color: 'text-indigo-400' }
 }
 
@@ -353,7 +327,7 @@ export function Dashboard() {
   const navigate = useNavigate()
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [expandedCategories, setExpandedCategories] = useState<Set<WorkflowCategory>>(
-    new Set(['daily', 'weekly', 'monthly', 'quarterly', 'weekend-preview'])
+    new Set(['daily', 'weekly', 'monthly', 'weekend-preview'])
   )
   const [cadence, setCadence] = useState<CadenceSettings>({ checkInFrequency: 'monthly', feedbackReminderDays: 14 })
   const [showSystemOverview, setShowSystemOverview] = useState(false)
@@ -494,13 +468,13 @@ export function Dashboard() {
       acc[item.category].push(item)
       return acc
     },
-    { daily: [], weekly: [], monthly: [], quarterly: [], 'weekend-preview': [] }
+    { daily: [], weekly: [], monthly: [], 'weekend-preview': [] }
   )
 
   const completedCount = workflowItems.filter(i => checkedItems.has(i.id)).length
   const totalCount = workflowItems.length
   const allDone = totalCount > 0 && completedCount === totalCount
-  const categoryOrder: WorkflowCategory[] = ['weekend-preview', 'daily', 'weekly', 'monthly', 'quarterly']
+  const categoryOrder: WorkflowCategory[] = ['weekend-preview', 'daily', 'weekly', 'monthly']
   const activeCategories = categoryOrder.filter(c => itemsByCategory[c].length > 0)
 
   return (
@@ -556,13 +530,7 @@ export function Dashboard() {
                 <span className="text-zinc-500 font-medium whitespace-nowrap">
                   {cadence.checkInFrequency === 'monthly' ? 'First week of each month' : cadence.checkInFrequency === 'bimonthly' ? 'Every other month' : 'Start of each quarter'}
                 </span>
-                <span className="text-zinc-300">Write a private performance check-in for each report covering accomplishments, concerns, and growth since the last check-in.</span>
-
-                <span className="text-zinc-500 font-medium whitespace-nowrap">End of quarter</span>
-                <span className="text-zinc-300">Gather feedback, check-ins, and impact evidence for performance review prep. Grade quarterly goals with each report.</span>
-
-                <span className="text-zinc-500 font-medium whitespace-nowrap">Start of quarter</span>
-                <span className="text-zinc-300">Set new quarterly goals with each report. Align on priorities, growth areas, and success criteria.</span>
+                <span className="text-zinc-300">Write a private performance check-in for each report covering accomplishments, concerns, and growth since the last check-in. Review team health trends.</span>
               </div>
               <p className="text-xs text-zinc-600 mt-1">
                 Customize the cadence in Settings. All data lives in your Git repo — nothing is stored in the cloud.

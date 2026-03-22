@@ -12,7 +12,9 @@ import type {
   ActionItem,
   FeedbackEntry,
   TeamOverview,
-  ReportStatus
+  ReportStatus,
+  TeamActionItem,
+  TeamPriority
 } from '../shared/types'
 
 function repoPath(): string {
@@ -731,6 +733,43 @@ export function getSettingsOptions(): { roles: string[]; relationships: string[]
   } catch {
     return { roles: [], relationships: [] }
   }
+}
+
+export function getTeamActionItems(): TeamActionItem[] {
+  const reportNames = getReports()
+  const items: TeamActionItem[] = []
+  for (const name of reportNames) {
+    try {
+      const data = getReportData(name)
+      for (const ai of data.actionItems) {
+        items.push({ ...ai, reportName: name, displayName: data.profile.displayName })
+      }
+    } catch { /* skip */ }
+  }
+  return items
+}
+
+export function getTeamPriorities(): TeamPriority[] {
+  const reportNames = getReports()
+  const results: TeamPriority[] = []
+  for (const name of reportNames) {
+    try {
+      const profile = getReportProfile(name)
+      let priorities = ''
+      try { priorities = getFileContent(`reports/${name}/priorities.md`) } catch {}
+      results.push({ reportName: name, displayName: profile.displayName, priorities })
+    } catch { /* skip */ }
+  }
+  return results
+}
+
+export async function saveReportPriorities(reportName: string, content: string): Promise<void> {
+  const profile = getReportProfile(reportName)
+  await commitFile(
+    `reports/${reportName}/priorities.md`,
+    content,
+    `Update priorities for ${profile.displayName}`
+  )
 }
 
 export function clearAllCaches(): void {
