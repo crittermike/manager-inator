@@ -15,7 +15,8 @@ import {
   User,
   Cpu,
   ChevronDown,
-  CalendarClock
+  CalendarClock,
+  MessageSquare
 } from 'lucide-react'
 
 export function Settings() {
@@ -25,6 +26,7 @@ export function Settings() {
   const [model, setModel] = useState(DEFAULT_MODEL)
   const [checkInFreq, setCheckInFreq] = useState<CheckInFrequency>('monthly')
   const [feedbackDays, setFeedbackDays] = useState(14)
+  const [customInstructions, setCustomInstructions] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -33,9 +35,10 @@ export function Settings() {
   const [savedModel, setSavedModel] = useState(DEFAULT_MODEL)
   const [savedCheckInFreq, setSavedCheckInFreq] = useState<CheckInFrequency>('monthly')
   const [savedFeedbackDays, setSavedFeedbackDays] = useState(14)
+  const [savedCustomInstructions, setSavedCustomInstructions] = useState('')
   const [repoPathError, setRepoPathError] = useState('')
 
-  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays
+  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || customInstructions !== savedCustomInstructions
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
   const saveRef = useRef<() => void>(() => {})
 
@@ -43,19 +46,22 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; aiCustomInstructions?: string }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
         const frd = s.feedbackReminderDays ?? 14
+        const ci = s.aiCustomInstructions || ''
         setRepoPathVal(rp)
         setModel(m)
         setCheckInFreq(cif)
         setFeedbackDays(frd)
+        setCustomInstructions(ci)
         setSavedRepoPath(rp)
         setSavedModel(m)
         setSavedCheckInFreq(cif)
         setSavedFeedbackDays(frd)
+        setSavedCustomInstructions(ci)
         setLoading(false)
       })
       .catch(() => {
@@ -69,22 +75,23 @@ export function Settings() {
     try {
       if (repoPathVal !== savedRepoPath && repoPathVal.trim()) {
         try {
-          await window.api.saveSettings({ repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays })
+          await window.api.saveSettings({ repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, aiCustomInstructions: customInstructions })
           await window.api.getReports()
           setRepoPathError('')
         } catch {
           setRepoPathError('Invalid repo path — no reports found at that location')
-          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays })
+          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, aiCustomInstructions: savedCustomInstructions })
           setSaving(false)
           return
         }
       } else {
-        await window.api.saveSettings({ repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays })
+        await window.api.saveSettings({ repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, aiCustomInstructions: customInstructions })
       }
       setSavedRepoPath(repoPathVal)
       setSavedModel(model)
       setSavedCheckInFreq(checkInFreq)
       setSavedFeedbackDays(feedbackDays)
+      setSavedCustomInstructions(customInstructions)
       setSaved(true)
       toast.success('Settings saved')
       setTimeout(() => setSaved(false), 2000)
@@ -241,6 +248,32 @@ export function Settings() {
           </div>
           <p className="text-xs text-zinc-600">
             Uses your GitHub Copilot subscription. Model availability depends on your plan.
+          </p>
+        </div>
+      </section>
+
+      {/* AI Custom Instructions */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+          AI Custom Instructions
+        </h2>
+        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <MessageSquare className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+            <span className="text-sm font-medium text-zinc-300">
+              Custom instructions for all AI prompts
+            </span>
+          </div>
+          <textarea
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            placeholder="e.g. Always use bullet points. Focus on actionable feedback. Keep summaries under 500 words."
+            aria-label="Custom instructions for AI"
+            rows={4}
+            className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand transition-colors"
+          />
+          <p className="text-xs text-zinc-600">
+            These instructions are included in every AI prompt (check-ins, reviews, prep, chat, etc.).
           </p>
         </div>
       </section>

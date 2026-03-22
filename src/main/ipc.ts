@@ -56,7 +56,7 @@ export function setupIpcHandlers(): void {
   safeHandle('settings:get', () => getSettingsForRenderer())
   safeHandle('settings:save', (_e, settings) => {
     const raw = settings as Record<string, unknown>
-    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays'] as const
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'aiCustomInstructions'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]
@@ -94,7 +94,9 @@ export function setupIpcHandlers(): void {
     const rid = (requestId as string) || randomUUID()
     const result = await aiGenerate(action as string, context as Record<string, unknown>, (chunk) => {
       safeSend(win, 'ai:chunk', { requestId: rid, chunk })
-    }, rid)
+    }, rid, (toolName, args) => {
+      safeSend(win, 'ai:tool-status', { requestId: rid, toolName, args })
+    })
 
     return result
   })

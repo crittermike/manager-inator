@@ -294,6 +294,8 @@ export function getReportData(name: string): Report {
   const reviewFiles = listFiles(`reports/${name}/reviews`)
   let dashboardRaw = ''
   try { dashboardRaw = getFileContent(`reports/${name}/DASHBOARD.md`) } catch {}
+  let jobExpectationsRaw = ''
+  try { jobExpectationsRaw = getFileContent(`reports/${name}/job-expectations.md`) } catch {}
 
   // Filter meetings for this person
   const personMeetings = allMeetingFiles.filter(
@@ -343,7 +345,7 @@ export function getReportData(name: string): Report {
   const mdReviews = reviewFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep' && !f.startsWith('YYYY')).sort()
   const reviews = mdReviews.map((f) => ({ period: f.replace('.md', ''), content: '' }))
 
-  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, dashboard: dashboardRaw }
+  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
   _reportDataCache.set(name, result)
   return result
 }

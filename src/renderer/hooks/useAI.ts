@@ -50,5 +50,5 @@ export function useAI() {
     requestIdRef.current = null
   }, [])
 
-  return { streaming, streamedText, error, generate, cancel, reset, fullTextRef }
+  return { streaming, streamedText, error, generate, cancel, reset, fullTextRef, requestIdRef }
 }

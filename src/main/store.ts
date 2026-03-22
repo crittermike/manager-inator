@@ -10,6 +10,7 @@ interface StoreSchema {
   defaultModel: string
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
+  aiCustomInstructions: string
 }
 
 const storeDefaults: StoreSchema = {
@@ -19,7 +20,8 @@ const storeDefaults: StoreSchema = {
   repoPath: '',
   defaultModel: 'gpt-4.1',
   checkInFrequency: 'monthly',
-  feedbackReminderDays: 14
+  feedbackReminderDays: 14,
+  aiCustomInstructions: ''
 }
 
 function createStore(): Store<StoreSchema> {
@@ -93,7 +95,8 @@ export function getSettings() {
     repoOwner: store.get('repoOwner'),
     repoName: store.get('repoName'),
     repoPath: store.get('repoPath'),
-    defaultModel: store.get('defaultModel')
+    defaultModel: store.get('defaultModel'),
+    aiCustomInstructions: store.get('aiCustomInstructions')
   }
 }
 
@@ -106,7 +109,8 @@ export function getSettingsForRenderer() {
     repoPath: store.get('repoPath'),
     defaultModel: store.get('defaultModel'),
     checkInFrequency: store.get('checkInFrequency'),
-    feedbackReminderDays: store.get('feedbackReminderDays')
+    feedbackReminderDays: store.get('feedbackReminderDays'),
+    aiCustomInstructions: store.get('aiCustomInstructions')
   }
 }
 

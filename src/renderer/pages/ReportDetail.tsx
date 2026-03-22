@@ -26,7 +26,8 @@ import {
   Download,
   Clock,
   TrendingUp,
-  Activity
+  Activity,
+  Pencil
 } from 'lucide-react'
 
 type Tab = 'overview' | 'checkins' | 'transcripts' | 'feedback' | 'actions' | 'reviews' | 'prep'
@@ -66,6 +67,12 @@ export function ReportDetail() {
   const [reviewContent, setReviewContent] = useState<string | null>(null)
   const [reviewLoading, setReviewLoading] = useState(false)
   const [savingReview, setSavingReview] = useState(false)
+  const [editingAbout, setEditingAbout] = useState(false)
+  const [aboutDraft, setAboutDraft] = useState('')
+  const [savingAbout, setSavingAbout] = useState(false)
+  const [editingJobExpectations, setEditingJobExpectations] = useState(false)
+  const [jobExpectationsDraft, setJobExpectationsDraft] = useState('')
+  const [savingJobExpectations, setSavingJobExpectations] = useState(false)
   const savePrepRef = useRef<() => void>(() => {})
   const [copied, setCopied] = useState(false)
   const mountedRef = useRef(true)
@@ -154,13 +161,44 @@ export function ReportDetail() {
     if (!mountedRef.current) return
     const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
 
+    // Scan other recent meetings for mentions of this person
+    const displayName = report.profile.displayName
+    const firstName = displayName.split(' ')[0]
+    const namePattern = new RegExp(`\\b(${firstName}|${displayName})\\b`, 'i')
+    const ownSummaryPrefix = `${name}-1-1`
+
+    let crossMentions = ''
+    try {
+      const allMeetings = await window.api.listMeetings()
+      const otherWithSummaries = allMeetings
+        .filter(m => m.hasSummary && !m.filename.replace('.md', '').includes(ownSummaryPrefix))
+        .slice(0, 15)
+
+      const mentionResults = await Promise.all(
+        otherWithSummaries.map(async (m) => {
+          try {
+            const content = await window.api.getFileContent(`meetings/${m.filename.replace('.md', '-summary.md')}`)
+            if (namePattern.test(content)) {
+              return `### ${m.title} (${m.date})\n${content}`
+            }
+          } catch { /* skip */ }
+          return ''
+        })
+      )
+      crossMentions = mentionResults.filter(Boolean).slice(0, 5).join('\n\n---\n\n')
+    } catch { /* non-critical */ }
+    if (!mountedRef.current) return
+
     let result = ''
     try {
       result = await generate('prep-one-on-one', {
         reportName: report.profile.displayName,
+        about: report.profile.about || undefined,
+        jobExpectations: report.jobExpectations || undefined,
         summaries: summariesText || 'No recent summaries available.',
         actionItems: openActions || 'No open action items.',
-        feedback: report.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n')
+        feedback: report.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n'),
+        crossMeetingMentions: crossMentions || undefined
       })
     } catch (e) {
       console.error('Prep generation failed:', e)
@@ -215,13 +253,32 @@ export function ReportDetail() {
     const now = new Date()
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
+    const recentSummaries = report.summaries.slice(-8)
+    const summaryContents = await Promise.all(
+      recentSummaries.map(async (s) => {
+        try {
+          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1-summary.md`)
+          return `### ${s.date}\n${content}`
+        } catch { return '' }
+      })
+    )
+    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+
+    const recentCheckIns = report.checkIns.slice(-3)
+    const checkInHistoryText = recentCheckIns.length > 0
+      ? recentCheckIns.map(c => `### ${c.date}\n${c.content || c.accomplishments.join('\n') || '(no content)'}`).join('\n\n---\n\n')
+      : undefined
+
     try {
       await generate('generate-checkin', {
         reportName: report.profile.displayName,
         displayName: report.profile.displayName,
         month,
         monthName: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
-        summaries: report.summaries.slice(-8).map(s => s.date).join(', '),
+        about: report.profile.about || undefined,
+        jobExpectations: report.jobExpectations || undefined,
+        summaries: summariesText || 'No recent summaries available.',
+        checkInHistory: checkInHistoryText,
         feedback: report.feedback.map(f => `${f.date}: ${f.content}`).join('\n---\n'),
         actionItems: report.actionItems.filter(a => !a.completed).slice(0, 20).map(a => `- ${a.text}`).join('\n')
       })
@@ -298,11 +355,15 @@ export function ReportDetail() {
         displayName: report.profile.displayName,
         role: report.profile.role,
         period: periodLabel,
+        about: report.profile.about || undefined,
+        jobExpectations: report.jobExpectations || undefined,
+        pastReviews: report.reviews.length > 0
+          ? report.reviews.map(r => `### ${r.period}\n${r.content}`).join('\n\n---\n\n')
+          : undefined,
         checkIns: checkInsText || undefined,
         summaries: summariesText || undefined,
         feedback: feedbackText || undefined,
-        actionItems: allActions || undefined,
-        customInstructions: undefined
+        actionItems: allActions || undefined
       })
     } catch (e) {
       console.error('Review generation failed:', e)
@@ -339,6 +400,67 @@ export function ReportDetail() {
       toast.error('Failed to save review')
     } finally {
       setSavingReview(false)
+    }
+  }
+
+  const handleEditAbout = () => {
+    setAboutDraft(report.profile.about.replace(/<!--[\s\S]*?-->/g, '').trim())
+    setEditingAbout(true)
+  }
+
+  const handleSaveAbout = async () => {
+    if (!name) return
+    setSavingAbout(true)
+    try {
+      const profileContent = await window.api.getFileContent(`reports/${name}/profile.md`)
+      let updated: string
+      const aboutSection = `## About\n\n${aboutDraft.trim()}`
+      if (profileContent.match(/## About\s*\n/)) {
+        updated = profileContent.replace(
+          /## About\s*\n[\s\S]*?(?=\n##|$)/,
+          aboutSection
+        )
+      } else {
+        updated = profileContent.trimEnd() + '\n\n' + aboutSection + '\n'
+      }
+      await window.api.commitFile(
+        `reports/${name}/profile.md`,
+        updated,
+        `Update about section for ${report.profile.displayName}`
+      )
+      toast.success('About section saved')
+      setEditingAbout(false)
+      refresh()
+    } catch (e) {
+      console.error('Failed to save about:', e)
+      toast.error('Failed to save about section')
+    } finally {
+      setSavingAbout(false)
+    }
+  }
+
+  const handleEditJobExpectations = () => {
+    setJobExpectationsDraft((report.jobExpectations || '').replace(/<!--[\s\S]*?-->/g, '').trim())
+    setEditingJobExpectations(true)
+  }
+
+  const handleSaveJobExpectations = async () => {
+    if (!name) return
+    setSavingJobExpectations(true)
+    try {
+      await window.api.commitFile(
+        `reports/${name}/job-expectations.md`,
+        jobExpectationsDraft.trim() + '\n',
+        `Update job expectations for ${report.profile.displayName}`
+      )
+      toast.success('Job expectations saved')
+      setEditingJobExpectations(false)
+      refresh()
+    } catch (e) {
+      console.error('Failed to save job expectations:', e)
+      toast.error('Failed to save job expectations')
+    } finally {
+      setSavingJobExpectations(false)
     }
   }
 
@@ -819,20 +941,121 @@ export function ReportDetail() {
               )}
 
               {/* About */}
-              {aboutText ? (
-                <div className="bg-surface rounded-xl border border-border p-4">
-                  <h3 className="text-sm font-medium text-zinc-300 mb-2">About</h3>
+              {editingAbout ? (
+                <div className="bg-surface rounded-xl border border-brand/20 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-zinc-300">About</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditingAbout(false)}
+                        className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveAbout}
+                        disabled={savingAbout}
+                        className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Save className="w-3 h-3" aria-hidden="true" />
+                        {savingAbout ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    value={aboutDraft}
+                    onChange={(e) => setAboutDraft(e.target.value)}
+                    placeholder="Career goals, working style, communication preferences, strengths, areas for growth..."
+                    className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+                    autoFocus
+                  />
+                  <p className="text-xs text-zinc-600 mt-1.5">Supports markdown formatting.</p>
+                </div>
+              ) : aboutText ? (
+                <div className="bg-surface rounded-xl border border-border p-4 group/about">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-zinc-300">About</h3>
+                    <button
+                      onClick={handleEditAbout}
+                      className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/about:opacity-100 transition-all"
+                      aria-label="Edit about section"
+                    >
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
                   <div className="prose-dark text-sm">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{aboutText}</ReactMarkdown>
                   </div>
                 </div>
               ) : (
-                <div className="bg-surface rounded-xl border border-border/50 p-4">
-                  <h3 className="text-sm font-medium text-zinc-500 mb-1">About</h3>
-                  <p className="text-xs text-zinc-600">
-                    No background info yet. Add notes about this person's career goals, working style, or communication preferences to their profile.
+                <button
+                  onClick={handleEditAbout}
+                  className="w-full bg-surface rounded-xl border border-border/50 border-dashed p-4 text-left hover:border-brand/30 hover:bg-surface-raised/30 transition-all group/about"
+                >
+                  <h3 className="text-sm font-medium text-zinc-500 group-hover/about:text-zinc-400 mb-1">About</h3>
+                  <p className="text-xs text-zinc-600 group-hover/about:text-zinc-500">
+                    Add notes about this person's career goals, working style, or communication preferences.
                   </p>
+                </button>
+              )}
+
+              {/* Job expectations */}
+              {editingJobExpectations ? (
+                <div className="bg-surface rounded-xl border border-brand/20 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-zinc-300">Job expectations</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditingJobExpectations(false)}
+                        className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveJobExpectations}
+                        disabled={savingJobExpectations}
+                        className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Save className="w-3 h-3" aria-hidden="true" />
+                        {savingJobExpectations ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    value={jobExpectationsDraft}
+                    onChange={(e) => setJobExpectationsDraft(e.target.value)}
+                    placeholder="Role expectations, competencies, performance criteria, level-specific skills..."
+                    className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+                    autoFocus
+                  />
+                  <p className="text-xs text-zinc-600 mt-1.5">Supports markdown formatting. Used as AI context for reviews and check-ins.</p>
                 </div>
+              ) : report.jobExpectations ? (
+                <div className="bg-surface rounded-xl border border-border p-4 group/jobexp">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-zinc-300">Job expectations</h3>
+                    <button
+                      onClick={handleEditJobExpectations}
+                      className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/jobexp:opacity-100 transition-all"
+                      aria-label="Edit job expectations"
+                    >
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="prose-dark text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.jobExpectations}</ReactMarkdown>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleEditJobExpectations}
+                  className="w-full bg-surface rounded-xl border border-border/50 border-dashed p-4 text-left hover:border-brand/30 hover:bg-surface-raised/30 transition-all group/jobexp"
+                >
+                  <h3 className="text-sm font-medium text-zinc-500 group-hover/jobexp:text-zinc-400 mb-1">Job expectations</h3>
+                  <p className="text-xs text-zinc-600 group-hover/jobexp:text-zinc-500">
+                    Add role expectations, competencies, and performance criteria. Used as AI context for reviews and check-ins.
+                  </p>
+                </button>
               )}
             </div>
           )

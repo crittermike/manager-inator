@@ -22,10 +22,8 @@ const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/meetings', icon: Calendar, label: 'Meetings' },
   { path: '/people', icon: Users, label: 'People' },
-  { path: '/transcript', icon: FileText, label: 'Process transcript' },
   { path: '/impact', icon: Trophy, label: 'My impact' },
-  { path: '/chat', icon: MessageSquare, label: 'AI assistant' },
-  { path: '/settings', icon: Settings, label: 'Settings' }
+  { path: '/chat', icon: MessageSquare, label: 'AI assistant' }
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -45,7 +43,7 @@ export function AppShell({ children }: AppShellProps) {
   }, [toast])
 
   return (
-    <div className="h-screen w-screen flex bg-zinc-950 text-zinc-100">
+    <div className="h-screen w-screen flex overflow-hidden bg-zinc-950 text-zinc-100">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-brand focus:text-white focus:rounded-lg focus:text-sm focus:font-medium"
@@ -54,7 +52,7 @@ export function AppShell({ children }: AppShellProps) {
       </a>
       <CommandPalette />
       {/* Sidebar */}
-      <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0">
+      <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
         {/* Title bar drag region — sits below traffic lights */}
         <div className="drag-region pt-14 pb-4 px-3">
           <div className="no-drag flex items-center gap-2 px-3">
@@ -128,19 +126,47 @@ export function AppShell({ children }: AppShellProps) {
           )}
         </nav>
 
-        {/* Version */}
-        <div className="px-4 py-3 border-t border-border">
+        {/* Footer */}
+        <div className="px-3 py-3 border-t border-border flex items-center justify-between">
           <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
+          <button
+            onClick={() => navigate('/settings')}
+            className={`p-1.5 rounded-lg transition-colors no-drag ${
+              location.pathname === '/settings'
+                ? 'text-brand-light bg-brand/15'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+            }`}
+            aria-label="Settings"
+          >
+            <Settings className="w-4 h-4" aria-hidden="true" />
+          </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <main id="main-content" className="flex-1 overflow-hidden">
-        {/* Drag region for the rest of the title bar */}
-        <div className="drag-region h-14 shrink-0" />
-        <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
-          {children}
-        </div>
+      <main id="main-content" className="flex-1 overflow-hidden relative">
+        {location.pathname === '/chat' ? (
+          children
+        ) : (
+          <>
+            {/* Drag region for the rest of the title bar */}
+            <div className="drag-region h-14 shrink-0" />
+            <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
+              {children}
+            </div>
+          </>
+        )}
+
+        {location.pathname !== '/transcript' && (
+          <button
+            onClick={() => navigate('/transcript')}
+            className="absolute bottom-6 right-6 w-12 h-12 bg-brand hover:bg-brand-dark text-white rounded-full shadow-lg shadow-brand/25 flex items-center justify-center transition-all hover:scale-105 z-10"
+            aria-label="Process transcript"
+            title="Process transcript"
+          >
+            <FileText className="w-5 h-5" aria-hidden="true" />
+          </button>
+        )}
       </main>
     </div>
   )

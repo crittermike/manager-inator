@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamOverview } from '../../hooks/useData'
+import type { PersonEntry } from '../../../shared/types'
 import {
   LayoutDashboard,
   Calendar,
@@ -30,6 +31,13 @@ export function CommandPalette() {
   const navigate = useNavigate()
   const { overview } = useTeamOverview()
   const reports = overview?.reports ?? []
+  const [people, setPeople] = useState<PersonEntry[]>([])
+
+  useEffect(() => {
+    if (open && people.length === 0) {
+      window.api.listPeople().then(setPeople).catch(() => {})
+    }
+  }, [open, people.length])
 
   const pages: PaletteItem[] = [
     { id: 'dashboard', label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
@@ -49,7 +57,18 @@ export function CommandPalette() {
     section: 'Direct reports',
   }))
 
-  const allItems = [...pages, ...reportItems]
+  const reportNames = new Set(reports.map(r => r.displayName.toLowerCase()))
+  const peopleItems: PaletteItem[] = people
+    .filter(p => !reportNames.has(p.name.toLowerCase()))
+    .map(p => ({
+      id: `person-${p.slug}`,
+      label: p.name,
+      path: `/people/${p.slug}`,
+      icon: <User className="w-4 h-4" aria-hidden="true" />,
+      section: 'People',
+    }))
+
+  const allItems = [...pages, ...reportItems, ...peopleItems]
 
   const filtered = query.trim()
     ? allItems.filter(item =>

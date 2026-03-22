@@ -47,6 +47,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('github:push-status', handler)
     return () => ipcRenderer.removeListener('github:push-status', handler)
   },
+  onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => {
+    const handler = (_event: unknown, data: { requestId: string; toolName: string; args: Record<string, unknown> }) => cb(data)
+    ipcRenderer.on('ai:tool-status', handler)
+    return () => ipcRenderer.removeListener('ai:tool-status', handler)
+  },
   cancelBackfill: () => ipcRenderer.invoke('ai:cancel-backfill'),
 
   // AI

@@ -38,6 +38,7 @@ export function TranscriptProcessor() {
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(step === 'review' && !saved)
   const mountedRef = useRef(true)
   const cancelledRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -221,6 +222,27 @@ export function TranscriptProcessor() {
     reset()
   }
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    if (!file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
+      toast.error('Only .txt and .md files are supported')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = reader.result as string
+      setTranscript(text)
+      if (!meetingTitle) {
+        const stem = file.name.replace(/\.(txt|md)$/, '').replace(/[-_]/g, ' ')
+        setMeetingTitle(stem)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <>
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
@@ -299,13 +321,27 @@ export function TranscriptProcessor() {
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">
               Transcript
             </label>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Paste your 1:1 transcript here..."
-              rows={16}
-              className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors resize-none font-mono"
-            />
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className={`relative rounded-xl transition-colors ${dragging ? 'ring-2 ring-brand ring-offset-2 ring-offset-zinc-950' : ''}`}
+            >
+              {!transcript && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                  <p className="text-sm text-zinc-600">
+                    Paste transcript or drag a .txt / .md file here
+                  </p>
+                </div>
+              )}
+              <textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                placeholder=""
+                rows={16}
+                className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors resize-none font-mono"
+              />
+            </div>
           </div>
 
           <button

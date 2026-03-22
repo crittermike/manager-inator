@@ -28,8 +28,20 @@ NAME CORRECTIONS (always apply):
 - Tara uses they/them pronouns`
 
 const AI_REQUEST_TIMEOUT_MS = 120_000
+const CHAT_REQUEST_TIMEOUT_MS = 300_000
+
+const TOOL_CALL_REGEX = /<tool_calls?>[\s\S]*?<\/tool_calls?>\s*/g
+const PARTIAL_TOOL_CALL_REGEX = /<tool_calls?>[\s\S]*$/
+
+function stripToolCalls(text: string): { clean: string; hasPartial: boolean } {
+  const stripped = text.replace(TOOL_CALL_REGEX, '')
+  const hasPartial = PARTIAL_TOOL_CALL_REGEX.test(stripped)
+  const clean = hasPartial ? stripped.replace(PARTIAL_TOOL_CALL_REGEX, '') : stripped
+  return { clean, hasPartial }
+}
 
 type StreamCallback = (chunk: string) => void
+type ToolStatusCallback = (toolName: string, args: Record<string, unknown>) => void
 
 interface CopilotMessage {
   role: 'system' | 'user' | 'assistant'
@@ -76,25 +88,42 @@ export async function aiGenerate(
   action: string,
   context: Record<string, unknown>,
   onChunk: StreamCallback,
-  requestId: string
+  requestId: string,
+  onToolStatus?: ToolStatusCallback
 ): Promise<string> {
   const entry = { session: null as unknown as CopilotSession, cancelled: false }
   let unsubscribe: (() => void) | null = null
   const messages = buildMessages(action, context)
   let fullResponse = ''
+  const isChat = action === 'chat'
+  let lastSentLength = 0
 
   try {
     const c = await getClient()
     const settings = getSettings()
     const model = settings.defaultModel || 'claude-sonnet-4-5'
-    debugLog('[Copilot SDK] Model:', model)
+    debugLog('[Copilot SDK] Model:', model, 'Action:', action)
 
     const systemMessages = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n')
     const userMessage = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n')
 
     const session = await c.createSession({
       model,
-      systemMessage: systemMessages ? { content: systemMessages } : undefined,
+      streaming: true,
+      ...(isChat
+        ? {
+            availableTools: ['read_file', 'list_directory'],
+            workingDirectory: settings.repoPath,
+            systemMessage: systemMessages
+              ? { mode: 'append' as const, content: systemMessages }
+              : undefined
+          }
+        : {
+            availableTools: [],
+            systemMessage: systemMessages
+              ? { mode: 'replace' as const, content: systemMessages }
+              : undefined
+          }),
       onPermissionRequest: approveAll
     })
     entry.session = session
@@ -102,21 +131,40 @@ export async function aiGenerate(
 
     unsubscribe = session.on((event: { type: string; data: Record<string, unknown> }) => {
       if (entry.cancelled) return
-      debugLog('[Copilot SDK] Event:', event.type)
+      debugLog('[Copilot SDK] Event:', event.type, 'keys:', Object.keys(event.data || {}))
       if (event.type === 'assistant.message_delta') {
         const delta = (event.data as { deltaContent?: string }).deltaContent
         if (delta) {
           fullResponse += delta
-          onChunk(delta)
+          if (isChat) {
+            const { clean } = stripToolCalls(fullResponse)
+            if (clean.length > lastSentLength) {
+              onChunk(clean.slice(lastSentLength))
+              lastSentLength = clean.length
+            }
+          } else {
+            onChunk(delta)
+          }
         }
       } else if (event.type === 'assistant.message') {
         const content = (event.data as { content?: string }).content
         if (content && !fullResponse) {
           fullResponse = content
-          onChunk(content)
+          if (isChat) {
+            const { clean } = stripToolCalls(fullResponse)
+            onChunk(clean)
+            lastSentLength = clean.length
+          } else {
+            onChunk(content)
+          }
+        }
+      } else if (event.type === 'tool.execution_start' && onToolStatus) {
+        const data = event.data as { toolName?: string; arguments?: Record<string, unknown> }
+        if (data.toolName) {
+          onToolStatus(data.toolName, data.arguments || {})
         }
       }
-      if (!fullResponse && event.data) {
+      if (!fullResponse && event.data && event.type.startsWith('assistant.')) {
         const possibleContent = (event.data as Record<string, unknown>).content ||
           (event.data as Record<string, unknown>).text ||
           (event.data as Record<string, unknown>).message
@@ -128,27 +176,43 @@ export async function aiGenerate(
     })
 
     debugLog('[Copilot SDK] Sending message...')
+    const timeout = isChat ? CHAT_REQUEST_TIMEOUT_MS : AI_REQUEST_TIMEOUT_MS
     const response = await Promise.race([
       session.sendAndWait({ prompt: userMessage }),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('AI request timed out')), AI_REQUEST_TIMEOUT_MS)
+        setTimeout(() => reject(new Error('AI request timed out')), timeout)
       )
     ])
     debugLog('[Copilot SDK] sendAndWait returned:', typeof response)
-    if (!fullResponse && response) {
+
+    // Extract content from sendAndWait return value
+    let returnContent = ''
+    if (response) {
       if (typeof response === 'string') {
-        fullResponse = response
+        returnContent = response
       } else if (typeof response === 'object') {
         const r = response as Record<string, unknown>
-        const content = (r.content || r.text || r.message) as string | undefined
-        if (content) fullResponse = content
+        returnContent = ((r.content || r.text || r.message) as string) || ''
+      }
+    }
+
+    // If sendAndWait returned content that streaming didn't capture (common in agent/tool mode),
+    // use it as the full response and stream any new text to the renderer
+    if (returnContent && (!fullResponse || returnContent.length > fullResponse.length)) {
+      fullResponse = returnContent
+      if (isChat) {
+        const { clean } = stripToolCalls(fullResponse)
+        if (clean.length > lastSentLength) {
+          onChunk(clean.slice(lastSentLength))
+          lastSentLength = clean.length
+        }
       }
     }
     debugLog('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
 
   } catch (error) {
     if (entry.cancelled) {
-      return fullResponse
+      return isChat ? stripToolCalls(fullResponse).clean : fullResponse
     }
     console.error('[Copilot SDK] Error:', (error as Error).message, (error as Error).stack)
     throw error
@@ -158,6 +222,9 @@ export async function aiGenerate(
     activeSessions.delete(requestId)
   }
 
+  if (isChat) {
+    fullResponse = stripToolCalls(fullResponse).clean
+  }
   return fullResponse
 }
 
@@ -190,10 +257,11 @@ function buildMessages(
 ): CopilotMessage[] {
   const messages: CopilotMessage[] = [{ role: 'system', content: SYSTEM_PROMPT }]
 
-  if (context.customInstructions) {
+  const settings = getSettings()
+  if (settings.aiCustomInstructions) {
     messages.push({
       role: 'system',
-      content: `Additional instructions for this person:\n${context.customInstructions}`
+      content: `Custom instructions from the manager:\n${settings.aiCustomInstructions}`
     })
   }
 
@@ -341,9 +409,12 @@ _${context.displayName}, ${context.monthName}_
 ## Areas for growth
 
 Context data:
+${context.about ? `About this person:\n${context.about}\n` : ''}
+${context.jobExpectations ? `Job expectations for this role:\n${context.jobExpectations}\n` : ''}
 ${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent summaries available.'}
-${context.feedback ? `Feedback log:\n${context.feedback}` : ''}
-${context.actionItems ? `Action items:\n${context.actionItems}` : ''}`
+${context.checkInHistory ? `\nPrevious check-ins:\n${context.checkInHistory}` : ''}
+${context.feedback ? `\nFeedback log:\n${context.feedback}` : ''}
+${context.actionItems ? `\nAction items:\n${context.actionItems}` : ''}`
       })
       break
 
@@ -380,6 +451,9 @@ _Review period: ${context.period}_
 
 Base this review on the following data. Cite specific dates, topics, and outcomes where possible. Do NOT invent accomplishments. If data is thin, say so honestly and recommend gathering more signal.
 
+${context.about ? `About this person:\n${context.about}\n` : ''}
+${context.jobExpectations ? `Job expectations for this role:\n${context.jobExpectations}\n` : ''}
+${context.pastReviews ? `Previous performance reviews:\n${context.pastReviews}\n` : ''}
 ${context.checkIns ? `Monthly check-ins from this period:\n${context.checkIns}\n` : 'No check-ins available for this period.\n'}
 ${context.summaries ? `1:1 meeting summaries:\n${context.summaries}\n` : 'No meeting summaries available.\n'}
 ${context.feedback ? `Feedback log:\n${context.feedback}\n` : 'No feedback logged.\n'}
@@ -412,24 +486,63 @@ Specific questions as checkboxes:
 ---
 
 Context:
+${context.about ? `About this person:\n${context.about}\n` : ''}
+${context.jobExpectations ? `Job expectations for this role:\n${context.jobExpectations}\n` : ''}
 ${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent summaries available.'}
 
 ${context.actionItems ? `Open action items:\n${context.actionItems}` : 'No open action items.'}
 
-${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}`
+${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}
+
+${context.crossMeetingMentions ? `Mentions of ${context.reportName} in other recent meetings (not their 1:1s). Use these to surface cross-team topics or things others said about them:\n${context.crossMeetingMentions}` : ''}`
       })
       break
 
-    case 'chat':
+    case 'chat': {
+      // Give the agent a map of the data repo so it knows where to look
       messages.push({
-        role: 'user',
-        content: context.message as string
+        role: 'system',
+        content: `You have read-only access to the manager's data repository via read_file and list_directory tools. Use them to look up specific information when answering questions.
+
+DATA REPO STRUCTURE:
+reports/{name}/              — One directory per direct report
+  profile.md                 — Role, GitHub handle, meeting day, location, about section
+  job-expectations.md        — Role expectations, competencies, performance criteria
+  check-ins/monthly/YYYY-MM.md — Monthly performance check-ins
+  feedback/log.md            — Feedback entries (append-only log)
+  reviews/YYYY-HN.md         — Performance reviews (H1/H2)
+  prep/YYYY-MM-DD.md         — 1:1 prep documents
+  priorities.md              — Current weekly priorities/focus areas
+meetings/                    — Meeting transcripts and summaries
+  YYYY-MM-DD-slug.md         — Raw transcripts
+  YYYY-MM-DD-slug-summary.md — AI-generated summaries with YAML speaker frontmatter
+people/                      — Profiles for anyone (not just direct reports)
+  firstname-lastname.md      — Person profiles with YAML frontmatter (name, role, relationship, etc.)
+mike-impact-log.md           — Manager's impact evidence log
+
+TIPS:
+- Start with list_directory to see what's available before reading specific files.
+- Meeting summaries have a -summary.md suffix. The raw transcript is the file without that suffix.
+- Check-in files are in check-ins/monthly/ and named by YYYY-MM.
+- When looking for info about a person, check both reports/{name}/ and people/{slug}.md.`
       })
+
+      // SDK is single-turn (sendAndWait) — fold history into prompt text
+      let chatPrompt = ''
       if (Array.isArray(context.history)) {
         const historyMessages = context.history as CopilotMessage[]
-        messages.splice(1, 0, ...historyMessages)
+        if (historyMessages.length > 0) {
+          chatPrompt += 'Previous conversation:\n'
+          for (const msg of historyMessages) {
+            chatPrompt += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n\n`
+          }
+          chatPrompt += '---\n\n'
+        }
       }
+      chatPrompt += context.message as string
+      messages.push({ role: 'user', content: chatPrompt })
       break
+    }
 
     default:
       messages.push({

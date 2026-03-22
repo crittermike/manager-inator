@@ -89,6 +89,7 @@ export interface Report {
   feedback: FeedbackEntry[]
   reviews: { period: string; content: string }[]
   dashboard: string
+  jobExpectations: string
 }
 
 // ── Team dashboard data ──
@@ -139,6 +140,7 @@ export interface AppSettings {
   defaultModel: string
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
+  aiCustomInstructions: string
 }
 
 // ── Meeting entry (from listMeetings) ──
@@ -209,6 +211,7 @@ export interface IpcApi {
   backfillSummaries: (filenames: string[]) => Promise<{ filename: string; success: boolean; error?: string }[]>
   onBackfillProgress: (cb: (data: { filename: string; status: string; error?: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
+  onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   cancelBackfill: () => Promise<void>
 
   // AI
