@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useTeamOverview } from '../../hooks/useData'
 import { CommandPalette } from '../common/CommandPalette'
+import { AIFloatingPanel } from '../common/AIFloatingPanel'
 import { useToast } from '../common/Toast'
 
 interface AppShellProps {
@@ -137,6 +138,9 @@ export function AppShell({ children }: AppShellProps) {
         <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
           {children}
         </div>
+
+        {/* AI floating panel */}
+        <AIFloatingPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
 
         {/* AI chat floating button */}
         <button
