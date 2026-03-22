@@ -5,7 +5,7 @@ import { useAI } from '../hooks/useAI'
 import { useToast } from '../components/common/Toast'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, ActionItem, Report } from '../../shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -20,7 +20,8 @@ import {
   RefreshCw,
   Users,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Save
 } from 'lucide-react'
 
 // ── Timeline section config ──
@@ -64,6 +65,8 @@ const sectionConfig: Record<TimelineSection, {
   }
 }
 
+type PromptType = 'weekly-priorities' | 'sprint-goal' | 'weekly-reflection'
+
 interface TimelineItem {
   id: string
   section: TimelineSection
@@ -72,8 +75,12 @@ interface TimelineItem {
   reportName?: string
   route?: string
   actionLabel?: string
-  actionType?: 'navigate' | 'process' | 'dismiss'
+  actionType?: 'navigate' | 'process' | 'dismiss' | 'prep' | 'inline-actions' | 'prompt'
   meetingFilename?: string
+  /** For 'prompt' actionType: which kind of free-text prompt */
+  promptType?: PromptType
+  /** For 'inline-actions' actionType: the stale action items to display */
+  staleActionItems?: TeamActionItem[]
 }
 
 function computeTimelineItems(
@@ -189,9 +196,9 @@ function computeTimelineItems(
       title: `${count} stale action item${count !== 1 ? 's' : ''} for ${r.displayName}`,
       subtitle: 'Open for 2+ days — check for blockers',
       reportName,
-      route: `/report/${reportName}?filter=action`,
       actionLabel: 'Review',
-      actionType: 'navigate'
+      actionType: 'inline-actions',
+      staleActionItems: staleActions.filter(a => a.reportName === reportName)
     })
   }
 
@@ -203,7 +210,8 @@ function computeTimelineItems(
       title: 'Set your priorities for the week',
       subtitle: 'What are the most important things to accomplish this week?',
       actionLabel: 'Open',
-      actionType: 'dismiss'
+      actionType: 'prompt',
+      promptType: 'weekly-priorities'
     })
   }
 
@@ -215,7 +223,8 @@ function computeTimelineItems(
       title: 'Weekly reflection',
       subtitle: 'What shipped, what\'s at risk, what did you learn this week?',
       actionLabel: 'Reflect',
-      actionType: 'dismiss'
+      actionType: 'prompt',
+      promptType: 'weekly-reflection'
     })
 
     for (const r of reports) {
@@ -253,9 +262,8 @@ function computeTimelineItems(
         title: `1:1 with ${r.displayName} is today`,
         subtitle: `${r.openActionItems} open action items · prep notes available`,
         reportName: r.name,
-        route: `/report/${r.name}`,
         actionLabel: 'Prep',
-        actionType: 'navigate'
+        actionType: 'prep'
       })
     }
 
@@ -272,9 +280,8 @@ function computeTimelineItems(
           title: `1:1 with ${r.displayName} is tomorrow`,
           subtitle: `${r.openActionItems} open action items`,
           reportName: r.name,
-          route: `/report/${r.name}`,
           actionLabel: 'Pre-prep',
-          actionType: 'navigate'
+          actionType: 'prep'
         })
       }
     }
@@ -292,9 +299,8 @@ function computeTimelineItems(
           title: `1:1 with ${r.displayName} in 2 days`,
           subtitle: `${r.openActionItems} open action items`,
           reportName: r.name,
-          route: `/report/${r.name}`,
           actionLabel: 'View',
-          actionType: 'navigate'
+          actionType: 'prep'
         })
       }
     }
@@ -315,7 +321,8 @@ function computeTimelineItems(
         title: 'New sprint — set the sprint goal',
         subtitle: 'What does success look like for this sprint?',
         actionLabel: 'Set goal',
-        actionType: 'dismiss'
+        actionType: 'prompt',
+        promptType: 'sprint-goal'
       })
     }
 
@@ -718,6 +725,435 @@ function InlineProcessor({
   )
 }
 
+// ── Inline 1:1 prep (expands in Today view) ──
+
+function InlinePrep({
+  reportName,
+  onDone,
+  onCancel
+}: {
+  reportName: string
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const { streaming, streamedText, generate, cancel, reset, fullTextRef } = useAI()
+  const toast = useToast()
+  const mountedRef = useRef(true)
+
+  const [phase, setPhase] = useState<'loading' | 'context' | 'generating' | 'review'>('loading')
+  const [reportData, setReportData] = useState<Report | null>(null)
+  const [prepContent, setPrepContent] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; cancel() }
+  }, [cancel])
+
+  useEffect(() => {
+    window.api.getReportData(reportName)
+      .then(data => {
+        if (mountedRef.current) {
+          setReportData(data)
+          setPhase('context')
+        }
+      })
+      .catch(() => {
+        toast.error('Failed to load report data')
+        onCancel()
+      })
+  }, [reportName, onCancel, toast])
+
+  const openActions = reportData?.actionItems.filter(a => !a.completed) ?? []
+  const recentFeedback = reportData?.feedback.slice(-3) ?? []
+  const lastSummary = reportData?.summaries.slice(-1)[0]
+
+  const handleGenerate = useCallback(async () => {
+    if (!reportData) return
+    setPhase('generating')
+    reset()
+
+    const recentSummaryDates = reportData.summaries.slice(-5)
+    const summaryContents = await Promise.all(
+      recentSummaryDates.map(async (s) => {
+        try {
+          const content = await window.api.getFileContent(`meetings/${s.date}-${reportName}-1-1-summary.md`)
+          return content
+        } catch { return '' }
+      })
+    )
+    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+    if (!mountedRef.current) return
+
+    const openActionsText = openActions.map(a => `- [ ] ${a.text}`).join('\n')
+    const feedbackText = reportData.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n')
+
+    const displayName = reportData.profile.displayName
+    const firstName = displayName.split(' ')[0]
+    const namePattern = new RegExp(`\\b(${firstName}|${displayName})\\b`, 'i')
+    const ownSummaryPrefix = `${reportName}-1-1`
+
+    let crossMentions = ''
+    try {
+      const allMeetings = await window.api.listMeetings()
+      const otherWithSummaries = allMeetings
+        .filter(m => m.hasSummary && !m.filename.replace('.md', '').includes(ownSummaryPrefix))
+        .slice(0, 15)
+      const mentionResults = await Promise.all(
+        otherWithSummaries.map(async (m) => {
+          try {
+            const content = await window.api.getFileContent(`meetings/${m.filename.replace('.md', '-summary.md')}`)
+            if (namePattern.test(content)) {
+              return `### ${m.title} (${m.date})\n${content}`
+            }
+          } catch { /* skip */ }
+          return ''
+        })
+      )
+      crossMentions = mentionResults.filter(Boolean).slice(0, 5).join('\n\n---\n\n')
+    } catch { /* non-critical */ }
+    if (!mountedRef.current) return
+
+    try {
+      const result = await generate('prep-one-on-one', {
+        reportName: displayName,
+        about: reportData.profile.about || undefined,
+        jobExpectations: reportData.jobExpectations || undefined,
+        summaries: summariesText || 'No recent summaries available.',
+        actionItems: openActionsText || 'No open action items.',
+        feedback: feedbackText || undefined,
+        crossMeetingMentions: crossMentions || undefined
+      })
+      if (mountedRef.current) {
+        setPrepContent(result || fullTextRef.current)
+        setPhase('review')
+      }
+    } catch {
+      if (mountedRef.current) {
+        setPrepContent(fullTextRef.current || '_Failed to generate prep._')
+        setPhase('review')
+      }
+    }
+  }, [reportData, reportName, openActions, generate, reset, fullTextRef, cancel])
+
+  const handleSave = useCallback(async () => {
+    if (!prepContent) return
+    setSaving(true)
+    const today = format(new Date(), 'yyyy-MM-dd')
+    try {
+      await window.api.commitFile(
+        `reports/${reportName}/prep/${today}.md`,
+        prepContent,
+        `Save 1:1 prep for ${reportData?.profile.displayName ?? reportName} on ${today}`
+      )
+      toast.success('Prep saved')
+      onDone()
+    } catch {
+      toast.error('Failed to save prep')
+    } finally {
+      setSaving(false)
+    }
+  }, [prepContent, reportName, reportData, toast, onDone])
+
+  if (phase === 'loading') {
+    return (
+      <div className="flex items-center gap-3 py-4 px-1">
+        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
+        <span className="text-sm text-zinc-500">Loading context...</span>
+      </div>
+    )
+  }
+
+  if (phase === 'context') {
+    return (
+      <div className="space-y-3 py-4 px-1">
+        {lastSummary && (
+          <div>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Last meeting takeaways</h4>
+            <p className="text-sm text-zinc-400">
+              {lastSummary.keyTopics.length > 0
+                ? lastSummary.keyTopics.join(', ')
+                : `Meeting on ${lastSummary.date}`}
+            </p>
+          </div>
+        )}
+        {openActions.length > 0 && (
+          <div>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Open action items ({openActions.length})</h4>
+            <ul className="space-y-1">
+              {openActions.slice(0, 5).map((a, i) => (
+                <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
+                  <span className="text-zinc-600 mt-0.5">•</span>
+                  <span className="truncate">{a.text}</span>
+                </li>
+              ))}
+              {openActions.length > 5 && (
+                <li className="text-xs text-zinc-600">+{openActions.length - 5} more</li>
+              )}
+            </ul>
+          </div>
+        )}
+        {recentFeedback.length > 0 && (
+          <div>
+            <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Recent feedback</h4>
+            <ul className="space-y-1">
+              {recentFeedback.map((f, i) => (
+                <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
+                  <span className="shrink-0">{f.type === 'positive' ? '🌟' : f.type === 'constructive' ? '🔧' : '💬'}</span>
+                  <span className="truncate">{f.content.length > 80 ? f.content.slice(0, 80) + '…' : f.content}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="flex items-center gap-2 pt-2">
+          <button
+            onClick={handleGenerate}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            Generate prep notes
+          </button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'generating') {
+    return (
+      <div className="space-y-3 py-4 px-1 animate-shimmer rounded-lg">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Sparkles className="w-4 h-4 text-brand" />
+            <div className="absolute inset-0 animate-ping">
+              <Sparkles className="w-4 h-4 text-brand opacity-30" />
+            </div>
+          </div>
+          <span className="text-sm text-zinc-300">Generating prep notes...</span>
+        </div>
+        {streaming && streamedText && (
+          <div className="text-xs text-zinc-600 max-h-24 overflow-hidden rounded-lg bg-surface-raised/50 p-3 line-clamp-4">
+            {streamedText.slice(-200)}
+          </div>
+        )}
+        <button
+          onClick={() => { cancel(); onCancel() }}
+          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 py-4 px-1">
+      <div className="prose-dark text-sm max-h-64 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{prepContent}</ReactMarkdown>
+      </div>
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors disabled:opacity-50"
+        >
+          <Save className="w-4 h-4" />
+          {saving ? 'Saving...' : 'Save prep'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Inline action items (expands in Today view) ──
+
+function InlineActions({
+  reportName,
+  actions,
+  onDone,
+  onCancel,
+  onRefresh
+}: {
+  reportName: string
+  actions: TeamActionItem[]
+  onDone: () => void
+  onCancel: () => void
+  onRefresh: () => void
+}) {
+  const toast = useToast()
+  const [togglingItems, setTogglingItems] = useState<Set<string>>(new Set())
+  const [localActions, setLocalActions] = useState(actions)
+
+  const handleToggle = useCallback(async (a: ActionItem) => {
+    if (!a.sourceFile || a.sourceLineNumber == null) return
+    const toggleKey = `${a.sourceFile}:${a.sourceLineNumber}`
+    setTogglingItems(prev => new Set(prev).add(toggleKey))
+    try {
+      await window.api.toggleActionItem(a.sourceFile, a.sourceLineNumber)
+      setLocalActions(prev => prev.filter(item =>
+        !(item.sourceFile === a.sourceFile && item.sourceLineNumber === a.sourceLineNumber)
+      ))
+      onRefresh()
+      toast.success('Action item completed')
+    } catch {
+      toast.error('Failed to toggle action item')
+    } finally {
+      setTogglingItems(prev => { const s = new Set(prev); s.delete(toggleKey); return s })
+    }
+  }, [onRefresh, toast])
+
+  if (localActions.length === 0) {
+    return (
+      <div className="py-4 px-1 text-center">
+        <CheckCircle2 className="w-6 h-6 text-emerald-500/60 mx-auto mb-2" />
+        <p className="text-sm text-zinc-400">All caught up!</p>
+        <button onClick={onDone} className="text-xs text-brand-light hover:text-brand mt-2 transition-colors">
+          Dismiss
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1 py-3 px-1">
+      <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+        Stale action items for {actions[0]?.displayName ?? reportName}
+      </h4>
+      <div className="space-y-1 max-h-64 overflow-y-auto">
+        {localActions.map((a, i) => {
+          const toggleKey = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
+          const isToggling = togglingItems.has(toggleKey)
+          return (
+            <button
+              key={i}
+              disabled={isToggling || !a.sourceFile || a.sourceLineNumber == null}
+              onClick={() => handleToggle(a)}
+              className="w-full flex items-start gap-2.5 py-1.5 px-1 rounded-lg hover:bg-surface-raised transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isToggling ? (
+                <div className="w-4 h-4 mt-0.5 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0" />
+              ) : (
+                <div className="w-4 h-4 mt-0.5 border border-zinc-600 rounded shrink-0 group-hover:border-emerald-400 group-hover:bg-emerald-400/20 transition-colors" />
+              )}
+              <span className="text-sm text-zinc-300">{a.text}</span>
+              {a.owner && a.owner !== 'Unknown' && (
+                <span className="text-xs text-zinc-500 shrink-0 ml-auto">({a.owner})</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex items-center gap-2 pt-2">
+        <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+          Collapse
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Inline free-text prompt (expands in Today view) ──
+
+function InlinePrompt({
+  promptType,
+  onDone,
+  onCancel
+}: {
+  promptType: PromptType
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const toast = useToast()
+  const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const promptConfig: Record<PromptType, { placeholder: string; savePath: () => string; commitMsg: () => string }> = {
+    'weekly-priorities': {
+      placeholder: 'What are your top priorities this week? What must get done?',
+      savePath: () => {
+        const now = new Date()
+        const year = now.getFullYear()
+        const weekNum = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
+        return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-priorities.md`
+      },
+      commitMsg: () => `Save weekly priorities for ${format(new Date(), 'yyyy-MM-dd')}`
+    },
+    'sprint-goal': {
+      placeholder: 'What does success look like for this sprint? What are the key deliverables?',
+      savePath: () => `weekly-log/sprint-goal-${format(new Date(), 'yyyy-MM-dd')}.md`,
+      commitMsg: () => `Save sprint goal for ${format(new Date(), 'yyyy-MM-dd')}`
+    },
+    'weekly-reflection': {
+      placeholder: 'What shipped this week? What\'s at risk? What did you learn?',
+      savePath: () => {
+        const now = new Date()
+        const year = now.getFullYear()
+        const weekNum = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
+        return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-reflection.md`
+      },
+      commitMsg: () => `Save weekly reflection for ${format(new Date(), 'yyyy-MM-dd')}`
+    }
+  }
+
+  const config = promptConfig[promptType]
+
+  const handleSave = async () => {
+    if (!text.trim()) return
+    setSaving(true)
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const header = promptType === 'weekly-priorities'
+      ? `# Weekly Priorities — ${today}`
+      : promptType === 'sprint-goal'
+      ? `# Sprint Goal — ${today}`
+      : `# Weekly Reflection — ${today}`
+
+    try {
+      await window.api.commitFile(
+        config.savePath(),
+        `${header}\n\n${text.trim()}\n`,
+        config.commitMsg()
+      )
+      toast.success('Saved')
+      onDone()
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3 py-4 px-1">
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder={config.placeholder}
+        className="w-full h-28 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+        autoFocus
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleSave}
+          disabled={!text.trim() || saving}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors disabled:opacity-50"
+        >
+          <Save className="w-4 h-4" />
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Today page ──
 
 export function Today() {
@@ -1048,6 +1484,17 @@ export function Today() {
                                 {item.actionLabel}
                               </button>
                             )}
+                            {item.actionLabel && (item.actionType === 'prep' || item.actionType === 'inline-actions' || item.actionType === 'prompt') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setExpandedItem(isItemExpanded ? null : item.id)
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
+                              >
+                                {item.actionLabel}
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -1075,6 +1522,52 @@ export function Today() {
                             }}
                             onCancel={() => {
                               setProcessingItem(null)
+                              setExpandedItem(null)
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {isItemExpanded && item.actionType === 'prep' && item.reportName && (
+                        <div className="px-5 pb-4 border-t border-border/30">
+                          <InlinePrep
+                            reportName={item.reportName}
+                            onDone={() => {
+                              markDone(item.id)
+                            }}
+                            onCancel={() => {
+                              setExpandedItem(null)
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {isItemExpanded && item.actionType === 'inline-actions' && item.staleActionItems && (
+                        <div className="px-5 pb-4 border-t border-border/30">
+                          <InlineActions
+                            reportName={item.reportName ?? ''}
+                            actions={item.staleActionItems}
+                            onDone={() => {
+                              markDone(item.id)
+                            }}
+                            onCancel={() => {
+                              setExpandedItem(null)
+                            }}
+                            onRefresh={() => {
+                              window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {isItemExpanded && item.actionType === 'prompt' && item.promptType && (
+                        <div className="px-5 pb-4 border-t border-border/30">
+                          <InlinePrompt
+                            promptType={item.promptType}
+                            onDone={() => {
+                              markDone(item.id)
+                            }}
+                            onCancel={() => {
                               setExpandedItem(null)
                             }}
                           />
