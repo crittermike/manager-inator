@@ -6,7 +6,7 @@ import { useToast } from '../components/common/Toast'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import { getDay, format, getMonth, getDate } from 'date-fns'
 import { formatDistanceToNow } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem } from '../../shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -84,7 +84,8 @@ function computeTimelineItems(
   reports: ReportStatus[],
   meetings: MeetingEntry[],
   cadence: CadenceSettings,
-  doneIds: Set<string>
+  doneIds: Set<string>,
+  teamActions: TeamActionItem[]
 ): TimelineItem[] {
   const items: TimelineItem[] = []
   const now = new Date()
@@ -95,6 +96,8 @@ function computeTimelineItems(
   const dayOfMonth = getDate(now)
   const month = getMonth(now)
   const isFirstWeek = dayOfMonth <= 7
+  const isMonday = dayIndex === 1
+  const isEndOfWeekDay = todayName === cadence.endOfWeekDay
 
   // ── Overdue: 1:1s > 14 days ago ──
   for (const r of reports) {
@@ -121,7 +124,7 @@ function computeTimelineItems(
         title: `No feedback logged for ${r.displayName}`,
         subtitle: 'No feedback on file — consider sharing something specific',
         reportName: r.name,
-        route: `/report/${r.name}`,
+        route: `/report/${r.name}?filter=feedback`,
         actionLabel: 'Add feedback',
         actionType: 'navigate'
       })
@@ -136,7 +139,7 @@ function computeTimelineItems(
           title: `Feedback for ${r.displayName} is stale`,
           subtitle: `Last feedback ${daysSince} days ago`,
           reportName: r.name,
-          route: `/report/${r.name}`,
+          route: `/report/${r.name}?filter=feedback`,
           actionLabel: 'Add feedback',
           actionType: 'navigate'
         })
@@ -159,8 +162,82 @@ function computeTimelineItems(
           title: `Monthly check-in due for ${r.displayName}`,
           subtitle: r.lastCheckIn ? `Last check-in: ${r.lastCheckIn}` : 'No check-in on file',
           reportName: r.name,
-          route: `/report/${r.name}`,
+          route: `/report/${r.name}?filter=check-in`,
           actionLabel: 'Write check-in',
+          actionType: 'navigate'
+        })
+      }
+    }
+  }
+
+  // ── Overdue: stale action items (open 2+ days) ──
+  const staleActions = teamActions.filter(a => {
+    if (a.completed) return false
+    if (!a.sourceFile) return false
+    const dateMatch = a.sourceFile.match(/(\d{4}-\d{2}-\d{2})/)
+    if (!dateMatch) return false
+    const itemDate = new Date(dateMatch[1])
+    const daysOld = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24))
+    return daysOld >= 2
+  })
+  const staleByReport = new Map<string, number>()
+  for (const a of staleActions) {
+    staleByReport.set(a.reportName, (staleByReport.get(a.reportName) || 0) + 1)
+  }
+  for (const [reportName, count] of staleByReport) {
+    const r = reports.find(rep => rep.name === reportName)
+    if (!r) continue
+    items.push({
+      id: `overdue-stale-actions-${reportName}`,
+      section: doneIds.has(`overdue-stale-actions-${reportName}`) ? 'done' : 'overdue',
+      title: `${count} stale action item${count !== 1 ? 's' : ''} for ${r.displayName}`,
+      subtitle: 'Open for 2+ days — check for blockers',
+      reportName,
+      route: `/report/${reportName}?filter=action`,
+      actionLabel: 'Review',
+      actionType: 'navigate'
+    })
+  }
+
+  // ── Weekly: Monday "set priorities" prompt ──
+  if (isMonday) {
+    items.push({
+      id: 'weekly-priorities',
+      section: doneIds.has('weekly-priorities') ? 'done' : 'upcoming',
+      title: 'Set your priorities for the week',
+      subtitle: 'What are the most important things to accomplish this week?',
+      actionLabel: 'Open',
+      actionType: 'dismiss'
+    })
+  }
+
+  // ── Weekly: end-of-week reflection prompt ──
+  if (isEndOfWeekDay) {
+    items.push({
+      id: 'weekly-reflection',
+      section: doneIds.has('weekly-reflection') ? 'done' : 'upcoming',
+      title: 'Weekly reflection',
+      subtitle: 'What shipped, what\'s at risk, what did you learn this week?',
+      actionLabel: 'Reflect',
+      actionType: 'dismiss'
+    })
+
+    for (const r of reports) {
+      if (!r.lastFeedback) {
+        continue
+      }
+      const daysSince = Math.floor(
+        (now.getTime() - new Date(r.lastFeedback).getTime()) / (1000 * 60 * 60 * 24)
+      )
+      if (daysSince >= 5) {
+        items.push({
+          id: `weekly-feedback-gap-${r.name}`,
+          section: doneIds.has(`weekly-feedback-gap-${r.name}`) ? 'done' : 'upcoming',
+          title: `No feedback for ${r.displayName} this week`,
+          subtitle: 'Consider sharing an observation before the week ends',
+          reportName: r.name,
+          route: `/report/${r.name}?filter=feedback`,
+          actionLabel: 'Add feedback',
           actionType: 'navigate'
         })
       }
@@ -170,7 +247,6 @@ function computeTimelineItems(
   // ── Before next 1:1 ──
   const isWeekend = dayIndex === 0 || dayIndex === 6
   if (!isWeekend) {
-    // Today's 1:1s
     const todayMeetings = reports.filter(r =>
       r.meetingDay && r.meetingDay.toLowerCase() === todayName
     )
@@ -187,7 +263,6 @@ function computeTimelineItems(
       })
     }
 
-    // Tomorrow's 1:1s
     const tomorrowIndex = (dayIndex + 1) % 7
     const tomorrowName = dayNames[tomorrowIndex]
     if (tomorrowIndex >= 1 && tomorrowIndex <= 5) {
@@ -208,7 +283,6 @@ function computeTimelineItems(
       }
     }
 
-    // Day after tomorrow (for early heads-up)
     const day2Index = (dayIndex + 2) % 7
     const day2Name = dayNames[day2Index]
     if (day2Index >= 1 && day2Index <= 5) {
@@ -228,6 +302,140 @@ function computeTimelineItems(
         })
       }
     }
+  }
+
+  // ── Sprint cadence ──
+  if (cadence.sprintStartDate) {
+    const sprintStart = new Date(cadence.sprintStartDate)
+    const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
+    const elapsed = now.getTime() - sprintStart.getTime()
+    const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
+    const daysInSprint = cadence.sprintLengthWeeks * 7
+
+    if (currentSprintDay <= 1) {
+      items.push({
+        id: `sprint-start-${format(now, 'yyyy-MM-dd')}`,
+        section: doneIds.has(`sprint-start-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'upcoming',
+        title: 'New sprint — set the sprint goal',
+        subtitle: 'What does success look like for this sprint?',
+        actionLabel: 'Set goal',
+        actionType: 'dismiss'
+      })
+    }
+
+    if (currentSprintDay >= daysInSprint - 2) {
+      items.push({
+        id: `sprint-end-${format(now, 'yyyy-MM-dd')}`,
+        section: doneIds.has(`sprint-end-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'upcoming',
+        title: 'Sprint ending — time for a retro',
+        subtitle: 'Run a retro or check in with the team on how the sprint went',
+        actionLabel: 'Reflect',
+        actionType: 'dismiss'
+      })
+    }
+  }
+
+  // ── Monthly: skip-level reminder ──
+  if (isFirstWeek) {
+    items.push({
+      id: `monthly-skip-level-${currentMonth}`,
+      section: doneIds.has(`monthly-skip-level-${currentMonth}`) ? 'done' : 'upcoming',
+      title: 'Prep for your skip-level 1:1',
+      subtitle: 'Schedule or prep your 1:1 with your own manager',
+      actionLabel: 'Dismiss',
+      actionType: 'dismiss'
+    })
+  }
+
+  // ── Monthly: peer EM sync ──
+  if (dayOfMonth >= 15 && dayOfMonth <= 21) {
+    items.push({
+      id: `monthly-peer-sync-${currentMonth}`,
+      section: doneIds.has(`monthly-peer-sync-${currentMonth}`) ? 'done' : 'upcoming',
+      title: 'Connect with a peer EM',
+      subtitle: 'Share notes, trade advice, stay connected with your management peers',
+      actionLabel: 'Dismiss',
+      actionType: 'dismiss'
+    })
+  }
+
+  // ── Quarterly: planning prompts (first 2 weeks of Q1/Q2/Q3/Q4) ──
+  const isQuarterStart = [0, 3, 6, 9].includes(month) && dayOfMonth <= 14
+  if (isQuarterStart) {
+    items.push({
+      id: `quarterly-okr-${currentMonth}`,
+      section: doneIds.has(`quarterly-okr-${currentMonth}`) ? 'done' : 'upcoming',
+      title: 'Quarterly planning — review OKRs and initiatives',
+      subtitle: 'Set or refresh goals for the quarter',
+      actionLabel: 'Dismiss',
+      actionType: 'dismiss'
+    })
+
+    items.push({
+      id: `quarterly-health-${currentMonth}`,
+      section: doneIds.has(`quarterly-health-${currentMonth}`) ? 'done' : 'upcoming',
+      title: 'Team health check',
+      subtitle: 'Is anyone burning out? Bored? On the wrong work?',
+      actionLabel: 'Reflect',
+      actionType: 'dismiss'
+    })
+
+    items.push({
+      id: `quarterly-hiring-${currentMonth}`,
+      section: doneIds.has(`quarterly-hiring-${currentMonth}`) ? 'done' : 'upcoming',
+      title: 'Review your hiring plan',
+      subtitle: 'If you lost someone tomorrow, what would hurt most?',
+      actionLabel: 'Reflect',
+      actionType: 'dismiss'
+    })
+
+    for (const r of reports) {
+      items.push({
+        id: `quarterly-calibration-${r.name}-${currentMonth}`,
+        section: doneIds.has(`quarterly-calibration-${r.name}-${currentMonth}`) ? 'done' : 'upcoming',
+        title: `Calibration prep for ${r.displayName}`,
+        subtitle: 'Review the quarter\'s feedback, 1:1s, and completed actions',
+        reportName: r.name,
+        route: `/report/${r.name}`,
+        actionLabel: 'Review',
+        actionType: 'navigate'
+      })
+    }
+  }
+
+  // ── Semi-annual: January and July ──
+  const isSemiAnnual = [0, 6].includes(month) && dayOfMonth <= 14
+  if (isSemiAnnual) {
+    for (const r of reports) {
+      items.push({
+        id: `semi-review-${r.name}-${currentMonth}`,
+        section: doneIds.has(`semi-review-${r.name}-${currentMonth}`) ? 'done' : 'upcoming',
+        title: `Performance review due for ${r.displayName}`,
+        subtitle: 'Generate a review draft from the past 6 months of artifacts',
+        reportName: r.name,
+        route: `/report/${r.name}`,
+        actionLabel: 'Draft review',
+        actionType: 'navigate'
+      })
+    }
+
+    items.push({
+      id: `semi-1on1-format-${currentMonth}`,
+      section: doneIds.has(`semi-1on1-format-${currentMonth}`) ? 'done' : 'upcoming',
+      title: '1:1 format check',
+      subtitle: 'Ask each report: is our 1:1 working for you?',
+      actionLabel: 'Dismiss',
+      actionType: 'dismiss'
+    })
+
+    items.push({
+      id: `semi-personal-retro-${currentMonth}`,
+      section: doneIds.has(`semi-personal-retro-${currentMonth}`) ? 'done' : 'upcoming',
+      title: 'Personal management retro',
+      subtitle: 'What kind of manager have you been the last 6 months?',
+      actionLabel: 'Reflect',
+      actionType: 'dismiss'
+    })
   }
 
   // ── Inbox: unprocessed meetings ──
@@ -521,11 +729,23 @@ export function Today() {
   const navigate = useNavigate()
   const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
+  const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
   const [cadence, setCadence] = useState<CadenceSettings>({
     checkInFrequency: 'monthly',
-    feedbackReminderDays: 14
+    feedbackReminderDays: 14,
+    sprintLengthWeeks: 2,
+    endOfWeekDay: 'friday',
+    sprintStartDate: ''
   })
-  const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
+  const [doneIds, setDoneIds] = useState<Set<string>>(() => {
+    try {
+      const todayKey = format(new Date(), 'yyyy-MM-dd')
+      const stored = localStorage.getItem(`today-done-${todayKey}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+   })
   const [expandedSections, setExpandedSections] = useState<Set<TimelineSection>>(
     new Set(['overdue', 'upcoming', 'inbox'])
   )
@@ -533,11 +753,20 @@ export function Today() {
   const [processingItem, setProcessingItem] = useState<string | null>(null)
 
   useEffect(() => {
+    const todayKey = format(new Date(), 'yyyy-MM-dd')
+    localStorage.setItem(`today-done-${todayKey}`, JSON.stringify([...doneIds]))
+  }, [doneIds])
+
+  useEffect(() => {
     window.api.listMeetings().then(setMeetings).catch(() => {})
+    window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
     window.api.getSettings().then((s) => {
       setCadence({
         checkInFrequency: s.checkInFrequency || 'monthly',
-        feedbackReminderDays: s.feedbackReminderDays ?? 14
+        feedbackReminderDays: s.feedbackReminderDays ?? 14,
+        sprintLengthWeeks: s.sprintLengthWeeks ?? 2,
+        endOfWeekDay: s.endOfWeekDay || 'friday',
+        sprintStartDate: s.sprintStartDate || ''
       })
     }).catch(() => {})
   }, [])
@@ -545,8 +774,8 @@ export function Today() {
   const reports = overview?.reports ?? []
 
   const items = useMemo(() => {
-    return computeTimelineItems(reports, meetings, cadence, doneIds)
-  }, [reports, meetings, cadence, doneIds])
+    return computeTimelineItems(reports, meetings, cadence, doneIds, teamActions)
+  }, [reports, meetings, cadence, doneIds, teamActions])
 
   const sections: TimelineSection[] = ['overdue', 'upcoming', 'inbox', 'done']
 
@@ -636,6 +865,7 @@ export function Today() {
           onClick={() => {
             refresh()
             window.api.listMeetings().then(setMeetings).catch(() => {})
+            window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
           }}
           className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
         >

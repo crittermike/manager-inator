@@ -73,9 +73,13 @@ export interface TeamPriority {
 
 // ── Cadence settings (customizable management rhythm) ──
 export type CheckInFrequency = 'monthly' | 'bimonthly' | 'quarterly'
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'
 export interface CadenceSettings {
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
+  sprintLengthWeeks: number       // 1 | 2 | 3 | 4
+  endOfWeekDay: DayOfWeek         // when weekly reflection triggers
+  sprintStartDate: string         // ISO date of a known sprint start (for calculating sprint boundaries)
 }
 
 // ── Report (aggregate of all data for one person) ──
@@ -140,6 +144,9 @@ export interface AppSettings {
   defaultModel: string
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
+  sprintLengthWeeks: number
+  endOfWeekDay: DayOfWeek
+  sprintStartDate: string
   aiCustomInstructions: string
 }
 

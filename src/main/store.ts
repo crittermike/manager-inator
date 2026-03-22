@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { safeStorage } from 'electron'
-import type { CheckInFrequency } from '../shared/types'
+import type { CheckInFrequency, DayOfWeek } from '../shared/types'
 
 interface StoreSchema {
   githubToken: string | null
@@ -10,6 +10,9 @@ interface StoreSchema {
   defaultModel: string
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
+  sprintLengthWeeks: number
+  endOfWeekDay: DayOfWeek
+  sprintStartDate: string
   aiCustomInstructions: string
 }
 
@@ -21,6 +24,9 @@ const storeDefaults: StoreSchema = {
   defaultModel: 'gpt-4.1',
   checkInFrequency: 'monthly',
   feedbackReminderDays: 14,
+  sprintLengthWeeks: 2,
+  endOfWeekDay: 'friday',
+  sprintStartDate: '',
   aiCustomInstructions: ''
 }
 
@@ -110,6 +116,9 @@ export function getSettingsForRenderer() {
     defaultModel: store.get('defaultModel'),
     checkInFrequency: store.get('checkInFrequency'),
     feedbackReminderDays: store.get('feedbackReminderDays'),
+    sprintLengthWeeks: store.get('sprintLengthWeeks'),
+    endOfWeekDay: store.get('endOfWeekDay'),
+    sprintStartDate: store.get('sprintStartDate'),
     aiCustomInstructions: store.get('aiCustomInstructions')
   }
 }
