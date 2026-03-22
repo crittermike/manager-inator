@@ -431,7 +431,7 @@ ${editNotes}`
                         {meetings.map((m) => (
                           <button
                             key={m.filename}
-                            onClick={() => navigate(`/meetings/${m.filename}`)}
+                            onClick={() => navigate(`/search`)}
                             className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
                           >
                             <FileText className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />

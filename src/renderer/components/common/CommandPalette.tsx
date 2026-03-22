@@ -4,11 +4,9 @@ import { useTeamOverview } from '../../hooks/useData'
 import type { PersonEntry } from '../../../shared/types'
 import {
   LayoutDashboard,
-  Calendar,
   Users,
   FileText,
   Trophy,
-  MessageSquare,
   Settings,
   Search,
   User
@@ -40,12 +38,11 @@ export function CommandPalette() {
   }, [open, people.length])
 
   const pages: PaletteItem[] = [
-    { id: 'dashboard', label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-    { id: 'meetings', label: 'Meetings', path: '/meetings', icon: <Calendar className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-    { id: 'people', label: 'People', path: '/people', icon: <Users className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
+    { id: 'today', label: 'Today', path: '/', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
+    { id: 'team', label: 'Team', path: '/team', icon: <Users className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
+    { id: 'search', label: 'Search', path: '/search', icon: <Search className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'transcript', label: 'Process transcript', path: '/transcript', icon: <FileText className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'impact', label: 'My impact', path: '/impact', icon: <Trophy className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-    { id: 'chat', label: 'AI assistant', path: '/chat', icon: <MessageSquare className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'settings', label: 'Settings', path: '/settings', icon: <Settings className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
   ]
 

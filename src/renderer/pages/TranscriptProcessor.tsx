@@ -200,7 +200,7 @@ export function TranscriptProcessor() {
 
       setSaved(true)
       toast.success('Meeting saved successfully')
-      navigate(`/meetings/${filename}`)
+      navigate('/')
     } catch (e) {
       console.error('Failed to save:', e)
       toast.error('Failed to save meeting')
