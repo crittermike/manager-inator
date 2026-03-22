@@ -4,6 +4,7 @@ import { Search as SearchIcon, User, Calendar, ArrowLeft, X } from 'lucide-react
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { MeetingEntry, PersonEntry } from '../../shared/types'
+import { cleanSummaryContent } from '../utils/cleanSummary'
 
 interface SearchResult {
   type: 'meeting' | 'person'
@@ -12,14 +13,6 @@ interface SearchResult {
   route: string
   date?: string
   filename?: string
-}
-
-function cleanSummaryContent(content: string): string {
-  let cleaned = content
-  cleaned = cleaned.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()
-  cleaned = cleaned.replace(/^Here(?:'s| is) (?:your |the )?(?:meeting )?summary:?\s*\n*/i, '').trim()
-  cleaned = cleaned.replace(/^---\n*/m, '').trim()
-  return cleaned
 }
 
 export function SearchPage() {

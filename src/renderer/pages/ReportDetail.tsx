@@ -8,6 +8,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ActionItem, FeedbackEntry } from '../../shared/types'
+import { cleanSummaryContent } from '../utils/cleanSummary'
 import {
   ArrowLeft,
   Calendar,
@@ -48,16 +49,6 @@ interface StreamEntry {
 }
 
 // ── Helpers ──
-
-function cleanSummaryContent(content: string): string {
-  let cleaned = content
-  cleaned = cleaned.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()
-  cleaned = cleaned.replace(/^Here(?:'s| is) (?:your |the )?(?:meeting )?summary:?\s*\n*/i, '').trim()
-  cleaned = cleaned.replace(/^---\n*/m, '').trim()
-  cleaned = cleaned.replace(/\*\*speakers:\*\*\n(?:[-*]\s+.+\n?)*/im, '').trim()
-  cleaned = cleaned.replace(/## Attendees\n(?:[-*]\s+.+\n?)*/m, '').trim()
-  return cleaned
-}
 
 function daysAgo(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
