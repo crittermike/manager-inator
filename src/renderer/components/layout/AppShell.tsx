@@ -1,14 +1,12 @@
-import { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  FileText,
+  Sun,
   MessageSquare,
   Settings,
   Zap,
-  Calendar,
   Users,
-  Trophy
+  Search
 } from 'lucide-react'
 import { useTeamOverview } from '../../hooks/useData'
 import { CommandPalette } from '../common/CommandPalette'
@@ -19,11 +17,9 @@ interface AppShellProps {
 }
 
 const navItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/meetings', icon: Calendar, label: 'Meetings' },
-  { path: '/people', icon: Users, label: 'People' },
-  { path: '/impact', icon: Trophy, label: 'My impact' },
-  { path: '/chat', icon: MessageSquare, label: 'AI assistant' }
+  { path: '/', icon: Sun, label: 'Today' },
+  { path: '/team', icon: Users, label: 'Team' },
+  { path: '/search', icon: Search, label: 'Search' }
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -32,6 +28,7 @@ export function AppShell({ children }: AppShellProps) {
   const { overview } = useTeamOverview()
   const toast = useToast()
   const reports = overview?.reports ?? []
+  const [aiPanelOpen, setAiPanelOpen] = useState(false)
 
   useEffect(() => {
     const cleanup = window.api.onPushStatus((data) => {
@@ -66,6 +63,8 @@ export function AppShell({ children }: AppShellProps) {
           {navItems.map(({ path, icon: Icon, label }) => {
             const active = path === '/'
               ? location.pathname === '/'
+              : path === '/team'
+              ? location.pathname === '/team' || location.pathname.startsWith('/report/')
               : location.pathname.startsWith(path)
             return (
               <button
@@ -93,16 +92,6 @@ export function AppShell({ children }: AppShellProps) {
               {reports.map((r) => {
                 const path = `/report/${r.name}`
                 const active = location.pathname === path
-                const statusColor = r.status === 'on-track'
-                  ? 'bg-success'
-                  : r.status === 'needs-attention'
-                  ? 'bg-warning'
-                  : 'bg-danger'
-                const statusLabel = r.status === 'on-track'
-                  ? 'On track'
-                  : r.status === 'needs-attention'
-                  ? 'Needs attention'
-                  : 'At risk'
                 return (
                   <button
                     key={r.name}
@@ -113,12 +102,10 @@ export function AppShell({ children }: AppShellProps) {
                         : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
                     }`}
                   >
-                    <div className="relative w-6 h-6 rounded-full bg-brand/20 flex items-center justify-center text-xs font-medium text-brand-light shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-brand/20 flex items-center justify-center text-xs font-medium text-brand-light shrink-0">
                       {r.displayName.charAt(0)}
-                      <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface ${statusColor} ${r.status !== 'on-track' ? 'animate-pulse-dot' : ''}`} aria-hidden="true" />
                     </div>
                     <span className="truncate">{r.displayName}</span>
-                    <span className="sr-only">({statusLabel})</span>
                   </button>
                 )
               })}
@@ -145,28 +132,25 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Main content */}
       <main id="main-content" className="flex-1 overflow-hidden relative">
-        {location.pathname === '/chat' ? (
-          children
-        ) : (
-          <>
-            {/* Drag region for the rest of the title bar */}
-            <div className="drag-region h-14 shrink-0" />
-            <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
-              {children}
-            </div>
-          </>
-        )}
+        {/* Drag region for the rest of the title bar */}
+        <div className="drag-region h-14 shrink-0" />
+        <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
+          {children}
+        </div>
 
-        {location.pathname !== '/transcript' && (
-          <button
-            onClick={() => navigate('/transcript')}
-            className="absolute bottom-6 right-6 w-12 h-12 bg-brand hover:bg-brand-dark text-white rounded-full shadow-lg shadow-brand/25 flex items-center justify-center transition-all hover:scale-105 z-10"
-            aria-label="Process transcript"
-            title="Process transcript"
-          >
-            <FileText className="w-5 h-5" aria-hidden="true" />
-          </button>
-        )}
+        {/* AI chat floating button */}
+        <button
+          onClick={() => setAiPanelOpen(prev => !prev)}
+          className={`absolute bottom-6 right-6 w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 z-10 ${
+            aiPanelOpen
+              ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25'
+              : 'bg-brand hover:bg-brand-dark shadow-brand/25'
+          }`}
+          aria-label={aiPanelOpen ? 'Close AI assistant' : 'Open AI assistant'}
+          title={aiPanelOpen ? 'Close AI assistant' : 'Ask AI anything'}
+        >
+          <MessageSquare className="w-5 h-5" aria-hidden="true" />
+        </button>
       </main>
     </div>
   )

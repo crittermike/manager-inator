@@ -3,19 +3,13 @@ import { useAuth } from './hooks/useAuth'
 import { AppShell } from './components/layout/AppShell'
 import { AuthScreen } from './pages/AuthScreen'
 import { SetupScreen } from './pages/SetupScreen'
-import { Dashboard } from './pages/Dashboard'
+import { Today } from './pages/Today'
 import { ReportDetail } from './pages/ReportDetail'
 import { TranscriptProcessor } from './pages/TranscriptProcessor'
-import { AIChat } from './pages/AIChat'
+import { SearchPage } from './pages/Search'
 import { Settings } from './pages/Settings'
-import { Meetings } from './pages/Meetings'
 import { People } from './pages/People'
 import { ImpactLog } from './pages/ImpactLog'
-import { TeamActions } from './pages/TeamActions'
-import { TeamPriorities } from './pages/TeamPriorities'
-import { TeamFeedback } from './pages/TeamFeedback'
-import { PrepOverview } from './pages/PrepOverview'
-import { TeamTrends } from './pages/TeamTrends'
 import { useState, useEffect, useMemo } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
@@ -38,20 +32,12 @@ export default function App() {
     {
       element: <Layout />,
       children: [
-        { path: '/', element: <Dashboard /> },
+        { path: '/', element: <Today /> },
+        { path: '/team', element: <People /> },
         { path: '/report/:name', element: <ReportDetail /> },
         { path: '/transcript', element: <TranscriptProcessor /> },
-        { path: '/meetings', element: <Meetings /> },
-        { path: '/meetings/:filename', element: <Meetings /> },
-        { path: '/people', element: <People /> },
-        { path: '/people/:slug', element: <People /> },
+        { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <ImpactLog /> },
-        { path: '/actions', element: <TeamActions /> },
-        { path: '/priorities', element: <TeamPriorities /> },
-        { path: '/feedback', element: <TeamFeedback /> },
-        { path: '/prep-overview', element: <PrepOverview /> },
-        { path: '/trends', element: <TeamTrends /> },
-        { path: '/chat', element: <AIChat /> },
         { path: '/settings', element: <Settings /> },
         { path: '*', element: <Navigate to="/" replace /> }
       ]
