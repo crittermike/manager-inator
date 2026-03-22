@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search as SearchIcon, User, Calendar } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Search as SearchIcon, User, Calendar, ArrowLeft, X } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { MeetingEntry, PersonEntry } from '../../shared/types'
 
 interface SearchResult {
@@ -9,6 +11,15 @@ interface SearchResult {
   subtitle: string
   route: string
   date?: string
+  filename?: string
+}
+
+function cleanSummaryContent(content: string): string {
+  let cleaned = content
+  cleaned = cleaned.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()
+  cleaned = cleaned.replace(/^Here(?:'s| is) (?:your |the )?(?:meeting )?summary:?\s*\n*/i, '').trim()
+  cleaned = cleaned.replace(/^---\n*/m, '').trim()
+  return cleaned
 }
 
 export function SearchPage() {
@@ -16,11 +27,62 @@ export function SearchPage() {
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [people, setPeople] = useState<PersonEntry[]>([])
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Meeting viewer state
+  const [viewingMeeting, setViewingMeeting] = useState<string | null>(null)
+  const [meetingContent, setMeetingContent] = useState<string | null>(null)
+  const [meetingLoading, setMeetingLoading] = useState(false)
+  const [meetingTitle, setMeetingTitle] = useState('')
 
   useEffect(() => {
     window.api.listMeetings().then(setMeetings).catch(() => {})
     window.api.listPeople().then(setPeople).catch(() => {})
   }, [])
+
+  // Handle ?meeting= query param
+  useEffect(() => {
+    const meetingParam = searchParams.get('meeting')
+    if (meetingParam && meetings.length > 0) {
+      const meeting = meetings.find(m => m.filename === meetingParam)
+      if (meeting) {
+        openMeeting(meeting.filename, meeting.title)
+      }
+    }
+  }, [searchParams, meetings])
+
+  const openMeeting = useCallback(async (filename: string, title: string) => {
+    setViewingMeeting(filename)
+    setMeetingTitle(title)
+    setMeetingLoading(true)
+    setMeetingContent(null)
+
+    // Try summary first, fall back to raw transcript
+    const summaryFilename = filename.replace('.md', '-summary.md')
+    try {
+      const content = await window.api.getFileContent(`meetings/${summaryFilename}`)
+      setMeetingContent(cleanSummaryContent(content))
+    } catch {
+      try {
+        const content = await window.api.getFileContent(`meetings/${filename}`)
+        setMeetingContent(content)
+      } catch {
+        setMeetingContent('_Unable to load meeting content._')
+      }
+    }
+    setMeetingLoading(false)
+  }, [])
+
+  const closeMeeting = useCallback(() => {
+    setViewingMeeting(null)
+    setMeetingContent(null)
+    setMeetingTitle('')
+    // Clear the ?meeting= param without navigating
+    if (searchParams.has('meeting')) {
+      searchParams.delete('meeting')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const results = useMemo(() => {
     if (!query.trim()) return []
@@ -33,8 +95,9 @@ export function SearchPage() {
           type: 'meeting',
           title: m.title,
           subtitle: m.date + (m.hasSummary ? '' : ' · unprocessed'),
-          route: `/search?meeting=${encodeURIComponent(m.filename)}`,
-          date: m.date
+          route: '',
+          date: m.date,
+          filename: m.filename
         })
       }
     }
@@ -73,6 +136,44 @@ export function SearchPage() {
         <p className="text-sm text-zinc-500 mt-1">Find meetings, people, and notes</p>
       </div>
 
+      {/* Meeting viewer */}
+      {viewingMeeting && (
+        <div className="bg-surface rounded-xl border border-border overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                onClick={closeMeeting}
+                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+                aria-label="Close"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-medium text-zinc-200 truncate">{meetingTitle}</span>
+            </div>
+            <button
+              onClick={closeMeeting}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
+            {meetingLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : meetingContent ? (
+              <div className="prose-dark text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{meetingContent}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">Unable to load content.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="relative group/search">
         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within/search:text-brand-light transition-colors" aria-hidden="true" />
         <input
@@ -99,8 +200,14 @@ export function SearchPage() {
         <div className="space-y-1 animate-fade-in">
           {results.map((r, i) => (
             <button
-              key={`${r.type}-${r.route}-${i}`}
-              onClick={() => navigate(r.route)}
+              key={`${r.type}-${r.route || r.filename}-${i}`}
+              onClick={() => {
+                if (r.type === 'meeting' && r.filename) {
+                  openMeeting(r.filename, r.title)
+                } else {
+                  navigate(r.route)
+                }
+              }}
               className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group"
             >
               <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">

@@ -431,7 +431,7 @@ ${editNotes}`
                         {meetings.map((m) => (
                           <button
                             key={m.filename}
-                            onClick={() => navigate(`/search`)}
+                            onClick={() => navigate(`/search?meeting=${encodeURIComponent(m.filename)}`)}
                             className="w-full flex items-center gap-3 p-3.5 bg-surface rounded-xl border border-border hover:border-brand/30 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group/meeting"
                           >
                             <FileText className="w-4 h-4 text-zinc-500 shrink-0 group-hover/meeting:text-brand-light transition-colors" aria-hidden="true" />
