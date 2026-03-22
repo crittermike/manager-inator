@@ -17,13 +17,10 @@ import {
   ChevronDown,
   ChevronRight,
   Sparkles,
-  Clock,
   FileText,
-  MessageSquare,
   RefreshCw,
   Users,
   AlertTriangle,
-  X,
   Loader2
 } from 'lucide-react'
 
@@ -162,7 +159,7 @@ function computeTimelineItems(
           title: `Monthly check-in due for ${r.displayName}`,
           subtitle: r.lastCheckIn ? `Last check-in: ${r.lastCheckIn}` : 'No check-in on file',
           reportName: r.name,
-          route: `/report/${r.name}?filter=check-in`,
+          route: `/report/${r.name}?filter=checkin`,
           actionLabel: 'Write check-in',
           actionType: 'navigate'
         })
@@ -727,7 +724,6 @@ function InlineProcessor({
 export function Today() {
   const { overview, loading, error, refresh } = useTeamOverview()
   const navigate = useNavigate()
-  const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
   const [cadence, setCadence] = useState<CadenceSettings>({
@@ -975,6 +971,17 @@ export function Today() {
                                 {item.actionLabel}
                               </button>
                             )}
+                            {item.actionLabel && item.actionType === 'dismiss' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  markDone(item.id)
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+                              >
+                                {item.actionLabel}
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -998,6 +1005,7 @@ export function Today() {
                               markDone(item.id)
                               setProcessingItem(null)
                               window.api.listMeetings().then(setMeetings).catch(() => {})
+                              window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
                             }}
                             onCancel={() => {
                               setProcessingItem(null)
