@@ -6,11 +6,10 @@ export function useTeamOverview() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      await window.api.clearCaches()
       const data = await window.api.getTeamOverview()
       setOverview(data)
     } catch (e) {
@@ -20,7 +19,12 @@ export function useTeamOverview() {
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  const refresh = useCallback(async () => {
+    await window.api.clearCaches()
+    await load()
+  }, [load])
+
+  useEffect(() => { load() }, [load])
 
   return { overview, loading, error, refresh }
 }
@@ -31,13 +35,12 @@ export function useReportData(name: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const reqRef = useRef(0)
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!name) return
     const reqId = ++reqRef.current
     setLoading(true)
     setError(null)
     try {
-      await window.api.clearCaches()
       const data = await window.api.getReportData(name)
       if (reqRef.current === reqId) setReport(data)
     } catch (e) {
@@ -47,7 +50,12 @@ export function useReportData(name: string | undefined) {
     }
   }, [name])
 
-  useEffect(() => { refresh() }, [refresh])
+  const refresh = useCallback(async () => {
+    await window.api.clearCaches()
+    await load()
+  }, [load])
+
+  useEffect(() => { load() }, [load])
 
   return { report, loading, error, refresh }
 }
