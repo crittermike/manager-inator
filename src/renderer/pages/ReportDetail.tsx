@@ -404,19 +404,93 @@ export function ReportDetail() {
           const daysSince1on1 = lastTranscriptDate
             ? Math.floor((Date.now() - lastTranscriptDate.getTime()) / (1000 * 60 * 60 * 24))
             : null
-          const openItems = report.actionItems.filter(a => !a.completed).length
-          const completedItems = report.actionItems.filter(a => a.completed).length
+          const openItems = report.actionItems.filter(a => !a.completed)
+          const completedCount = report.actionItems.filter(a => a.completed).length
           const sortedFeedback = [...report.feedback].sort((a, b) => b.date.localeCompare(a.date))
-          const lastFeedback = sortedFeedback[0] ?? null
+          const lastFeedbackEntry = sortedFeedback[0] ?? null
           const lastCheckIn = report.checkIns.length > 0
             ? report.checkIns[report.checkIns.length - 1]
             : null
           const recentTopics = report.summaries.slice(-5).flatMap(s => s.keyTopics).slice(-8)
 
+          const now = new Date()
+          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          const lastFeedbackDaysAgo = lastFeedbackEntry
+            ? Math.floor((Date.now() - new Date(lastFeedbackEntry.date).getTime()) / (1000 * 60 * 60 * 24))
+            : null
+          const checkInDue = !lastCheckIn || lastCheckIn.date < currentMonth
+          const meetingDay = report.profile.meetingDay?.toLowerCase()
+          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+          const todayIndex = now.getDay()
+          const meetingDayIndex = meetingDay ? dayNames.indexOf(meetingDay) : -1
+          const daysUntilMeeting = meetingDayIndex >= 0
+            ? (meetingDayIndex - todayIndex + 7) % 7
+            : null
+
+          const nudges: { text: string; severity: 'high' | 'medium' | 'low'; action?: () => void }[] = []
+          if (daysSince1on1 !== null && daysSince1on1 > 14) {
+            nudges.push({ text: `No 1:1 in ${daysSince1on1} days`, severity: 'high', action: () => { setActiveTab('prep'); handlePrepOneOnOne() } })
+          }
+          if (daysUntilMeeting !== null && daysUntilMeeting <= 2 && daysUntilMeeting > 0) {
+            nudges.push({ text: `1:1 is in ${daysUntilMeeting} day${daysUntilMeeting !== 1 ? 's' : ''} — prep notes not generated yet`, severity: 'medium', action: () => { setActiveTab('prep'); handlePrepOneOnOne() } })
+          } else if (daysUntilMeeting === 0) {
+            nudges.push({ text: '1:1 is today', severity: 'high', action: () => { setActiveTab('prep'); handlePrepOneOnOne() } })
+          }
+          if (checkInDue) {
+            nudges.push({ text: 'Monthly check-in is due', severity: 'medium', action: handleGenerateCheckIn })
+          }
+          if (lastFeedbackDaysAgo !== null && lastFeedbackDaysAgo > 21) {
+            nudges.push({ text: `No feedback logged in ${lastFeedbackDaysAgo} days`, severity: 'medium', action: () => setActiveTab('feedback') })
+          } else if (!lastFeedbackEntry) {
+            nudges.push({ text: 'No feedback logged yet', severity: 'low', action: () => setActiveTab('feedback') })
+          }
+          if (openItems.length > 10) {
+            nudges.push({ text: `${openItems.length} open action items piling up`, severity: 'medium', action: () => setActiveTab('actions') })
+          }
+
+          const recentActivity: { date: string; type: string; label: string; action?: () => void }[] = []
+          for (const t of [...report.transcripts].reverse().slice(0, 3)) {
+            recentActivity.push({
+              date: t.date,
+              type: '1:1',
+              label: `1:1 meeting${t.hasSummary ? ' (summarized)' : ''}`,
+              action: () => {
+                setActiveTab('transcripts')
+                setTranscriptSubTab('summary')
+                setSelectedFile(t.hasSummary ? `meetings/${t.date}-${name}-1-1-summary.md` : `meetings/${t.date}-${name}-1-1.md`)
+              }
+            })
+          }
+          for (const f of sortedFeedback.slice(0, 2)) {
+            recentActivity.push({
+              date: f.date,
+              type: f.type === 'positive' ? '🌟 Positive' : f.type === 'constructive' ? '🔧 Constructive' : '💬 Mixed',
+              label: f.content.length > 80 ? f.content.slice(0, 80) + '...' : f.content,
+              action: () => setActiveTab('feedback')
+            })
+          }
+          for (const c of [...report.checkIns].reverse().slice(0, 1)) {
+            recentActivity.push({
+              date: c.date,
+              type: 'Check-in',
+              label: `Monthly check-in for ${c.date}`,
+              action: () => {
+                setActiveTab('checkins')
+                setSelectedFile(`reports/${name}/check-ins/monthly/${c.date}.md`)
+              }
+            })
+          }
+          recentActivity.sort((a, b) => b.date.localeCompare(a.date))
+
+          const aboutText = report.profile.about
+            ? report.profile.about.replace(/<!--[\s\S]*?-->/g, '').trim()
+            : ''
+
           return (
             <div className="space-y-5">
+              {/* Stat cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-surface rounded-xl border border-border p-4">
+                <button onClick={() => setActiveTab('transcripts')} className="bg-surface rounded-xl border border-border p-4 text-left hover:border-brand/30 transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="w-4 h-4 text-zinc-500" aria-hidden="true" />
                     <span className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Last 1:1</span>
@@ -431,31 +505,31 @@ export function ReportDetail() {
                   ) : (
                     <p className="text-sm text-zinc-600">None recorded</p>
                   )}
-                </div>
+                </button>
 
-                <div className="bg-surface rounded-xl border border-border p-4">
+                <button onClick={() => setActiveTab('actions')} className="bg-surface rounded-xl border border-border p-4 text-left hover:border-brand/30 transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckSquare className="w-4 h-4 text-zinc-500" aria-hidden="true" />
                     <span className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Action items</span>
                   </div>
-                  <p className="text-lg font-semibold text-zinc-100">{openItems} open</p>
-                  <p className="text-xs text-zinc-500 mt-1">{completedItems} completed</p>
-                </div>
+                  <p className="text-lg font-semibold text-zinc-100">{openItems.length} open</p>
+                  <p className="text-xs text-zinc-500 mt-1">{completedCount} completed</p>
+                </button>
 
-                <div className="bg-surface rounded-xl border border-border p-4">
+                <button onClick={() => setActiveTab('feedback')} className="bg-surface rounded-xl border border-border p-4 text-left hover:border-brand/30 transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <Star className="w-4 h-4 text-zinc-500" aria-hidden="true" />
                     <span className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Feedback</span>
                   </div>
                   <p className="text-lg font-semibold text-zinc-100">{report.feedback.length} entries</p>
-                  {lastFeedback ? (
-                    <p className="text-xs text-zinc-500 mt-1">Last: {formatDate(lastFeedback.date)}</p>
+                  {lastFeedbackEntry ? (
+                    <p className="text-xs text-zinc-500 mt-1">Last: {formatDate(lastFeedbackEntry.date)}</p>
                   ) : (
                     <p className="text-xs text-zinc-600 mt-1">None yet</p>
                   )}
-                </div>
+                </button>
 
-                <div className="bg-surface rounded-xl border border-border p-4">
+                <button onClick={() => setActiveTab('checkins')} className="bg-surface rounded-xl border border-border p-4 text-left hover:border-brand/30 transition-all">
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingUp className="w-4 h-4 text-zinc-500" aria-hidden="true" />
                     <span className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Check-ins</span>
@@ -466,13 +540,169 @@ export function ReportDetail() {
                   ) : (
                     <p className="text-xs text-zinc-600 mt-1">None yet</p>
                   )}
-                </div>
+                </button>
               </div>
 
-              {recentTopics.length > 0 && (
-                <div className="bg-surface rounded-xl border border-border p-5">
+              {/* Nudges / suggested actions */}
+              {nudges.length > 0 && (
+                <div className="bg-surface rounded-xl border border-border p-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                    <span className="text-sm font-medium text-zinc-300">Suggested actions</span>
+                  </div>
+                  {nudges.map((nudge, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        nudge.severity === 'high' ? 'bg-danger' : nudge.severity === 'medium' ? 'bg-warning' : 'bg-zinc-500'
+                      }`} />
+                      {nudge.action ? (
+                        <button
+                          onClick={nudge.action}
+                          className="text-sm text-zinc-300 hover:text-brand-light transition-colors text-left"
+                        >
+                          {nudge.text}
+                        </button>
+                      ) : (
+                        <span className="text-sm text-zinc-400">{nudge.text}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Open action items (top 5) */}
+              {openItems.length > 0 && (
+                <div className="bg-surface rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4 text-zinc-500" aria-hidden="true" />
+                      <span className="text-sm font-medium text-zinc-300">Open action items</span>
+                    </div>
+                    {openItems.length > 5 && (
+                      <button
+                        onClick={() => setActiveTab('actions')}
+                        className="text-xs text-brand-light hover:text-brand transition-colors"
+                      >
+                        View all {openItems.length}
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {openItems.slice(0, 5).map((a, i) => {
+                      const toggleKey = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
+                      const isToggling = togglingItems.has(toggleKey)
+                      return (
+                        <button
+                          key={i}
+                          disabled={isToggling || !a.sourceFile || a.sourceLineNumber == null}
+                          onClick={async () => {
+                            if (!a.sourceFile || a.sourceLineNumber == null) return
+                            setTogglingItems(prev => new Set(prev).add(toggleKey))
+                            try {
+                              await window.api.toggleActionItem(a.sourceFile, a.sourceLineNumber)
+                              refresh()
+                            } catch (e) {
+                              console.error('Failed to check off item:', e)
+                              toast.error('Failed to update action item')
+                            } finally {
+                              setTogglingItems(prev => { const s = new Set(prev); s.delete(toggleKey); return s })
+                            }
+                          }}
+                          className="w-full flex items-start gap-2.5 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isToggling ? (
+                            <div className="w-4 h-4 mt-0.5 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0" aria-hidden="true" />
+                          ) : (
+                            <div className="w-4 h-4 mt-0.5 border border-zinc-600 rounded shrink-0 group-hover:border-brand group-hover:bg-brand/20 transition-colors" aria-hidden="true" />
+                          )}
+                          <span className="text-sm text-zinc-300">{a.text}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent activity timeline */}
+              {recentActivity.length > 0 && (
+                <div className="bg-surface rounded-xl border border-border p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Activity className="w-4 h-4 text-zinc-500" aria-hidden="true" />
+                    <span className="text-sm font-medium text-zinc-300">Recent activity</span>
+                  </div>
+                  <div className="space-y-3">
+                    {recentActivity.slice(0, 6).map((event, i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 rounded-full bg-zinc-600 mt-1.5 shrink-0" />
+                          {i < Math.min(recentActivity.length, 6) - 1 && (
+                            <div className="w-px h-full bg-zinc-800 min-h-[16px]" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 pb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-500">{formatDate(event.date)}</span>
+                            <span className="text-xs text-zinc-600">·</span>
+                            <span className="text-xs text-zinc-500">{event.type}</span>
+                          </div>
+                          {event.action ? (
+                            <button
+                              onClick={event.action}
+                              className="text-sm text-zinc-300 hover:text-brand-light transition-colors text-left mt-0.5 line-clamp-2"
+                            >
+                              {event.label}
+                            </button>
+                          ) : (
+                            <p className="text-sm text-zinc-400 mt-0.5 line-clamp-2">{event.label}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Latest feedback */}
+              {sortedFeedback.length > 0 && (
+                <div className="bg-surface rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-zinc-500" aria-hidden="true" />
+                      <span className="text-sm font-medium text-zinc-300">Recent feedback</span>
+                    </div>
+                    {sortedFeedback.length > 2 && (
+                      <button
+                        onClick={() => setActiveTab('feedback')}
+                        className="text-xs text-brand-light hover:text-brand transition-colors"
+                      >
+                        View all {sortedFeedback.length}
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {sortedFeedback.slice(0, 2).map((f, i) => (
+                      <div key={i} className="p-3 bg-surface-raised rounded-lg">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`text-xs font-medium ${
+                            f.type === 'positive' ? 'text-success' :
+                            f.type === 'constructive' ? 'text-warning' : 'text-blue-400'
+                          }`}>
+                            {f.type === 'positive' ? '🌟 Positive' : f.type === 'constructive' ? '🔧 Constructive' : '💬 Mixed'}
+                          </span>
+                          <span className="text-xs text-zinc-600">{formatDate(f.date)}</span>
+                        </div>
+                        <p className="text-sm text-zinc-400 leading-relaxed line-clamp-3">{f.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent discussion topics */}
+              {recentTopics.length > 0 && (
+                <div className="bg-surface rounded-xl border border-border p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MessageSquare className="w-4 h-4 text-zinc-500" aria-hidden="true" />
                     <span className="text-sm font-medium text-zinc-300">Recent discussion topics</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -485,10 +715,20 @@ export function ReportDetail() {
                 </div>
               )}
 
-              {report.profile.about && (
-                <div className="bg-surface rounded-xl border border-border p-5">
+              {/* About */}
+              {aboutText ? (
+                <div className="bg-surface rounded-xl border border-border p-4">
                   <h3 className="text-sm font-medium text-zinc-300 mb-2">About</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{report.profile.about}</p>
+                  <div className="prose-dark text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{aboutText}</ReactMarkdown>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-surface rounded-xl border border-border/50 p-4">
+                  <h3 className="text-sm font-medium text-zinc-500 mb-1">About</h3>
+                  <p className="text-xs text-zinc-600">
+                    No background info yet. Add notes about this person's career goals, working style, or communication preferences to their profile.
+                  </p>
                 </div>
               )}
             </div>
