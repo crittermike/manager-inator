@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useToast } from '../components/common/Toast'
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Users,
   User,
-  Calendar,
   Edit3,
   Save,
   ArrowLeft,
@@ -13,9 +17,10 @@ import {
   Search,
   FileText,
   MapPin,
-  Github,
+  GithubIcon,
   Briefcase,
-  X
+  X,
+  UserPlus
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ComboInput } from '../components/common/ComboInput'
@@ -52,34 +57,123 @@ export function People() {
   const [editing, setEditing] = useState(false)
   const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '', aliases: '' })
   const [editNotes, setEditNotes] = useState('')
+  const [initialEditFields, setInitialEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '', aliases: '' })
+  const [initialEditNotes, setInitialEditNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [roleOptions, setRoleOptions] = useState<string[]>([])
   const [relOptions, setRelOptions] = useState<string[]>([])
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newPersonName, setNewPersonName] = useState('')
+  const [addingSaving, setAddingSaving] = useState(false)
   const navigate = useNavigate()
   const { slug: routeSlug } = useParams<{ slug: string }>()
+  const toast = useToast()
+  const isDirty = editing && (
+    JSON.stringify(editFields) !== JSON.stringify(initialEditFields) ||
+    editNotes !== initialEditNotes
+  )
+  const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
+  const saveRef = useRef<() => void>(() => {})
+  const mountedRef = useRef(true)
 
-  const loadPeople = async () => {
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useKeyboardShortcut({ key: 's', handler: useCallback(() => saveRef.current(), []), enabled: editing })
+
+  const loadPeople = async (): Promise<PersonEntry[]> => {
     setLoading(true)
     try {
       const [data, opts] = await Promise.all([
         window.api.listPeople(),
         window.api.getSettingsOptions()
       ])
+      if (!mountedRef.current) return []
       setPeople(data)
       setRoleOptions(opts.roles || [])
       setRelOptions(opts.relationships || [])
-      // If route has a slug, auto-open that person
       if (routeSlug) {
-        const person = data.find(p => p.slug === routeSlug)
+        const person = data.find((p: PersonEntry) => p.slug === routeSlug)
         if (person) openPerson(person)
       }
-    } catch { /* empty */ }
-    finally { setLoading(false) }
+      return data
+    } catch (e) {
+      console.error('Failed to load people:', e)
+      if (mountedRef.current) toast.error('Failed to load people')
+      return []
+    }
+    finally { if (mountedRef.current) setLoading(false) }
   }
 
   // Reload when navigating back (routeSlug changes) or on mount
   useEffect(() => { loadPeople() }, [routeSlug])
+
+  const handleCreatePerson = async () => {
+    const trimmed = newPersonName.trim()
+    if (!trimmed) return
+    setAddingSaving(true)
+    const slug = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+
+    const existingSlug = await window.api.findPersonByName(trimmed)
+    if (existingSlug) {
+      toast.error(`A profile for "${trimmed}" already exists`)
+      setAddingSaving(false)
+      return
+    }
+
+    if (people.some(p => p.slug === slug)) {
+      toast.error(`A profile with slug "${slug}" already exists`)
+      setAddingSaving(false)
+      return
+    }
+
+    let fileAlreadyExists = false
+    try {
+      await window.api.getFileContent(`people/${slug}.md`)
+      fileAlreadyExists = true
+    } catch {
+      // File doesn't exist — safe to create
+    }
+    if (fileAlreadyExists) {
+      toast.error(`A profile file for "${slug}" already exists`)
+      setAddingSaving(false)
+      return
+    }
+
+    const content = `---
+name: ${trimmed}
+slug: ${slug}
+aliases: 
+role: 
+github: 
+location: 
+relationship: 
+---
+
+# ${trimmed}
+`
+    try {
+      await window.api.commitFile(
+        `people/${slug}.md`,
+        content,
+        `Add person: ${trimmed}`
+      )
+      setNewPersonName('')
+      setShowAddForm(false)
+      toast.success(`Added ${trimmed}`)
+      const freshPeople = await loadPeople()
+      const person = freshPeople.find(p => p.slug === slug) || { name: trimmed, slug, meetingCount: 0, lastSeen: '', role: '', github: '', location: '', relationship: '' }
+      openPerson(person)
+    } catch (e) {
+      console.error('Failed to create person:', e)
+      toast.error('Failed to create person')
+    } finally {
+      setAddingSaving(false)
+    }
+  }
 
   const openPerson = async (person: PersonEntry) => {
     setSelected(person)
@@ -90,13 +184,15 @@ export function People() {
         window.api.getFileContent(`people/${person.slug}.md`),
         window.api.getPersonMeetings(person.slug)
       ])
+      if (!mountedRef.current) return
       setProfileContent(content)
       setMeetings(mtgs)
     } catch {
+      if (!mountedRef.current) return
       setProfileContent('_Failed to load profile._')
       setMeetings([])
     } finally {
-      setDetailLoading(false)
+      if (mountedRef.current) setDetailLoading(false)
     }
   }
 
@@ -110,22 +206,29 @@ export function People() {
         if (m) fm[m[1]] = m[2].trim()
       }
     }
-    setEditFields({
+    const fields = {
       name: fm.name || selected?.name || '',
       role: fm.role || '',
       github: fm.github || '',
       location: fm.location || '',
       relationship: fm.relationship || '',
       aliases: fm.aliases || ''
-    })
+    }
+    setEditFields(fields)
+    setInitialEditFields(fields)
     // Body is everything after frontmatter, stripping the "# Name" heading
     const body = (fmMatch?.[2] || profileContent).replace(/^#\s+.+\n*/, '').trim()
     setEditNotes(body)
+    setInitialEditNotes(body)
     setEditing(true)
   }
 
   const handleSave = async () => {
     if (!selected) return
+    if (!editFields.name.trim()) {
+      toast.error('Name is required')
+      return
+    }
     setSaving(true)
     try {
       // Rebuild the file with frontmatter + body
@@ -152,15 +255,20 @@ ${editNotes}`
       // Update the selected person's display info
       setSelected({ ...selected, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship })
       setEditing(false)
+      toast.success('Profile saved')
     } catch (e) {
       console.error('Failed to save:', e)
+      toast.error('Failed to save profile')
     } finally {
       setSaving(false)
     }
   }
+  saveRef.current = handleSave
 
-  const filtered = search
-    ? people.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+  const debouncedSearch = useDebouncedValue(search, 300)
+
+  const filtered = debouncedSearch
+    ? people.filter(p => p.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
     : people
 
   if (loading) {
@@ -172,6 +280,7 @@ ${editNotes}`
   }
 
   return (
+    <>
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       {selected ? (
         <>
@@ -179,7 +288,7 @@ ${editNotes}`
             onClick={() => { setSelected(null); setMeetings([]) }}
             className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
             Back to people
           </button>
 
@@ -199,22 +308,22 @@ ${editNotes}`
                   <div className="flex items-center gap-4 mt-1.5 text-sm text-zinc-500 flex-wrap">
                     {selected.role && (
                       <span className="flex items-center gap-1">
-                        <Briefcase className="w-3.5 h-3.5" /> {selected.role}
+                        <Briefcase className="w-3.5 h-3.5" aria-hidden="true" /> {selected.role}
                       </span>
                     )}
                     {selected.github && (
                       <span className="flex items-center gap-1">
-                        <Github className="w-3.5 h-3.5" /> @{selected.github}
+                        <GithubIcon className="w-3.5 h-3.5" aria-hidden="true" /> @{selected.github}
                       </span>
                     )}
                     {selected.location && (
                       <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" /> {selected.location}
+                        <MapPin className="w-3.5 h-3.5" aria-hidden="true" /> {selected.location}
                       </span>
                     )}
                     {selected.relationship && (
                       <span className="flex items-center gap-1">
-                        <User className="w-3.5 h-3.5" /> {selected.relationship}
+                        <User className="w-3.5 h-3.5" aria-hidden="true" /> {selected.relationship}
                       </span>
                     )}
                   </div>
@@ -229,7 +338,7 @@ ${editNotes}`
                   onClick={() => editing ? setEditing(false) : startEditing()}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors shrink-0"
                 >
-                  <Edit3 className="w-4 h-4" />
+                  <Edit3 className="w-4 h-4" aria-hidden="true" />
                   {editing ? 'Cancel' : 'Edit profile'}
                 </button>
               </div>
@@ -289,8 +398,8 @@ ${editNotes}`
                       {saving ? (
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <Save className="w-4 h-4" />
-                      )}
+                        <Save className="w-4 h-4" aria-hidden="true" />
+                       )}
                       Save profile
                     </button>
                     <button
@@ -325,7 +434,7 @@ ${editNotes}`
                             onClick={() => navigate(`/meetings/${m.filename}`)}
                             className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
                           >
-                            <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
+                            <FileText className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
                             <div className="flex-1 min-w-0">
                               <span className="text-sm text-zinc-300">{formatMeetingTitle(m.title)}</span>
                               <span className="ml-2 text-xs text-zinc-600">{m.date}</span>
@@ -345,36 +454,107 @@ ${editNotes}`
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-                <Users className="w-6 h-6 text-brand" />
-                People
+                <Users className="w-6 h-6 text-brand" aria-hidden="true" />
+                 People
               </h1>
               <p className="text-sm text-zinc-500 mt-1">
                 {people.length} people
               </p>
             </div>
-            <button
-              onClick={loadPeople}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-colors"
+              >
+                <UserPlus className="w-4 h-4" aria-hidden="true" />
+                Add person
+              </button>
+              <button
+                onClick={loadPeople}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                Refresh
+              </button>
+            </div>
           </div>
+
+          {showAddForm && (
+            <div className="flex items-center gap-2 p-4 bg-surface rounded-xl border border-brand/20 animate-fade-in">
+              <input
+                type="text"
+                value={newPersonName}
+                onChange={(e) => setNewPersonName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreatePerson(); if (e.key === 'Escape') setShowAddForm(false) }}
+                placeholder="Full name (e.g. Jane Smith)"
+                aria-label="Full name"
+                autoFocus
+                className="flex-1 px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              />
+              <button
+                onClick={handleCreatePerson}
+                disabled={!newPersonName.trim() || addingSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-colors"
+              >
+                {addingSaving ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                 )}
+                Create
+              </button>
+              <button
+                onClick={() => { setShowAddForm(false); setNewPersonName('') }}
+                className="p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                aria-label="Cancel"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" aria-hidden="true" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search people..."
+              aria-label="Search people"
               className="w-full pl-10 pr-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
             />
           </div>
 
-          {/* People grid */}
-          <div className="grid grid-cols-2 gap-3">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Users className="w-10 h-10 text-zinc-700 mb-4" aria-hidden="true" />
+              {people.length === 0 ? (
+                <>
+                  <p className="text-lg font-medium text-zinc-300 mb-2">No people yet</p>
+                  <p className="text-sm text-zinc-500 mb-4">Add someone to start tracking meetings and relationships.</p>
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" aria-hidden="true" />
+                     Add your first person
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-500 mb-2">No people match "{search}"</p>
+                  <button
+                    onClick={() => setSearch('')}
+                    className="text-sm text-brand-light hover:text-brand transition-colors"
+                  >
+                    Clear search
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map((p) => (
               <button
                 key={p.slug}
@@ -397,8 +577,20 @@ ${editNotes}`
               </button>
             ))}
           </div>
+          )}
         </>
       )}
     </div>
+      <ConfirmDialog
+        open={blockerState === 'blocked'}
+        title="Unsaved changes"
+        message="You have unsaved profile edits. Leave anyway?"
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={proceed}
+        onCancel={resetBlocker}
+      />
+    </>
   )
 }

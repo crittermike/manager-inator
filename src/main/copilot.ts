@@ -1,6 +1,11 @@
 import { CopilotClient, approveAll } from '@github/copilot-sdk'
 import { getSettings } from './store'
-import { execSync } from 'child_process'
+import { spawn } from 'child_process'
+
+const isDev = !!process.env['ELECTRON_RENDERER_URL']
+function debugLog(...args: unknown[]): void {
+  if (isDev) console.log(...args)
+}
 
 const SYSTEM_PROMPT = `You are an AI assistant for Manager-inator, an engineering management tool.
 You help managers with performance management tasks: writing check-ins, summarizing 1:1s,
@@ -22,6 +27,8 @@ NAME CORRECTIONS (always apply):
 - "Katu" → "Catu"
 - Tara uses they/them pronouns`
 
+const AI_REQUEST_TIMEOUT_MS = 120_000
+
 type StreamCallback = (chunk: string) => void
 
 interface CopilotMessage {
@@ -30,13 +37,21 @@ interface CopilotMessage {
 }
 
 let client: CopilotClient | null = null
-let activeAbortController: AbortController | null = null
+
+type CopilotSession = Awaited<ReturnType<CopilotClient['createSession']>>
+const activeSessions = new Map<string, { session: CopilotSession; cancelled: boolean }>()
 
 async function getClient(): Promise<CopilotClient> {
   if (!client) {
     let cliPath: string | undefined
     try {
-      cliPath = execSync('which copilot', { encoding: 'utf-8' }).trim()
+      cliPath = await new Promise<string>((resolve, reject) => {
+        const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
+        let out = ''
+        child.stdout.on('data', (d: Buffer) => { out += d.toString() })
+        child.on('error', reject)
+        child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error('not found')))
+      })
     } catch {
       // Try common paths
       const fs = await import('fs')
@@ -45,14 +60,14 @@ async function getClient(): Promise<CopilotClient> {
       }
     }
 
-    console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
+    debugLog('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
     client = new CopilotClient({
       ...(cliPath ? { cliPath } : {}),
       useLoggedInUser: true,
       autoStart: false
     } as ConstructorParameters<typeof CopilotClient>[0])
     await client.start()
-    console.log('[Copilot SDK] Client started')
+    debugLog('[Copilot SDK] Client started')
   }
   return client
 }
@@ -60,9 +75,11 @@ async function getClient(): Promise<CopilotClient> {
 export async function aiGenerate(
   action: string,
   context: Record<string, unknown>,
-  onChunk: StreamCallback
+  onChunk: StreamCallback,
+  requestId: string
 ): Promise<string> {
-  activeAbortController = new AbortController()
+  const entry = { session: null as unknown as CopilotSession, cancelled: false }
+  let unsubscribe: (() => void) | null = null
   const messages = buildMessages(action, context)
   let fullResponse = ''
 
@@ -70,20 +87,22 @@ export async function aiGenerate(
     const c = await getClient()
     const settings = getSettings()
     const model = settings.defaultModel || 'claude-sonnet-4-5'
-    console.log('[Copilot SDK] Model:', model)
+    debugLog('[Copilot SDK] Model:', model)
 
     const systemMessages = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n')
     const userMessage = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n')
 
     const session = await c.createSession({
       model,
-      systemMessage: systemMessages || undefined,
+      systemMessage: systemMessages ? { content: systemMessages } : undefined,
       onPermissionRequest: approveAll
     })
+    entry.session = session
+    activeSessions.set(requestId, entry)
 
-    // Listen to all events for streaming
-    session.on((event: { type: string; data: Record<string, unknown> }) => {
-      console.log('[Copilot SDK] Event:', event.type, JSON.stringify(event.data).slice(0, 200))
+    unsubscribe = session.on((event: { type: string; data: Record<string, unknown> }) => {
+      if (entry.cancelled) return
+      debugLog('[Copilot SDK] Event:', event.type)
       if (event.type === 'assistant.message_delta') {
         const delta = (event.data as { deltaContent?: string }).deltaContent
         if (delta) {
@@ -97,7 +116,6 @@ export async function aiGenerate(
           onChunk(content)
         }
       }
-      // Catch-all: try to extract content from any event with a content field
       if (!fullResponse && event.data) {
         const possibleContent = (event.data as Record<string, unknown>).content ||
           (event.data as Record<string, unknown>).text ||
@@ -109,10 +127,14 @@ export async function aiGenerate(
       }
     })
 
-    console.log('[Copilot SDK] Sending message...')
-    const response = await session.sendAndWait({ prompt: userMessage })
-    console.log('[Copilot SDK] sendAndWait returned:', typeof response, JSON.stringify(response)?.slice(0, 300))
-    // Some SDK versions return the content directly from sendAndWait
+    debugLog('[Copilot SDK] Sending message...')
+    const response = await Promise.race([
+      session.sendAndWait({ prompt: userMessage }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('AI request timed out')), AI_REQUEST_TIMEOUT_MS)
+      )
+    ])
+    debugLog('[Copilot SDK] sendAndWait returned:', typeof response)
     if (!fullResponse && response) {
       if (typeof response === 'string') {
         fullResponse = response
@@ -122,23 +144,44 @@ export async function aiGenerate(
         if (content) fullResponse = content
       }
     }
-    console.log('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
+    debugLog('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
 
   } catch (error) {
-    if ((error as Error).name === 'AbortError') {
+    if (entry.cancelled) {
       return fullResponse
     }
     console.error('[Copilot SDK] Error:', (error as Error).message, (error as Error).stack)
     throw error
   } finally {
-    activeAbortController = null
+    if (unsubscribe) try { unsubscribe() } catch {}
+    if (entry.session) try { await entry.session.disconnect() } catch {}
+    activeSessions.delete(requestId)
   }
 
   return fullResponse
 }
 
-export function aiCancel(): void {
-  activeAbortController?.abort()
+export async function aiCancel(requestId?: string): Promise<void> {
+  if (requestId) {
+    const entry = activeSessions.get(requestId)
+    if (entry) {
+      entry.cancelled = true
+      try { await entry.session.abort() } catch {}
+    }
+  } else {
+    // Cancel all active sessions (fallback)
+    for (const [, entry] of activeSessions) {
+      entry.cancelled = true
+      try { await entry.session.abort() } catch {}
+    }
+  }
+}
+
+export async function stopClient(): Promise<void> {
+  if (client) {
+    try { await client.stop() } catch {}
+    client = null
+  }
 }
 
 function buildMessages(
@@ -178,8 +221,7 @@ _Auto-generated summary of [transcript](../transcripts/${context.date}.md)_
 - [challenges]
 
 ## Action items
-| Action | Owner | Due |
-|--------|-------|-----|
+- [ ] **Owner**: Action description (due date if mentioned)
 
 ## Sentiment check
 [emotional/engagement tone]
@@ -219,8 +261,7 @@ speakers:
 - [any decisions]
 
 ## Action items
-| Action | Owner | Due |
-|--------|-------|-----|
+- [ ] **Owner**: Action description (due date if mentioned)
 
 ## Relevant notes for my reports
 [anything noteworthy about specific direct reports]

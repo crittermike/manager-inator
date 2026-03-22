@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'fs'
-import { join, dirname } from 'path'
-import { execSync, spawn } from 'child_process'
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, realpathSync, existsSync } from 'fs'
+import { join, dirname, resolve, relative, isAbsolute } from 'path'
+import { spawn } from 'child_process'
+import { BrowserWindow } from 'electron'
 import { getSettings } from './store'
 import type {
   ReportProfile,
@@ -10,7 +11,6 @@ import type {
   Transcript,
   ActionItem,
   FeedbackEntry,
-  Goal,
   TeamOverview,
   ReportStatus
 } from '../shared/types'
@@ -22,15 +22,50 @@ function repoPath(): string {
   return p
 }
 
+// ── Path safety ──
+
+/** Resolve a renderer-supplied path and verify it stays within the repo root */
+function safePath(userPath: string): string {
+  const rp = realpathSync(resolve(repoPath()))
+  const full = resolve(rp, userPath)
+
+  // Canonicalize the nearest existing ancestor to catch symlinks
+  let check = full
+  while (!existsSync(check)) {
+    const parent = dirname(check)
+    if (parent === check) break
+    check = parent
+  }
+  const canonicalized = realpathSync(check)
+  const relCanon = relative(rp, canonicalized)
+  if (relCanon.startsWith('..') || isAbsolute(relCanon)) {
+    throw new Error(`Path traversal blocked: ${userPath}`)
+  }
+
+  // Also verify the full resolved path doesn't escape via '..' segments
+  const relFull = relative(rp, full)
+  if (relFull.startsWith('..') || isAbsolute(relFull)) {
+    throw new Error(`Path traversal blocked: ${userPath}`)
+  }
+  return full
+}
+
 // ── File operations (local filesystem) ──
 
 export function getFileContent(path: string): string {
-  return readFileSync(join(repoPath(), path), 'utf-8')
+  return readFileSync(safePath(path), 'utf-8')
+}
+
+export function fileExists(relPath: string): boolean {
+  try {
+    const full = safePath(relPath)
+    return existsSync(full)
+  } catch { return false }
 }
 
 function listDirectory(path: string): string[] {
   try {
-    const fullPath = join(repoPath(), path)
+    const fullPath = safePath(path)
     return readdirSync(fullPath, { withFileTypes: true })
       .filter(d => d.isDirectory())
       .map(d => d.name)
@@ -39,30 +74,89 @@ function listDirectory(path: string): string[] {
 
 function listFiles(path: string): string[] {
   try {
-    const fullPath = join(repoPath(), path)
+    const fullPath = safePath(path)
     return readdirSync(fullPath, { withFileTypes: true })
       .filter(d => d.isFile())
       .map(d => d.name)
   } catch { return [] }
 }
 
-export function commitFile(path: string, content: string, message: string): void {
-  const fullPath = join(repoPath(), path)
-  // Ensure directory exists
+let _writeQueue: Promise<void> = Promise.resolve()
+
+export function commitFile(path: string, content: string, message: string): Promise<void> {
+  const task = _writeQueue.then(() => _commitFileImpl(path, content, message))
+  _writeQueue = task.catch(() => {})
+  return task
+}
+
+/** Run a git command asynchronously and resolve/reject based on exit code */
+function spawnAsync(command: string, args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (data: Buffer) => { stdout += data.toString() })
+    child.stderr.on('data', (data: Buffer) => { stderr += data.toString() })
+    child.on('error', (err) => reject(err))
+    child.on('close', (code) => {
+      if (code !== 0) reject(new Error(`${command} ${args[0]} failed (exit ${code}): ${stderr.trim()}`))
+      else resolve(stdout)
+    })
+  })
+}
+
+/** Send an IPC message to a window, silently catching errors if the window was destroyed */
+export function safeSend(win: BrowserWindow | null, channel: string, payload: unknown): void {
+  try {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(channel, payload)
+    }
+  } catch (err) {
+    console.warn(`[safeSend] Failed to send ${channel}:`, (err as Error).message)
+  }
+}
+
+async function _commitFileImpl(path: string, content: string, message: string): Promise<void> {
+  const fullPath = safePath(path)
   mkdirSync(dirname(fullPath), { recursive: true })
   writeFileSync(fullPath, content, 'utf-8')
 
-  // Invalidate all caches since file contents changed
+  const rp = repoPath()
+  await spawnAsync('git', ['add', '--', path], rp)
+
+  // Skip commit/push if file content is unchanged (git add was a no-op)
+  try {
+    await spawnAsync('git', ['diff', '--cached', '--quiet', '--', path], rp)
+    // Exit 0 means no staged changes for this file — nothing to commit
+    invalidateMeetingsCache()
+    invalidateReportCache()
+    invalidatePeopleCache()
+    return
+  } catch {
+    // Exit 1 means there are staged changes — proceed with commit
+  }
+
+  await spawnAsync('git', ['commit', '-m', message], rp)
+
   invalidateMeetingsCache()
   invalidateReportCache()
   invalidatePeopleCache()
 
-  const rp = repoPath()
-  execSync(`git add "${path}"`, { cwd: rp })
-  execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: rp })
-  // Push fully async — don't block the UI
-  const child = spawn('git', ['push'], { cwd: rp, stdio: 'ignore', detached: true })
+  const child = spawn('git', ['push'], { cwd: rp, stdio: 'ignore' })
   child.unref()
+  child.on('exit', (code) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (code !== 0) {
+      console.error(`[Git] push failed (exit ${code})`)
+      safeSend(win, 'github:push-status', { success: false, error: `push exited with code ${code}` })
+    } else {
+      safeSend(win, 'github:push-status', { success: true })
+    }
+  })
+  child.on('error', (err) => {
+    console.error('[Git] push spawn error:', err.message)
+    safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
+  })
 }
 
 // ── Parsing helpers ──
@@ -112,7 +206,8 @@ function parseProfile(content: string, name: string): ReportProfile {
 function parseActionItems(content: string, sourceFile?: string): ActionItem[] {
   const items: ActionItem[] = []
   const lines = content.split('\n')
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
     const match = line.match(/^- \[([ xX])\]\s+(.+)/)
     if (match) {
       const completed = match[1] !== ' '
@@ -123,7 +218,7 @@ function parseActionItems(content: string, sourceFile?: string): ActionItem[] {
         owner = ownerMatch[1]
         text = text.replace(ownerMatch[0], '').trim()
       }
-      items.push({ text, owner, completed, sourceFile, sourceLine: line })
+      items.push({ text, owner, completed, sourceFile, sourceLine: line, sourceLineNumber: lineIndex })
     }
   }
   return items
@@ -152,9 +247,6 @@ function parseFeedbackLog(content: string): FeedbackEntry[] {
   return entries
 }
 
-function parseGoals(content: string): Goal[] {
-  return [] // Goals removed per user request
-}
 
 // ── High-level data fetching ──
 
@@ -197,8 +289,6 @@ export function getReportData(name: string): Report {
   const allMeetingFiles = listFiles('meetings')
   let feedbackRaw = ''
   try { feedbackRaw = getFileContent(`reports/${name}/feedback/log.md`) } catch {}
-  let goalsRaw = ''
-  try { goalsRaw = getFileContent(`reports/${name}/goals/current.md`) } catch {}
   const reviewFiles = listFiles(`reports/${name}/reviews`)
   let dashboardRaw = ''
   try { dashboardRaw = getFileContent(`reports/${name}/DASHBOARD.md`) } catch {}
@@ -206,17 +296,21 @@ export function getReportData(name: string): Report {
   // Filter meetings for this person
   const personMeetings = allMeetingFiles.filter(
     (f) => f.includes(`${name}-1-1`) && !f.includes('-summary')
-  )
+  ).sort()
   const personSummaries = allMeetingFiles.filter(
     (f) => f.includes(`${name}-1-1-summary`)
-  )
+  ).sort()
 
   // Parse check-ins
-  const mdCheckIns = checkInFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
+  const mdCheckIns = checkInFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep').sort()
   const recentCheckIns = mdCheckIns.slice(-6)
   const checkIns: CheckIn[] = recentCheckIns.map((f) => {
-    const content = getFileContent(`reports/${name}/check-ins/monthly/${f}`)
-    return { date: f.replace('.md', ''), content, accomplishments: [], concerns: [], githubActivity: {} }
+    try {
+      const content = getFileContent(`reports/${name}/check-ins/monthly/${f}`)
+      return { date: f.replace('.md', ''), content, accomplishments: [], concerns: [], githubActivity: {} }
+    } catch {
+      return { date: f.replace('.md', ''), content: '', accomplishments: [], concerns: [], githubActivity: {} }
+    }
   })
 
   // Parse summaries
@@ -243,12 +337,11 @@ export function getReportData(name: string): Report {
   }
 
   const feedback = parseFeedbackLog(feedbackRaw)
-  const goals = parseGoals(goalsRaw)
 
-  const mdReviews = reviewFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep' && !f.startsWith('YYYY'))
+  const mdReviews = reviewFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep' && !f.startsWith('YYYY')).sort()
   const reviews = mdReviews.map((f) => ({ period: f.replace('.md', ''), content: '' }))
 
-  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, goals, reviews, dashboard: dashboardRaw }
+  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, dashboard: dashboardRaw }
   _reportDataCache.set(name, result)
   return result
 }
@@ -277,9 +370,19 @@ export function getTeamOverview(): TeamOverview {
       if (daysGap > 14 || openItems > 100) status = 'at-risk'
       else if (daysGap > 7 || openItems > 50) status = 'needs-attention'
 
+      const lastCheckIn = data.checkIns.length > 0
+        ? data.checkIns[data.checkIns.length - 1].date
+        : null
+      const lastFeedback = data.feedback.length > 0
+        ? data.feedback.sort((a, b) => b.date.localeCompare(a.date))[0].date
+        : null
+
       reports.push({
         name, displayName: data.profile.displayName, lastOneOnOne: lastTranscript,
-        daysGap, openActionItems: openItems, status
+        daysGap, openActionItems: openItems, status, meetingDay: data.profile.meetingDay,
+        lastCheckIn, lastFeedback,
+        feedbackCount: data.feedback.length,
+        checkInCount: data.checkIns.length
       })
     } catch (err) {
       console.warn(`[Data] Skipping report ${name}:`, (err as Error).message)
@@ -293,16 +396,15 @@ export function getTeamOverview(): TeamOverview {
 
 // ── Meetings cache ──
 // Cache meeting file lists and speaker map to avoid re-scanning 300+ files on every call.
-// Invalidated after 10 seconds or on commit (which means we wrote new data).
+// Invalidated on commit (which means we wrote new data).
 
 let _meetingsCache: { files: string[]; meetings: string[]; summaries: string[]; speakerMap: Map<string, string[]>; titleMap: Map<string, string> } | null = null
-const CACHE_TTL = 10_000 // only used as a safety net, primary invalidation is on writes
 
 function invalidateMeetingsCache(): void { _meetingsCache = null }
 
 function getMeetingsCache() {
   if (_meetingsCache) return _meetingsCache
-  const files = listFiles('meetings')
+  const files = listFiles('meetings').sort()
   const meetings = files.filter(f => f.endsWith('.md') && !f.includes('-summary'))
   const summaries = files.filter(f => f.includes('-summary.md'))
 
@@ -336,6 +438,7 @@ export interface MeetingEntry {
   date: string
   title: string
   filename: string
+  hasSummary: boolean
 }
 
 export function listMeetings(): MeetingEntry[] {
@@ -347,15 +450,26 @@ export function listMeetings(): MeetingEntry[] {
       const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
       // Use title from summary frontmatter if available
       const title = cache.titleMap.get(f) || filenameTitle
-      return { date: dateMatch?.[1] || name, title, filename: f }
+      const summaryFile = f.replace('.md', '-summary.md')
+      const hasSummary = cache.summaries.includes(summaryFile)
+      return { date: dateMatch?.[1] || name, title, filename: f, hasSummary }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
+function yamlEscapeValue(value: string): string {
+  const sanitized = value.replace(/[\n\r]/g, ' ').trim()
+  if (/[:#{}[\]|>&*!?,]/.test(sanitized) || sanitized !== value.trim() || /^['"]/.test(sanitized)) {
+    return `"${sanitized.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  }
+  return sanitized
+}
+
 /** Save a title override into a meeting summary's YAML frontmatter */
-export function saveMeetingTitle(meetingFilename: string, title: string): void {
+export async function saveMeetingTitle(meetingFilename: string, title: string): Promise<void> {
   const summaryFile = meetingFilename.replace('.md', '-summary.md')
   const summaryPath = `meetings/${summaryFile}`
+  const safeTitle = yamlEscapeValue(title)
 
   try {
     let content = getFileContent(summaryPath)
@@ -363,17 +477,17 @@ export function saveMeetingTitle(meetingFilename: string, title: string): void {
     if (fmMatch) {
       let fm = fmMatch[1]
       if (/^title:\s/m.test(fm)) {
-        fm = fm.replace(/^title:\s*.*/m, `title: ${title}`)
+        fm = fm.replace(/^title:\s*.*/m, `title: ${safeTitle}`)
       } else {
-        fm = `title: ${title}\n${fm}`
+        fm = `title: ${safeTitle}\n${fm}`
       }
       content = `---\n${fm}\n---` + content.slice(fmMatch[0].length)
     } else {
-      content = `---\ntitle: ${title}\n---\n\n${content}`
+      content = `---\ntitle: ${safeTitle}\n---\n\n${content}`
     }
-    commitFile(summaryPath, content, `Update meeting title: ${title}`)
+    await commitFile(summaryPath, content, `Update meeting title: ${title}`)
   } catch {
-    commitFile(summaryPath, `---\ntitle: ${title}\n---\n`, `Set meeting title: ${title}`)
+    await commitFile(summaryPath, `---\ntitle: ${safeTitle}\n---\n`, `Set meeting title: ${title}`)
   }
   invalidateMeetingsCache()
 }
@@ -576,18 +690,26 @@ export function getImpactLog(): string {
 
 // ── Action item toggle ──
 
-export function toggleActionItem(sourceFile: string, sourceLine: string): void {
+export async function toggleActionItem(sourceFile: string, lineNumber: number): Promise<void> {
   const content = getFileContent(sourceFile)
+  const lines = content.split('\n')
+  if (lineNumber < 0 || lineNumber >= lines.length) return
+
+  const sourceLine = lines[lineNumber]
+  // Verify the line is actually a checkbox item
+  if (!sourceLine.match(/^- \[[ xX]\]/)) return
+
   let newLine: string
   if (sourceLine.includes('- [ ] ')) {
     newLine = sourceLine.replace('- [ ] ', '- [x] ')
   } else {
-    newLine = sourceLine.replace('- [x] ', '- [ ] ')
+    newLine = sourceLine.replace(/- \[[xX]\] /, '- [ ] ')
   }
-  const updated = content.replace(sourceLine, newLine)
+  lines[lineNumber] = newLine
+  const updated = lines.join('\n')
   if (updated !== content) {
     const shortText = sourceLine.replace(/^- \[.\]\s+/, '').slice(0, 50)
-    commitFile(sourceFile, updated, `Toggle action item: ${shortText}`)
+    await commitFile(sourceFile, updated, `Toggle action item: ${shortText}`)
   }
 }
 
@@ -609,6 +731,12 @@ export function getSettingsOptions(): { roles: string[]; relationships: string[]
   } catch {
     return { roles: [], relationships: [] }
   }
+}
+
+export function clearAllCaches(): void {
+  invalidateMeetingsCache()
+  invalidateReportCache()
+  invalidatePeopleCache()
 }
 
 /** Pre-warm all caches at startup so first navigation is instant */

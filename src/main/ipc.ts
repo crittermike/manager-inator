@@ -1,4 +1,5 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, dialog } from 'electron'
+import { randomUUID } from 'crypto'
 import { getAuthStatus, startAuth, pollAuth, logout } from './auth'
 import {
   getReports,
@@ -6,6 +7,7 @@ import {
   getReportData,
   getTeamOverview,
   getFileContent,
+  fileExists,
   commitFile,
   listMeetings,
   listPeople,
@@ -14,94 +16,155 @@ import {
   getImpactLog,
   getSettingsOptions,
   saveMeetingTitle,
-  toggleActionItem
+  toggleActionItem,
+  clearAllCaches,
+  safeSend
 } from './github'
-import { getSettings, saveSettings } from './store'
+import { getSettingsForRenderer, saveSettings } from './store'
 import { aiGenerate, aiCancel } from './copilot'
+
+let _backfillAborted = false
+let _activeBackfillRequestId: string | null = null
+
+/** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
+function safeHandle(
+  channel: string,
+  handler: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+): void {
+  ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      return await handler(event, ...args)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[IPC] ${channel} failed:`, message)
+      throw new Error(`${channel}: ${message}`)
+    }
+  })
+}
 
 export function setupIpcHandlers(): void {
   // ── Auth ──
-  ipcMain.handle('auth:status', () => getAuthStatus())
-  ipcMain.handle('auth:start', () => startAuth())
-  ipcMain.handle('auth:poll', () => pollAuth())
-  ipcMain.handle('auth:logout', () => logout())
+  safeHandle('auth:status', () => getAuthStatus())
+  safeHandle('auth:start', () => startAuth())
+  safeHandle('auth:poll', () => pollAuth())
+  safeHandle('auth:logout', () => logout())
 
   // ── Settings ──
-  ipcMain.handle('settings:get', () => getSettings())
-  ipcMain.handle('settings:save', (_e, settings) => saveSettings(settings))
+  safeHandle('settings:get', () => getSettingsForRenderer())
+  safeHandle('settings:save', (_e, settings) => {
+    const raw = settings as Record<string, unknown>
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays'] as const
+    const sanitized: Record<string, unknown> = {}
+    for (const key of ALLOWED_KEYS) {
+      if (key in raw) sanitized[key] = raw[key]
+    }
+    return saveSettings(sanitized as Parameters<typeof saveSettings>[0])
+  })
 
   // ── GitHub data ──
-  ipcMain.handle('github:reports', () => getReports())
-  ipcMain.handle('github:profile', (_e, name) => getReportProfile(name))
-  ipcMain.handle('github:report-data', (_e, name) => getReportData(name))
-  ipcMain.handle('github:team-overview', () => getTeamOverview())
-  ipcMain.handle('github:file-content', (_e, path) => getFileContent(path))
-  ipcMain.handle('github:commit-file', (_e, path, content, message) =>
-    commitFile(path, content, message)
+  safeHandle('github:reports', () => getReports())
+  safeHandle('github:profile', (_e, name) => getReportProfile(name as string))
+  safeHandle('github:report-data', (_e, name) => getReportData(name as string))
+  safeHandle('github:team-overview', () => getTeamOverview())
+  safeHandle('github:file-content', (_e, path) => getFileContent(path as string))
+  safeHandle('github:commit-file', (_e, path, content, message) =>
+    commitFile(path as string, content as string, message as string)
   )
-  ipcMain.handle('github:list-meetings', () => listMeetings())
-  ipcMain.handle('github:list-people', () => listPeople())
-  ipcMain.handle('github:person-meetings', (_e, slug) => getPersonMeetings(slug))
-  ipcMain.handle('github:find-person', (_e, name) => findPersonByName(name))
-  ipcMain.handle('github:impact-log', () => getImpactLog())
-  ipcMain.handle('github:settings-options', () => getSettingsOptions())
-  ipcMain.handle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename, title))
-  ipcMain.handle('github:toggle-action-item', (_e, sourceFile, sourceLine) => toggleActionItem(sourceFile, sourceLine))
+  safeHandle('github:list-meetings', () => listMeetings())
+  safeHandle('github:list-people', () => listPeople())
+  safeHandle('github:person-meetings', (_e, slug) => getPersonMeetings(slug as string))
+  safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
+  safeHandle('github:impact-log', () => getImpactLog())
+  safeHandle('github:settings-options', () => getSettingsOptions())
+  safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
+  safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
+  safeHandle('github:clear-caches', () => clearAllCaches())
 
   // ── AI with streaming ──
-  ipcMain.handle('ai:generate', async (event, action, context) => {
+  safeHandle('ai:generate', async (event, action, context, requestId) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) throw new Error('No window')
 
-    const result = await aiGenerate(action, context, (chunk) => {
-      // Stream chunks to renderer
-      win.webContents.send('ai:chunk', chunk)
-    })
+    const rid = (requestId as string) || randomUUID()
+    const result = await aiGenerate(action as string, context as Record<string, unknown>, (chunk) => {
+      safeSend(win, 'ai:chunk', { requestId: rid, chunk })
+    }, rid)
 
     return result
   })
 
-  ipcMain.handle('ai:cancel', () => aiCancel())
+  safeHandle('ai:cancel', (_e, requestId) => aiCancel(requestId as string | undefined))
+
+  safeHandle('ai:cancel-backfill', async () => {
+    _backfillAborted = true
+    if (_activeBackfillRequestId) {
+      await aiCancel(_activeBackfillRequestId)
+    }
+  })
+
+  // ── Electron dialogs ──
+  safeHandle('dialog:open', async (_e, options) => {
+    const opts = options as { properties: string[]; title?: string }
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      properties: opts.properties as Array<'openFile' | 'openDirectory' | 'multiSelections'>,
+      title: opts.title
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
 
   // ── Backfill meeting summaries ──
-  ipcMain.handle('ai:backfill-summaries', async (event, meetingFilenames: string[]) => {
+  safeHandle('ai:backfill-summaries', async (event, meetingFilenames) => {
+    const filenames = meetingFilenames as string[]
     const win = BrowserWindow.fromWebContents(event.sender)
     const results: { filename: string; success: boolean; error?: string }[] = []
+    _backfillAborted = false
 
-    for (const filename of meetingFilenames) {
+    for (const filename of filenames) {
+      if (_backfillAborted) break
       try {
-        // Read the transcript
-        const transcript = await getFileContent(`meetings/${filename}`)
+        const summaryFilename = filename.replace('.md', '-summary.md')
+        if (fileExists(`meetings/${summaryFilename}`)) {
+          results.push({ filename, success: true })
+          safeSend(win, 'ai:backfill-progress', { filename, status: 'done' })
+          continue
+        }
 
-        // Extract title and date from filename
+        const transcript = getFileContent(`meetings/${filename}`)
+
         const name = filename.replace('.md', '')
         const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
         const date = dateMatch?.[1] || name
         const title = dateMatch?.[2]?.replace(/-/g, ' ') || name
 
-        // Get report names for context
-        const reportNames = await getReports()
-        const profiles = await Promise.all(
-          reportNames.map(async (n) => {
-            try {
-              const p = await getReportProfile(n)
-              return p.displayName
-            } catch { return n }
-          })
-        )
+        const reportNames = getReports()
+        const profiles = reportNames.map((n) => {
+          try {
+            const p = getReportProfile(n)
+            return p.displayName
+          } catch { return n }
+        })
 
-        win?.webContents.send('ai:backfill-progress', { filename, status: 'generating' })
+        safeSend(win, 'ai:backfill-progress', { filename, status: 'generating' })
 
-        // Generate summary with speakers
+        const backfillRequestId = randomUUID()
+        _activeBackfillRequestId = backfillRequestId
         const summary = await aiGenerate('summarize-meeting', {
           meetingTitle: title,
           date,
           reportNames: profiles.join(', '),
           transcript
-        }, () => {})
+        }, () => {}, backfillRequestId)
+        _activeBackfillRequestId = null
 
-        // Save summary file
-        const summaryFilename = filename.replace('.md', '-summary.md')
+        if (_backfillAborted) {
+          results.push({ filename, success: false, error: 'Cancelled' })
+          safeSend(win, 'ai:backfill-progress', { filename, status: 'cancelled' })
+          break
+        }
+
         await commitFile(
           `meetings/${summaryFilename}`,
           summary,
@@ -109,11 +172,17 @@ export function setupIpcHandlers(): void {
         )
 
         results.push({ filename, success: true })
-        win?.webContents.send('ai:backfill-progress', { filename, status: 'done' })
+        safeSend(win, 'ai:backfill-progress', { filename, status: 'done' })
       } catch (err) {
+        _activeBackfillRequestId = null
+        if (_backfillAborted) {
+          results.push({ filename, success: false, error: 'Cancelled' })
+          safeSend(win, 'ai:backfill-progress', { filename, status: 'cancelled' })
+          break
+        }
         console.error(`[Backfill] Failed for ${filename}:`, (err as Error).message)
         results.push({ filename, success: false, error: (err as Error).message })
-        win?.webContents.send('ai:backfill-progress', { filename, status: 'error', error: (err as Error).message })
+        safeSend(win, 'ai:backfill-progress', { filename, status: 'error', error: (err as Error).message })
       }
     }
 

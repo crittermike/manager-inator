@@ -4,11 +4,21 @@ export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false)
   const [user, setUser] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [bridgeError, setBridgeError] = useState(false)
 
   const checkAuth = useCallback(async () => {
-    const { authenticated, user } = await window.api.getAuthStatus()
-    setAuthenticated(authenticated)
-    setUser(user || null)
+    if (!window.api) {
+      setBridgeError(true)
+      setLoading(false)
+      return
+    }
+    try {
+      const { authenticated, user } = await window.api.getAuthStatus()
+      setAuthenticated(authenticated)
+      setUser(user || null)
+    } catch (e) {
+      console.error('[useAuth] Failed to check auth:', e)
+    }
     setLoading(false)
   }, [])
 
@@ -33,5 +43,5 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { authenticated, user, loading, login, poll, logout, refresh: checkAuth }
+  return { authenticated, user, loading, bridgeError, login, poll, logout, refresh: checkAuth }
 }

@@ -1,5 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAI } from '../hooks/useAI'
+import { useToast } from '../components/common/Toast'
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
+import { ConfirmDialog } from '../components/common/ConfirmDialog'
+import { IMPACT_LOG_PATH } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -20,8 +25,17 @@ export function ImpactLog() {
   const [saving, setSaving] = useState(false)
   const [newEntry, setNewEntry] = useState('')
   const [showAdd, setShowAdd] = useState(false)
-  const { streaming, streamedText, generate, reset } = useAI()
+  const { streaming, streamedText, generate, cancel, reset } = useAI()
   const [showAI, setShowAI] = useState(false)
+  const toast = useToast()
+  const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(editing)
+  const saveRef = useRef<() => void>(() => {})
+
+  useEffect(() => {
+    return () => { cancel() }
+  }, [cancel])
+
+  useKeyboardShortcut({ key: 's', handler: useCallback(() => saveRef.current(), []), enabled: editing })
 
   const loadLog = async () => {
     setLoading(true)
@@ -47,15 +61,17 @@ export function ImpactLog() {
 
     try {
       await window.api.commitFile(
-        'mike-impact-log.md',
+        IMPACT_LOG_PATH,
         updated,
         `Add impact log entry for ${date}`
       )
       setContent(updated)
       setNewEntry('')
       setShowAdd(false)
+      toast.success('Entry saved')
     } catch (e) {
       console.error('Failed to save:', e)
+      toast.error('Failed to save entry')
     } finally {
       setSaving(false)
     }
@@ -65,18 +81,21 @@ export function ImpactLog() {
     setSaving(true)
     try {
       await window.api.commitFile(
-        'mike-impact-log.md',
+        IMPACT_LOG_PATH,
         editContent,
         'Update impact log'
       )
       setContent(editContent)
       setEditing(false)
+      toast.success('Impact log updated')
     } catch (e) {
       console.error('Failed to save:', e)
+      toast.error('Failed to save changes')
     } finally {
       setSaving(false)
     }
   }
+  saveRef.current = handleSaveEdit
 
   const handleAISummarize = async () => {
     setShowAI(true)
@@ -96,11 +115,12 @@ export function ImpactLog() {
   }
 
   return (
+    <>
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-brand" />
+            <Trophy className="w-6 h-6 text-brand" aria-hidden="true" />
             My impact log
           </h1>
           <p className="text-sm text-zinc-500 mt-1">
@@ -109,24 +129,33 @@ export function ImpactLog() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={handleAISummarize}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
+            onClick={loadLog}
+            disabled={streaming}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Refresh impact log"
           >
-            <Sparkles className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <button
+            onClick={handleAISummarize}
+            disabled={streaming}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="w-4 h-4" aria-hidden="true" />
             Summarize
           </button>
           <button
             onClick={() => { setEditing(!editing); setEditContent(content) }}
             className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
           >
-            <Edit3 className="w-4 h-4" />
+            <Edit3 className="w-4 h-4" aria-hidden="true" />
             {editing ? 'Cancel' : 'Edit'}
           </button>
           <button
             onClick={() => setShowAdd(!showAdd)}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden="true" />
             Add entry
           </button>
         </div>
@@ -137,17 +166,27 @@ export function ImpactLog() {
         <div className="bg-surface rounded-xl border border-brand/20 p-5 animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm font-medium text-brand-light">
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4" aria-hidden="true" />
               Impact summary
             </div>
-            <button onClick={() => setShowAI(false)} className="p-1 text-zinc-500 hover:text-zinc-300">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {streaming && (
+                <button onClick={cancel} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                  Stop generating
+                </button>
+              )}
+              <button onClick={() => { if (streaming) cancel(); setShowAI(false) }} aria-label="Close summary" className="p-1 text-zinc-500 hover:text-zinc-300">
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <div className={`prose-dark max-h-96 overflow-y-auto ${streaming ? 'cursor-blink' : ''}`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {streamedText || '_Generating..._'}
             </ReactMarkdown>
+          </div>
+          <div className="sr-only" aria-live="polite">
+            {streaming ? 'AI is summarizing your impact log...' : ''}
           </div>
         </div>
       )}
@@ -174,7 +213,7 @@ export function ImpactLog() {
               {saving ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <Save className="w-4 h-4" />
+                <Save className="w-4 h-4" aria-hidden="true" />
               )}
               Save entry
             </button>
@@ -205,7 +244,7 @@ export function ImpactLog() {
             {saving ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Save className="w-4 h-4" />
+              <Save className="w-4 h-4" aria-hidden="true" />
             )}
             Save changes
           </button>
@@ -216,5 +255,16 @@ export function ImpactLog() {
         </div>
       )}
     </div>
+      <ConfirmDialog
+        open={blockerState === 'blocked'}
+        title="Unsaved changes"
+        message="You have unsaved edits to your impact log. Leave anyway?"
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={proceed}
+        onCancel={resetBlocker}
+      />
+    </>
   )
 }

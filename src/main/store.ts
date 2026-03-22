@@ -1,4 +1,6 @@
 import Store from 'electron-store'
+import { safeStorage } from 'electron'
+import type { CheckInFrequency } from '../shared/types'
 
 interface StoreSchema {
   githubToken: string | null
@@ -6,27 +8,67 @@ interface StoreSchema {
   repoName: string
   repoPath: string
   defaultModel: string
-  cachedReports: Record<string, { data: unknown; timestamp: number }>
+  checkInFrequency: CheckInFrequency
+  feedbackReminderDays: number
 }
 
-const store = new Store<StoreSchema>({
-  defaults: {
-    githubToken: null,
-    repoOwner: '',
-    repoName: '',
-    repoPath: '',
-    defaultModel: 'gpt-4.1',
-    cachedReports: {}
-  },
-  encryptionKey: 'manager-inator-v1'
-})
+const storeDefaults: StoreSchema = {
+  githubToken: null,
+  repoOwner: '',
+  repoName: '',
+  repoPath: '',
+  defaultModel: 'gpt-4.1',
+  checkInFrequency: 'monthly',
+  feedbackReminderDays: 14
+}
+
+function createStore(): Store<StoreSchema> {
+  try {
+    const s = new Store<StoreSchema>({
+      defaults: storeDefaults,
+      encryptionKey: 'manager-inator-v1'
+    })
+    s.get('repoPath')
+    return s
+  } catch (err) {
+    console.error('[Store] Corrupted store file, resetting:', (err as Error).message)
+    const s = new Store<StoreSchema>({
+      defaults: storeDefaults,
+      encryptionKey: 'manager-inator-v1'
+    })
+    s.clear()
+    return s
+  }
+}
+
+const store = createStore()
 
 export function getToken(): string | null {
-  return store.get('githubToken')
+  const raw = store.get('githubToken')
+  if (!raw) return null
+
+  if (!safeStorage.isEncryptionAvailable()) return raw
+
+  try {
+    return safeStorage.decryptString(Buffer.from(raw, 'base64'))
+  } catch {
+    // Legacy plaintext token — migrate it on read
+    try {
+      const encrypted = safeStorage.encryptString(raw)
+      store.set('githubToken', encrypted.toString('base64'))
+    } catch { /* migration failed, keep as-is */ }
+    return raw
+  }
 }
 
 export function setToken(token: string): void {
-  store.set('githubToken', token)
+  if (safeStorage.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(token)
+    store.set('githubToken', encrypted.toString('base64'))
+  } else {
+    console.warn('[Store] OS encryption unavailable — token stored without OS-level encryption')
+    store.set('githubToken', token)
+  }
 }
 
 export function clearToken(): void {
@@ -55,30 +97,21 @@ export function getSettings() {
   }
 }
 
+/** Settings safe for the renderer — excludes the raw token */
+export function getSettingsForRenderer() {
+  return {
+    hasToken: !!store.get('githubToken'),
+    repoOwner: store.get('repoOwner'),
+    repoName: store.get('repoName'),
+    repoPath: store.get('repoPath'),
+    defaultModel: store.get('defaultModel'),
+    checkInFrequency: store.get('checkInFrequency'),
+    feedbackReminderDays: store.get('feedbackReminderDays')
+  }
+}
+
 export function saveSettings(settings: Partial<StoreSchema>): void {
   for (const [key, value] of Object.entries(settings)) {
     store.set(key as keyof StoreSchema, value)
   }
-}
-
-// Cache helpers
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-
-export function getCached<T>(key: string): T | null {
-  const cached = store.get('cachedReports') as Record<string, { data: unknown; timestamp: number }>
-  const entry = cached[key]
-  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
-    return entry.data as T
-  }
-  return null
-}
-
-export function setCache(key: string, data: unknown): void {
-  const cached = store.get('cachedReports') as Record<string, { data: unknown; timestamp: number }>
-  cached[key] = { data, timestamp: Date.now() }
-  store.set('cachedReports', cached)
-}
-
-export function clearCache(): void {
-  store.set('cachedReports', {})
 }

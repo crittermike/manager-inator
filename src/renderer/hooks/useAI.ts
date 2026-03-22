@@ -5,6 +5,7 @@ export function useAI() {
   const [streamedText, setStreamedText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const fullTextRef = useRef('')
+  const requestIdRef = useRef<string | null>(null)
 
   const generate = useCallback(
     async (action: string, context: Record<string, unknown>): Promise<string> => {
@@ -13,11 +14,14 @@ export function useAI() {
       setError(null)
       fullTextRef.current = ''
 
+      const rid = crypto.randomUUID()
+      requestIdRef.current = rid
+
       try {
-        const result = await window.api.aiGenerate(action, context, (chunk) => {
+        const result = await window.api.aiGenerate(action, context, (chunk: string) => {
           fullTextRef.current += chunk
           setStreamedText(fullTextRef.current)
-        })
+        }, rid)
         setStreamedText(result)
         return result
       } catch (e) {
@@ -26,20 +30,24 @@ export function useAI() {
         throw e
       } finally {
         setStreaming(false)
+        requestIdRef.current = null
       }
     },
     []
   )
 
   const cancel = useCallback(async () => {
-    await window.api.aiCancel()
+    await window.api.aiCancel(requestIdRef.current ?? undefined)
     setStreaming(false)
+    setStreamedText('')
+    fullTextRef.current = ''
   }, [])
 
   const reset = useCallback(() => {
     setStreamedText('')
     setError(null)
     fullTextRef.current = ''
+    requestIdRef.current = null
   }, [])
 
   return { streaming, streamedText, error, generate, cancel, reset, fullTextRef }

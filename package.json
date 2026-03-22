@@ -15,7 +15,6 @@
   "dependencies": {
     "@github/copilot": "^1.0.9",
     "@github/copilot-sdk": "^0.1.32",
-    "@octokit/rest": "^22.0.1",
     "@tailwindcss/vite": "^4.2.2",
     "date-fns": "^4.1.0",
     "electron-store": "^11.0.2",
@@ -30,7 +29,7 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^5",
     "autoprefixer": "^10.4.27",
     "concurrently": "^9.2.1",
     "electron": "^41.0.3",
@@ -38,6 +37,6 @@
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
-    "vite": "^8.0.1"
+    "vite": "^7"
   }
 }

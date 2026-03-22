@@ -2,16 +2,21 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
+import pkg from './package.json'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: [] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@github/copilot-sdk', '@github/copilot'] })],
     build: {
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/main/index.ts')
         },
-        external: ['electron', 'electron-store']
+        external: ['electron', 'electron-store'],
+        output: {
+          format: 'es',
+          entryFileNames: '[name].mjs'
+        }
       }
     }
   },
@@ -22,13 +27,20 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/preload/index.ts')
         },
-        external: ['electron']
+        external: ['electron'],
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs'
+        }
       }
     }
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     plugins: [react(), tailwindcss()],
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version)
+    },
     build: {
       rollupOptions: {
         input: {

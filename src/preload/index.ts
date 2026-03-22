@@ -29,31 +29,43 @@ contextBridge.exposeInMainWorld('api', {
   getSettingsOptions: () => ipcRenderer.invoke('github:settings-options'),
   saveMeetingTitle: (filename: string, title: string) =>
     ipcRenderer.invoke('github:save-meeting-title', filename, title),
-  toggleActionItem: (sourceFile: string, sourceLine: string) =>
-    ipcRenderer.invoke('github:toggle-action-item', sourceFile, sourceLine),
+  toggleActionItem: (sourceFile: string, lineNumber: number) =>
+    ipcRenderer.invoke('github:toggle-action-item', sourceFile, lineNumber),
+  clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
   backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
   onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {
     const handler = (_event: unknown, data: { filename: string; status: string }) => cb(data)
     ipcRenderer.on('ai:backfill-progress', handler)
     return () => ipcRenderer.removeListener('ai:backfill-progress', handler)
   },
+  onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => {
+    const handler = (_event: unknown, data: { success: boolean; error?: string }) => cb(data)
+    ipcRenderer.on('github:push-status', handler)
+    return () => ipcRenderer.removeListener('github:push-status', handler)
+  },
+  cancelBackfill: () => ipcRenderer.invoke('ai:cancel-backfill'),
 
   // AI
   aiGenerate: async (
     action: string,
     context: Record<string, unknown>,
-    onChunk: (chunk: string) => void
-  ) => {
-    // Listen for streaming chunks
-    const handler = (_event: unknown, chunk: string) => onChunk(chunk)
+    onChunk: (chunk: string) => void,
+    requestId: string
+  ): Promise<string> => {
+    const handler = (_event: unknown, data: { requestId: string; chunk: string }) => {
+      if (data.requestId === requestId) onChunk(data.chunk)
+    }
     ipcRenderer.on('ai:chunk', handler)
 
     try {
-      const result = await ipcRenderer.invoke('ai:generate', action, context)
+      const result = await ipcRenderer.invoke('ai:generate', action, context, requestId)
       return result
     } finally {
       ipcRenderer.removeListener('ai:chunk', handler)
     }
   },
-  aiCancel: () => ipcRenderer.invoke('ai:cancel')
+  aiCancel: (requestId?: string) => ipcRenderer.invoke('ai:cancel', requestId),
+
+  showOpenDialog: (options: { properties: string[]; title?: string }) =>
+    ipcRenderer.invoke('dialog:open', options)
 })

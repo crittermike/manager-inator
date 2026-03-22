@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Zap, ArrowRight, FolderGit2 } from 'lucide-react'
+import { Zap, ArrowRight, FolderGit2, FolderOpen } from 'lucide-react'
 
 interface SetupScreenProps {
   onComplete: () => void
@@ -10,7 +10,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     if (!repoPath.trim()) {
       setError('Path is required')
@@ -58,13 +58,27 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">
               Local repo path
             </label>
-            <input
-              type="text"
-              value={repoPath}
-              onChange={(e) => setRepoPath(e.target.value)}
-              placeholder="/Users/you/Code/manager-inator"
-              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag font-mono"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={repoPath}
+                onChange={(e) => setRepoPath(e.target.value)}
+                placeholder="/Users/you/Code/manager-inator"
+                className="flex-1 px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag font-mono"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const result = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'Select repo folder' })
+                  if (result) setRepoPath(result)
+                }}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors no-drag shrink-0"
+                aria-label="Browse for folder"
+              >
+                <FolderOpen className="w-4 h-4" aria-hidden="true" />
+                Browse
+              </button>
+            </div>
           </div>
 
           {error && <p className="text-sm text-danger">{error}</p>}
