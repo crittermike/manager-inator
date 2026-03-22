@@ -133,20 +133,20 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     el.style.height = Math.min(el.scrollHeight, 96) + 'px'
   }
 
-  const sendMessage = async () => {
-    if (!input.trim() || streaming) return
+  const sendMessage = async (overrideText?: string) => {
+    const text = overrideText || input.trim()
+    if (!text || streaming) return
 
-    const userMessage = input.trim()
-    setInput('')
+    if (!overrideText) setInput('')
     if (inputRef.current) inputRef.current.style.height = '36px'
 
     const isFirstMessage = messages.length === 0
-    const newUserMsg: Message = { role: 'user', content: userMessage }
+    const newUserMsg: Message = { role: 'user', content: text }
 
     updateSession(activeId, s => ({
       ...s,
       messages: [...s.messages, newUserMsg],
-      title: isFirstMessage ? titleFromMessage(userMessage) : s.title,
+      title: isFirstMessage ? titleFromMessage(text) : s.title,
       updatedAt: new Date().toISOString()
     }))
 
@@ -157,7 +157,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
     try {
       const response = await generate('chat', {
-        message: userMessage,
+        message: text,
         history: messages.map(m => ({ role: m.role, content: m.content })),
         ...(contextHint ? { pageContext: contextHint } : {})
       })
@@ -316,7 +316,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               {suggestions.map(s => (
                 <button
                   key={s}
-                  onClick={() => { setInput(s); inputRef.current?.focus() }}
+                  onClick={() => sendMessage(s)}
                   className="text-left p-2.5 bg-surface rounded-lg border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all duration-150 text-[11px] text-zinc-400 hover:text-zinc-300"
                 >
                   {s}
@@ -423,7 +423,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             </button>
           ) : (
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!input.trim()}
               aria-label="Send message"
               className="p-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-30 shrink-0"

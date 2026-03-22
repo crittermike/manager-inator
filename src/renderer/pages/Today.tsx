@@ -723,6 +723,7 @@ function InlineProcessor({
 export function Today() {
   const { overview, loading, error, refresh } = useTeamOverview()
   const navigate = useNavigate()
+  const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
   const [cadence, setCadence] = useState<CadenceSettings>({
@@ -732,6 +733,7 @@ export function Today() {
     endOfWeekDay: 'friday',
     sprintStartDate: ''
   })
+  const [dragging, setDragging] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(() => {
     try {
       const todayKey = format(new Date(), 'yyyy-MM-dd')
@@ -751,6 +753,21 @@ export function Today() {
     const todayKey = format(new Date(), 'yyyy-MM-dd')
     localStorage.setItem(`today-done-${todayKey}`, JSON.stringify([...doneIds]))
   }, [doneIds])
+
+  // Clean up old done-keys (older than 7 days) on mount
+  useEffect(() => {
+    const now = Date.now()
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (!key || !key.startsWith('today-done-')) continue
+      const dateStr = key.replace('today-done-', '')
+      const keyDate = new Date(dateStr + 'T00:00:00').getTime()
+      if (now - keyDate > sevenDaysMs) {
+        localStorage.removeItem(key)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     window.api.listMeetings().then(setMeetings).catch(() => {})
@@ -792,6 +809,42 @@ export function Today() {
     })
     setExpandedItem(null)
   }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    if (!file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
+      toast.error('Only .txt and .md files are supported')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const text = reader.result as string
+      if (!text.trim()) {
+        toast.error('File is empty')
+        return
+      }
+      const stem = file.name.replace(/\.(txt|md)$/, '').replace(/[-_]/g, ' ')
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const slug = stem.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+      const filename = `${today}-${slug}`
+
+      try {
+        await window.api.commitFile(
+          `meetings/${filename}.md`,
+          `# ${stem} — ${today}\n\n${text}`,
+          `Add meeting transcript: ${stem} on ${today}`
+        )
+        toast.success(`Transcript saved — process it from your inbox`)
+        window.api.listMeetings().then(setMeetings).catch(() => {})
+      } catch (err) {
+        toast.error('Failed to save transcript: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      }
+    }
+    reader.readAsText(file)
+  }, [toast])
 
   const toggleSection = (section: TimelineSection) => {
     setExpandedSections(prev => {
@@ -847,7 +900,21 @@ export function Today() {
   const activeSections = sections.filter(s => itemsBySection[s].length > 0)
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+    <div
+      className="max-w-3xl mx-auto space-y-6 animate-fade-in relative"
+      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false) }}
+      onDrop={handleDrop}
+    >
+      {dragging && (
+        <div className="absolute inset-0 z-30 rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 flex items-center justify-center backdrop-blur-sm pointer-events-none animate-fade-in">
+          <div className="text-center">
+            <FileText className="w-8 h-8 text-brand/60 mx-auto mb-2" aria-hidden="true" />
+            <p className="text-sm font-medium text-brand-light">Drop transcript here</p>
+            <p className="text-xs text-zinc-500 mt-1">.txt or .md files</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
