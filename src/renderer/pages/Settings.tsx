@@ -28,6 +28,7 @@ export function Settings() {
   const [feedbackDays, setFeedbackDays] = useState(14)
   const [sprintLength, setSprintLength] = useState(2)
   const [endOfWeekDay, setEndOfWeekDay] = useState<DayOfWeek>('friday')
+  const [sprintStartDate, setSprintStartDate] = useState('')
   const [customInstructions, setCustomInstructions] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -39,10 +40,11 @@ export function Settings() {
   const [savedFeedbackDays, setSavedFeedbackDays] = useState(14)
   const [savedSprintLength, setSavedSprintLength] = useState(2)
   const [savedEndOfWeekDay, setSavedEndOfWeekDay] = useState<DayOfWeek>('friday')
+  const [savedSprintStartDate, setSavedSprintStartDate] = useState('')
   const [savedCustomInstructions, setSavedCustomInstructions] = useState('')
   const [repoPathError, setRepoPathError] = useState('')
 
-  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || customInstructions !== savedCustomInstructions
+  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
   const saveRef = useRef<() => void>(() => {})
 
@@ -50,13 +52,14 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; aiCustomInstructions?: string }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
         const frd = s.feedbackReminderDays ?? 14
         const sl = s.sprintLengthWeeks ?? 2
         const eow = s.endOfWeekDay || 'friday'
+        const ssd = s.sprintStartDate || ''
         const ci = s.aiCustomInstructions || ''
         setRepoPathVal(rp)
         setModel(m)
@@ -64,6 +67,7 @@ export function Settings() {
         setFeedbackDays(frd)
         setSprintLength(sl)
         setEndOfWeekDay(eow)
+        setSprintStartDate(ssd)
         setCustomInstructions(ci)
         setSavedRepoPath(rp)
         setSavedModel(m)
@@ -71,6 +75,7 @@ export function Settings() {
         setSavedFeedbackDays(frd)
         setSavedSprintLength(sl)
         setSavedEndOfWeekDay(eow)
+        setSavedSprintStartDate(ssd)
         setSavedCustomInstructions(ci)
         setLoading(false)
       })
@@ -83,7 +88,7 @@ export function Settings() {
     if (saving) return
     setSaving(true)
     try {
-      const allSettings = { repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, sprintLengthWeeks: sprintLength, endOfWeekDay, aiCustomInstructions: customInstructions }
+      const allSettings = { repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, sprintLengthWeeks: sprintLength, endOfWeekDay, sprintStartDate, aiCustomInstructions: customInstructions }
       if (repoPathVal !== savedRepoPath && repoPathVal.trim()) {
         try {
           await window.api.saveSettings(allSettings)
@@ -91,7 +96,7 @@ export function Settings() {
           setRepoPathError('')
         } catch {
           setRepoPathError('Invalid repo path — no reports found at that location')
-          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, aiCustomInstructions: savedCustomInstructions })
+          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions })
           setSaving(false)
           return
         }
@@ -104,6 +109,7 @@ export function Settings() {
       setSavedFeedbackDays(feedbackDays)
       setSavedSprintLength(sprintLength)
       setSavedEndOfWeekDay(endOfWeekDay)
+      setSavedSprintStartDate(sprintStartDate)
       setSavedCustomInstructions(customInstructions)
       setSaved(true)
       toast.success('Settings saved')
@@ -209,26 +215,6 @@ export function Settings() {
           {repoPathError && (
             <p className="text-xs text-danger">{repoPathError}</p>
           )}
-
-          <button
-            onClick={handleSave}
-            disabled={saving || !isDirty}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : saved ? (
-              <>
-                <Check className="w-4 h-4" aria-hidden="true" />
-                Saved
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" aria-hidden="true" />
-                Save changes
-              </>
-            )}
-          </button>
         </div>
       </section>
 
@@ -378,6 +364,26 @@ export function Settings() {
             <div className="flex items-center gap-2 mb-3">
               <CalendarClock className="w-4 h-4 text-zinc-400" aria-hidden="true" />
               <span className="text-sm font-medium text-zinc-300">
+                Sprint start date
+              </span>
+            </div>
+            <input
+              type="date"
+              value={sprintStartDate}
+              onChange={(e) => setSprintStartDate(e.target.value)}
+              aria-label="Sprint start date"
+              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors [color-scheme:dark]"
+            />
+            <p className="text-xs text-zinc-600 mt-2">
+              The date your current sprint started. Used to calculate sprint boundaries and show sprint-start/end prompts.
+              {!sprintStartDate && ' Set this to enable sprint cadence items in the Today view.'}
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-300">
                 End-of-week day
               </span>
             </div>
@@ -419,6 +425,34 @@ export function Settings() {
           </p>
         </div>
       </section>
+
+      {/* Sticky save bar */}
+      {isDirty && (
+        <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-zinc-950/90 backdrop-blur-sm border-t border-border animate-slide-down">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <p className="text-xs text-zinc-500">You have unsaved changes</p>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : saved ? (
+                <>
+                  <Check className="w-4 h-4" aria-hidden="true" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  Save changes
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={blockerState === 'blocked'}
