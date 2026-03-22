@@ -306,6 +306,21 @@ function computeWorkflowItems(
     })
   }
 
+  // ── Semi-annual performance reviews (June and December, first week) ──
+  if (isFirstWeek && (month === 5 || month === 11)) {
+    for (const r of reports) {
+      items.push({
+        id: `review-${r.name}`,
+        label: `Write performance review for ${r.displayName}`,
+        description: `Generate a review based on the last 6 months of 1:1s, check-ins, and feedback`,
+        category: 'monthly',
+        priority: 'high',
+        route: `/report/${r.name}?tab=reviews`,
+        reportName: r.name
+      })
+    }
+  }
+
   return items
 }
 
@@ -513,27 +528,75 @@ export function Dashboard() {
         </button>
         {showSystemOverview && (
           <div className="px-5 pb-5 border-t border-border">
-            <div className="grid gap-4 mt-4 text-sm">
-              <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-3">
-                <span className="text-zinc-500 font-medium whitespace-nowrap">Every 1:1 day</span>
-                <span className="text-zinc-300">AI generates prep notes from recent meetings, open action items, and feedback. Check off discussion topics during the call and save the prep to your repo.</span>
-
-                <span className="text-zinc-500 font-medium whitespace-nowrap">After each 1:1</span>
-                <span className="text-zinc-300">Paste the meeting transcript to auto-generate a summary, extract action items, pull out feedback, and log your impact.</span>
-
-                <span className="text-zinc-500 font-medium whitespace-nowrap">Every Monday</span>
-                <span className="text-zinc-300">Set the week's priorities and audit last week's action items. Close stale items or escalate blockers.</span>
-
-                <span className="text-zinc-500 font-medium whitespace-nowrap">Every Friday</span>
-                <span className="text-zinc-300">Log feedback for anyone who hasn't had any in {cadence.feedbackReminderDays} days. Record your own impact for the week.</span>
-
-                <span className="text-zinc-500 font-medium whitespace-nowrap">
-                  {cadence.checkInFrequency === 'monthly' ? 'First week of each month' : cadence.checkInFrequency === 'bimonthly' ? 'Every other month' : 'Start of each quarter'}
-                </span>
-                <span className="text-zinc-300">Write a private performance check-in for each report covering accomplishments, concerns, and growth since the last check-in. Review team health trends.</span>
-              </div>
-              <p className="text-xs text-zinc-600 mt-1">
-                Customize the cadence in Settings. All data lives in your Git repo — nothing is stored in the cloud.
+            <div className="grid gap-3 mt-4">
+              {[
+                {
+                  icon: Calendar,
+                  color: 'text-brand-light',
+                  bg: 'bg-brand/10',
+                  accent: 'border-l-brand',
+                  label: 'Every 1:1 day',
+                  text: 'AI generates prep notes from recent meetings, open action items, and feedback. Check off discussion topics during the call and save the prep to your repo.'
+                },
+                {
+                  icon: FileText,
+                  color: 'text-blue-400',
+                  bg: 'bg-blue-500/10',
+                  accent: 'border-l-blue-500',
+                  label: 'After each 1:1',
+                  text: 'Paste the meeting transcript to auto-generate a summary, extract action items, pull out feedback, and log your impact.'
+                },
+                {
+                  icon: ListChecks,
+                  color: 'text-emerald-400',
+                  bg: 'bg-emerald-500/10',
+                  accent: 'border-l-emerald-500',
+                  label: 'Every Monday',
+                  text: "Set the week's priorities and audit last week's action items. Close stale items or escalate blockers."
+                },
+                {
+                  icon: MessageSquare,
+                  color: 'text-amber-400',
+                  bg: 'bg-amber-500/10',
+                  accent: 'border-l-amber-500',
+                  label: 'Every Friday',
+                  text: `Log feedback for anyone who hasn't had any in ${cadence.feedbackReminderDays} days. Record your own impact for the week.`
+                },
+                {
+                  icon: ClipboardList,
+                  color: 'text-cyan-400',
+                  bg: 'bg-cyan-500/10',
+                  accent: 'border-l-cyan-500',
+                  label: cadence.checkInFrequency === 'monthly' ? 'First week of each month' : cadence.checkInFrequency === 'bimonthly' ? 'Every other month' : 'Start of each quarter',
+                  text: 'Write a private performance check-in for each report covering accomplishments, concerns, and growth since the last check-in. Review team health trends.'
+                },
+                {
+                  icon: BarChart3,
+                  color: 'text-rose-400',
+                  bg: 'bg-rose-500/10',
+                  accent: 'border-l-rose-500',
+                  label: 'Every 6 months',
+                  text: 'Generate a performance review for each report based on months of 1:1 summaries, check-ins, feedback, and action items. Edit, save, and use it for your review cycle.'
+                }
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <div
+                    key={item.label}
+                    className={`flex items-start gap-3 p-3 rounded-lg bg-surface-raised/50 border-l-2 ${item.accent}`}
+                  >
+                    <div className={`p-1.5 rounded-md ${item.bg} shrink-0 mt-0.5`}>
+                      <Icon className={`w-3.5 h-3.5 ${item.color}`} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className={`text-xs font-semibold ${item.color} mb-0.5`}>{item.label}</div>
+                      <div className="text-sm text-zinc-400 leading-relaxed">{item.text}</div>
+                    </div>
+                  </div>
+                )
+              })}
+              <p className="text-xs text-zinc-600 mt-1 px-1">
+                Customize the cadence in Settings. All data lives in your Git repo.
               </p>
             </div>
           </div>

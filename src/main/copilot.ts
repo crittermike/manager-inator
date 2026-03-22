@@ -347,6 +347,46 @@ ${context.actionItems ? `Action items:\n${context.actionItems}` : ''}`
       })
       break
 
+    case 'generate-review':
+      messages.push({
+        role: 'user',
+        content: `Write a performance review for ${context.reportName} covering the period ${context.period}.
+${context.displayName} is a ${context.role || 'team member'}.
+
+Use this format:
+
+# Performance review: ${context.displayName}
+_Review period: ${context.period}_
+
+## Summary
+[2-3 sentence overall assessment. Be direct and specific.]
+
+## Key accomplishments
+- [Specific accomplishment with evidence from meetings, action items, or feedback]
+
+## Strengths demonstrated
+- [Observed strength with concrete examples from the review period]
+
+## Areas for development
+- [Specific area with actionable suggestions. Be constructive, not vague.]
+
+## Notable contributions
+- [Cross-team work, mentoring, process improvements, etc.]
+
+## Looking ahead
+[1-2 sentences on recommended focus for the next period.]
+
+---
+
+Base this review on the following data. Cite specific dates, topics, and outcomes where possible. Do NOT invent accomplishments. If data is thin, say so honestly and recommend gathering more signal.
+
+${context.checkIns ? `Monthly check-ins from this period:\n${context.checkIns}\n` : 'No check-ins available for this period.\n'}
+${context.summaries ? `1:1 meeting summaries:\n${context.summaries}\n` : 'No meeting summaries available.\n'}
+${context.feedback ? `Feedback log:\n${context.feedback}\n` : 'No feedback logged.\n'}
+${context.actionItems ? `Action items (completed and open):\n${context.actionItems}` : 'No action items available.'}`
+      })
+      break
+
     case 'prep-one-on-one':
       messages.push({
         role: 'user',

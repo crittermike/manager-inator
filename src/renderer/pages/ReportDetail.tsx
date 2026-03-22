@@ -62,6 +62,10 @@ export function ReportDetail() {
   const [showAllDone, setShowAllDone] = useState(false)
   const [togglingItems, setTogglingItems] = useState<Set<string>>(new Set())
   const [savingCheckIn, setSavingCheckIn] = useState(false)
+  const [showReviewAI, setShowReviewAI] = useState(false)
+  const [reviewContent, setReviewContent] = useState<string | null>(null)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [savingReview, setSavingReview] = useState(false)
   const savePrepRef = useRef<() => void>(() => {})
   const [copied, setCopied] = useState(false)
   const mountedRef = useRef(true)
@@ -247,6 +251,97 @@ export function ReportDetail() {
     }
   }
 
+  const handleGenerateReview = async () => {
+    setActiveTab('reviews')
+    setShowReviewAI(true)
+    setReviewLoading(true)
+    setReviewContent(null)
+    reset()
+
+    const now = new Date()
+    const month = now.getMonth()
+    // Determine review period: H1 (Jan-Jun) or H2 (Jul-Dec)
+    const year = now.getFullYear()
+    const isH2 = month >= 6
+    const periodLabel = isH2 ? `${year} H2 (Jul–Dec)` : `${year} H1 (Jan–Jun)`
+    const periodFile = isH2 ? `${year}-H2` : `${year}-H1`
+
+    // Load actual content for recent summaries (last 6 months worth)
+    const recentSummaries = report.summaries.slice(-20)
+    const summaryContents = await Promise.all(
+      recentSummaries.map(async (s) => {
+        try {
+          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1-summary.md`)
+          return `### ${s.date}\n${content}`
+        } catch { return '' }
+      })
+    )
+    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+    if (!mountedRef.current) return
+
+    const checkInsText = report.checkIns.slice(-6).map(c =>
+      `### ${c.date}\n${c.content || c.accomplishments.join('\n') || '(no content)'}`
+    ).join('\n\n---\n\n')
+
+    const feedbackText = report.feedback.map(f =>
+      `${f.date} (${f.type}): ${f.content}`
+    ).join('\n---\n')
+
+    const allActions = report.actionItems.slice(-30).map(a =>
+      `- [${a.completed ? 'x' : ' '}] ${a.text}`
+    ).join('\n')
+
+    let result = ''
+    try {
+      result = await generate('generate-review', {
+        reportName: report.profile.displayName,
+        displayName: report.profile.displayName,
+        role: report.profile.role,
+        period: periodLabel,
+        checkIns: checkInsText || undefined,
+        summaries: summariesText || undefined,
+        feedback: feedbackText || undefined,
+        actionItems: allActions || undefined,
+        customInstructions: undefined
+      })
+    } catch (e) {
+      console.error('Review generation failed:', e)
+      toast.error('Failed to generate review')
+    }
+    if (!mountedRef.current) return
+    const content = result || fullTextRef.current
+    if (content) {
+      setReviewContent(content)
+    } else {
+      setReviewContent('_Failed to generate review. Try clicking Regenerate._')
+    }
+    setReviewLoading(false)
+  }
+
+  const handleSaveReview = async () => {
+    const content = reviewContent || fullTextRef.current || streamedText
+    if (!content || !name) return
+    setSavingReview(true)
+    try {
+      const now = new Date()
+      const month = now.getMonth()
+      const year = now.getFullYear()
+      const periodFile = month >= 6 ? `${year}-H2` : `${year}-H1`
+      await window.api.commitFile(
+        `reports/${name}/reviews/${periodFile}.md`,
+        content,
+        `Save performance review for ${report.profile.displayName} (${periodFile})`
+      )
+      toast.success('Review saved to repo')
+      refresh()
+    } catch (e) {
+      console.error('Failed to save review:', e)
+      toast.error('Failed to save review')
+    } finally {
+      setSavingReview(false)
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       {/* Back button */}
@@ -304,6 +399,14 @@ export function ReportDetail() {
           >
             <FileText className="w-4 h-4" aria-hidden="true" />
             Generate check-in
+          </button>
+          <button
+            onClick={handleGenerateReview}
+            disabled={streaming}
+            className="flex items-center gap-2 px-3 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <BookOpen className="w-4 h-4" aria-hidden="true" />
+            Generate review
           </button>
         </div>
       </div>
@@ -1169,8 +1272,77 @@ export function ReportDetail() {
         {/* Reviews */}
         {activeTab === 'reviews' && (
           <div className="space-y-2">
-            {report.reviews.length === 0 ? (
-              <EmptyState icon={BookOpen} text="No reviews on file" />
+            {/* AI review generation panel */}
+            {showReviewAI && (
+              <div className="bg-surface rounded-xl border border-brand/20 p-5 animate-fade-in mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-brand-light">
+                    <Sparkles className="w-4 h-4" aria-hidden="true" />
+                    {reviewLoading ? 'Generating performance review' : 'Performance review draft'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {streaming && (
+                      <button
+                        onClick={cancel}
+                        className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        Stop generating
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { if (streaming) cancel(); setShowReviewAI(false); setReviewContent(null) }}
+                      aria-label="Close review panel"
+                      className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      <X className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <div className={`prose-dark max-h-[32rem] overflow-y-auto ${streaming ? 'cursor-blink' : ''}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {reviewContent || streamedText || '_Generating..._'}
+                  </ReactMarkdown>
+                </div>
+                {!streaming && !reviewLoading && (reviewContent || streamedText) && (
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                    <button
+                      onClick={handleSaveReview}
+                      disabled={savingReview}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Save className="w-3 h-3" aria-hidden="true" />
+                      {savingReview ? 'Saving...' : 'Save to repo'}
+                    </button>
+                    <button
+                      onClick={() => handleCopy(reviewContent || fullTextRef.current || streamedText)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                      aria-label="Copy review to clipboard"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-success" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    <button
+                      onClick={() => handleDownload(reviewContent || fullTextRef.current || streamedText, `review-${name}.md`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                      aria-label="Download review as Markdown"
+                    >
+                      <Download className="w-3 h-3" aria-hidden="true" />
+                      Download
+                    </button>
+                    <button
+                      onClick={handleGenerateReview}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                    >
+                      <Sparkles className="w-3 h-3" aria-hidden="true" />
+                      Regenerate
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {report.reviews.length === 0 && !showReviewAI ? (
+              <EmptyState icon={BookOpen} text="No reviews on file" action="Generate review" onAction={handleGenerateReview} />
             ) : (
               <>
                 {selectedFile && fileLoading ? (
@@ -1203,16 +1375,28 @@ export function ReportDetail() {
                     </div>
                   </div>
                 ) : (
-                  report.reviews.map((r) => (
-                    <button
-                      key={r.period}
-                      onClick={() => setSelectedFile(`reports/${name}/reviews/${r.period}.md`)}
-                      className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
-                    >
-                      <BookOpen className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
-                      <span className="text-sm text-zinc-300">{r.period}</span>
-                    </button>
-                  ))
+                  <>
+                    {!showReviewAI && (
+                      <button
+                        onClick={handleGenerateReview}
+                        disabled={streaming}
+                        className="w-full flex items-center justify-center gap-2 p-3 mb-2 bg-brand/5 border border-brand/20 rounded-lg text-sm text-brand-light hover:bg-brand/10 transition-colors disabled:opacity-50"
+                      >
+                        <Sparkles className="w-4 h-4" aria-hidden="true" />
+                        Generate new review
+                      </button>
+                    )}
+                    {report.reviews.map((r) => (
+                      <button
+                        key={r.period}
+                        onClick={() => setSelectedFile(`reports/${name}/reviews/${r.period}.md`)}
+                        className="w-full flex items-center gap-3 p-3 bg-surface rounded-lg border border-border hover:border-brand/30 transition-all text-left"
+                      >
+                        <BookOpen className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
+                        <span className="text-sm text-zinc-300">{r.period}</span>
+                      </button>
+                    ))}
+                  </>
                 )}
               </>
             )}
