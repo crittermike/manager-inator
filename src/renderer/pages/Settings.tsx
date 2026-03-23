@@ -169,7 +169,7 @@ export function Settings() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+    <div className={`max-w-2xl mx-auto space-y-8 animate-fade-in ${isDirty ? 'pb-24' : ''}`}>
       <div>
         <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
           <SettingsIcon className="w-6 h-6 text-zinc-400" aria-hidden="true" />
@@ -551,11 +551,11 @@ export function Settings() {
         </div>
       </section>
 
-      {/* Sticky save bar */}
+      {/* Fixed save bar */}
       {isDirty && (
-        <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-zinc-950/90 backdrop-blur-sm border-t border-border animate-slide-down">
+        <div className="fixed bottom-0 left-64 right-0 z-10 px-8 py-4 bg-zinc-950/90 backdrop-blur-md border-t border-border animate-fade-in shadow-2xl">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
-            <p className="text-xs text-zinc-500">You have unsaved changes</p>
+            <p className="text-sm font-medium text-zinc-300">You have unsaved changes</p>
             <button
               onClick={handleSave}
               disabled={saving}
