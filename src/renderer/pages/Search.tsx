@@ -302,41 +302,21 @@ export function SearchPage() {
       )}
 
       {!query.trim() && (
-        <div className="space-y-4">
-          {meetings.length > 0 && (
-            <div>
-              <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Recent meetings</h2>
-              <div className="space-y-1">
-                {meetings
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 15)
-                  .map((m, i) => (
-                    <button
-                      key={`${m.filename}-${i}`}
-                      onClick={() => openMeeting(m.filename, m.title)}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group"
-                    >
-                      <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
-                        <Calendar className="w-4 h-4" aria-hidden="true" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{m.title}</div>
-                        <div className="text-xs text-zinc-500 truncate">{m.date}</div>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
-          {meetings.length === 0 && (
-            <div className="text-center py-20">
-              <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
-                <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
-              </div>
-              <p className="text-sm text-zinc-500 mb-1">No meetings or people yet</p>
-              <p className="text-xs text-zinc-600">Process a transcript to get started</p>
-            </div>
-          )}
+        <div className="text-center py-16 animate-fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
+            <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
+          </div>
+          <p className="text-sm text-zinc-400 mb-4">Search across everything</p>
+          <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
+            {['meetings', 'people', 'feedback', 'action items', 'check-ins', 'notes'].map(tag => (
+              <span
+                key={tag}
+                className="px-3 py-1.5 text-xs text-zinc-500 bg-surface-raised/50 rounded-lg border border-border/50"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>

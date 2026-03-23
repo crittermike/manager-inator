@@ -253,14 +253,26 @@ function parseActionItems(content: string, sourceFile?: string): ActionItem[] {
 
 function parseFeedbackLog(content: string): FeedbackEntry[] {
   const entries: FeedbackEntry[] = []
-  const blocks = content.split(/^###\s+/m).filter((b) => b.trim())
+  const blocks = content.split(/^#{2,3}\s+/m).filter((b) => b.trim())
   for (const block of blocks) {
     const headerMatch = block.match(
-      /^(🌟|🔧|💬)?\s*(\d{4}-\d{2}-\d{2})\s*[—–-]\s*(positive|constructive|mixed)/i
+      /\[?(\d{4}-\d{2}-\d{2})\]?\s*[—–-]\s*(.+)/
     )
     if (!headerMatch) continue
-    const date = headerMatch[2]
-    const type = headerMatch[3].toLowerCase() as FeedbackEntry['type']
+    const date = headerMatch[1]
+    const rawType = headerMatch[2].split('\n')[0].trim().toLowerCase()
+
+    let type: FeedbackEntry['type']
+    if (/constructive/.test(rawType)) {
+      type = 'constructive'
+    } else if (/observation/.test(rawType)) {
+      type = 'observation'
+    } else if (/mixed/.test(rawType)) {
+      type = 'mixed'
+    } else {
+      type = 'positive'
+    }
+
     const sourceMatch = block.match(/\*\*Source\*\*:\s*(.+)/i)
     const contextMatch = block.match(/\*\*Context\*\*:\s*(.+)/i)
     const quoteMatch = block.match(/>\s*(.+(?:\n>\s*.+)*)/m)

@@ -4,10 +4,12 @@ import { useTeamOverview } from '../hooks/useData'
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
 import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice } from '../../shared/types'
+import { matchesMeetingDay } from '../utils/meetingDay'
 import {
   AlertCircle,
   BookOpen,
   Calendar,
+  ClipboardList,
   Inbox,
   CheckCircle2,
   ChevronDown,
@@ -42,6 +44,13 @@ const sectionConfig: Record<TimelineSection, {
     color: 'text-red-400',
     bg: 'bg-red-500/10',
     border: 'border-l-red-500/50'
+  },
+  'this-week': {
+    label: 'This week',
+    icon: ClipboardList,
+    color: 'text-sky-400',
+    bg: 'bg-sky-500/10',
+    border: 'border-l-sky-500/50'
   },
   upcoming: {
     label: 'Before your next 1:1',
@@ -247,7 +256,7 @@ function computeTimelineItems(
   if (isMonday) {
     items.push({
       id: 'weekly-priorities',
-      section: doneIds.has('weekly-priorities') ? 'done' : 'upcoming',
+      section: doneIds.has('weekly-priorities') ? 'done' : 'this-week',
       title: 'Set your priorities for the week',
       subtitle: 'What are the most important things to accomplish this week?',
       actionLabel: 'Open',
@@ -258,7 +267,7 @@ function computeTimelineItems(
     const staleOrAtRisk = staleActions.length
     items.push({
       id: `board-status-${format(now, 'yyyy-MM-dd')}`,
-      section: doneIds.has(`board-status-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`board-status-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
       title: 'Review your project board',
       subtitle: staleOrAtRisk > 0
         ? `${staleOrAtRisk} stale action item${staleOrAtRisk !== 1 ? 's' : ''} across the team — check for blockers or at-risk work`
@@ -312,7 +321,7 @@ function computeTimelineItems(
   const isWeekend = dayIndex === 0 || dayIndex === 6
   if (!isWeekend) {
     const todayMeetings = reports.filter(r =>
-      r.meetingDay && r.meetingDay.toLowerCase() === todayName
+      r.meetingDay && matchesMeetingDay(r.meetingDay, todayName)
     )
     for (const r of todayMeetings) {
       items.push({
@@ -330,7 +339,7 @@ function computeTimelineItems(
     const tomorrowName = dayNames[tomorrowIndex]
     if (tomorrowIndex >= 1 && tomorrowIndex <= 5) {
       const tomorrowMeetings = reports.filter(r =>
-        r.meetingDay && r.meetingDay.toLowerCase() === tomorrowName
+        r.meetingDay && matchesMeetingDay(r.meetingDay, tomorrowName)
       )
       for (const r of tomorrowMeetings) {
         items.push({
@@ -349,7 +358,7 @@ function computeTimelineItems(
     const day2Name = dayNames[day2Index]
     if (day2Index >= 1 && day2Index <= 5) {
       const day2Meetings = reports.filter(r =>
-        r.meetingDay && r.meetingDay.toLowerCase() === day2Name
+        r.meetingDay && matchesMeetingDay(r.meetingDay, day2Name)
       )
       for (const r of day2Meetings) {
         items.push({
@@ -375,7 +384,7 @@ function computeTimelineItems(
     if (currentSprintDay <= 1) {
       items.push({
         id: `sprint-start-${format(now, 'yyyy-MM-dd')}`,
-        section: doneIds.has(`sprint-start-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'upcoming',
+        section: doneIds.has(`sprint-start-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
         title: 'New sprint — set the sprint goal',
         subtitle: 'What does success look like for this sprint?',
         actionLabel: 'Set goal',
@@ -387,7 +396,7 @@ function computeTimelineItems(
     if (currentSprintDay >= daysInSprint - 2) {
       items.push({
         id: `sprint-end-${format(now, 'yyyy-MM-dd')}`,
-        section: doneIds.has(`sprint-end-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'upcoming',
+        section: doneIds.has(`sprint-end-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
         title: 'Sprint ending — time for a retro',
         subtitle: 'Run a retro or check in with the team on how the sprint went',
         actionLabel: 'Reflect',
@@ -399,7 +408,7 @@ function computeTimelineItems(
   if (isFirstWeek) {
     items.push({
       id: `monthly-skip-level-${currentMonth}`,
-      section: doneIds.has(`monthly-skip-level-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`monthly-skip-level-${currentMonth}`) ? 'done' : 'this-week',
       title: 'Prep for your skip-level 1:1',
       subtitle: 'Schedule or prep your 1:1 with your own manager',
       actionLabel: 'Dismiss',
@@ -410,7 +419,7 @@ function computeTimelineItems(
   if (dayOfMonth >= 15 && dayOfMonth <= 21) {
     items.push({
       id: `monthly-peer-sync-${currentMonth}`,
-      section: doneIds.has(`monthly-peer-sync-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`monthly-peer-sync-${currentMonth}`) ? 'done' : 'this-week',
       title: 'Connect with a peer EM',
       subtitle: 'Share notes, trade advice, stay connected with your management peers',
       actionLabel: 'Dismiss',
@@ -422,7 +431,7 @@ function computeTimelineItems(
   if (isQuarterStart) {
     items.push({
       id: `quarterly-okr-${currentMonth}`,
-      section: doneIds.has(`quarterly-okr-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`quarterly-okr-${currentMonth}`) ? 'done' : 'this-week',
       title: 'Quarterly planning — review OKRs and initiatives',
       subtitle: 'Set or refresh goals for the quarter',
       actionLabel: 'Dismiss',
@@ -431,7 +440,7 @@ function computeTimelineItems(
 
     items.push({
       id: `quarterly-health-${currentMonth}`,
-      section: doneIds.has(`quarterly-health-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`quarterly-health-${currentMonth}`) ? 'done' : 'this-week',
       title: 'Team health check',
       subtitle: 'Is anyone burning out? Bored? On the wrong work?',
       actionLabel: 'Reflect',
@@ -440,7 +449,7 @@ function computeTimelineItems(
 
     items.push({
       id: `quarterly-hiring-${currentMonth}`,
-      section: doneIds.has(`quarterly-hiring-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`quarterly-hiring-${currentMonth}`) ? 'done' : 'this-week',
       title: 'Review your hiring plan',
       subtitle: 'If you lost someone tomorrow, what would hurt most?',
       actionLabel: 'Reflect',
@@ -450,7 +459,7 @@ function computeTimelineItems(
     for (const r of reports) {
       items.push({
         id: `quarterly-calibration-${r.name}-${currentMonth}`,
-        section: doneIds.has(`quarterly-calibration-${r.name}-${currentMonth}`) ? 'done' : 'upcoming',
+        section: doneIds.has(`quarterly-calibration-${r.name}-${currentMonth}`) ? 'done' : 'this-week',
         title: `Calibration prep for ${r.displayName}`,
         subtitle: 'Review the quarter\'s feedback, 1:1s, and completed actions',
         reportName: r.name,
@@ -466,7 +475,7 @@ function computeTimelineItems(
     for (const r of reports) {
       items.push({
         id: `semi-review-${r.name}-${currentMonth}`,
-        section: doneIds.has(`semi-review-${r.name}-${currentMonth}`) ? 'done' : 'upcoming',
+        section: doneIds.has(`semi-review-${r.name}-${currentMonth}`) ? 'done' : 'this-week',
         title: `Performance review due for ${r.displayName}`,
         subtitle: 'Generate a review draft from the past 6 months of artifacts',
         reportName: r.name,
@@ -478,7 +487,7 @@ function computeTimelineItems(
 
     items.push({
       id: `semi-1on1-format-${currentMonth}`,
-      section: doneIds.has(`semi-1on1-format-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`semi-1on1-format-${currentMonth}`) ? 'done' : 'this-week',
       title: '1:1 format check',
       subtitle: 'Ask each report: is our 1:1 working for you?',
       actionLabel: 'Dismiss',
@@ -487,7 +496,7 @@ function computeTimelineItems(
 
     items.push({
       id: `semi-personal-retro-${currentMonth}`,
-      section: doneIds.has(`semi-personal-retro-${currentMonth}`) ? 'done' : 'upcoming',
+      section: doneIds.has(`semi-personal-retro-${currentMonth}`) ? 'done' : 'this-week',
       title: 'Personal management retro',
       subtitle: 'What kind of manager have you been the last 6 months?',
       actionLabel: 'Reflect',
@@ -538,7 +547,7 @@ function computeTimelineItems(
           const id = `custom-${cpId}-${r.name}`
           items.push({
             id,
-            section: doneIds.has(id) ? 'done' : 'upcoming',
+            section: doneIds.has(id) ? 'done' : 'this-week',
             title: `${cp.name}: ${r.displayName}`,
             subtitle: cp.description || cp.frequency,
             reportName: r.name,
@@ -550,7 +559,7 @@ function computeTimelineItems(
         const id = `custom-${cpId}`
         items.push({
           id,
-          section: doneIds.has(id) ? 'done' : 'upcoming',
+          section: doneIds.has(id) ? 'done' : 'this-week',
           title: cp.name,
           subtitle: cp.description || cp.frequency,
           actionLabel: 'Dismiss',
@@ -569,7 +578,7 @@ function computeTimelineItems(
     if (!hadAnyTouchpoint) {
       items.push({
         id: `daily-interaction-${todayStr}`,
-        section: doneIds.has(`daily-interaction-${todayStr}`) ? 'done' : 'upcoming',
+        section: doneIds.has(`daily-interaction-${todayStr}`) ? 'done' : 'this-week',
         title: 'One small interaction',
         subtitle: 'Say something human to someone on your team — a quick message, a PR compliment, a check-in',
         actionLabel: 'Done',
@@ -597,7 +606,7 @@ function computeTimelineItems(
     // Upcoming 1:1s
     if (!futureIsWeekend) {
       const futureMeetings = reports.filter(r =>
-        r.meetingDay && r.meetingDay.toLowerCase() === futureDayName
+        r.meetingDay && matchesMeetingDay(r.meetingDay, futureDayName)
       )
       for (const r of futureMeetings) {
         const id = `coming-up-1on1-${r.name}-${format(futureDate, 'yyyy-MM-dd')}`
@@ -861,11 +870,11 @@ export function Today() {
     })
   }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices])
 
-  const sections: TimelineSection[] = ['reflection', 'overdue', 'upcoming', 'inbox', 'coming-up', 'done']
+  const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'upcoming', 'inbox', 'coming-up', 'done']
 
   const itemsBySection = useMemo(() => {
     const grouped: Record<TimelineSection, TimelineItem[]> = {
-      reflection: [], overdue: [], upcoming: [], inbox: [], 'coming-up': [], done: []
+      reflection: [], overdue: [], 'this-week': [], upcoming: [], inbox: [], 'coming-up': [], done: []
     }
     for (const item of items) {
       grouped[item.section].push(item)
@@ -930,6 +939,22 @@ export function Today() {
   const totalActive = items.filter(i => i.section !== 'done' && i.section !== 'coming-up').length
   const doneCount = itemsBySection.done.length
 
+  const headerSummary = useMemo(() => {
+    if (totalActive === 0) return 'All clear'
+    const parts: string[] = []
+    const overdueCount = itemsBySection.overdue.length
+    const reflectionCount = itemsBySection.reflection.length
+    const upcomingCount = itemsBySection.upcoming.length
+    const thisWeekCount = itemsBySection['this-week'].length
+    const inboxCount = itemsBySection.inbox.length
+    if (overdueCount > 0) parts.push(`${overdueCount} overdue`)
+    if (upcomingCount > 0) parts.push(`${upcomingCount} 1:1 prep`)
+    if (thisWeekCount > 0) parts.push(`${thisWeekCount} this week`)
+    if (reflectionCount > 0) parts.push(`${reflectionCount} reflection`)
+    if (inboxCount > 0) parts.push(`${inboxCount} to process`)
+    return parts.join(' · ') || 'All clear'
+  }, [totalActive, itemsBySection])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -992,7 +1017,7 @@ export function Today() {
         <div>
           <h1 className="text-2xl font-bold text-zinc-100">Today</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            {format(new Date(), 'EEEE, MMMM d')} · {totalActive === 0 ? 'All clear' : `${totalActive} item${totalActive !== 1 ? 's' : ''} need attention`}
+            {format(new Date(), 'EEEE, MMMM d')} · {headerSummary}
           </p>
         </div>
         <button

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTeamOverview } from '../hooks/useData'
 import { useSearchParams } from 'react-router-dom'
 import { format, addDays, getDay, getDate, getMonth, differenceInDays } from 'date-fns'
-import type { CadenceSettings, ReportStatus, CadenceType, CustomPractice, DayOfWeek, CheckInFrequency } from '../../shared/types'
+import type { CadenceSettings, ReportStatus, CadenceType, CustomPractice, DayOfWeek, CheckInFrequency, PracticeSchedule } from '../../shared/types'
+import { matchesMeetingDay } from '../utils/meetingDay'
 import {
   BookOpen,
   ChevronDown,
@@ -225,11 +226,56 @@ function computeTimelineEvents(
   reports: ReportStatus[],
   cadence: CadenceSettings,
   daysAhead: number,
-  customPractices: CustomPractice[] = []
+  customPractices: CustomPractice[] = [],
+  practiceSchedules: Record<string, PracticeSchedule> = {}
 ): TimelineEvent[] {
   const events: TimelineEvent[] = []
   const now = new Date()
+  const endDate = addDays(now, daysAhead)
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+  const schedulablePractices: Record<string, { label: string; cadence: CadenceType; perReport: boolean }> = {
+    'skip-level': { label: 'Skip-level 1:1', cadence: 'monthly', perReport: false },
+    'monthly-checkin': { label: `Check-ins due (${reports.length})`, cadence: 'monthly', perReport: false },
+    'peer-sync': { label: 'Peer EM sync', cadence: 'monthly', perReport: false },
+    'quarterly-okr': { label: 'Quarterly planning', cadence: 'quarterly', perReport: false },
+    'quarterly-health': { label: 'Team health check', cadence: 'quarterly', perReport: false },
+    'quarterly-hiring': { label: 'Hiring plan review', cadence: 'quarterly', perReport: false },
+    'quarterly-calibration': { label: 'Calibration', cadence: 'quarterly', perReport: true },
+    'semi-review': { label: 'Performance reviews', cadence: 'semi-annual', perReport: true },
+    'semi-1on1-format': { label: '1:1 format check', cadence: 'semi-annual', perReport: false },
+    'semi-personal-retro': { label: 'Personal retro', cadence: 'semi-annual', perReport: false },
+  }
+
+  const scheduledPracticeIds = new Set<string>()
+
+  for (const [practiceId, schedule] of Object.entries(practiceSchedules)) {
+    const info = schedulablePractices[practiceId]
+    if (!info || !schedule.anchorDate || !schedule.intervalDays) continue
+    scheduledPracticeIds.add(practiceId)
+
+    const anchor = new Date(schedule.anchorDate + 'T00:00:00')
+    const interval = schedule.intervalDays
+
+    const msSinceAnchor = now.getTime() - anchor.getTime()
+    const daysSinceAnchor = Math.floor(msSinceAnchor / (1000 * 60 * 60 * 24))
+    const periodsElapsed = daysSinceAnchor >= 0 ? Math.floor(daysSinceAnchor / interval) : Math.ceil(daysSinceAnchor / interval) - 1
+    const firstOccurrence = addDays(anchor, periodsElapsed * interval)
+
+    for (let i = 0; i <= Math.ceil(daysAhead / interval) + 1; i++) {
+      const d = addDays(firstOccurrence, i * interval)
+      if (d < addDays(now, -1)) continue
+      if (d > endDate) break
+
+      if (info.perReport) {
+        for (const r of reports) {
+          events.push({ date: d, practiceId, label: `${info.label}: ${r.displayName}`, cadence: info.cadence, reportName: r.name })
+        }
+      } else {
+        events.push({ date: d, practiceId, label: info.label, cadence: info.cadence })
+      }
+    }
+  }
 
   for (let offset = 0; offset <= daysAhead; offset++) {
     const d = addDays(now, offset)
@@ -244,14 +290,13 @@ function computeTimelineEvents(
     const isQuarterStart = [0, 3, 6, 9].includes(month) && dayOfMonth <= 14
     const isSemiAnnual = [0, 6].includes(month) && dayOfMonth <= 14
 
-    // Daily practices — every weekday
     if (!isWeekend) {
       events.push({ date: d, practiceId: 'daily-prs', label: 'Read team PRs', cadence: 'daily' })
       events.push({ date: d, practiceId: 'daily-blockers', label: 'Check for blockers', cadence: 'daily' })
       events.push({ date: d, practiceId: 'daily-interaction', label: 'One small interaction', cadence: 'daily' })
 
       for (const r of reports) {
-        if (r.meetingDay && r.meetingDay.toLowerCase() === dayName) {
+        if (r.meetingDay && matchesMeetingDay(r.meetingDay, dayName)) {
           events.push({ date: d, practiceId: 'one-on-one-prep', label: `1:1 with ${r.displayName}`, cadence: 'weekly', reportName: r.name })
         }
       }
@@ -280,9 +325,11 @@ function computeTimelineEvents(
       }
     }
 
-    if (isFirstWeek && dayOfMonth === 1) {
+    if (!scheduledPracticeIds.has('skip-level') && isFirstWeek && dayOfMonth === 1) {
       events.push({ date: d, practiceId: 'skip-level', label: 'Skip-level 1:1', cadence: 'monthly' })
+    }
 
+    if (!scheduledPracticeIds.has('monthly-checkin') && isFirstWeek && dayOfMonth === 1) {
       const isCheckInMonth =
         cadence.checkInFrequency === 'monthly' ||
         (cadence.checkInFrequency === 'bimonthly' && month % 2 === 0) ||
@@ -292,27 +339,40 @@ function computeTimelineEvents(
       }
     }
 
-    if (dayOfMonth === 15) {
+    if (!scheduledPracticeIds.has('peer-sync') && dayOfMonth === 15) {
       events.push({ date: d, practiceId: 'peer-sync', label: 'Peer EM sync', cadence: 'monthly' })
     }
 
     if (isQuarterStart && dayOfMonth === 1) {
-      events.push({ date: d, practiceId: 'quarterly-okr', label: 'Quarterly planning', cadence: 'quarterly' })
-      events.push({ date: d, practiceId: 'quarterly-health', label: 'Team health check', cadence: 'quarterly' })
-      events.push({ date: d, practiceId: 'quarterly-hiring', label: 'Hiring plan review', cadence: 'quarterly' })
-      for (const r of reports) {
-        events.push({ date: d, practiceId: 'quarterly-calibration', label: `Calibration: ${r.displayName}`, cadence: 'quarterly', reportName: r.name })
+      if (!scheduledPracticeIds.has('quarterly-okr')) {
+        events.push({ date: d, practiceId: 'quarterly-okr', label: 'Quarterly planning', cadence: 'quarterly' })
+      }
+      if (!scheduledPracticeIds.has('quarterly-health')) {
+        events.push({ date: d, practiceId: 'quarterly-health', label: 'Team health check', cadence: 'quarterly' })
+      }
+      if (!scheduledPracticeIds.has('quarterly-hiring')) {
+        events.push({ date: d, practiceId: 'quarterly-hiring', label: 'Hiring plan review', cadence: 'quarterly' })
+      }
+      if (!scheduledPracticeIds.has('quarterly-calibration')) {
+        for (const r of reports) {
+          events.push({ date: d, practiceId: 'quarterly-calibration', label: `Calibration: ${r.displayName}`, cadence: 'quarterly', reportName: r.name })
+        }
       }
     }
 
     if (isSemiAnnual && dayOfMonth === 1) {
-      events.push({ date: d, practiceId: 'semi-review', label: 'Performance reviews', cadence: 'semi-annual' })
-      events.push({ date: d, practiceId: 'semi-1on1-format', label: '1:1 format check', cadence: 'semi-annual' })
-      events.push({ date: d, practiceId: 'semi-personal-retro', label: 'Personal retro', cadence: 'semi-annual' })
+      if (!scheduledPracticeIds.has('semi-review')) {
+        events.push({ date: d, practiceId: 'semi-review', label: 'Performance reviews', cadence: 'semi-annual' })
+      }
+      if (!scheduledPracticeIds.has('semi-1on1-format')) {
+        events.push({ date: d, practiceId: 'semi-1on1-format', label: '1:1 format check', cadence: 'semi-annual' })
+      }
+      if (!scheduledPracticeIds.has('semi-personal-retro')) {
+        events.push({ date: d, practiceId: 'semi-personal-retro', label: 'Personal retro', cadence: 'semi-annual' })
+      }
     }
   }
 
-  // Generate events for custom practices based on their cadence
   for (const cp of customPractices) {
     const cadenceIntervals: Record<CadenceType, number> = {
       'daily': 1,
@@ -326,7 +386,6 @@ function computeTimelineEvents(
     for (let offset = 0; offset <= daysAhead; offset += interval) {
       const d = addDays(now, offset)
       const dayIndex = getDay(d)
-      // Skip weekends for daily cadence
       if (cp.cadence === 'daily' && (dayIndex === 0 || dayIndex === 6)) continue
       if (cp.perReport) {
         for (const r of reports) {
@@ -370,15 +429,22 @@ const inputClasses = "w-full bg-surface-raised border border-border rounded-lg p
 function EditBuiltInPracticeForm({ 
   practice, 
   cadenceSettings, 
+  practiceSchedules,
   onSave, 
+  onSaveSchedule,
   onCancel 
 }: { 
   practice: Practice, 
   cadenceSettings: CadenceSettings, 
+  practiceSchedules: Record<string, PracticeSchedule>,
   onSave: (s: Partial<CadenceSettings>) => void, 
+  onSaveSchedule: (practiceId: string, schedule: PracticeSchedule | null) => void,
   onCancel: () => void 
 }) {
   const [local, setLocal] = useState<CadenceSettings>(cadenceSettings)
+  const existingSchedule = practiceSchedules[practice.id]
+  const [anchorDate, setAnchorDate] = useState(existingSchedule?.anchorDate || '')
+  const [intervalDays, setIntervalDays] = useState(existingSchedule?.intervalDays || 0)
   
   const isWeeklyRef = practice.id === 'weekly-reflection'
   const isFeedbackGap = practice.id === 'feedback-gap'
@@ -386,27 +452,37 @@ function EditBuiltInPracticeForm({
   const isSprintEnd = practice.id === 'sprint-end'
   const isMonthly = practice.id === 'monthly-checkin'
 
-  const canEdit = isWeeklyRef || isFeedbackGap || isSprintStart || isSprintEnd || isMonthly
+  const hasCadenceSettings = isWeeklyRef || isFeedbackGap || isSprintStart || isSprintEnd || isMonthly
 
-  // Descriptive schedule details for practices without configurable settings
-  const scheduleDetails: Record<string, { when: string, detail: string }> = {
-    'daily-prs': { when: 'Every workday', detail: 'Fires automatically Monday through Friday.' },
-    'daily-blockers': { when: 'Every workday', detail: 'Fires automatically Monday through Friday.' },
-    'daily-interaction': { when: 'Every workday', detail: 'Fires automatically Monday through Friday. Nudges you if no touchpoint is logged by afternoon.' },
-    'one-on-one-prep': { when: 'Before each 1:1', detail: 'Fires the day before and the morning of each report\'s 1:1 day.' },
-    'weekly-priorities': { when: 'Every Monday', detail: 'Fires each Monday morning.' },
-    'skip-level': { when: '1st week of each month', detail: 'Appears in the first 7 days of each month.' },
-    'peer-sync': { when: 'Mid-month', detail: 'Appears between the 15th and 21st of each month.' },
-    'quarterly-okr': { when: '1st two weeks of quarter', detail: 'Fires in Jan, Apr, Jul, Oct — first 14 days.' },
-    'quarterly-calibration': { when: '1st two weeks of quarter', detail: 'Fires per report in Jan, Apr, Jul, Oct — first 14 days.' },
-    'quarterly-health': { when: '1st two weeks of quarter', detail: 'Fires in Jan, Apr, Jul, Oct — first 14 days.' },
-    'quarterly-hiring': { when: '1st two weeks of quarter', detail: 'Fires in Jan, Apr, Jul, Oct — first 14 days.' },
-    'semi-review': { when: 'January & July', detail: 'Fires per report in the first 14 days of January and July.' },
-    'semi-1on1-format': { when: 'January & July', detail: 'Fires in the first 14 days of January and July.' },
-    'semi-personal-retro': { when: 'January & July', detail: 'Fires in the first 14 days of January and July.' },
+  const schedulableIds = new Set([
+    'skip-level', 'monthly-checkin', 'peer-sync',
+    'quarterly-okr', 'quarterly-health', 'quarterly-hiring', 'quarterly-calibration',
+    'semi-review', 'semi-1on1-format', 'semi-personal-retro',
+  ])
+  const isSchedulable = schedulableIds.has(practice.id)
+
+  const intervalPresets: { label: string; days: number }[] = [
+    { label: '2 weeks', days: 14 },
+    { label: '3 weeks', days: 21 },
+    { label: '4 weeks', days: 28 },
+    { label: '6 weeks', days: 42 },
+    { label: '8 weeks', days: 56 },
+    { label: 'Monthly', days: 30 },
+    { label: 'Quarterly', days: 91 },
+    { label: '6 months', days: 182 },
+  ]
+
+  const scheduleDetails: Record<string, { when: string }> = {
+    'daily-prs': { when: 'Every workday' },
+    'daily-blockers': { when: 'Every workday' },
+    'daily-interaction': { when: 'Every workday' },
+    'one-on-one-prep': { when: 'Before each 1:1' },
+    'weekly-priorities': { when: 'Every Monday' },
   }
 
-  if (!canEdit) {
+  const isReadOnly = !hasCadenceSettings && !isSchedulable
+
+  if (isReadOnly) {
     const info = scheduleDetails[practice.id]
     return (
       <div className="p-4 bg-surface-raised rounded-xl border border-border animate-slide-down space-y-3">
@@ -419,16 +495,28 @@ function EditBuiltInPracticeForm({
               <span className="text-xs font-medium text-zinc-400">Trigger</span>
               <span className="text-xs text-zinc-200">{practice.trigger}</span>
             </div>
-            {info?.detail && (
-              <p className="text-xs text-zinc-400">{info.detail}</p>
-            )}
-            <p className="text-xs text-zinc-500 mt-1">This practice runs on a fixed schedule. Use the enable/disable toggle or snooze button above to control when it appears in your Today view.</p>
           </div>
           <div className="flex justify-end">
             <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-colors">Close</button>
           </div>
       </div>
     )
+  }
+
+  const handleSave = () => {
+    if (hasCadenceSettings) {
+      onSave(local)
+    }
+    if (isSchedulable) {
+      if (anchorDate && intervalDays > 0) {
+        onSaveSchedule(practice.id, { anchorDate, intervalDays })
+      } else {
+        onSaveSchedule(practice.id, null)
+      }
+    }
+    if (!hasCadenceSettings && !isSchedulable) {
+      onCancel()
+    }
   }
 
   return (
@@ -471,7 +559,7 @@ function EditBuiltInPracticeForm({
           </>
         )}
 
-        {isMonthly && (
+        {isMonthly && !isSchedulable && (
            <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">Check-in frequency</label>
               <select value={local.checkInFrequency} onChange={e => setLocal({...local, checkInFrequency: e.target.value as CheckInFrequency})} className={inputClasses}>
@@ -482,9 +570,73 @@ function EditBuiltInPracticeForm({
            </div>
         )}
 
+        {isSchedulable && (
+          <>
+            {isMonthly && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Check-in frequency</label>
+                <select value={local.checkInFrequency} onChange={e => setLocal({...local, checkInFrequency: e.target.value as CheckInFrequency})} className={inputClasses}>
+                  <option value="monthly">Monthly</option>
+                  <option value="bimonthly">Every 2 months</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Next occurrence</label>
+              <input 
+                type="date" 
+                value={anchorDate} 
+                onChange={e => setAnchorDate(e.target.value)} 
+                className={inputClasses} 
+              />
+              <p className="text-[11px] text-zinc-500 mt-1">When is the next one? Leave blank to use the default schedule.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Repeats every</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {intervalPresets.map(p => (
+                  <button
+                    key={p.days}
+                    type="button"
+                    onClick={() => setIntervalDays(p.days)}
+                    className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
+                      intervalDays === p.days 
+                        ? 'bg-brand/20 text-brand-light border-brand/40' 
+                        : 'bg-surface text-zinc-400 border-border hover:border-zinc-500'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={intervalDays || ''} 
+                  onChange={e => setIntervalDays(parseInt(e.target.value) || 0)} 
+                  placeholder="Custom"
+                  className={`${inputClasses} w-24`} 
+                />
+                <span className="text-xs text-zinc-500">days</span>
+              </div>
+            </div>
+            {existingSchedule && (
+              <button
+                type="button"
+                onClick={() => { setAnchorDate(''); setIntervalDays(0) }}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Reset to default schedule
+              </button>
+            )}
+          </>
+        )}
+
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-colors">Cancel</button>
-          <button onClick={() => onSave(local)} className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors">Save settings</button>
+          <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors">Save settings</button>
         </div>
      </div>
   )
@@ -614,10 +766,12 @@ export function Playbook() {
   const [snoozeOpenId, setSnoozeOpenId] = useState<string | null>(null)
   const [isAddingPractice, setIsAddingPractice] = useState(false)
   const [practiceCompletions, setPracticeCompletions] = useState<Record<string, string>>({})
+  const [practiceSchedules, setPracticeSchedules] = useState<Record<string, PracticeSchedule>>({})
   
   const [expandedGroups, setExpandedGroups] = useState<Set<CadenceType>>(
     new Set(['weekly', 'sprint', 'monthly', 'quarterly', 'semi-annual'])
   )
+  const [expandedWeeklyRhythm, setExpandedWeeklyRhythm] = useState<Set<number>>(new Set())
   const practiceRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -634,6 +788,7 @@ export function Playbook() {
       setDisabledPractices(s.disabledPractices || [])
       setCustomPractices(s.customPractices || [])
       setPracticeCompletions(s.practiceCompletions || {})
+      setPracticeSchedules(s.practiceSchedules || {})
       
       const snoozed = s.snoozedPractices || {}
       const now = new Date()
@@ -656,11 +811,13 @@ export function Playbook() {
   const reports = overview?.reports ?? []
 
   const rawEvents = useMemo(() => {
-    return computeTimelineEvents(reports, cadence, 90, customPractices)
-  }, [reports, cadence, customPractices])
+    return computeTimelineEvents(reports, cadence, 90, customPractices, practiceSchedules)
+  }, [reports, cadence, customPractices, practiceSchedules])
 
   const events = useMemo(() => {
     return rawEvents.filter(e => {
+      // Exclude daily cadence from timeline — they belong in the practice list below
+      if (e.cadence === 'daily') return false
       if (disabledPractices.includes(e.practiceId)) return false
       const snoozeDate = snoozedPractices[e.practiceId]
       if (snoozeDate && new Date(snoozeDate) > new Date()) return false
@@ -693,6 +850,7 @@ export function Playbook() {
   }, [events])
 
   const cadenceGroups: CadenceType[] = ['daily', 'weekly', 'sprint', 'monthly', 'quarterly', 'semi-annual']
+  const timelineCadenceGroups: CadenceType[] = ['weekly', 'sprint', 'monthly', 'quarterly', 'semi-annual']
   const allPractices = useMemo(() => [...practices, ...customPractices], [customPractices])
 
   const scrollToPractice = (practiceId: string) => {
@@ -753,6 +911,18 @@ export function Playbook() {
     const updated = { ...cadence, ...newSettings }
     setCadence(updated)
     window.api.saveSettings(newSettings)
+    setEditingPracticeId(null)
+  }
+
+  const handleSaveSchedule = (practiceId: string, schedule: PracticeSchedule | null) => {
+    const updated = { ...practiceSchedules }
+    if (schedule) {
+      updated[practiceId] = schedule
+    } else {
+      delete updated[practiceId]
+    }
+    setPracticeSchedules(updated)
+    window.api.saveSettings({ practiceSchedules: updated })
     setEditingPracticeId(null)
   }
 
@@ -824,7 +994,7 @@ export function Playbook() {
             <div className="min-w-[800px]">
               {/* Legend */}
               <div className="flex items-center gap-4 px-5 py-3 border-b border-border">
-                {cadenceGroups.map(c => (
+                {timelineCadenceGroups.map(c => (
                   <div key={c} className="flex items-center gap-1.5">
                     <div className={`w-2 h-2 rounded-full ${cadenceColors[c].dot}`} />
                     <span className="text-[11px] text-zinc-500">{cadenceLabels[c]}</span>
@@ -834,34 +1004,83 @@ export function Playbook() {
 
               {/* Week rows */}
               <div className="divide-y divide-border/50">
-                {weeks.map((week, wi) => (
-                  <div key={wi} className={`flex items-start gap-4 px-5 py-3 ${week.events.length === 0 ? 'opacity-50' : ''}`}>
-                    <div className="w-28 shrink-0 pt-0.5">
-                      <span className={`text-xs font-medium ${wi === 0 ? 'text-brand-light' : 'text-zinc-500'}`}>
-                        {week.weekLabel}
-                      </span>
+                {weeks.map((week, wi) => {
+                  const weeklyBaseline = week.events.filter(e => e.cadence === 'weekly')
+                  const exceptional = week.events.filter(e => e.cadence !== 'weekly')
+                  const isRhythmExpanded = expandedWeeklyRhythm.has(wi)
+
+                  const toggleRhythm = () => {
+                    setExpandedWeeklyRhythm(prev => {
+                      const next = new Set(prev)
+                      if (next.has(wi)) next.delete(wi)
+                      else next.add(wi)
+                      return next
+                    })
+                  }
+
+                  return (
+                    <div key={wi} className={`flex items-start gap-4 px-5 py-3 ${week.events.length === 0 ? 'opacity-50' : ''}`}>
+                      <div className="w-28 shrink-0 pt-0.5">
+                        <span className={`text-xs font-medium ${wi === 0 ? 'text-brand-light' : 'text-zinc-500'}`}>
+                          {week.weekLabel}
+                        </span>
+                      </div>
+                      <div className="flex-1 flex flex-wrap gap-1.5">
+                        {week.events.length === 0 ? (
+                          <span className="text-xs text-zinc-600 italic">No items</span>
+                        ) : (
+                          <>
+                            {weeklyBaseline.length > 0 && (
+                              <>
+                                <button
+                                  onClick={toggleRhythm}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all hover:brightness-110 bg-zinc-500/5 text-zinc-500 border-zinc-500/20"
+                                >
+                                  {isRhythmExpanded ? (
+                                    <ChevronDown className="w-3 h-3 shrink-0" />
+                                  ) : (
+                                    <ChevronRight className="w-3 h-3 shrink-0" />
+                                  )}
+                                  <span>Weekly rhythm</span>
+                                  <span className="opacity-60">({weeklyBaseline.length})</span>
+                                </button>
+
+                                {/* Expanded weekly baseline items */}
+                                {isRhythmExpanded && weeklyBaseline.map((ev, ei) => {
+                                  const colors = cadenceColors[ev.cadence]
+                                  return (
+                                    <button
+                                      key={`weekly-${ev.practiceId}-${ei}`}
+                                      onClick={() => scrollToPractice(ev.practiceId)}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all hover:scale-[1.02] hover:brightness-110 ${colors.bg} ${colors.text} ${colors.border} opacity-70`}
+                                    >
+                                      <div className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
+                                      <span className="truncate max-w-[180px]">{ev.label}</span>
+                                    </button>
+                                  )
+                                })}
+                              </>
+                            )}
+
+                            {exceptional.map((ev, ei) => {
+                              const colors = cadenceColors[ev.cadence]
+                              return (
+                                <button
+                                  key={`${ev.practiceId}-${ei}`}
+                                  onClick={() => scrollToPractice(ev.practiceId)}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all hover:scale-[1.02] hover:brightness-110 ${colors.bg} ${colors.text} ${colors.border}`}
+                                >
+                                  <div className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
+                                  <span className="truncate max-w-[180px]">{ev.label}</span>
+                                </button>
+                              )
+                            })}
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 flex flex-wrap gap-1.5">
-                      {week.events.length === 0 ? (
-                        <span className="text-xs text-zinc-600 italic">No items</span>
-                      ) : (
-                        week.events.map((ev, ei) => {
-                          const colors = cadenceColors[ev.cadence]
-                          return (
-                            <button
-                              key={`${ev.practiceId}-${ei}`}
-                              onClick={() => scrollToPractice(ev.practiceId)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all hover:scale-[1.02] hover:brightness-110 ${colors.bg} ${colors.text} ${colors.border}`}
-                            >
-                              <div className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
-                              <span className="truncate max-w-[180px]">{ev.label}</span>
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -1056,7 +1275,9 @@ export function Playbook() {
                                 <EditBuiltInPracticeForm 
                                   practice={practice} 
                                   cadenceSettings={cadence} 
+                                  practiceSchedules={practiceSchedules}
                                   onSave={handleSaveBuiltIn} 
+                                  onSaveSchedule={handleSaveSchedule}
                                   onCancel={() => setEditingPracticeId(null)} 
                                 />
                               )}

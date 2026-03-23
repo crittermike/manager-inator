@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 export function useAI() {
   const [streaming, setStreaming] = useState(false)
@@ -6,6 +6,16 @@ export function useAI() {
   const [error, setError] = useState<string | null>(null)
   const fullTextRef = useRef('')
   const requestIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const unsub = window.api.onAiStreamReset((data) => {
+      if (requestIdRef.current && data.requestId === requestIdRef.current) {
+        fullTextRef.current = ''
+        setStreamedText('')
+      }
+    })
+    return unsub
+  }, [])
 
   const generate = useCallback(
     async (action: string, context: Record<string, unknown>): Promise<string> => {

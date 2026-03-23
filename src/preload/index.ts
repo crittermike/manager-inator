@@ -53,6 +53,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('ai:tool-status', handler)
     return () => ipcRenderer.removeListener('ai:tool-status', handler)
   },
+  onAiStreamReset: (cb: (data: { requestId: string }) => void) => {
+    const handler = (_event: unknown, data: { requestId: string }) => cb(data)
+    ipcRenderer.on('ai:stream-reset', handler)
+    return () => ipcRenderer.removeListener('ai:stream-reset', handler)
+  },
   cancelBackfill: () => ipcRenderer.invoke('ai:cancel-backfill'),
 
   // AI

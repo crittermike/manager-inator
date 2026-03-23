@@ -61,12 +61,6 @@ function friendlyToolStatus(toolName: string, args: Record<string, unknown>): st
   return toolName
 }
 
-const TOOL_OUTPUT_PATTERN = /^[\s]*<tool_|^\s*\[?\s*\{\s*"tool_call_id"/
-
-function looksLikeToolOutput(text: string): boolean {
-  return TOOL_OUTPUT_PATTERN.test(text)
-}
-
 export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation()
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -82,7 +76,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const messages = activeSession?.messages || []
 
   const [input, setInput] = useState('')
-  const { streaming, streamedText, generate, cancel, reset, requestIdRef } = useAI()
+  const { streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef } = useAI()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -189,11 +183,23 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
         updatedAt: new Date().toISOString()
       }))
     } catch {
-      updateSession(activeId, s => ({
-        ...s,
-        messages: [...s.messages, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }],
-        updatedAt: new Date().toISOString()
-      }))
+      const partialContent = fullTextRef.current?.trim()
+      if (partialContent) {
+        updateSession(activeId, s => ({
+          ...s,
+          messages: [
+            ...s.messages,
+            { role: 'assistant', content: partialContent + '\n\n*(Response interrupted — the AI may have timed out.)*' }
+          ],
+          updatedAt: new Date().toISOString()
+        }))
+      } else {
+        updateSession(activeId, s => ({
+          ...s,
+          messages: [...s.messages, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }],
+          updatedAt: new Date().toISOString()
+        }))
+      }
     } finally {
       setToolStatus(null)
     }
@@ -394,7 +400,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               <Bot className="w-3.5 h-3.5 text-brand" aria-hidden="true" />
             </div>
             <div className="max-w-[85%] rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer">
-              {streamedText && !looksLikeToolOutput(streamedText) ? (
+              {streamedText ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedText}</ReactMarkdown>
                 </div>

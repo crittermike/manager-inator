@@ -30,25 +30,6 @@ NAME CORRECTIONS (always apply):
 const AI_REQUEST_TIMEOUT_MS = 120_000
 const CHAT_REQUEST_TIMEOUT_MS = 300_000
 
-// Copilot SDK tool-call formats to strip from streamed text:
-//   <tool_call>...</tool_call>  or  <tool_calls>...</tool_calls>   (XML)
-//   <tool_call [ {"tool_call_id": ...} ]                           (bracket JSON, no closing tag)
-//   <tool_result>...</tool_result>                                  (tool output)
-const TOOL_XML_REGEX = /<\/?tool_(?:call|result)s?(?:\s[^>]*)?>[\s\S]*?<\/tool_(?:call|result)s?>\s*/g
-const TOOL_BRACKET_REGEX = /<tool_(?:call|result)s?\s*\[[\s\S]*?\]\s*/g
-const TOOL_RESULT_TAG_REGEX = /<tool_(?:call|result)s?[^>]*>[\s\S]*?<\/tool_(?:call|result)s?>\s*/g
-const PARTIAL_TOOL_REGEX = /<tool_(?:call|result)s?[\s\S]*$/
-
-function stripToolCalls(text: string): { clean: string; hasPartial: boolean } {
-  let stripped = text
-  stripped = stripped.replace(TOOL_XML_REGEX, '')
-  stripped = stripped.replace(TOOL_BRACKET_REGEX, '')
-  stripped = stripped.replace(TOOL_RESULT_TAG_REGEX, '')
-  const hasPartial = PARTIAL_TOOL_REGEX.test(stripped)
-  const clean = hasPartial ? stripped.replace(PARTIAL_TOOL_REGEX, '') : stripped
-  return { clean: clean.trim(), hasPartial }
-}
-
 type StreamCallback = (chunk: string) => void
 type ToolStatusCallback = (toolName: string, args: Record<string, unknown>) => void
 
@@ -101,11 +82,10 @@ export async function aiGenerate(
   onToolStatus?: ToolStatusCallback
 ): Promise<string> {
   const entry = { session: null as unknown as CopilotSession, cancelled: false }
-  let unsubscribe: (() => void) | null = null
+  const unsubscribers: (() => void)[] = []
   const messages = buildMessages(action, context)
-  let fullResponse = ''
   const isChat = action === 'chat'
-  let lastSentLength = 0
+  const timeout = isChat ? CHAT_REQUEST_TIMEOUT_MS : AI_REQUEST_TIMEOUT_MS
 
   try {
     const c = await getClient()
@@ -121,7 +101,6 @@ export async function aiGenerate(
       streaming: true,
       ...(isChat
         ? {
-            availableTools: ['view', 'ls'],
             workingDirectory: settings.repoPath,
             systemMessage: systemMessages
               ? { mode: 'append' as const, content: systemMessages }
@@ -138,114 +117,109 @@ export async function aiGenerate(
     entry.session = session
     activeSessions.set(requestId, entry)
 
-    unsubscribe = session.on((event: { type: string; data: Record<string, unknown> }) => {
-      if (entry.cancelled) return
-      debugLog('[Copilot SDK] Event:', event.type, 'keys:', Object.keys(event.data || {}))
-      if (event.type === 'assistant.message_delta') {
-        const delta = (event.data as { deltaContent?: string }).deltaContent
+    if (isChat) {
+      // ── Chat mode (agent with tools) ──
+      let currentTurnText = ''
+      let lastSentLength = 0
+      let inToolPhase = false
+      let hasStreamedAnyContent = false
+
+      unsubscribers.push(session.on('assistant.message_delta', (event) => {
+        if (entry.cancelled || inToolPhase) return
+        const delta = event.data.deltaContent
+        if (delta) {
+          currentTurnText += delta
+          if (currentTurnText.length > lastSentLength) {
+            onChunk(currentTurnText.slice(lastSentLength))
+            lastSentLength = currentTurnText.length
+            hasStreamedAnyContent = true
+          }
+        }
+      }))
+
+      unsubscribers.push(session.on('assistant.turn_start', () => {
+        if (entry.cancelled) return
+        debugLog('[Copilot SDK] Turn started')
+        // Insert a visual break between turns so text doesn't concatenate
+        if (hasStreamedAnyContent) {
+          onChunk('\n\n')
+        }
+        currentTurnText = ''
+        lastSentLength = 0
+        inToolPhase = false
+      }))
+
+      unsubscribers.push(session.on('tool.execution_start', (event) => {
+        if (entry.cancelled) return
+        debugLog('[Copilot SDK] Tool:', event.data.toolName, event.data.arguments)
+        inToolPhase = true
+        if (onToolStatus) {
+          onToolStatus(event.data.toolName, (event.data.arguments as Record<string, unknown>) || {})
+        }
+      }))
+
+      unsubscribers.push(session.on('tool.execution_complete', () => {
+        if (entry.cancelled) return
+        debugLog('[Copilot SDK] Tool complete')
+        inToolPhase = false
+      }))
+
+      unsubscribers.push(session.on('session.error', (event) => {
+        debugLog('[Copilot SDK] Session error:', event.data.errorType, event.data.message)
+      }))
+
+      debugLog('[Copilot SDK] Sending chat message...')
+      const response = await session.sendAndWait({ prompt: userMessage }, timeout)
+
+      const finalContent = response?.data?.content || ''
+      debugLog('[Copilot SDK] Chat complete:', finalContent.length, 'chars')
+
+      if (finalContent && finalContent.length > lastSentLength) {
+        onChunk(finalContent.slice(lastSentLength))
+      }
+
+      return finalContent
+    } else {
+      // ── Non-chat mode (simple generation, no tools) ──
+      let fullResponse = ''
+
+      unsubscribers.push(session.on('assistant.message_delta', (event) => {
+        if (entry.cancelled) return
+        const delta = event.data.deltaContent
         if (delta) {
           fullResponse += delta
-          if (isChat) {
-            const { clean } = stripToolCalls(fullResponse)
-            if (clean.length > lastSentLength) {
-              onChunk(clean.slice(lastSentLength))
-              lastSentLength = clean.length
-            }
-          } else {
-            onChunk(delta)
-          }
+          onChunk(delta)
         }
-      } else if (event.type === 'assistant.message') {
-        const content = (event.data as { content?: string }).content
-        if (content && !fullResponse) {
-          fullResponse = content
-          if (isChat) {
-            const { clean } = stripToolCalls(fullResponse)
-            onChunk(clean)
-            lastSentLength = clean.length
-          } else {
-            onChunk(content)
-          }
-        }
-      } else if (event.type === 'tool.execution_start' && onToolStatus) {
-        const data = event.data as { toolName?: string; arguments?: Record<string, unknown> }
-        if (data.toolName) {
-          onToolStatus(data.toolName, data.arguments || {})
-        }
-      }
-      if (!fullResponse && event.data && event.type.startsWith('assistant.')) {
-        const possibleContent = (event.data as Record<string, unknown>).content ||
-          (event.data as Record<string, unknown>).text ||
-          (event.data as Record<string, unknown>).message
-        if (typeof possibleContent === 'string' && possibleContent.length > 10) {
-          fullResponse = possibleContent
-          onChunk(possibleContent)
-        }
-      }
-    })
+      }))
 
-    debugLog('[Copilot SDK] Sending message...')
-    const timeout = isChat ? CHAT_REQUEST_TIMEOUT_MS : AI_REQUEST_TIMEOUT_MS
-    const response = await Promise.race([
-      session.sendAndWait({ prompt: userMessage }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('AI request timed out')), timeout)
-      )
-    ])
-    debugLog('[Copilot SDK] sendAndWait returned:', typeof response)
+      unsubscribers.push(session.on('session.error', (event) => {
+        debugLog('[Copilot SDK] Session error:', event.data.errorType, event.data.message)
+      }))
 
-    // Extract content from sendAndWait return value (AssistantMessageEvent)
-    // The SDK returns { type: "assistant.message", data: { content: "..." } }
-    let returnContent = ''
-    if (response) {
-      if (typeof response === 'string') {
-        returnContent = response
-      } else if (typeof response === 'object') {
-        const r = response as Record<string, unknown>
-        const data = r.data as Record<string, unknown> | undefined
-        const candidate = data?.content || r.content || r.text || r.message
-        returnContent = typeof candidate === 'string' ? candidate : ''
+      debugLog('[Copilot SDK] Sending message...')
+      const response = await session.sendAndWait({ prompt: userMessage }, timeout)
+
+      // Use sendAndWait return if streaming didn't capture anything
+      const returnContent = response?.data?.content || ''
+      if (returnContent && !fullResponse) {
+        fullResponse = returnContent
+        onChunk(returnContent)
       }
+
+      debugLog('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
+      return fullResponse
     }
-
-    // If sendAndWait returned content that streaming didn't capture (common in agent/tool mode),
-    // use it as the full response and stream any new text to the renderer.
-    // In chat/agent mode, fullResponse may be bloated with tool-call XML that gets stripped,
-    // so compare against the clean text length, not the raw fullResponse length.
-    if (returnContent) {
-      const cleanSoFar = isChat ? stripToolCalls(fullResponse).clean : fullResponse
-      if (!cleanSoFar || returnContent.length > cleanSoFar.length) {
-        if (isChat) {
-          // returnContent from sendAndWait is already clean (no tool XML)
-          if (returnContent.length > lastSentLength) {
-            onChunk(returnContent.slice(lastSentLength))
-            lastSentLength = returnContent.length
-          }
-          // Rebuild fullResponse so final strip produces the right result
-          fullResponse = returnContent
-        } else {
-          fullResponse = returnContent
-        }
-      }
-    }
-    debugLog('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
-
   } catch (error) {
     if (entry.cancelled) {
-      return isChat ? stripToolCalls(fullResponse).clean : fullResponse
+      return ''
     }
     console.error('[Copilot SDK] Error:', (error as Error).message, (error as Error).stack)
     throw error
   } finally {
-    if (unsubscribe) try { unsubscribe() } catch {}
+    for (const unsub of unsubscribers) { try { unsub() } catch {} }
     if (entry.session) try { await entry.session.disconnect() } catch {}
     activeSessions.delete(requestId)
   }
-
-  if (isChat) {
-    fullResponse = stripToolCalls(fullResponse).clean
-  }
-  return fullResponse
 }
 
 export async function aiCancel(requestId?: string): Promise<void> {
@@ -522,7 +496,9 @@ ${context.crossMeetingMentions ? `Mentions of ${context.reportName} in other rec
       // Give the agent a map of the data repo so it knows where to look
       messages.push({
         role: 'system',
-        content: `You have read-only access to the manager's data repository via the "view" tool (reads a file) and the "ls" tool (lists a directory). Use them to look up specific information when answering questions.
+        content: `You have access to the manager's data repository. You can read files, list directories, edit files, and create new files. Use these tools to look up specific information and to make changes when asked.
+
+When editing or creating files, follow existing conventions (markdown with YAML frontmatter where appropriate). The repository is git-tracked, so all changes are reversible.
 
 DATA REPO STRUCTURE:
 reports/{name}/              — One directory per direct report
@@ -542,10 +518,12 @@ people/                      — Profiles for anyone (not just direct reports)
 mike-impact-log.md           — Manager's impact evidence log
 
 TIPS:
-- Start with ls to see what's available before reading specific files with view.
+- Start with ls to see what's available before reading specific files.
 - Every file in meetings/ is a summary. Raw transcripts are in transcripts/processed/.
 - Check-in files are in check-ins/monthly/ and named by YYYY-MM.
-- When looking for info about a person, check both reports/{name}/ and people/{slug}.md.`
+- When looking for info about a person, check both reports/{name}/ and people/{slug}.md.
+- When writing feedback to feedback/log.md, APPEND to the file (don't overwrite).
+- For new meeting summaries, use the YYYY-MM-DD-slug.md naming convention.`
       })
 
       // SDK is single-turn (sendAndWait) — fold history into prompt text

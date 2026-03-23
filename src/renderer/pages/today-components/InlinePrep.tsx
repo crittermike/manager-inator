@@ -179,7 +179,7 @@ export function InlinePrep({
             <ul className="space-y-1">
               {recentFeedback.map((f, i) => (
                 <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
-                  <span className="shrink-0">{f.type === 'positive' ? '🌟' : f.type === 'constructive' ? '🔧' : '💬'}</span>
+                  <span className="shrink-0">{f.type === 'positive' ? '👍' : f.type === 'constructive' ? '🔧' : f.type === 'observation' ? '💡' : '💬'}</span>
                   <span className="truncate">{f.content.length > 80 ? f.content.slice(0, 80) + '…' : f.content}</span>
                 </li>
               ))}

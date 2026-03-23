@@ -56,7 +56,7 @@ export function setupIpcHandlers(): void {
   safeHandle('settings:get', () => getSettingsForRenderer())
   safeHandle('settings:save', (_e, settings) => {
     const raw = settings as Record<string, unknown>
-    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems'] as const
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]

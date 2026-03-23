@@ -1,6 +1,6 @@
 import type { TeamActionItem } from '../../../shared/types'
 
-export type TimelineSection = 'reflection' | 'overdue' | 'upcoming' | 'inbox' | 'coming-up' | 'done'
+export type TimelineSection = 'reflection' | 'overdue' | 'this-week' | 'upcoming' | 'inbox' | 'coming-up' | 'done'
 
 export type PromptType = 'weekly-priorities' | 'sprint-goal' | 'weekly-reflection'
 

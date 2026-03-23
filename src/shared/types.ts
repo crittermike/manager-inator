@@ -52,7 +52,7 @@ export interface ActionItem {
 // ── Feedback entry ──
 export interface FeedbackEntry {
   date: string
-  type: 'positive' | 'constructive' | 'mixed'
+  type: 'positive' | 'constructive' | 'mixed' | 'observation'
   source: string
   context?: string
   content: string
@@ -75,6 +75,11 @@ export interface TeamPriority {
 export type CheckInFrequency = 'monthly' | 'bimonthly' | 'quarterly'
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'
 export type CadenceType = 'daily' | 'weekly' | 'sprint' | 'monthly' | 'quarterly' | 'semi-annual'
+export interface PracticeSchedule {
+  anchorDate: string   // ISO date of next/reference occurrence
+  intervalDays: number // days between occurrences
+}
+
 export interface CadenceSettings {
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
@@ -166,6 +171,7 @@ export interface AppSettings {
   snoozedPractices: Record<string, string>
   customPractices: CustomPractice[]
   practiceCompletions: Record<string, string>
+  practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
 }
 
@@ -240,6 +246,7 @@ export interface IpcApi {
   onBackfillProgress: (cb: (data: { filename: string; status: string; error?: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
+  onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void
   cancelBackfill: () => Promise<void>
 
   // AI

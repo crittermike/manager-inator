@@ -3,6 +3,7 @@ import { useReportData, useFileContent } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
+import { parseMeetingDays } from '../utils/meetingDay'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -58,13 +59,19 @@ function daysAgo(dateStr: string): number {
 function nextMeetingDate(meetingDay: string | undefined): string | null {
   if (!meetingDay) return null
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const targetIdx = dayNames.indexOf(meetingDay.toLowerCase())
-  if (targetIdx < 0) return null
+  const days = parseMeetingDays(meetingDay)
   const now = new Date()
   const todayIdx = now.getDay()
-  const daysUntil = (targetIdx - todayIdx + 7) % 7 || 7
+  let minDays = Infinity
+  for (const d of days) {
+    const targetIdx = dayNames.indexOf(d)
+    if (targetIdx < 0) continue
+    const daysUntil = (targetIdx - todayIdx + 7) % 7 || 7
+    if (daysUntil < minDays) minDays = daysUntil
+  }
+  if (minDays === Infinity) return null
   const next = new Date(now)
-  next.setDate(now.getDate() + daysUntil)
+  next.setDate(now.getDate() + minDays)
   return next.toISOString().split('T')[0]
 }
 
@@ -554,7 +561,7 @@ export function ReportDetail() {
         id: `feedback-${f.date}-${f.content.slice(0, 20)}`,
         type: 'feedback',
         date: f.date,
-        title: `${f.type === 'positive' ? '🌟' : f.type === 'constructive' ? '🔧' : '💬'} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)} feedback`,
+        title: `${f.type === 'positive' ? '👍' : f.type === 'constructive' ? '🔧' : f.type === 'observation' ? '💡' : '💬'} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}`,
         preview: f.content.length > 120 ? f.content.slice(0, 120) + '…' : f.content,
         data: f
       })
@@ -699,7 +706,10 @@ export function ReportDetail() {
           {report.profile.meetingDay && (
             <div className="flex items-center gap-1 mt-1 text-sm text-zinc-500">
               <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-              {report.profile.meetingDay}s
+              {report.profile.meetingDay.includes('/')
+                ? report.profile.meetingDay.split('/').map(d => d.trim() + 's').join(' & ')
+                : report.profile.meetingDay + 's'
+              }
             </div>
           )}
         </div>

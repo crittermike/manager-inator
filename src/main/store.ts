@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { safeStorage } from 'electron'
-import type { CheckInFrequency, DayOfWeek, CustomPractice } from '../shared/types'
+import type { CheckInFrequency, DayOfWeek, CustomPractice, PracticeSchedule } from '../shared/types'
 
 interface StoreSchema {
   githubToken: string | null
@@ -19,6 +19,7 @@ interface StoreSchema {
   snoozedPractices: Record<string, string>
   customPractices: CustomPractice[]
   practiceCompletions: Record<string, string>
+  practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
 }
 
@@ -39,6 +40,7 @@ const storeDefaults: StoreSchema = {
   snoozedPractices: {},
   customPractices: [],
   practiceCompletions: {},
+  practiceSchedules: {},
   snoozedActionItems: {}
 }
 
@@ -137,6 +139,7 @@ export function getSettingsForRenderer() {
     snoozedPractices: store.get('snoozedPractices'),
     customPractices: store.get('customPractices'),
     practiceCompletions: store.get('practiceCompletions'),
+    practiceSchedules: store.get('practiceSchedules'),
     snoozedActionItems: store.get('snoozedActionItems')
   }
 }
