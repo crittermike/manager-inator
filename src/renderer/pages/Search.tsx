@@ -1,10 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search as SearchIcon, User, Calendar, ArrowLeft, X, FileText } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
 import type { MeetingEntry, PersonEntry } from '../../shared/types'
-import { cleanSummaryContent } from '../utils/cleanSummary'
 
 interface SearchResult {
   type: 'meeting' | 'person' | 'content'
@@ -32,12 +29,6 @@ export function SearchPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Meeting viewer state
-  const [viewingMeeting, setViewingMeeting] = useState<string | null>(null)
-  const [meetingContent, setMeetingContent] = useState<string | null>(null)
-  const [meetingLoading, setMeetingLoading] = useState(false)
-  const [meetingTitle, setMeetingTitle] = useState('')
-
   useEffect(() => {
     window.api.listMeetings().then(setMeetings).catch(() => {})
     window.api.listPeople().then(setPeople).catch(() => {})
@@ -59,13 +50,10 @@ export function SearchPage() {
   // Handle ?meeting= query param (opens inline viewer)
   useEffect(() => {
     const meetingParam = searchParams.get('meeting')
-    if (meetingParam && meetings.length > 0) {
-      const meeting = meetings.find(m => m.filename === meetingParam)
-      if (meeting) {
-        openMeeting(meeting.filename, meeting.title)
-      }
+    if (meetingParam) {
+      navigate(`/meeting/${encodeURIComponent(meetingParam)}`)
     }
-  }, [searchParams, meetings])
+  }, [searchParams, navigate])
 
   // Handle ?q= query param (pre-fills search)
   useEffect(() => {
@@ -74,32 +62,6 @@ export function SearchPage() {
       setQuery(qParam)
     }
   }, [searchParams])
-
-  const openMeeting = useCallback(async (filename: string, title: string, basePath = 'meetings') => {
-    setViewingMeeting(filename)
-    setMeetingTitle(title)
-    setMeetingLoading(true)
-    setMeetingContent(null)
-
-    try {
-      const content = await window.api.getFileContent(`${basePath}/${filename}`)
-      setMeetingContent(cleanSummaryContent(content))
-    } catch {
-      setMeetingContent('_Unable to load meeting content. The file may have been moved or deleted._')
-    }
-    setMeetingLoading(false)
-  }, [])
-
-  const closeMeeting = useCallback(() => {
-    setViewingMeeting(null)
-    setMeetingContent(null)
-    setMeetingTitle('')
-    // Clear the ?meeting= param without navigating
-    if (searchParams.has('meeting')) {
-      searchParams.delete('meeting')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [searchParams, setSearchParams])
 
   const results = useMemo(() => {
     if (!query.trim()) return []
@@ -128,7 +90,7 @@ export function SearchPage() {
           type: 'person',
           title: p.name,
           subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-          route: isReport ? `/report/${p.slug}` : `/search?q=${encodeURIComponent(p.name)}`
+          route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`
         })
       }
     }
@@ -172,7 +134,7 @@ export function SearchPage() {
           type: 'content',
           title: c.title,
           subtitle: c.snippet,
-          route: `/search?q=${encodeURIComponent(name)}`,
+          route: `/people/${slug}`,
           filename: c.filename,
           directory: 'people'
         })
@@ -207,44 +169,6 @@ export function SearchPage() {
         <p className="text-sm text-zinc-500 mt-1">Find meetings, people, and notes</p>
       </div>
 
-      {/* Meeting viewer */}
-      {viewingMeeting && (
-        <div className="bg-surface rounded-xl border border-border overflow-hidden animate-fade-in">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <div className="flex items-center gap-2 min-w-0">
-              <button
-                onClick={closeMeeting}
-                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
-                aria-label="Close"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-medium text-zinc-200 truncate">{meetingTitle}</span>
-            </div>
-            <button
-              onClick={closeMeeting}
-              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
-            {meetingLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : meetingContent ? (
-              <div className="prose-dark text-sm">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{meetingContent}</ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-500">Unable to load content.</p>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="relative group/search">
         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within/search:text-brand-light transition-colors" aria-hidden="true" />
         <input
@@ -274,9 +198,9 @@ export function SearchPage() {
               key={`${r.type}-${r.route || r.filename}-${i}`}
               onClick={() => {
                 if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'meetings')) && r.filename) {
-                  openMeeting(r.filename, r.title)
+                  navigate(`/meeting/${encodeURIComponent(r.filename)}`)
                 } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
-                  openMeeting(r.filename, r.title, 'weekly-log')
+                  navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=weekly-log`)
                 } else if (r.route.startsWith('/search?q=')) {
                   const name = new URL(r.route, 'http://x').searchParams.get('q') || r.title
                   setQuery(name)

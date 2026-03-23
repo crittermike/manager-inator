@@ -14,6 +14,9 @@ const TranscriptProcessor = lazy(() => import('./pages/TranscriptProcessor').the
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
 const ImpactLog = lazy(() => import('./pages/ImpactLog').then(m => ({ default: m.ImpactLog })))
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
+const People = lazy(() => import('./pages/People').then(m => ({ default: m.People })))
+const MeetingDetail = lazy(() => import('./pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })))
+const MyProfile = lazy(() => import('./pages/MyProfile').then(m => ({ default: m.MyProfile })))
 
 function Layout() {
   return (
@@ -47,6 +50,9 @@ export default function App() {
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <ImpactLog /> },
         { path: '/settings', element: <Settings /> },
+        { path: '/people/:slug', element: <People /> },
+        { path: '/meeting/:filename', element: <MeetingDetail /> },
+        { path: '/my-profile', element: <MyProfile /> },
         { path: '*', element: <Navigate to="/" replace /> }
       ]
     }

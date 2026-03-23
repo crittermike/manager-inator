@@ -6,7 +6,8 @@ import {
   deriveReportTitle,
   yamlEscapeValue,
   filenameMatchesPerson,
-  speakerMatchesPerson
+  speakerMatchesPerson,
+  formatMeetingTitle
 } from '../../src/main/github'
 
 describe('extractSnippet', () => {
@@ -66,15 +67,33 @@ speakers:
   })
 
   it('falls back to slug from filename when no frontmatter', () => {
-    expect(deriveMeetingTitleFromContent('2026-03-11-nic-1-1.md', '# Some content')).toBe('nic 1 1')
+    expect(deriveMeetingTitleFromContent('2026-03-11-nic-1-1.md', '# Some content')).toBe('Nic 1-1')
   })
 
   it('falls back to slug from filename when no date prefix', () => {
-    expect(deriveMeetingTitleFromContent('random-meeting.md', '# Some content')).toBe('random meeting')
+    expect(deriveMeetingTitleFromContent('random-meeting.md', '# Some content')).toBe('Random Meeting')
   })
 
   it('handles file with date but no slug', () => {
     expect(deriveMeetingTitleFromContent('2026-03-11.md', '# Notes')).toBe('2026 03 11')
+  })
+})
+
+describe('formatMeetingTitle', () => {
+  it('title-cases words', () => {
+    expect(formatMeetingTitle('nic 1 1')).toBe('Nic 1-1')
+  })
+
+  it('normalizes "1 1" to "1-1"', () => {
+    expect(formatMeetingTitle('team 1 1 sync')).toBe('Team 1-1 Sync')
+  })
+
+  it('handles already title-cased input', () => {
+    expect(formatMeetingTitle('Nic 1-1')).toBe('Nic 1-1')
+  })
+
+  it('handles plain text', () => {
+    expect(formatMeetingTitle('weekly standup')).toBe('Weekly Standup')
   })
 })
 

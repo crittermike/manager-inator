@@ -6,7 +6,8 @@ import {
   Settings,
   Zap,
   BookOpen,
-  Search
+  Search,
+  UserCircle
 } from 'lucide-react'
 import { useTeamOverview } from '../../hooks/useData'
 import { CommandPalette } from '../common/CommandPalette'
@@ -133,17 +134,30 @@ export function AppShell({ children }: AppShellProps) {
         {/* Footer */}
         <div className="px-3 py-3 border-t border-border flex items-center justify-between">
           <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
-          <button
-            onClick={() => navigate('/settings')}
-            className={`p-1.5 rounded-lg transition-colors no-drag ${
-              location.pathname === '/settings'
-                ? 'text-brand-light bg-brand/15'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
-            }`}
-            aria-label="Settings"
-          >
-            <Settings className="w-4 h-4" aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate('/my-profile')}
+              className={`p-1.5 rounded-lg transition-colors no-drag ${
+                location.pathname === '/my-profile'
+                  ? 'text-brand-light bg-brand/15'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+              }`}
+              aria-label="My Profile"
+            >
+              <UserCircle className="w-4 h-4" aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className={`p-1.5 rounded-lg transition-colors no-drag ${
+                location.pathname === '/settings'
+                  ? 'text-brand-light bg-brand/15'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+              }`}
+              aria-label="Settings"
+            >
+              <Settings className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </aside>
 

@@ -201,7 +201,7 @@ describe('github.ts integration tests', () => {
     it('derives title from filename when no frontmatter', () => {
       const meetings = listMeetings()
       const alice04 = meetings.find(m => m.filename === '2026-03-04-alice-1-1.md')
-      expect(alice04?.title).toBe('alice 1 1')
+      expect(alice04?.title).toBe('Alice 1-1')
     })
   })
 

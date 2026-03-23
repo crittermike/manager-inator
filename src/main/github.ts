@@ -354,6 +354,12 @@ export function titleCase(value: string): string {
     .join(' ')
 }
 
+/** Title-case a meeting title and normalize "1 1" → "1-1" */
+export function formatMeetingTitle(str: string): string {
+  const fixed = str.replace(/\b1\s+1\b/g, '1-1')
+  return fixed.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+}
+
 export function deriveMeetingTitleFromContent(filename: string, content: string): string {
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (fmMatch) {
@@ -364,7 +370,8 @@ export function deriveMeetingTitleFromContent(filename: string, content: string)
   const name = filename.replace(/\.(md|txt)$/i, '')
   const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
   const slug = dateMatch?.[2] || name
-  return slug.replace(/-/g, ' ').trim() || name
+  const raw = slug.replace(/-/g, ' ').trim() || name
+  return formatMeetingTitle(raw)
 }
 
 export function deriveReportTitle(relativePath: string): string {
@@ -389,79 +396,61 @@ export function searchContent(query: string): { filename: string; directory: str
   if (!q) return []
 
   const results: { filename: string; directory: string; title: string; snippet: string; date?: string }[] = []
-  const candidates = listFilesRecursive('meetings')
-    .concat(listFilesRecursive('reports'))
-    .concat(listFilesRecursive('people'))
-    .concat(listFilesRecursive('weekly-log'))
 
-  for (const relPath of candidates) {
+  const meetingsCache = getMeetingsCache()
+  const meetingCandidates = meetingsCache.meetings
+  for (const f of meetingCandidates) {
     if (results.length >= 50) break
-    if (!/\.(md|txt)$/i.test(relPath)) continue
-
     let content = ''
     try {
-      content = readFileSync(safePath(relPath), 'utf-8')
-    } catch {
-      continue
-    }
-
+      content = getFileContent(`meetings/${f}`)
+    } catch { continue }
     const lower = content.toLowerCase()
     const idx = lower.indexOf(q)
     if (idx === -1) continue
+    const name = f.replace(/\.(md|txt)$/i, '')
+    const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+    results.push({
+      filename: f,
+      directory: 'meetings',
+      title: deriveMeetingTitleFromContent(f, content),
+      snippet: extractSnippet(content, idx, q.length),
+      date
+    })
+  }
 
-    const snippet = extractSnippet(content, idx, q.length)
+  const otherDirs: { dir: string; category: string }[] = [
+    { dir: 'reports', category: 'reports' },
+    { dir: 'people', category: 'people' },
+    { dir: 'weekly-log', category: 'notes' }
+  ]
 
-    if (relPath.startsWith('meetings/')) {
-      const filename = relPath.slice('meetings/'.length)
-      const name = filename.replace(/\.(md|txt)$/i, '')
-      const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
-      results.push({
-        filename,
-        directory: 'meetings',
-        title: deriveMeetingTitleFromContent(filename, content),
-        snippet,
-        date
-      })
-      continue
-    }
+  for (const { dir, category } of otherDirs) {
+    const files = listFilesRecursive(dir)
+    for (const relPath of files) {
+      if (results.length >= 50) break
+      if (!/\.(md|txt)$/i.test(relPath)) continue
+      let content = ''
+      try {
+        content = readFileSync(safePath(relPath), 'utf-8')
+      } catch { continue }
+      const lower = content.toLowerCase()
+      const idx = lower.indexOf(q)
+      if (idx === -1) continue
+      const filename = relPath.slice(dir.length + 1)
+      const snippet = extractSnippet(content, idx, q.length)
 
-    if (relPath.startsWith('reports/')) {
-      const filename = relPath.slice('reports/'.length)
-      const date = filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
-      results.push({
-        filename,
-        directory: 'reports',
-        title: deriveReportTitle(filename),
-        snippet,
-        date
-      })
-      continue
-    }
-
-    if (relPath.startsWith('people/')) {
-      const filename = relPath.slice('people/'.length)
-      results.push({
-        filename,
-        directory: 'people',
-        title: filename.replace(/\.(md|txt)$/i, ''),
-        snippet
-      })
-      continue
-    }
-
-    if (relPath.startsWith('weekly-log/')) {
-      const filename = relPath.slice('weekly-log/'.length)
-      const name = filename.replace(/\.(md|txt)$/i, '')
-      const date = name.match(/^(\d{4})/)?.[1]
-      const titleParts = name.replace(/^\d{4}-W\d{2}-/, '').replace(/-/g, ' ')
-      results.push({
-        filename,
-        directory: 'notes',
-        title: titleParts.charAt(0).toUpperCase() + titleParts.slice(1),
-        snippet,
-        date
-      })
-      continue
+      if (category === 'reports') {
+        const date = filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+        results.push({ filename, directory: 'reports', title: deriveReportTitle(filename), snippet, date })
+      } else if (category === 'people') {
+        results.push({ filename, directory: 'people', title: titleCase(filename.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')), snippet })
+      } else {
+        const name = filename.replace(/\.(md|txt)$/i, '')
+        const date = name.match(/^(\d{4})/)?.[1]
+        const titleParts = name.replace(/^\d{4}-W\d{2}-/, '').replace(/-/g, ' ')
+        results.push({ filename, directory: 'notes', title: titleParts.charAt(0).toUpperCase() + titleParts.slice(1), snippet, date })
+      }
     }
   }
 
@@ -658,7 +647,7 @@ export function listMeetings(): MeetingEntry[] {
     .map((f) => {
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
-      const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
+      const filenameTitle = formatMeetingTitle(dateMatch?.[2]?.replace(/-/g, ' ') || name)
       const title = cache.titleMap.get(f) || filenameTitle
       const processed = cache.hasFrontmatter.has(f)
       return { date: dateMatch?.[1] || name, title, filename: f, processed }

@@ -174,6 +174,9 @@ export function TranscriptProcessor() {
             summaryToSave = `---\ntitle: ${meetingTitle}\n---\n\n${summaryToSave}`
           }
         }
+        if (actionItemsResult && !summaryToSave.includes('## Action Items')) {
+          summaryToSave += `\n\n## Action Items\n\n${actionItemsResult}`
+        }
         await window.api.commitFile(
           `meetings/${filename}.md`,
           summaryToSave,
@@ -194,6 +197,37 @@ export function TranscriptProcessor() {
         } catch (e) {
           console.error('Failed to save impact:', e)
           toast.error('Failed to save impact log entry')
+        }
+      }
+
+      if (feedbackResult && !feedbackResult.includes('No feedback')) {
+        const titleSlug = slug
+        const mentionedReports = reports.filter(r =>
+          feedbackResult.includes(r.displayName)
+        )
+        for (const report of mentionedReports) {
+          try {
+            const feedbackLogPath = `reports/${report.name}/feedback/log.md`
+            let type = 'mixed'
+            const lowerFeedback = feedbackResult.toLowerCase()
+            if (lowerFeedback.includes('positive') && !lowerFeedback.includes('constructive')) {
+              type = 'positive'
+            } else if (lowerFeedback.includes('constructive') && !lowerFeedback.includes('positive')) {
+              type = 'constructive'
+            }
+            const entry = `### ${date} — ${type}\n**Source:** ${titleSlug}\n**Context:** Meeting on ${date}\n\n> ${feedbackResult}\n\n---\n\n`
+            let currentLog = ''
+            try {
+              currentLog = await window.api.getFileContent(feedbackLogPath)
+            } catch { /* file doesn't exist yet */ }
+            await window.api.commitFile(
+              feedbackLogPath,
+              entry + currentLog,
+              `Add feedback from ${titleSlug} on ${date}`
+            )
+          } catch (e) {
+            console.error(`Failed to save feedback for ${report.name}:`, e)
+          }
         }
       }
 

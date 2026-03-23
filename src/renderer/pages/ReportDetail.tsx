@@ -102,6 +102,9 @@ export function ReportDetail() {
   const [aiSaving, setAiSaving] = useState(false)
 
   // Edit states
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileFields, setProfileFields] = useState({ role: '', team: '', meetingDay: '', github: '', location: '' })
+  const [savingProfile, setSavingProfile] = useState(false)
   const [editingAbout, setEditingAbout] = useState(false)
   const [aboutDraft, setAboutDraft] = useState('')
   const [savingAbout, setSavingAbout] = useState(false)
@@ -130,6 +133,8 @@ export function ReportDetail() {
   const [feedbackType, setFeedbackType] = useState<'positive' | 'constructive' | 'mixed'>('positive')
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
+  const [showPtoModal, setShowPtoModal] = useState(false)
+  const [ptoInput, setPtoInput] = useState('1w')
 
   // Refs
   const savePrepRef = useRef<() => void>(() => {})
@@ -413,6 +418,7 @@ export function ReportDetail() {
   savePrepRef.current = handleSaveAI
 
   useKeyboardShortcut({ key: 's', handler: useCallback(() => savePrepRef.current(), []), enabled: !!aiContent && !aiSaving })
+  useKeyboardShortcut({ key: 'Escape', handler: useCallback(() => setShowPtoModal(false), []), enabled: showPtoModal })
 
   // ── Prep checkbox toggle ──
 
@@ -431,6 +437,73 @@ export function ReportDetail() {
   }, [])
 
   // ── Edit handlers ──
+
+  const handleEditProfileStart = useCallback(() => {
+    if (!report) return
+    setProfileFields({
+      role: report.profile.role || '',
+      team: report.profile.team || '',
+      meetingDay: report.profile.meetingDay || '',
+      github: report.profile.github || '',
+      location: report.profile.location || ''
+    })
+    setEditingProfile(true)
+  }, [report])
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!name || !report) return
+    setSavingProfile(true)
+    try {
+      const content = await window.api.getFileContent(`reports/${name}/profile.md`)
+      const fmMatch = content.match(/^---\n([\s\S]*?)\n---(\n*[\s\S]*)$/)
+      
+      let newFmLines: string[] = []
+      let body = content
+      
+      if (fmMatch) {
+        const existingFm = fmMatch[1]
+        body = fmMatch[2]
+        
+        const fmMap = new Map<string, string>()
+        for (const line of existingFm.split('\n')) {
+          const m = line.match(/^([a-zA-Z0-9_-]+):\s*(.*)$/)
+          if (m) fmMap.set(m[1], m[2])
+        }
+        
+        fmMap.set('role', profileFields.role)
+        fmMap.set('team', profileFields.team)
+        fmMap.set('meetingDay', profileFields.meetingDay)
+        fmMap.set('github', profileFields.github)
+        fmMap.set('location', profileFields.location)
+        
+        for (const [k, v] of fmMap.entries()) {
+          if (v) newFmLines.push(`${k}: ${v}`)
+        }
+      } else {
+        if (profileFields.role) newFmLines.push(`role: ${profileFields.role}`)
+        if (profileFields.team) newFmLines.push(`team: ${profileFields.team}`)
+        if (profileFields.meetingDay) newFmLines.push(`meetingDay: ${profileFields.meetingDay}`)
+        if (profileFields.github) newFmLines.push(`github: ${profileFields.github}`)
+        if (profileFields.location) newFmLines.push(`location: ${profileFields.location}`)
+      }
+      
+      const newContent = `---\n${newFmLines.join('\n')}\n---${body.startsWith('\n') ? '' : '\n\n'}${body}`
+      
+      await window.api.commitFile(
+        `reports/${name}/profile.md`,
+        newContent,
+        `Update profile for ${report.profile.displayName}`
+      )
+      toast.success('Profile saved')
+      setEditingProfile(false)
+      refresh()
+    } catch (e) {
+      console.error('Failed to save profile:', e)
+      toast.error('Failed to save profile')
+    } finally {
+      setSavingProfile(false)
+    }
+  }, [name, report, profileFields, toast, refresh])
 
   const handleEditAbout = useCallback(() => {
     if (!report) return
@@ -561,7 +634,12 @@ export function ReportDetail() {
       return
     }
 
-    const choice = window.prompt('PTO return date: enter 1w, 2w, or YYYY-MM-DD', '1w')?.trim().toLowerCase()
+    setShowPtoModal(true)
+  }, [name, report, ptoReports, toast])
+
+  const handleSavePto = useCallback(async () => {
+    if (!name || !report) return
+    const choice = ptoInput.trim().toLowerCase()
     if (!choice) return
 
     const now = new Date()
@@ -588,10 +666,11 @@ export function ReportDetail() {
       await window.api.saveSettings({ ptoReports: next })
       setPtoReports(next)
       toast.success(`${report.profile.displayName} marked on PTO until ${formatDate(iso)}`)
+      setShowPtoModal(false)
     } catch {
       toast.error('Failed to update PTO status')
     }
-  }, [name, report, ptoReports, toast])
+  }, [name, report, ptoReports, toast, ptoInput])
 
   // ── Build activity stream ──
 
@@ -761,9 +840,18 @@ export function ReportDetail() {
           {report.profile.displayName.split(' ').map(n => n[0]).join('')}
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-zinc-100">
-            {report.profile.displayName}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-zinc-100">
+              {report.profile.displayName}
+            </h1>
+            <button
+              onClick={handleEditProfileStart}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors hover:bg-surface-raised rounded"
+              aria-label="Edit profile"
+            >
+              <Pencil className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
           {report.profile.meetingDay && (
             <div className="flex items-center gap-1 mt-1 text-sm text-zinc-500">
               <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
@@ -796,35 +884,115 @@ export function ReportDetail() {
       {/* ── Key Facts Bar ── */}
       <div className="space-y-3">
         {/* Identity facts */}
-        <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap bg-surface rounded-xl border border-border px-4 py-3">
-          {report.profile.role && (
-            <span className="flex items-center gap-1.5">
-              <Briefcase className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-              {report.profile.role}
-            </span>
-          )}
-          {report.profile.github && (
-            <span className="flex items-center gap-1.5">
-              <Github className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-              @{report.profile.github}
-            </span>
-          )}
-          {report.profile.location && (
-            <span className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-              {report.profile.location}
-            </span>
-          )}
-          {report.profile.timezone && (
-            <span className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-              {report.profile.timezone}
-            </span>
-          )}
-          {!report.profile.role && !report.profile.github && !report.profile.location && !report.profile.timezone && (
-            <span className="text-zinc-600">No profile details set</span>
-          )}
-        </div>
+        {editingProfile ? (
+          <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-zinc-300">Edit Profile</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditingProfile(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" aria-hidden="true" />
+                  {savingProfile ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Role</label>
+                <input
+                  type="text"
+                  value={profileFields.role}
+                  onChange={e => setProfileFields({ ...profileFields, role: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Team</label>
+                <input
+                  type="text"
+                  value={profileFields.team}
+                  onChange={e => setProfileFields({ ...profileFields, team: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Meeting Day</label>
+                <select
+                  value={profileFields.meetingDay}
+                  onChange={e => setProfileFields({ ...profileFields, meetingDay: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors appearance-none"
+                >
+                  <option value="">Select a day...</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">GitHub</label>
+                <input
+                  type="text"
+                  value={profileFields.github}
+                  onChange={e => setProfileFields({ ...profileFields, github: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Location</label>
+                <input
+                  type="text"
+                  value={profileFields.location}
+                  onChange={e => setProfileFields({ ...profileFields, location: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap bg-surface rounded-xl border border-border px-4 py-3">
+            {report.profile.role && (
+              <span className="flex items-center gap-1.5">
+                <Briefcase className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+                {report.profile.role}
+              </span>
+            )}
+            {report.profile.team && (
+              <span className="flex items-center gap-1.5">
+                <Briefcase className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+                {report.profile.team}
+              </span>
+            )}
+            {report.profile.github && (
+              <span className="flex items-center gap-1.5">
+                <Github className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+                @{report.profile.github}
+              </span>
+            )}
+            {report.profile.location && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+                {report.profile.location}
+              </span>
+            )}
+            {report.profile.timezone && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+                {report.profile.timezone}
+              </span>
+            )}
+            {!report.profile.role && !report.profile.team && !report.profile.github && !report.profile.location && !report.profile.timezone && (
+              <span className="text-zinc-600">No profile details set</span>
+            )}
+          </div>
+        )}
 
         {/* Metric facts */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -992,8 +1160,80 @@ export function ReportDetail() {
                   return (
                     <div className="prose-dark">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{prepContent}</ReactMarkdown>
-                    </div>
-                  )
+      {/* ── PTO Modal ── */}
+      {showPtoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+          <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-zinc-100">PTO return date</h3>
+              <button
+                onClick={() => setShowPtoModal(false)}
+                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-surface-raised"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPtoInput('1w')}
+                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
+                    ptoInput === '1w'
+                      ? 'bg-brand/10 border-brand/30 text-brand-light'
+                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
+                  }`}
+                >
+                  1 week
+                </button>
+                <button
+                  onClick={() => setPtoInput('2w')}
+                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
+                    ptoInput === '2w'
+                      ? 'bg-brand/10 border-brand/30 text-brand-light'
+                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
+                  }`}
+                >
+                  2 weeks
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Or enter custom date/format</label>
+                <input
+                  type="text"
+                  value={ptoInput}
+                  onChange={e => setPtoInput(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-brand/40 transition-colors"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSavePto()
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowPtoModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePto}
+                  disabled={!ptoInput.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
                 }
                 return lines.map((line, i) => {
                   const unchecked = line.match(/^(\s*)- \[ \] (.+)/)
