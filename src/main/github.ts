@@ -185,13 +185,20 @@ async function _commitFileImpl(path: string, content: string, message: string): 
   invalidateReportCache()
   invalidatePeopleCache()
 
-  const child = spawn('git', ['push'], { cwd: rp, stdio: 'ignore' })
+  fireAndForgetPush(rp)
+}
+
+function fireAndForgetPush(cwd: string): void {
+  const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
   child.unref()
+  let stderr = ''
+  child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
   child.on('exit', (code) => {
     const win = BrowserWindow.getAllWindows()[0]
     if (code !== 0) {
-      console.error(`[Git] push failed (exit ${code})`)
-      safeSend(win, 'github:push-status', { success: false, error: `push exited with code ${code}` })
+      const msg = stderr.trim() || `push exited with code ${code}`
+      console.error(`[Git] push failed (exit ${code}): ${msg}`)
+      safeSend(win, 'github:push-status', { success: false, error: msg })
     } else {
       safeSend(win, 'github:push-status', { success: true })
     }
@@ -225,21 +232,7 @@ async function _deleteFileImpl(path: string): Promise<void> {
   invalidateReportCache()
   invalidatePeopleCache()
 
-  const child = spawn('git', ['push'], { cwd: rp, stdio: 'ignore' })
-  child.unref()
-  child.on('exit', (code) => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (code !== 0) {
-      console.error(`[Git] push failed (exit ${code})`)
-      safeSend(win, 'github:push-status', { success: false, error: `push exited with code ${code}` })
-    } else {
-      safeSend(win, 'github:push-status', { success: true })
-    }
-  })
-  child.on('error', (err) => {
-    console.error('[Git] push spawn error:', err.message)
-    safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
-  })
+  fireAndForgetPush(rp)
 }
 
 // ── Parsing helpers ──
