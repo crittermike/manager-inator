@@ -34,6 +34,10 @@ export async function getAuthStatus(): Promise<{
   const token = getToken()
   if (!token) return { authenticated: false }
 
+  if (process.env['ELECTRON_USER_DATA']) {
+    return { authenticated: true, user: 'test-user' }
+  }
+
   try {
     const res = await fetch('https://api.github.com/user', {
       headers: { Authorization: `Bearer ${token}` }

@@ -24,9 +24,10 @@ import {
   saveReportPriorities,
   searchContent,
   clearAllCaches,
+  preWarmCaches,
   safeSend
 } from './github'
-import { getSettingsForRenderer, saveSettings, setGithubOrgToken } from './store'
+import { getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity } from './github-activity'
 
@@ -204,4 +205,12 @@ export function setupIpcHandlers(): void {
 
     return results
   })
+
+  // ── Test-only IPC handlers for E2E setup ──
+  if (process.env['ELECTRON_USER_DATA']) {
+    safeHandle('test:set-token', (_e, token) => setToken(token as string))
+    safeHandle('test:save-settings', (_e, settings) => saveSettings(settings as Parameters<typeof saveSettings>[0]))
+    safeHandle('test:clear-caches', () => clearAllCaches())
+    safeHandle('test:pre-warm-caches', () => preWarmCaches())
+  }
 }

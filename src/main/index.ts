@@ -4,6 +4,11 @@ import { setupIpcHandlers } from './ipc'
 import { preWarmCaches } from './github'
 import { stopClient } from './copilot'
 
+// Support custom userDataDir for test isolation
+if (process.env['ELECTRON_USER_DATA']) {
+  app.setPath('userData', process.env['ELECTRON_USER_DATA'])
+}
+
 let mainWindow: BrowserWindow | null = null
 
 const ALLOWED_SCHEMES = ['https:', 'http:', 'mailto:']

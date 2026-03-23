@@ -34,9 +34,9 @@ vi.mock('electron', () => ({
     showOpenDialog: vi.fn()
   },
   safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (s: string) => Buffer.from(s),
-    decryptString: (b: Buffer) => b.toString()
+    isEncryptionAvailable: vi.fn(() => false),
+    encryptString: vi.fn((s: string) => Buffer.from(s)),
+    decryptString: vi.fn((b: Buffer) => b.toString())
   }
 }))
 
