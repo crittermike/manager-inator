@@ -1,10 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamOverview } from '../hooks/useData'
+import { useAI } from '../hooks/useAI'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
 import type { ReportStatus, MeetingEntry, RawTranscriptEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { matchesMeetingDay } from '../utils/meetingDay'
+import { isSupportedTranscriptFile, readTranscriptFile, stripTranscriptExtension } from '../utils/parseTranscript'
 import {
   AlertCircle,
   BookOpen,
@@ -805,6 +809,15 @@ export function Today() {
   const [activityExpanded, setActivityExpanded] = useState(true)
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({})
 
+  const [activitySummary, setActivitySummary] = useState<string>(() => {
+    try {
+      const todayKey = format(new Date(), 'yyyy-MM-dd')
+      return localStorage.getItem(`activity-summary-${todayKey}`) || ''
+    } catch { return '' }
+  })
+  const [showRawActivity, setShowRawActivity] = useState(false)
+  const activityAI = useAI()
+
   useEffect(() => {
     const todayKey = format(new Date(), 'yyyy-MM-dd')
     localStorage.setItem(`today-done-${todayKey}`, JSON.stringify([...doneIds]))
@@ -873,6 +886,43 @@ export function Today() {
   useEffect(() => {
     fetchTeamActivity()
   }, [fetchTeamActivity])
+
+  const generateActivitySummary = useCallback(async (data: TeamMemberActivity[]) => {
+    const hasActivity = data.some(m => m.items.length > 0)
+    if (!hasActivity && data.every(m => !m.error)) return
+
+    // Serialize activity data for the AI prompt
+    const activityText = data.map(member => {
+      if (member.error) return `${member.displayName} (@${member.githubUsername}): Error fetching activity`
+      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername}): No activity in last 24h`
+      const items = member.items.map(item => {
+        const age = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+        return `  - [${item.type.toUpperCase()}] ${item.title} (${item.repo}, ${item.state}, ${age}d old, ${item.comments} comments) ${item.url}`
+      }).join('\n')
+      return `${member.displayName} (@${member.githubUsername}):\n${items}`
+    }).join('\n\n')
+
+    const dateLabel = format(new Date(), 'EEEE, MMM d')
+
+    try {
+      const result = await activityAI.generate('summarize-team-activity', {
+        activityData: activityText,
+        dateLabel
+      })
+      setActivitySummary(result)
+      // Cache by date
+      const todayKey = format(new Date(), 'yyyy-MM-dd')
+      localStorage.setItem(`activity-summary-${todayKey}`, result)
+    } catch (err) {
+      console.error('[Activity Summary] AI generation failed:', err)
+    }
+  }, [activityAI])
+
+  useEffect(() => {
+    if (teamActivity.length > 0 && !activitySummary && !activityAI.streaming) {
+      generateActivitySummary(teamActivity)
+    }
+  }, [teamActivity, activitySummary, activityAI.streaming, generateActivitySummary])
 
   const reports = overview?.reports ?? []
 
@@ -945,18 +995,19 @@ export function Today() {
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (!file) return
-    if (!file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
-      toast.error('Only .txt and .md files are supported')
+    if (!isSupportedTranscriptFile(file.name)) {
+      toast.error('Only .txt, .md, .vtt, and .srt files are supported')
       return
     }
     const reader = new FileReader()
     reader.onload = async () => {
-      const text = reader.result as string
+      const raw = reader.result as string
+      const text = readTranscriptFile(file.name, raw)
       if (!text.trim()) {
         toast.error('File is empty')
         return
       }
-      const stem = file.name.replace(/\.(txt|md)$/, '').replace(/[-_]/g, ' ')
+      const stem = stripTranscriptExtension(file.name).replace(/[-_]/g, ' ')
       const today = format(new Date(), 'yyyy-MM-dd')
       const slug = stem.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
       const filename = `${today}-${slug}`
@@ -1057,7 +1108,7 @@ export function Today() {
           <div className="text-center">
             <FileText className="w-8 h-8 text-brand/60 mx-auto mb-2" aria-hidden="true" />
             <p className="text-sm font-medium text-brand-light">Drop transcript here</p>
-            <p className="text-xs text-zinc-500 mt-1">.txt or .md files</p>
+            <p className="text-xs text-zinc-500 mt-1">.txt, .md, .vtt, or .srt files</p>
           </div>
         </div>
       )}
@@ -1369,16 +1420,34 @@ export function Today() {
               </div>
               <span className="text-sm font-semibold text-zinc-200">Team Activity (24h)</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-surface-raised rounded-lg p-0.5 text-xs">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowRawActivity(false) }}
+                  className={`px-2 py-1 rounded-md transition-colors ${!showRawActivity ? 'bg-brand/15 text-brand-light' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Summary
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowRawActivity(true) }}
+                  className={`px-2 py-1 rounded-md transition-colors ${showRawActivity ? 'bg-brand/15 text-brand-light' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Raw
+                </button>
+              </div>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  fetchTeamActivity()
+                  if (showRawActivity) {
+                    fetchTeamActivity()
+                  } else {
+                    generateActivitySummary(teamActivity)
+                  }
                 }}
                 className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-                title="Refresh Activity"
+                title={showRawActivity ? 'Refresh activity' : 'Regenerate summary'}
               >
-                <RefreshCw className={`w-4 h-4 ${activityLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${(activityLoading || activityAI.streaming) ? 'animate-spin' : ''}`} />
               </button>
               {activityExpanded
                 ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
@@ -1389,7 +1458,8 @@ export function Today() {
 
           {activityExpanded && (
             <div className="border-t border-border animate-slide-down">
-              {activityLoading ? (
+              {showRawActivity ? (
+                activityLoading ? (
                 <div className="p-5 space-y-4">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="flex items-center gap-3 animate-pulse">
@@ -1430,13 +1500,13 @@ export function Today() {
                             </div>
                             <div>
                               <div className="text-sm font-medium text-zinc-200">{member.displayName}</div>
-                              <div className="text-xs text-zinc-500">@{member.githubUsername}</div>
+                              {member.githubUsername && <div className="text-xs text-zinc-500">@{member.githubUsername}</div>}
                             </div>
                           </div>
                           
                           <div className="flex items-center gap-3">
                             {member.error ? (
-                              <span className="text-xs font-medium text-warning px-2 py-1 bg-warning/10 rounded-md">Error fetching</span>
+                              <span className="text-xs font-medium text-warning px-2 py-1 bg-warning/10 rounded-md truncate max-w-[300px]">{member.error}</span>
                             ) : isEmpty ? (
                               <span className="text-xs text-zinc-500">No activity in last 24h</span>
                             ) : (
@@ -1492,6 +1562,28 @@ export function Today() {
                       </div>
                     )
                   })}
+                </div>
+              )
+              ) : (
+                <div className="px-5 py-4">
+                  {activityAI.streaming ? (
+                    <div className="prose-dark text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{activityAI.streamedText || 'Generating team activity summary...'}</ReactMarkdown>
+                    </div>
+                  ) : activitySummary ? (
+                    <div className="prose-dark text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{activitySummary}</ReactMarkdown>
+                    </div>
+                  ) : activityLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-zinc-500 py-4">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Loading activity data...
+                    </div>
+                  ) : (
+                    <div className="text-sm text-zinc-500 py-4">
+                      No activity data available. Click refresh to load.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

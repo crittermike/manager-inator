@@ -6,6 +6,7 @@ import { useToast } from '../components/common/Toast'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
+import { isSupportedTranscriptFile, readTranscriptFile, stripTranscriptExtension } from '../utils/parseTranscript'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -264,16 +265,17 @@ export function TranscriptProcessor() {
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (!file) return
-    if (!file.name.endsWith('.txt') && !file.name.endsWith('.md')) {
-      toast.error('Only .txt and .md files are supported')
+    if (!isSupportedTranscriptFile(file.name)) {
+      toast.error('Only .txt, .md, .vtt, and .srt files are supported')
       return
     }
     const reader = new FileReader()
     reader.onload = () => {
-      const text = reader.result as string
+      const raw = reader.result as string
+      const text = readTranscriptFile(file.name, raw)
       setTranscript(text)
       if (!meetingTitle) {
-        const stem = file.name.replace(/\.(txt|md)$/, '').replace(/[-_]/g, ' ')
+        const stem = stripTranscriptExtension(file.name).replace(/[-_]/g, ' ')
         setMeetingTitle(stem)
       }
     }
@@ -367,7 +369,7 @@ export function TranscriptProcessor() {
               {!transcript && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <p className="text-sm text-zinc-600">
-                    Paste a transcript or notes, or drag a .txt / .md file here
+                    Paste a transcript or notes, or drag a .txt, .md, .vtt, or .srt file here
                   </p>
                 </div>
               )}

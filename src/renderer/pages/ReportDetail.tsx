@@ -1160,80 +1160,8 @@ export function ReportDetail() {
                   return (
                     <div className="prose-dark">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{prepContent}</ReactMarkdown>
-      {/* ── PTO Modal ── */}
-      {showPtoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
-          <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-zinc-100">PTO return date</h3>
-              <button
-                onClick={() => setShowPtoModal(false)}
-                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-surface-raised"
-              >
-                <X className="w-5 h-5" aria-hidden="true" />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPtoInput('1w')}
-                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
-                    ptoInput === '1w'
-                      ? 'bg-brand/10 border-brand/30 text-brand-light'
-                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
-                  }`}
-                >
-                  1 week
-                </button>
-                <button
-                  onClick={() => setPtoInput('2w')}
-                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
-                    ptoInput === '2w'
-                      ? 'bg-brand/10 border-brand/30 text-brand-light'
-                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
-                  }`}
-                >
-                  2 weeks
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Or enter custom date/format</label>
-                <input
-                  type="text"
-                  value={ptoInput}
-                  onChange={e => setPtoInput(e.target.value)}
-                  placeholder="YYYY-MM-DD"
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-brand/40 transition-colors"
-                  autoFocus
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleSavePto()
-                  }}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowPtoModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSavePto}
-                  disabled={!ptoInput.trim()}
-                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-50"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+                    </div>
+                  )
                 }
                 return lines.map((line, i) => {
                   const unchecked = line.match(/^(\s*)- \[ \] (.+)/)
@@ -1552,6 +1480,79 @@ export function ReportDetail() {
           ))
         )}
       </div>
+
+      {/* ── PTO Modal ── */}
+      {showPtoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+          <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-zinc-100">PTO return date</h3>
+              <button
+                onClick={() => setShowPtoModal(false)}
+                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-surface-raised"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPtoInput('1w')}
+                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
+                    ptoInput === '1w'
+                      ? 'bg-brand/10 border-brand/30 text-brand-light'
+                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
+                  }`}
+                >
+                  1 week
+                </button>
+                <button
+                  onClick={() => setPtoInput('2w')}
+                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
+                    ptoInput === '2w'
+                      ? 'bg-brand/10 border-brand/30 text-brand-light'
+                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
+                  }`}
+                >
+                  2 weeks
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Or enter custom date/format</label>
+                <input
+                  type="text"
+                  value={ptoInput}
+                  onChange={e => setPtoInput(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-brand/40 transition-colors"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSavePto()
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowPtoModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePto}
+                  disabled={!ptoInput.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

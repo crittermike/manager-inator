@@ -51,16 +51,30 @@ async function fetchUserActivity(
   yesterday.setDate(yesterday.getDate() - 1)
   const since = yesterday.toISOString().split('T')[0]
 
-  const query = `org:${org} author:${username} updated:>=${since}`
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+
+  const baseQuery = `org:${org} author:${username} updated:>=${since}`
+  console.log(`[GitHub Activity] Fetching: org=${org}, user=${username}, since=${since}`)
+
+  const [issueItems, prItems] = await Promise.all([
+    fetchSearchPage(`${baseQuery} is:issue`, headers),
+    fetchSearchPage(`${baseQuery} is:pull-request`, headers)
+  ])
+
+  return [...issueItems, ...prItems]
+}
+
+async function fetchSearchPage(
+  query: string,
+  headers: Record<string, string>
+): Promise<GitHubActivityItem[]> {
   const url = `${GITHUB_API}/search/issues?q=${encodeURIComponent(query)}&per_page=50&sort=updated`
 
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    }
-  })
+  const response = await fetch(url, { headers })
 
   if (response.status === 403) {
     const ssoHeader = response.headers.get('X-GitHub-SSO')
@@ -80,7 +94,12 @@ async function fetchUserActivity(
   }
 
   if (!response.ok) {
-    throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`)
+    let detail = response.statusText
+    try {
+      const body = await response.json()
+      detail = body.message || JSON.stringify(body)
+    } catch { /* ignore parse errors */ }
+    throw new Error(`GitHub API returned ${response.status}: ${detail}`)
   }
 
   const data = (await response.json()) as SearchResponse
@@ -164,14 +183,21 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
         error: null
       }
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error(`[GitHub Activity] Error fetching activity for ${name}:`, errorMsg)
       let displayName = name
-      try { displayName = getReportProfile(name).displayName } catch { /* use dir name */ }
+      let ghUsername = ''
+      try {
+        const p = getReportProfile(name)
+        displayName = p.displayName
+        ghUsername = p.github || ''
+      } catch { /* use dir name */ }
       return {
         reportName: name,
         displayName,
-        githubUsername: '',
+        githubUsername: ghUsername,
         items: [],
-        error: err instanceof Error ? err.message : String(err)
+        error: errorMsg
       }
     }
   })

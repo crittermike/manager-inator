@@ -543,6 +543,26 @@ TIPS:
       break
     }
 
+    case 'summarize-team-activity':
+      messages.push({
+        role: 'user',
+        content: `Write a team PR/activity scan for my engineering team. Today is ${context.dateLabel}.
+
+Write it as a quick-read briefing I can scan in 30 seconds. Cover each person who has activity. For each person, summarize what they're working on, highlight anything that needs my attention (stale PRs, PRs with no reviews, interesting side projects, etc.), and link to specific PRs/issues where relevant.
+
+Use markdown. Use a bold name for each person (e.g. **Chanakya**). Use markdown links for PR/issue references (e.g. [PR title](url)). Keep descriptions short and conversational.
+
+End with a **TL;DR** paragraph highlighting the 2-3 most important things I should pay attention to.
+
+If someone has no activity, mention them briefly ("quiet day" or similar). If everyone is quiet, say so.
+
+Do NOT use headings (#). Just bold names and body text. Keep the whole thing concise.
+
+TEAM ACTIVITY DATA:
+${context.activityData}`
+      })
+      break
+
     default:
       messages.push({
         role: 'user',

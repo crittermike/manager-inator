@@ -189,24 +189,49 @@ async function _commitFileImpl(path: string, content: string, message: string): 
 }
 
 function fireAndForgetPush(cwd: string): void {
-  const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
-  child.unref()
-  let stderr = ''
-  child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
-  child.on('exit', (code) => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (code !== 0) {
-      const msg = stderr.trim() || `push exited with code ${code}`
-      console.error(`[Git] push failed (exit ${code}): ${msg}`)
-      safeSend(win, 'github:push-status', { success: false, error: msg })
-    } else {
-      safeSend(win, 'github:push-status', { success: true })
-    }
-  })
-  child.on('error', (err) => {
-    console.error('[Git] push spawn error:', err.message)
-    safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
-  })
+  const tryPush = (isRetry: boolean): void => {
+    const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    child.unref()
+    let stderr = ''
+    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+    child.on('exit', (code) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      if (code !== 0) {
+        if (!isRetry) {
+          // First push failed — try pulling with rebase then push again
+          console.warn(`[Git] push failed, attempting pull --rebase and retry`)
+          const pull = spawn('git', ['pull', '--rebase'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+          pull.unref()
+          let pullStderr = ''
+          pull.stderr?.on('data', (d: Buffer) => { pullStderr += d.toString() })
+          pull.on('exit', (pullCode) => {
+            if (pullCode === 0) {
+              tryPush(true)
+            } else {
+              const msg = pullStderr.trim() || `pull --rebase failed (exit ${pullCode})`
+              console.error(`[Git] pull --rebase failed: ${msg}`)
+              safeSend(win, 'github:push-status', { success: false, error: `Pull failed: ${msg}. Changes saved locally.` })
+            }
+          })
+          pull.on('error', (err) => {
+            console.error('[Git] pull spawn error:', err.message)
+            safeSend(win, 'github:push-status', { success: false, error: err.message })
+          })
+        } else {
+          const msg = stderr.trim() || `push exited with code ${code}`
+          console.error(`[Git] push failed after retry (exit ${code}): ${msg}`)
+          safeSend(win, 'github:push-status', { success: false, error: msg })
+        }
+      } else {
+        safeSend(win, 'github:push-status', { success: true })
+      }
+    })
+    child.on('error', (err) => {
+      console.error('[Git] push spawn error:', err.message)
+      safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
+    })
+  }
+  tryPush(false)
 }
 
 async function _deleteFileImpl(path: string): Promise<void> {
