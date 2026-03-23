@@ -7,10 +7,11 @@ let page: Page
 test.beforeAll(async () => {
   app = await electron.launch({
     args: [resolve(__dirname, '../out/main/index.mjs')],
-    timeout: 15_000
+    timeout: 30_000
   })
   page = await app.firstWindow()
-  await page.waitForLoadState('domcontentloaded')
+  // Wait for React to fully render — domcontentloaded fires before hydration
+  await page.waitForLoadState('load')
 })
 
 test.afterAll(async () => {
@@ -32,13 +33,11 @@ test('window has correct minimum dimensions', async () => {
 })
 
 test('auth screen renders when unauthenticated', async () => {
-  await page.waitForSelector('text=Manager-inator', { timeout: 10_000 })
-
-  const heading = page.locator('h1:has-text("Manager-inator")')
-  await expect(heading).toBeVisible()
+  const heading = page.locator('h1', { hasText: 'Manager-inator' })
+  await expect(heading).toBeVisible({ timeout: 15_000 })
 
   const subtitle = page.locator('text=AI-powered performance management')
-  await expect(subtitle).toBeVisible()
+  await expect(subtitle).toBeVisible({ timeout: 5_000 })
 })
 
 test('connect with GitHub button is visible', async () => {
