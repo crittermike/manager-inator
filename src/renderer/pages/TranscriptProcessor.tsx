@@ -284,15 +284,15 @@ export function TranscriptProcessor() {
     <>
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-100">Process transcript</h1>
+        <h1 className="text-2xl font-bold text-zinc-100">Add meeting transcript or notes</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Paste any meeting transcript to get a summary, action items, and feedback for your reports
+          Paste a transcript or raw meeting notes to get a polished summary, action items, and feedback for your reports
         </p>
       </div>
 
       {/* Step indicator */}
       <div className="flex items-center gap-3">
-        {['Paste transcript', 'AI processing', 'Review and save'].map((label, i) => {
+        {['Paste transcript or notes', 'AI processing', 'Review and save'].map((label, i) => {
           const stepIndex = ['input', 'processing', 'review'].indexOf(step)
           const isActive = i === stepIndex
           const isDone = i < stepIndex
@@ -356,7 +356,7 @@ export function TranscriptProcessor() {
 
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Transcript
+              Transcript or notes
             </label>
             <div
               onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -367,7 +367,7 @@ export function TranscriptProcessor() {
               {!transcript && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <p className="text-sm text-zinc-600">
-                    Paste transcript or drag a .txt / .md file here
+                    Paste a transcript or notes, or drag a .txt / .md file here
                   </p>
                 </div>
               )}
