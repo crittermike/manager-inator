@@ -56,8 +56,13 @@ export function ImpactLog() {
     setSaving(true)
 
     const date = new Date().toISOString().split('T')[0]
-    const entry = `\n\n### ${date}\n\n${newEntry.trim()}`
-    const updated = content + entry
+    const entry = `### ${date}\n\n${newEntry.trim()}`
+
+    // Insert after the first heading so newest entries appear at the top
+    const headingMatch = content.match(/^(#[^\n]*\n(?:\s*\n)*)/)
+    const updated = headingMatch
+      ? headingMatch[0] + entry + '\n\n' + content.slice(headingMatch[0].length)
+      : entry + '\n\n' + content
 
     try {
       await window.api.commitFile(

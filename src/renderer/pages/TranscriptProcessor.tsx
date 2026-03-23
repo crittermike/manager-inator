@@ -184,14 +184,18 @@ export function TranscriptProcessor() {
         )
       }
 
-      // Append impact items to impact log
+      // Prepend impact items to impact log
       if (impactResult && !impactResult.includes('No manager impact')) {
         try {
           const currentLog = await window.api.getImpactLog()
-          const entry = `\n\n### ${date} — ${meetingTitle || 'Meeting'}\n\n${impactResult}`
+          const entry = `### ${date} — ${meetingTitle || 'Meeting'}\n\n${impactResult}`
+          const headingMatch = currentLog.match(/^(#[^\n]*\n(?:\s*\n)*)/)
+          const updatedLog = headingMatch
+            ? headingMatch[0] + entry + '\n\n' + currentLog.slice(headingMatch[0].length)
+            : entry + '\n\n' + currentLog
           await window.api.commitFile(
             IMPACT_LOG_PATH,
-            currentLog + entry,
+            updatedLog,
             `Add impact items from ${meetingTitle || 'meeting'} on ${date}`
           )
         } catch (e) {
@@ -509,7 +513,7 @@ export function TranscriptProcessor() {
                       {impactResult}
                     </ReactMarkdown>
                   </div>
-                  <p className="text-xs text-zinc-600 mt-3">Will be appended to your impact log on save.</p>
+                  <p className="text-xs text-zinc-600 mt-3">Will be added to your impact log on save.</p>
                 </div>
               )}
 
