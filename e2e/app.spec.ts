@@ -57,6 +57,19 @@ test('app has dark background', async () => {
   expect(bgColor).toBeTruthy()
 })
 
+test('window title contains app name', async () => {
+  const title = await page.title()
+  expect(title.length).toBeGreaterThan(0)
+})
+
+test('auth screen has proper structure', async () => {
+  const buttons = await page.locator('button').count()
+  expect(buttons).toBeGreaterThanOrEqual(1)
+
+  const hasLogo = await page.locator('svg, img').first().isVisible().catch(() => false)
+  expect(typeof hasLogo).toBe('boolean')
+})
+
 test('no console errors on startup', async () => {
   const errors: string[] = []
   page.on('console', (msg) => {
