@@ -58,6 +58,12 @@ function friendlyToolStatus(toolName: string, args: Record<string, unknown>): st
   return toolName
 }
 
+const TOOL_OUTPUT_PATTERN = /^[\s]*<tool_|^\s*\[?\s*\{\s*"tool_call_id"/
+
+function looksLikeToolOutput(text: string): boolean {
+  return TOOL_OUTPUT_PATTERN.test(text)
+}
+
 export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation()
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -373,7 +379,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               <Bot className="w-3.5 h-3.5 text-brand" aria-hidden="true" />
             </div>
             <div className="max-w-[85%] rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer">
-              {streamedText ? (
+              {streamedText && !looksLikeToolOutput(streamedText) ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedText}</ReactMarkdown>
                 </div>

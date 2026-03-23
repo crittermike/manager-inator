@@ -30,14 +30,23 @@ NAME CORRECTIONS (always apply):
 const AI_REQUEST_TIMEOUT_MS = 120_000
 const CHAT_REQUEST_TIMEOUT_MS = 300_000
 
-const TOOL_CALL_REGEX = /<tool_calls?>[\s\S]*?<\/tool_calls?>\s*/g
-const PARTIAL_TOOL_CALL_REGEX = /<tool_calls?>[\s\S]*$/
+// Copilot SDK tool-call formats to strip from streamed text:
+//   <tool_call>...</tool_call>  or  <tool_calls>...</tool_calls>   (XML)
+//   <tool_call [ {"tool_call_id": ...} ]                           (bracket JSON, no closing tag)
+//   <tool_result>...</tool_result>                                  (tool output)
+const TOOL_XML_REGEX = /<\/?tool_(?:call|result)s?(?:\s[^>]*)?>[\s\S]*?<\/tool_(?:call|result)s?>\s*/g
+const TOOL_BRACKET_REGEX = /<tool_(?:call|result)s?\s*\[[\s\S]*?\]\s*/g
+const TOOL_RESULT_TAG_REGEX = /<tool_(?:call|result)s?[^>]*>[\s\S]*?<\/tool_(?:call|result)s?>\s*/g
+const PARTIAL_TOOL_REGEX = /<tool_(?:call|result)s?[\s\S]*$/
 
 function stripToolCalls(text: string): { clean: string; hasPartial: boolean } {
-  const stripped = text.replace(TOOL_CALL_REGEX, '')
-  const hasPartial = PARTIAL_TOOL_CALL_REGEX.test(stripped)
-  const clean = hasPartial ? stripped.replace(PARTIAL_TOOL_CALL_REGEX, '') : stripped
-  return { clean, hasPartial }
+  let stripped = text
+  stripped = stripped.replace(TOOL_XML_REGEX, '')
+  stripped = stripped.replace(TOOL_BRACKET_REGEX, '')
+  stripped = stripped.replace(TOOL_RESULT_TAG_REGEX, '')
+  const hasPartial = PARTIAL_TOOL_REGEX.test(stripped)
+  const clean = hasPartial ? stripped.replace(PARTIAL_TOOL_REGEX, '') : stripped
+  return { clean: clean.trim(), hasPartial }
 }
 
 type StreamCallback = (chunk: string) => void
