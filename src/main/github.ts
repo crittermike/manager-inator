@@ -187,7 +187,7 @@ async function _commitFileImpl(path: string, content: string, message: string): 
 
 // ── Parsing helpers ──
 
-function parseProfile(content: string, name: string): ReportProfile {
+export function parseProfile(content: string, name: string): ReportProfile {
   const getField = (field: string): string => {
     const tableMatch = content.match(
       new RegExp(`\\|\\s*\\*\\*${field}\\*\\*\\s*\\|\\s*(?:${field}:\\s*)?(.+?)\\s*\\|`, 'i')
@@ -230,7 +230,7 @@ function parseProfile(content: string, name: string): ReportProfile {
   }
 }
 
-function parseActionItems(content: string, sourceFile?: string): ActionItem[] {
+export function parseActionItems(content: string, sourceFile?: string): ActionItem[] {
   const items: ActionItem[] = []
   const lines = content.split('\n')
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -251,7 +251,7 @@ function parseActionItems(content: string, sourceFile?: string): ActionItem[] {
   return items
 }
 
-function parseFeedbackLog(content: string): FeedbackEntry[] {
+export function parseFeedbackLog(content: string): FeedbackEntry[] {
   const entries: FeedbackEntry[] = []
   const blocks = content.split(/^#{2,3}\s+/m).filter((b) => b.trim())
   for (const block of blocks) {
@@ -286,7 +286,7 @@ function parseFeedbackLog(content: string): FeedbackEntry[] {
   return entries
 }
 
-function extractSnippet(content: string, matchIndex: number, matchLength: number): string {
+export function extractSnippet(content: string, matchIndex: number, matchLength: number): string {
   const radius = 50
   const start = Math.max(0, matchIndex - radius)
   const end = Math.min(content.length, matchIndex + matchLength + radius)
@@ -296,7 +296,7 @@ function extractSnippet(content: string, matchIndex: number, matchLength: number
   return `${prefix}${core}${suffix}`
 }
 
-function titleCase(value: string): string {
+export function titleCase(value: string): string {
   return value
     .split(/\s+/)
     .filter(Boolean)
@@ -304,7 +304,7 @@ function titleCase(value: string): string {
     .join(' ')
 }
 
-function deriveMeetingTitleFromContent(filename: string, content: string): string {
+export function deriveMeetingTitleFromContent(filename: string, content: string): string {
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (fmMatch) {
     const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
@@ -317,7 +317,7 @@ function deriveMeetingTitleFromContent(filename: string, content: string): strin
   return slug.replace(/-/g, ' ').trim() || name
 }
 
-function deriveReportTitle(relativePath: string): string {
+export function deriveReportTitle(relativePath: string): string {
   const parts = relativePath.split('/').filter(Boolean)
   const reportName = titleCase((parts[0] || '').replace(/[-_]/g, ' '))
   const tail = parts.slice(1)
@@ -616,7 +616,7 @@ export function listMeetings(): MeetingEntry[] {
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
-function yamlEscapeValue(value: string): string {
+export function yamlEscapeValue(value: string): string {
   const sanitized = value.replace(/[\n\r]/g, ' ').trim()
   if (/[:#{}[\]|>&*!?,]/.test(sanitized) || sanitized !== value.trim() || /^['"]/.test(sanitized)) {
     return `"${sanitized.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
@@ -653,7 +653,7 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
 // ── People helpers ──
 
 /** Parse speakers list from YAML frontmatter of a summary file */
-function parseSpeakers(content: string): string[] {
+export function parseSpeakers(content: string): string[] {
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!fmMatch) return []
   const speakersMatch = fmMatch[1].match(/speakers:\s*\n((?:\s+-\s+.+\n?)*)/)
@@ -665,7 +665,7 @@ function parseSpeakers(content: string): string[] {
 }
 
 /** Check if a meeting filename (slug part) matches a person */
-function filenameMatchesPerson(meetingSlug: string, personSlug: string): boolean {
+export function filenameMatchesPerson(meetingSlug: string, personSlug: string): boolean {
   const segments = meetingSlug.split('-')
   const personFirst = personSlug.split('-')[0]
   return meetingSlug === personSlug ||
@@ -675,7 +675,7 @@ function filenameMatchesPerson(meetingSlug: string, personSlug: string): boolean
 }
 
 /** Check if any speaker name matches a person */
-function speakerMatchesPerson(speakers: string[], personName: string, aliases: string[]): boolean {
+export function speakerMatchesPerson(speakers: string[], personName: string, aliases: string[]): boolean {
   const allNames = [personName, ...aliases]
   const allFirstNames = allNames.map(n => n.split(' ')[0].toLowerCase())
   const allFullNames = allNames.map(n => n.toLowerCase())

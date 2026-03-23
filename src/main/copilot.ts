@@ -33,7 +33,7 @@ const CHAT_REQUEST_TIMEOUT_MS = 300_000
 type StreamCallback = (chunk: string) => void
 type ToolStatusCallback = (toolName: string, args: Record<string, unknown>) => void
 
-interface CopilotMessage {
+export interface CopilotMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
 }
@@ -245,7 +245,7 @@ export async function stopClient(): Promise<void> {
   }
 }
 
-function buildMessages(
+export function buildMessages(
   action: string,
   context: Record<string, unknown>
 ): CopilotMessage[] {

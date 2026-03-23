@@ -7,6 +7,10 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "qa:search": "node scripts/qa-search.mjs"
   },
   "keywords": [],
@@ -27,18 +31,22 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5",
+    "@vitest/coverage-v8": "^4.1.0",
     "autoprefixer": "^10.4.27",
     "concurrently": "^9.2.1",
     "electron": "^41.0.3",
     "electron-vite": "^5.0.0",
+    "happy-dom": "^20.8.4",
     "playwright": "^1.58.2",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
-    "vite": "^7"
+    "vite": "^7",
+    "vitest": "^3.2.4"
   }
 }
