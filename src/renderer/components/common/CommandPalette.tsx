@@ -4,9 +4,8 @@ import { useTeamOverview } from '../../hooks/useData'
 import type { PersonEntry } from '../../../shared/types'
 import {
   LayoutDashboard,
-  Users,
+  BookOpen,
   FileText,
-  Trophy,
   Settings,
   Search,
   User
@@ -39,10 +38,9 @@ export function CommandPalette() {
 
   const pages: PaletteItem[] = [
     { id: 'today', label: 'Today', path: '/', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-    { id: 'team', label: 'Team', path: '/team', icon: <Users className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
+    { id: 'playbook', label: 'Playbook', path: '/playbook', icon: <BookOpen className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'search', label: 'Search', path: '/search', icon: <Search className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'transcript', label: 'Process transcript', path: '/transcript', icon: <FileText className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-    { id: 'impact', label: 'My impact', path: '/impact', icon: <Trophy className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'settings', label: 'Settings', path: '/settings', icon: <Settings className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
   ]
 
@@ -60,7 +58,7 @@ export function CommandPalette() {
     .map(p => ({
       id: `person-${p.slug}`,
       label: p.name,
-      path: `/people/${p.slug}`,
+      path: `/search?q=${encodeURIComponent(p.name)}`,
       icon: <User className="w-4 h-4" aria-hidden="true" />,
       section: 'People',
     }))

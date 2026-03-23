@@ -8,6 +8,7 @@ export interface ReportProfile {
   startDate: string
   meetingDay: string
   location: string
+  timezone: string
   manager: string
   about: string
   communicationPreferences: Record<string, string>
@@ -73,12 +74,25 @@ export interface TeamPriority {
 // ── Cadence settings (customizable management rhythm) ──
 export type CheckInFrequency = 'monthly' | 'bimonthly' | 'quarterly'
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'
+export type CadenceType = 'daily' | 'weekly' | 'sprint' | 'monthly' | 'quarterly' | 'semi-annual'
 export interface CadenceSettings {
   checkInFrequency: CheckInFrequency
   feedbackReminderDays: number
   sprintLengthWeeks: number       // 1 | 2 | 3 | 4
   endOfWeekDay: DayOfWeek         // when weekly reflection triggers
   sprintStartDate: string         // ISO date of a known sprint start (for calculating sprint boundaries)
+  staleActionDays: number         // days before an open action item is flagged as stale
+}
+
+// ── Custom practice definition (user-created) ──
+export interface CustomPractice {
+  id: string
+  name: string
+  description: string
+  cadence: CadenceType
+  frequency: string
+  trigger: string
+  perReport: boolean
 }
 
 // ── Report (aggregate of all data for one person) ──
@@ -146,7 +160,13 @@ export interface AppSettings {
   sprintLengthWeeks: number
   endOfWeekDay: DayOfWeek
   sprintStartDate: string
+  staleActionDays: number
   aiCustomInstructions: string
+  disabledPractices: string[]
+  snoozedPractices: Record<string, string>
+  customPractices: CustomPractice[]
+  practiceCompletions: Record<string, string>
+  snoozedActionItems: Record<string, string>
 }
 
 // ── Meeting entry (from listMeetings) ──
@@ -154,6 +174,8 @@ export interface MeetingEntry {
   date: string
   title: string
   filename: string
+  /** true if the meeting file has been processed (has YAML frontmatter) */
+  processed: boolean
 }
 
 // ── Person entry (from listPeople) ──
@@ -213,6 +235,7 @@ export interface IpcApi {
   getTeamPriorities: () => Promise<TeamPriority[]>
   saveReportPriorities: (reportName: string, content: string) => Promise<void>
   clearCaches: () => Promise<void>
+  searchContent: (query: string) => Promise<{ filename: string; directory: 'meetings' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
   backfillSummaries: (filenames: string[]) => Promise<{ filename: string; success: boolean; error?: string }[]>
   onBackfillProgress: (cb: (data: { filename: string; status: string; error?: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void

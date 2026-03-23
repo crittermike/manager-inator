@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { safeStorage } from 'electron'
-import type { CheckInFrequency, DayOfWeek } from '../shared/types'
+import type { CheckInFrequency, DayOfWeek, CustomPractice } from '../shared/types'
 
 interface StoreSchema {
   githubToken: string | null
@@ -13,7 +13,13 @@ interface StoreSchema {
   sprintLengthWeeks: number
   endOfWeekDay: DayOfWeek
   sprintStartDate: string
+  staleActionDays: number
   aiCustomInstructions: string
+  disabledPractices: string[]
+  snoozedPractices: Record<string, string>
+  customPractices: CustomPractice[]
+  practiceCompletions: Record<string, string>
+  snoozedActionItems: Record<string, string>
 }
 
 const storeDefaults: StoreSchema = {
@@ -27,7 +33,13 @@ const storeDefaults: StoreSchema = {
   sprintLengthWeeks: 2,
   endOfWeekDay: 'friday',
   sprintStartDate: '',
-  aiCustomInstructions: ''
+  staleActionDays: 5,
+  aiCustomInstructions: '',
+  disabledPractices: [],
+  snoozedPractices: {},
+  customPractices: [],
+  practiceCompletions: {},
+  snoozedActionItems: {}
 }
 
 function createStore(): Store<StoreSchema> {
@@ -119,7 +131,13 @@ export function getSettingsForRenderer() {
     sprintLengthWeeks: store.get('sprintLengthWeeks'),
     endOfWeekDay: store.get('endOfWeekDay'),
     sprintStartDate: store.get('sprintStartDate'),
-    aiCustomInstructions: store.get('aiCustomInstructions')
+    staleActionDays: store.get('staleActionDays'),
+    aiCustomInstructions: store.get('aiCustomInstructions'),
+    disabledPractices: store.get('disabledPractices'),
+    snoozedPractices: store.get('snoozedPractices'),
+    customPractices: store.get('customPractices'),
+    practiceCompletions: store.get('practiceCompletions'),
+    snoozedActionItems: store.get('snoozedActionItems')
   }
 }
 

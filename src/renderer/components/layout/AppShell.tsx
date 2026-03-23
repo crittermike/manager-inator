@@ -5,7 +5,7 @@ import {
   MessageSquare,
   Settings,
   Zap,
-  Users,
+  BookOpen,
   Search
 } from 'lucide-react'
 import { useTeamOverview } from '../../hooks/useData'
@@ -19,7 +19,7 @@ interface AppShellProps {
 
 const navItems = [
   { path: '/', icon: Sun, label: 'Today' },
-  { path: '/team', icon: Users, label: 'Team' },
+  { path: '/playbook', icon: BookOpen, label: 'Playbook' },
   { path: '/search', icon: Search, label: 'Search' }
 ]
 
@@ -66,8 +66,6 @@ export function AppShell({ children }: AppShellProps) {
           {navItems.map(({ path, icon: Icon, label }) => {
             const active = path === '/'
               ? location.pathname === '/'
-              : path === '/team'
-              ? location.pathname === '/team' || location.pathname.startsWith('/report/')
               : location.pathname.startsWith(path)
             return (
               <button

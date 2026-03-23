@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useTeamOverview } from '../hooks/useData'
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice } from '../../shared/types'
 import {
   AlertCircle,
+  BookOpen,
   Calendar,
   Inbox,
   CheckCircle2,
@@ -14,9 +15,11 @@ import {
   FileText,
   RefreshCw,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  Sparkles
 } from 'lucide-react'
-import { InlineProcessor, InlinePrep, InlineActions, InlinePrompt } from './today-components'
+import { InlineProcessor, InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
 
 const sectionConfig: Record<TimelineSection, {
@@ -26,6 +29,13 @@ const sectionConfig: Record<TimelineSection, {
   bg: string
   border: string
 }> = {
+  reflection: {
+    label: 'Weekly Reflection',
+    icon: Sparkles,
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/10',
+    border: 'border-l-violet-500/50'
+  },
   overdue: {
     label: 'Overdue',
     icon: AlertCircle,
@@ -53,7 +63,60 @@ const sectionConfig: Record<TimelineSection, {
     color: 'text-zinc-500',
     bg: 'bg-zinc-500/10',
     border: 'border-l-zinc-500/50'
+  },
+  'coming-up': {
+    label: 'Coming up',
+    icon: Eye,
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    border: 'border-l-blue-500/50'
   }
+}
+
+/** Maps a timeline item ID to its corresponding practice ID for disabled/snoozed filtering */
+function getPracticeIdForItem(itemId: string): string | null {
+  if (itemId.startsWith('overdue-1on1-') || itemId.startsWith('prep-')) return 'one-on-one-prep'
+  if (itemId.startsWith('overdue-feedback-') || itemId.startsWith('weekly-feedback-gap-')) return 'feedback-gap'
+  if (itemId.startsWith('overdue-checkin-')) return 'monthly-checkin'
+  if (itemId === 'weekly-priorities') return 'weekly-priorities'
+  if (itemId === 'weekly-reflection') return 'weekly-reflection'
+  if (itemId.startsWith('sprint-start-')) return 'sprint-start'
+  if (itemId.startsWith('sprint-end-')) return 'sprint-end'
+  if (itemId.startsWith('monthly-skip-level-')) return 'skip-level'
+  if (itemId.startsWith('monthly-peer-sync-')) return 'peer-sync'
+  if (itemId.startsWith('quarterly-okr-')) return 'quarterly-okr'
+  if (itemId.startsWith('quarterly-health-')) return 'quarterly-health'
+  if (itemId.startsWith('quarterly-hiring-')) return 'quarterly-hiring'
+  if (itemId.startsWith('quarterly-calibration-')) return 'quarterly-calibration'
+  if (itemId.startsWith('semi-review-')) return 'semi-review'
+  if (itemId.startsWith('semi-1on1-format-')) return 'semi-1on1-format'
+  if (itemId.startsWith('semi-personal-retro-')) return 'semi-personal-retro'
+  if (itemId.startsWith('daily-interaction-')) return 'daily-interaction'
+  // Coming Up items: strip the 'coming-up-' prefix and re-map
+  if (itemId.startsWith('coming-up-1on1-')) return 'one-on-one-prep'
+  if (itemId.startsWith('coming-up-priorities-')) return 'weekly-priorities'
+  if (itemId.startsWith('coming-up-reflection-')) return 'weekly-reflection'
+  if (itemId.startsWith('coming-up-sprint-start-')) return 'sprint-start'
+  if (itemId.startsWith('coming-up-sprint-end-')) return 'sprint-end'
+  if (itemId.startsWith('coming-up-checkins-')) return 'monthly-checkin'
+  if (itemId.startsWith('coming-up-skip-level-')) return 'skip-level'
+  if (itemId.startsWith('coming-up-quarterly-')) return 'quarterly-okr'
+  if (itemId.startsWith('coming-up-reviews-')) return 'semi-review'
+  // inbox items and stale actions have no practice mapping — always show
+  // Custom practices: item IDs are custom-{cpId} or custom-{cpId}-{reportName}
+  // where cpId is already "custom-{timestamp}". So full ID is custom-custom-{ts} or custom-custom-{ts}-{name}
+  // We need to return the cpId (e.g. "custom-{timestamp}") which matches what's stored in disabledPractices
+  if (itemId.startsWith('custom-')) {
+    const withoutPrefix = itemId.slice('custom-'.length)
+    // cpId starts with "custom-" followed by a timestamp — extract custom-{digits}
+    const customTimestampMatch = withoutPrefix.match(/^(custom-\d+)/)
+    if (customTimestampMatch) return customTimestampMatch[1]
+    // Fallback for UUID-based IDs: custom-{uuid}
+    const uuidMatch = withoutPrefix.match(/^([0-9a-f-]{36})/)
+    if (uuidMatch) return uuidMatch[1]
+    return withoutPrefix
+  }
+  return null
 }
 
 function computeTimelineItems(
@@ -61,7 +124,8 @@ function computeTimelineItems(
   meetings: MeetingEntry[],
   cadence: CadenceSettings,
   doneIds: Set<string>,
-  teamActions: TeamActionItem[]
+  teamActions: TeamActionItem[],
+  customPractices: CustomPractice[]
 ): TimelineItem[] {
   const items: TimelineItem[] = []
   const now = new Date()
@@ -87,6 +151,17 @@ function computeTimelineItems(
         actionLabel: 'View',
         actionType: 'navigate'
       })
+    } else if (!r.lastOneOnOne) {
+      items.push({
+        id: `overdue-no-activity-${r.name}`,
+        section: doneIds.has(`overdue-no-activity-${r.name}`) ? 'done' : 'overdue',
+        title: `No activity logged for ${r.displayName}`,
+        subtitle: 'No 1:1s on file — schedule one or drop a transcript',
+        reportName: r.name,
+        route: `/report/${r.name}`,
+        actionLabel: 'View',
+        actionType: 'navigate'
+      })
     }
   }
 
@@ -98,9 +173,8 @@ function computeTimelineItems(
         title: `No feedback logged for ${r.displayName}`,
         subtitle: 'No feedback on file — consider sharing something specific',
         reportName: r.name,
-        route: `/report/${r.name}?filter=feedback`,
         actionLabel: 'Add feedback',
-        actionType: 'navigate'
+        actionType: 'feedback'
       })
     } else {
       const daysSince = Math.floor(
@@ -113,9 +187,8 @@ function computeTimelineItems(
           title: `Feedback for ${r.displayName} is stale`,
           subtitle: `Last feedback ${daysSince} days ago`,
           reportName: r.name,
-          route: `/report/${r.name}?filter=feedback`,
           actionLabel: 'Add feedback',
-          actionType: 'navigate'
+          actionType: 'feedback'
         })
       }
     }
@@ -150,7 +223,7 @@ function computeTimelineItems(
     if (!dateMatch) return false
     const itemDate = new Date(dateMatch[1])
     const daysOld = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24))
-    return daysOld >= 2
+    return daysOld >= cadence.staleActionDays
   })
   const staleByReport = new Map<string, number>()
   for (const a of staleActions) {
@@ -163,7 +236,7 @@ function computeTimelineItems(
       id: `overdue-stale-actions-${reportName}`,
       section: doneIds.has(`overdue-stale-actions-${reportName}`) ? 'done' : 'overdue',
       title: `${count} stale action item${count !== 1 ? 's' : ''} for ${r.displayName}`,
-      subtitle: 'Open for 2+ days — check for blockers',
+      subtitle: `Open for ${cadence.staleActionDays}+ days — check for blockers`,
       reportName,
       actionLabel: 'Review',
       actionType: 'inline-actions',
@@ -181,13 +254,25 @@ function computeTimelineItems(
       actionType: 'prompt',
       promptType: 'weekly-priorities'
     })
+
+    const staleOrAtRisk = staleActions.length
+    items.push({
+      id: `board-status-${format(now, 'yyyy-MM-dd')}`,
+      section: doneIds.has(`board-status-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'upcoming',
+      title: 'Review your project board',
+      subtitle: staleOrAtRisk > 0
+        ? `${staleOrAtRisk} stale action item${staleOrAtRisk !== 1 ? 's' : ''} across the team — check for blockers or at-risk work`
+        : 'Check for anything stale or at risk based on recent activity',
+      actionLabel: 'Dismiss',
+      actionType: 'dismiss'
+    })
   }
 
   if (isEndOfWeekDay) {
     items.push({
       id: 'weekly-reflection',
-      section: doneIds.has('weekly-reflection') ? 'done' : 'upcoming',
-      title: 'Weekly reflection',
+      section: doneIds.has('weekly-reflection') ? 'done' : 'reflection',
+      title: 'Week-in-review',
       subtitle: 'What shipped, what\'s at risk, what did you learn this week?',
       actionLabel: 'Reflect',
       actionType: 'prompt',
@@ -196,6 +281,15 @@ function computeTimelineItems(
 
     for (const r of reports) {
       if (!r.lastFeedback) {
+        items.push({
+          id: `weekly-feedback-gap-${r.name}`,
+          section: doneIds.has(`weekly-feedback-gap-${r.name}`) ? 'done' : 'reflection',
+          title: `No feedback logged for ${r.displayName} this week`,
+          subtitle: 'Share an observation before the week ends',
+          reportName: r.name,
+          actionLabel: 'Add feedback',
+          actionType: 'feedback'
+        })
         continue
       }
       const daysSince = Math.floor(
@@ -204,13 +298,12 @@ function computeTimelineItems(
       if (daysSince >= 5) {
         items.push({
           id: `weekly-feedback-gap-${r.name}`,
-          section: doneIds.has(`weekly-feedback-gap-${r.name}`) ? 'done' : 'upcoming',
+          section: doneIds.has(`weekly-feedback-gap-${r.name}`) ? 'done' : 'reflection',
           title: `No feedback for ${r.displayName} this week`,
           subtitle: 'Consider sharing an observation before the week ends',
           reportName: r.name,
-          route: `/report/${r.name}?filter=feedback`,
           actionLabel: 'Add feedback',
-          actionType: 'navigate'
+          actionType: 'feedback'
         })
       }
     }
@@ -402,6 +495,262 @@ function computeTimelineItems(
     })
   }
 
+  // ── Inbox: unprocessed meeting transcripts ──
+  for (const m of meetings) {
+    if (!m.processed) {
+      items.push({
+        id: `inbox-${m.filename}`,
+        section: doneIds.has(`inbox-${m.filename}`) ? 'done' : 'inbox',
+        title: m.title || m.filename.replace('.md', ''),
+        subtitle: `Transcript from ${m.date} — ready to process`,
+        meetingFilename: m.filename,
+        actionLabel: 'Process',
+        actionType: 'process'
+      })
+    }
+  }
+
+  // ── Custom practices: fire on Today based on cadence ──
+  for (const cp of customPractices) {
+    const cpId = cp.id
+    const shouldFireToday = (() => {
+      switch (cp.cadence) {
+        case 'daily': return !isWeekend
+        case 'weekly': return isMonday
+        case 'sprint': {
+          if (!cadence.sprintStartDate) return false
+          const sprintStart = new Date(cadence.sprintStartDate)
+          const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
+          const elapsed = now.getTime() - sprintStart.getTime()
+          const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
+          return currentSprintDay <= 1
+        }
+        case 'monthly': return isFirstWeek && dayOfMonth <= 3
+        case 'quarterly': return isQuarterStart && dayOfMonth <= 3
+        case 'semi-annual': return isSemiAnnual && dayOfMonth <= 3
+        default: return false
+      }
+    })()
+
+    if (shouldFireToday) {
+      if (cp.perReport) {
+        for (const r of reports) {
+          const id = `custom-${cpId}-${r.name}`
+          items.push({
+            id,
+            section: doneIds.has(id) ? 'done' : 'upcoming',
+            title: `${cp.name}: ${r.displayName}`,
+            subtitle: cp.description || cp.frequency,
+            reportName: r.name,
+            actionLabel: 'Dismiss',
+            actionType: 'dismiss'
+          })
+        }
+      } else {
+        const id = `custom-${cpId}`
+        items.push({
+          id,
+          section: doneIds.has(id) ? 'done' : 'upcoming',
+          title: cp.name,
+          subtitle: cp.description || cp.frequency,
+          actionLabel: 'Dismiss',
+          actionType: 'dismiss'
+        })
+      }
+    }
+  }
+
+  // ── Daily interaction nudge ──
+  if (!isWeekend && now.getHours() >= 14) {
+    const todayStr = format(now, 'yyyy-MM-dd')
+    const hasTodayMeeting = meetings.some(m => m.date === todayStr)
+    const hasTodayFeedback = reports.some(r => r.lastFeedback === todayStr)
+    const hadAnyTouchpoint = hasTodayMeeting || hasTodayFeedback
+    if (!hadAnyTouchpoint) {
+      items.push({
+        id: `daily-interaction-${todayStr}`,
+        section: doneIds.has(`daily-interaction-${todayStr}`) ? 'done' : 'upcoming',
+        title: 'One small interaction',
+        subtitle: 'Say something human to someone on your team — a quick message, a PR compliment, a check-in',
+        actionLabel: 'Done',
+        actionType: 'dismiss'
+      })
+    }
+  }
+
+  // ── Coming Up: preview of next 2-3 weeks of playbook items ──
+  const LOOKAHEAD_DAYS = 21
+  for (let dayOffset = 1; dayOffset <= LOOKAHEAD_DAYS; dayOffset++) {
+    const futureDate = new Date(now)
+    futureDate.setDate(futureDate.getDate() + dayOffset)
+    const futureDayIndex = getDay(futureDate)
+    const futureDayName = dayNames[futureDayIndex]
+    const futureDayOfMonth = getDate(futureDate)
+    const futureMonth = getMonth(futureDate)
+    const futureMonthStr = format(futureDate, 'yyyy-MM')
+    const futureIsFirstWeek = futureDayOfMonth <= 7
+    const futureIsMonday = futureDayIndex === 1
+    const futureIsEndOfWeek = futureDayName === cadence.endOfWeekDay
+    const futureIsWeekend = futureDayIndex === 0 || futureDayIndex === 6
+    const futureDateLabel = format(futureDate, 'EEE, MMM d')
+
+    // Upcoming 1:1s
+    if (!futureIsWeekend) {
+      const futureMeetings = reports.filter(r =>
+        r.meetingDay && r.meetingDay.toLowerCase() === futureDayName
+      )
+      for (const r of futureMeetings) {
+        const id = `coming-up-1on1-${r.name}-${format(futureDate, 'yyyy-MM-dd')}`
+        if (!doneIds.has(id)) {
+          items.push({
+            id,
+            section: 'coming-up',
+            title: `1:1 with ${r.displayName}`,
+            subtitle: futureDateLabel,
+            reportName: r.name,
+            practiceLink: '/playbook?practice=one-on-one-prep',
+            actionType: 'info'
+          })
+        }
+      }
+    }
+
+    // Monday priorities
+    if (futureIsMonday) {
+      const id = `coming-up-priorities-${format(futureDate, 'yyyy-MM-dd')}`
+      if (!doneIds.has(id)) {
+        items.push({
+          id,
+          section: 'coming-up',
+          title: 'Set weekly priorities',
+          subtitle: futureDateLabel,
+          practiceLink: '/playbook?practice=weekly-priorities',
+          actionType: 'info'
+        })
+      }
+    }
+
+    // End-of-week reflection
+    if (futureIsEndOfWeek) {
+      const id = `coming-up-reflection-${format(futureDate, 'yyyy-MM-dd')}`
+      if (!doneIds.has(id)) {
+        items.push({
+          id,
+          section: 'coming-up',
+          title: 'Weekly reflection',
+          subtitle: futureDateLabel,
+          practiceLink: '/playbook?practice=weekly-reflection',
+          actionType: 'info'
+        })
+      }
+    }
+
+    // Sprint boundaries
+    if (cadence.sprintStartDate) {
+      const sprintStart = new Date(cadence.sprintStartDate)
+      const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
+      const elapsed = futureDate.getTime() - sprintStart.getTime()
+      const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
+      const daysInSprint = cadence.sprintLengthWeeks * 7
+
+      if (currentSprintDay === 0) {
+        const id = `coming-up-sprint-start-${format(futureDate, 'yyyy-MM-dd')}`
+        if (!doneIds.has(id)) {
+          items.push({
+            id,
+            section: 'coming-up',
+            title: 'New sprint starts',
+            subtitle: futureDateLabel,
+            practiceLink: '/playbook?practice=sprint-start',
+            actionType: 'info'
+          })
+        }
+      }
+      if (currentSprintDay === daysInSprint - 1) {
+        const id = `coming-up-sprint-end-${format(futureDate, 'yyyy-MM-dd')}`
+        if (!doneIds.has(id)) {
+          items.push({
+            id,
+            section: 'coming-up',
+            title: 'Sprint ends',
+            subtitle: futureDateLabel,
+            practiceLink: '/playbook?practice=sprint-end',
+            actionType: 'info'
+          })
+        }
+      }
+    }
+
+    // Check-in week
+    if (futureIsFirstWeek) {
+      const isCheckInMonth =
+        cadence.checkInFrequency === 'monthly' ||
+        (cadence.checkInFrequency === 'bimonthly' && futureMonth % 2 === 0) ||
+        (cadence.checkInFrequency === 'quarterly' && [0, 3, 6, 9].includes(futureMonth))
+
+      if (isCheckInMonth && futureDayOfMonth === 1) {
+        const id = `coming-up-checkins-${futureMonthStr}`
+        if (!doneIds.has(id)) {
+          items.push({
+            id,
+            section: 'coming-up',
+            title: `Check-ins due (${reports.length} reports)`,
+            subtitle: `Week of ${futureDateLabel}`,
+            practiceLink: '/playbook?practice=monthly-checkin',
+            actionType: 'info'
+          })
+        }
+      }
+    }
+
+    // Monthly skip-level (first week)
+    if (futureIsFirstWeek && futureDayOfMonth === 1) {
+      const id = `coming-up-skip-level-${futureMonthStr}`
+      if (!doneIds.has(id)) {
+        items.push({
+          id,
+          section: 'coming-up',
+          title: 'Skip-level 1:1',
+          subtitle: `Week of ${futureDateLabel}`,
+          practiceLink: '/playbook?practice=skip-level',
+          actionType: 'info'
+        })
+      }
+    }
+
+    // Quarterly planning (first two weeks of quarter)
+    const isQuarterStart = [0, 3, 6, 9].includes(futureMonth) && futureDayOfMonth <= 14
+    if (isQuarterStart && futureDayOfMonth === 1) {
+      const id = `coming-up-quarterly-${futureMonthStr}`
+      if (!doneIds.has(id)) {
+        items.push({
+          id,
+          section: 'coming-up',
+          title: 'Quarterly planning & calibration',
+          subtitle: `Week of ${futureDateLabel}`,
+          practiceLink: '/playbook?practice=quarterly-okr',
+          actionType: 'info'
+        })
+      }
+    }
+
+    // Semi-annual reviews
+    const isSemiAnnual = [0, 6].includes(futureMonth) && futureDayOfMonth <= 14
+    if (isSemiAnnual && futureDayOfMonth === 1) {
+      const id = `coming-up-reviews-${futureMonthStr}`
+      if (!doneIds.has(id)) {
+        items.push({
+          id,
+          section: 'coming-up',
+          title: `Performance reviews due (${reports.length} reports)`,
+          subtitle: `Week of ${futureDateLabel}`,
+          practiceLink: '/playbook?practice=semi-review',
+          actionType: 'info'
+        })
+      }
+    }
+  }
+
   return items
 }
 
@@ -411,12 +760,17 @@ export function Today() {
   const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
+  const [customPractices, setCustomPractices] = useState<CustomPractice[]>([])
+  const [disabledPractices, setDisabledPractices] = useState<string[]>([])
+  const [snoozedPractices, setSnoozedPractices] = useState<Record<string, string>>({})
+  const [snoozedActionItems, setSnoozedActionItems] = useState<Record<string, string>>({})
   const [cadence, setCadence] = useState<CadenceSettings>({
     checkInFrequency: 'monthly',
     feedbackReminderDays: 14,
     sprintLengthWeeks: 2,
     endOfWeekDay: 'friday',
-    sprintStartDate: ''
+    sprintStartDate: '',
+    staleActionDays: 7
   })
   const [dragging, setDragging] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(() => {
@@ -429,7 +783,7 @@ export function Today() {
     }
    })
   const [expandedSections, setExpandedSections] = useState<Set<TimelineSection>>(
-    new Set(['overdue', 'upcoming', 'inbox'])
+    new Set(['reflection', 'overdue', 'upcoming', 'inbox'])
   )
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [processingItem, setProcessingItem] = useState<string | null>(null)
@@ -462,22 +816,56 @@ export function Today() {
         feedbackReminderDays: s.feedbackReminderDays ?? 14,
         sprintLengthWeeks: s.sprintLengthWeeks ?? 2,
         endOfWeekDay: s.endOfWeekDay || 'friday',
-        sprintStartDate: s.sprintStartDate || ''
+        sprintStartDate: s.sprintStartDate || '',
+        staleActionDays: s.staleActionDays ?? 5
       })
+      setCustomPractices(s.customPractices || [])
+      setDisabledPractices(s.disabledPractices || [])
+      const snoozed = s.snoozedPractices || {}
+      const now = new Date()
+      const valid: Record<string, string> = {}
+      for (const [id, dateStr] of Object.entries(snoozed)) {
+        if (new Date(dateStr) > now) valid[id] = dateStr
+      }
+      setSnoozedPractices(valid)
+      const snoozedAI = s.snoozedActionItems || {}
+      const validAI: Record<string, string> = {}
+      for (const [id, dateStr] of Object.entries(snoozedAI)) {
+        if (new Date(dateStr) > now) validAI[id] = dateStr
+      }
+      setSnoozedActionItems(validAI)
     }).catch(() => {})
   }, [])
 
   const reports = overview?.reports ?? []
 
-  const items = useMemo(() => {
-    return computeTimelineItems(reports, meetings, cadence, doneIds, teamActions)
-  }, [reports, meetings, cadence, doneIds, teamActions])
+  const filteredTeamActions = useMemo(() => {
+    const now = new Date()
+    return teamActions.filter(a => {
+      const key = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
+      const expiry = snoozedActionItems[key]
+      if (expiry && new Date(expiry) > now) return false
+      return true
+    })
+  }, [teamActions, snoozedActionItems])
 
-  const sections: TimelineSection[] = ['overdue', 'upcoming', 'inbox', 'done']
+  const items = useMemo(() => {
+    const raw = computeTimelineItems(reports, meetings, cadence, doneIds, filteredTeamActions, customPractices)
+    return raw.filter(item => {
+      const practiceId = getPracticeIdForItem(item.id)
+      if (!practiceId) return true
+      if (disabledPractices.includes(practiceId)) return false
+      const snoozeExpiry = snoozedPractices[practiceId]
+      if (snoozeExpiry && new Date(snoozeExpiry) > new Date()) return false
+      return true
+    })
+  }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices])
+
+  const sections: TimelineSection[] = ['reflection', 'overdue', 'upcoming', 'inbox', 'coming-up', 'done']
 
   const itemsBySection = useMemo(() => {
     const grouped: Record<TimelineSection, TimelineItem[]> = {
-      overdue: [], upcoming: [], inbox: [], done: []
+      reflection: [], overdue: [], upcoming: [], inbox: [], 'coming-up': [], done: []
     }
     for (const item of items) {
       grouped[item.section].push(item)
@@ -539,7 +927,7 @@ export function Today() {
     })
   }
 
-  const totalActive = items.filter(i => i.section !== 'done').length
+  const totalActive = items.filter(i => i.section !== 'done' && i.section !== 'coming-up').length
   const doneCount = itemsBySection.done.length
 
   if (loading) {
@@ -620,19 +1008,19 @@ export function Today() {
         </button>
       </div>
 
-      {totalActive === 0 && doneCount === 0 && (
+      {totalActive === 0 && doneCount === 0 && itemsBySection['coming-up'].length === 0 && (
         <div className="bg-surface rounded-xl border border-border p-12 text-center">
           <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-emerald-500/60" aria-hidden="true" />
           </div>
-          <p className="text-lg font-medium text-zinc-200">You're all caught up</p>
+          <p className="text-lg font-medium text-zinc-200">All caught up</p>
           <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto leading-relaxed">
             No overdue items, no upcoming 1:1s to prep, and your inbox is clear. Enjoy the calm.
           </p>
         </div>
       )}
 
-      {totalActive === 0 && doneCount > 0 && (
+      {totalActive === 0 && doneCount > 0 && itemsBySection['coming-up'].length === 0 && (
         <div className="bg-gradient-to-b from-emerald-500/5 to-transparent rounded-xl border border-emerald-500/20 p-8 text-center animate-fade-in">
           <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="w-7 h-7 text-emerald-400" aria-hidden="true" />
@@ -706,8 +1094,21 @@ export function Today() {
                           )}
                         </div>
 
-                        {item.section !== 'done' && (
+                        {item.section !== 'done' && item.actionType !== 'info' && (
                           <div className="flex items-center gap-2 shrink-0">
+                            {item.practiceLink && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  navigate(item.practiceLink!)
+                                }}
+                                className="p-1 text-zinc-600 hover:text-brand-light transition-colors opacity-0 group-hover:opacity-100"
+                                aria-label="View in Playbook"
+                                title="View in Playbook"
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {item.actionLabel && item.actionType === 'process' && (
                               <button
                                 onClick={(e) => {
@@ -742,7 +1143,7 @@ export function Today() {
                                 {item.actionLabel}
                               </button>
                             )}
-                            {item.actionLabel && (item.actionType === 'prep' || item.actionType === 'inline-actions' || item.actionType === 'prompt') && (
+                            {item.actionLabel && (item.actionType === 'prep' || item.actionType === 'inline-actions' || item.actionType === 'prompt' || item.actionType === 'feedback') && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -763,6 +1164,21 @@ export function Today() {
                               title="Mark done"
                             >
                               <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        {item.actionType === 'info' && item.practiceLink && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                navigate(item.practiceLink!)
+                              }}
+                              className="p-1 text-zinc-600 hover:text-brand-light transition-colors opacity-0 group-hover:opacity-100"
+                              aria-label="View in Playbook"
+                              title="View in Playbook"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         )}
@@ -814,6 +1230,13 @@ export function Today() {
                             onRefresh={() => {
                               window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
                             }}
+                            onSnooze={(actionKey, untilDate) => {
+                              setSnoozedActionItems(prev => {
+                                const next = { ...prev, [actionKey]: untilDate }
+                                window.api.saveSettings({ snoozedActionItems: next }).catch(() => {})
+                                return next
+                              })
+                            }}
                           />
                         </div>
                       )}
@@ -824,6 +1247,22 @@ export function Today() {
                             promptType={item.promptType}
                             onDone={() => {
                               markDone(item.id)
+                            }}
+                            onCancel={() => {
+                              setExpandedItem(null)
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {isItemExpanded && item.actionType === 'feedback' && item.reportName && (
+                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
+                          <InlineFeedback
+                            reportName={item.reportName}
+                            displayName={reports.find(r => r.name === item.reportName)?.displayName ?? item.reportName}
+                            onDone={() => {
+                              markDone(item.id)
+                              refresh()
                             }}
                             onCancel={() => {
                               setExpandedItem(null)

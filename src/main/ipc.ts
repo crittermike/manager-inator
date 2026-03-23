@@ -19,6 +19,7 @@ import {
   getTeamActionItems,
   getTeamPriorities,
   saveReportPriorities,
+  searchContent,
   clearAllCaches,
   safeSend
 } from './github'
@@ -55,7 +56,7 @@ export function setupIpcHandlers(): void {
   safeHandle('settings:get', () => getSettingsForRenderer())
   safeHandle('settings:save', (_e, settings) => {
     const raw = settings as Record<string, unknown>
-    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'aiCustomInstructions'] as const
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]
@@ -83,6 +84,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:team-action-items', () => getTeamActionItems())
   safeHandle('github:team-priorities', () => getTeamPriorities())
   safeHandle('github:save-report-priorities', (_e, reportName, content) => saveReportPriorities(reportName as string, content as string))
+  safeHandle('github:search-content', (_e, query) => searchContent(query as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
 
   // ── AI with streaming ──

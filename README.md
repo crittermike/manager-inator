@@ -319,7 +319,7 @@ Find meetings and people by keyword. Features:
 ### Other pages (accessible but not in primary nav)
 
 - **Impact Log** (`/impact`) — Manager's evidence log with quick-add and AI summarize
-- **Team** (`/team`) — Grid of all direct reports (also accessible as sidebar quick-jump)
+- **Playbook** (`/playbook`) — Management practices timeline and practice library
 
 ---
 

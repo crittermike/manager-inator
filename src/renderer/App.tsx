@@ -8,7 +8,7 @@ import { ReportDetail } from './pages/ReportDetail'
 import { TranscriptProcessor } from './pages/TranscriptProcessor'
 import { SearchPage } from './pages/Search'
 import { Settings } from './pages/Settings'
-import { People } from './pages/People'
+import { Playbook } from './pages/Playbook'
 import { ImpactLog } from './pages/ImpactLog'
 import { useState, useEffect, useMemo } from 'react'
 import { ToastProvider } from './components/common/Toast'
@@ -33,7 +33,7 @@ export default function App() {
       element: <Layout />,
       children: [
         { path: '/', element: <Today /> },
-        { path: '/team', element: <People /> },
+        { path: '/playbook', element: <Playbook /> },
         { path: '/report/:name', element: <ReportDetail /> },
         { path: '/transcript', element: <TranscriptProcessor /> },
         { path: '/search', element: <SearchPage /> },

@@ -1,24 +1,34 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search as SearchIcon, User, Calendar, ArrowLeft, X } from 'lucide-react'
+import { Search as SearchIcon, User, Calendar, ArrowLeft, X, FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { MeetingEntry, PersonEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 
 interface SearchResult {
-  type: 'meeting' | 'person'
+  type: 'meeting' | 'person' | 'content'
   title: string
   subtitle: string
   route: string
   date?: string
   filename?: string
+  directory?: 'meetings' | 'reports' | 'people' | 'notes'
+}
+
+interface ContentSearchResult {
+  filename: string
+  directory: 'meetings' | 'reports' | 'people' | 'notes'
+  title: string
+  snippet: string
+  date?: string
 }
 
 export function SearchPage() {
   const [query, setQuery] = useState('')
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [people, setPeople] = useState<PersonEntry[]>([])
+  const [contentResults, setContentResults] = useState<ContentSearchResult[]>([])
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -33,7 +43,20 @@ export function SearchPage() {
     window.api.listPeople().then(setPeople).catch(() => {})
   }, [])
 
-  // Handle ?meeting= query param
+  useEffect(() => {
+    if (!query.trim()) {
+      setContentResults([])
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      window.api.searchContent(query).then(setContentResults).catch(() => setContentResults([]))
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [query])
+
+  // Handle ?meeting= query param (opens inline viewer)
   useEffect(() => {
     const meetingParam = searchParams.get('meeting')
     if (meetingParam && meetings.length > 0) {
@@ -44,17 +67,25 @@ export function SearchPage() {
     }
   }, [searchParams, meetings])
 
-  const openMeeting = useCallback(async (filename: string, title: string) => {
+  // Handle ?q= query param (pre-fills search)
+  useEffect(() => {
+    const qParam = searchParams.get('q')
+    if (qParam && qParam !== query) {
+      setQuery(qParam)
+    }
+  }, [searchParams])
+
+  const openMeeting = useCallback(async (filename: string, title: string, basePath = 'meetings') => {
     setViewingMeeting(filename)
     setMeetingTitle(title)
     setMeetingLoading(true)
     setMeetingContent(null)
 
     try {
-      const content = await window.api.getFileContent(`meetings/${filename}`)
+      const content = await window.api.getFileContent(`${basePath}/${filename}`)
       setMeetingContent(cleanSummaryContent(content))
     } catch {
-      setMeetingContent('_Unable to load meeting content._')
+      setMeetingContent('_Unable to load meeting content. The file may have been moved or deleted._')
     }
     setMeetingLoading(false)
   }, [])
@@ -73,11 +104,12 @@ export function SearchPage() {
   const results = useMemo(() => {
     if (!query.trim()) return []
     const q = query.toLowerCase()
-    const items: SearchResult[] = []
+    const titleItems: SearchResult[] = []
+    const contentItems: SearchResult[] = []
 
     for (const m of meetings) {
       if (m.title.toLowerCase().includes(q) || m.filename.toLowerCase().includes(q)) {
-        items.push({
+        titleItems.push({
           type: 'meeting',
           title: m.title,
           subtitle: m.date,
@@ -91,27 +123,80 @@ export function SearchPage() {
     for (const p of people) {
       const searchable = [p.name, p.role, p.location, ...p.aliases].join(' ').toLowerCase()
       if (searchable.includes(q)) {
-        items.push({
+        const isReport = p.relationship?.toLowerCase() === 'direct report'
+        titleItems.push({
           type: 'person',
           title: p.name,
           subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-          route: `/report/${p.slug}`
+          route: isReport ? `/report/${p.slug}` : `/search?q=${encodeURIComponent(p.name)}`
         })
       }
     }
 
-    items.sort((a, b) => {
+    for (const c of contentResults) {
+      if (c.directory === 'meetings') {
+        contentItems.push({
+          type: 'content',
+          title: c.title,
+          subtitle: c.snippet,
+          route: '',
+          date: c.date,
+          filename: c.filename,
+          directory: 'meetings'
+        })
+      } else if (c.directory === 'reports') {
+        const reportName = c.filename.split('/')[0]
+        contentItems.push({
+          type: 'content',
+          title: c.title,
+          subtitle: c.snippet,
+          route: `/report/${reportName}`,
+          date: c.date,
+          filename: c.filename,
+          directory: 'reports'
+        })
+      } else if (c.directory === 'notes') {
+        contentItems.push({
+          type: 'content',
+          title: c.title,
+          subtitle: c.snippet,
+          route: '',
+          date: c.date,
+          filename: c.filename,
+          directory: 'notes'
+        })
+      } else {
+        const slug = c.filename.replace(/\.(md|txt)$/i, '')
+        const name = slug.replace(/-/g, ' ')
+        contentItems.push({
+          type: 'content',
+          title: c.title,
+          subtitle: c.snippet,
+          route: `/search?q=${encodeURIComponent(name)}`,
+          filename: c.filename,
+          directory: 'people'
+        })
+      }
+    }
+
+    titleItems.sort((a, b) => {
       if (a.date && b.date) return b.date.localeCompare(a.date)
       if (a.type === 'person' && b.type !== 'person') return -1
       if (b.type === 'person' && a.type !== 'person') return 1
       return 0
     })
 
-    return items.slice(0, 50)
-  }, [query, meetings, people])
+    contentItems.sort((a, b) => {
+      if (a.date && b.date) return b.date.localeCompare(a.date)
+      return 0
+    })
+
+    return [...titleItems, ...contentItems].slice(0, 50)
+  }, [query, meetings, people, contentResults])
 
   const typeIcon = (type: string) => {
     if (type === 'person') return <User className="w-4 h-4" aria-hidden="true" />
+    if (type === 'content') return <FileText className="w-4 h-4" aria-hidden="true" />
     return <Calendar className="w-4 h-4" aria-hidden="true" />
   }
 
@@ -188,8 +273,13 @@ export function SearchPage() {
             <button
               key={`${r.type}-${r.route || r.filename}-${i}`}
               onClick={() => {
-                if (r.type === 'meeting' && r.filename) {
+                if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'meetings')) && r.filename) {
                   openMeeting(r.filename, r.title)
+                } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
+                  openMeeting(r.filename, r.title, 'weekly-log')
+                } else if (r.route.startsWith('/search?q=')) {
+                  const name = new URL(r.route, 'http://x').searchParams.get('q') || r.title
+                  setQuery(name)
                 } else {
                   navigate(r.route)
                 }
@@ -204,7 +294,7 @@ export function SearchPage() {
                 <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
               </div>
               <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
-                {r.type}
+                {r.type === 'content' ? 'content' : r.type}
               </span>
             </button>
           ))}

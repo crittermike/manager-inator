@@ -104,6 +104,18 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   }, [open])
 
   useEffect(() => {
+    if (!open) return
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [open, onClose])
+
+  useEffect(() => {
     return () => { cancel() }
   }, [cancel])
 
@@ -127,7 +139,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       return `The user is currently viewing ${name}'s person page.`
     }
     if (path === '/') return 'The user is on the Today view.'
-    if (path === '/team') return 'The user is on the Team overview.'
+    if (path === '/playbook') return 'The user is on the Playbook — their management cadence system.'
     if (path === '/search') return 'The user is on the Search page.'
     return ''
   }

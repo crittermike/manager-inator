@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('github:commit-file', path, content, message),
   listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),
+  searchContent: (query: string) => ipcRenderer.invoke('github:search-content', query),
   getPersonMeetings: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
   findPersonByName: (name: string) => ipcRenderer.invoke('github:find-person', name),
   getImpactLog: () => ipcRenderer.invoke('github:impact-log'),

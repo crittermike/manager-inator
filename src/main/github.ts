@@ -84,6 +84,29 @@ function listFiles(path: string): string[] {
   } catch { return [] }
 }
 
+function listFilesRecursive(path: string): string[] {
+  const results: string[] = []
+  const stack: string[] = [path]
+
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    try {
+      const fullPath = safePath(current)
+      const entries = readdirSync(fullPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))
+      for (const entry of entries) {
+        const rel = join(current, entry.name).replace(/\\/g, '/')
+        if (entry.isDirectory()) {
+          stack.push(rel)
+        } else if (entry.isFile()) {
+          results.push(rel)
+        }
+      }
+    } catch {}
+  }
+
+  return results
+}
+
 let _writeQueue: Promise<void> = Promise.resolve()
 
 export function commitFile(path: string, content: string, message: string): Promise<void> {
@@ -200,6 +223,7 @@ function parseProfile(content: string, name: string): ReportProfile {
     startDate: getField('Start Date'),
     meetingDay: getField('Meeting Day'),
     location: getField('Location') || '',
+    timezone: getField('Timezone') || getField('Time Zone') || '',
     manager: getField('Manager') || '',
     about: aboutMatch?.[1]?.trim() || '',
     communicationPreferences: prefs
@@ -248,6 +272,138 @@ function parseFeedbackLog(content: string): FeedbackEntry[] {
     })
   }
   return entries
+}
+
+function extractSnippet(content: string, matchIndex: number, matchLength: number): string {
+  const radius = 50
+  const start = Math.max(0, matchIndex - radius)
+  const end = Math.min(content.length, matchIndex + matchLength + radius)
+  const core = content.slice(start, end).replace(/\s+/g, ' ').trim()
+  const prefix = start > 0 ? '…' : ''
+  const suffix = end < content.length ? '…' : ''
+  return `${prefix}${core}${suffix}`
+}
+
+function titleCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function deriveMeetingTitleFromContent(filename: string, content: string): string {
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+  if (fmMatch) {
+    const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
+    if (titleMatch?.[1]) return titleMatch[1].trim()
+  }
+
+  const name = filename.replace(/\.(md|txt)$/i, '')
+  const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
+  const slug = dateMatch?.[2] || name
+  return slug.replace(/-/g, ' ').trim() || name
+}
+
+function deriveReportTitle(relativePath: string): string {
+  const parts = relativePath.split('/').filter(Boolean)
+  const reportName = titleCase((parts[0] || '').replace(/[-_]/g, ' '))
+  const tail = parts.slice(1)
+
+  if (tail.length === 0) return reportName
+
+  const normalizedTail = tail.map((segment) => segment.replace(/\.(md|txt)$/i, '').replace(/[-_]/g, ' '))
+  let detail = normalizedTail.map(titleCase).join(' / ')
+
+  if (normalizedTail.length >= 2 && normalizedTail[normalizedTail.length - 2] === 'feedback' && normalizedTail[normalizedTail.length - 1] === 'log') {
+    detail = 'Feedback Log'
+  }
+
+  return `${reportName} — ${detail}`
+}
+
+export function searchContent(query: string): { filename: string; directory: string; title: string; snippet: string; date?: string }[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+
+  const results: { filename: string; directory: string; title: string; snippet: string; date?: string }[] = []
+  const candidates = listFilesRecursive('meetings')
+    .concat(listFilesRecursive('reports'))
+    .concat(listFilesRecursive('people'))
+    .concat(listFilesRecursive('weekly-log'))
+
+  for (const relPath of candidates) {
+    if (results.length >= 50) break
+    if (!/\.(md|txt)$/i.test(relPath)) continue
+
+    let content = ''
+    try {
+      content = readFileSync(safePath(relPath), 'utf-8')
+    } catch {
+      continue
+    }
+
+    const lower = content.toLowerCase()
+    const idx = lower.indexOf(q)
+    if (idx === -1) continue
+
+    const snippet = extractSnippet(content, idx, q.length)
+
+    if (relPath.startsWith('meetings/')) {
+      const filename = relPath.slice('meetings/'.length)
+      const name = filename.replace(/\.(md|txt)$/i, '')
+      const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+      results.push({
+        filename,
+        directory: 'meetings',
+        title: deriveMeetingTitleFromContent(filename, content),
+        snippet,
+        date
+      })
+      continue
+    }
+
+    if (relPath.startsWith('reports/')) {
+      const filename = relPath.slice('reports/'.length)
+      const date = filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+      results.push({
+        filename,
+        directory: 'reports',
+        title: deriveReportTitle(filename),
+        snippet,
+        date
+      })
+      continue
+    }
+
+    if (relPath.startsWith('people/')) {
+      const filename = relPath.slice('people/'.length)
+      results.push({
+        filename,
+        directory: 'people',
+        title: filename.replace(/\.(md|txt)$/i, ''),
+        snippet
+      })
+      continue
+    }
+
+    if (relPath.startsWith('weekly-log/')) {
+      const filename = relPath.slice('weekly-log/'.length)
+      const name = filename.replace(/\.(md|txt)$/i, '')
+      const date = name.match(/^(\d{4})/)?.[1]
+      const titleParts = name.replace(/^\d{4}-W\d{2}-/, '').replace(/-/g, ' ')
+      results.push({
+        filename,
+        directory: 'notes',
+        title: titleParts.charAt(0).toUpperCase() + titleParts.slice(1),
+        snippet,
+        date
+      })
+      continue
+    }
+  }
+
+  return results
 }
 
 
@@ -440,7 +596,8 @@ export function listMeetings(): MeetingEntry[] {
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
       const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
       const title = cache.titleMap.get(f) || filenameTitle
-      return { date: dateMatch?.[1] || name, title, filename: f }
+      const processed = cache.titleMap.has(f) || cache.speakerMap.has(f)
+      return { date: dateMatch?.[1] || name, title, filename: f, processed }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
 }

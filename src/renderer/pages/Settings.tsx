@@ -26,6 +26,7 @@ export function Settings() {
   const [model, setModel] = useState(DEFAULT_MODEL)
   const [checkInFreq, setCheckInFreq] = useState<CheckInFrequency>('monthly')
   const [feedbackDays, setFeedbackDays] = useState(14)
+  const [staleActionDays, setStaleActionDays] = useState(5)
   const [sprintLength, setSprintLength] = useState(2)
   const [endOfWeekDay, setEndOfWeekDay] = useState<DayOfWeek>('friday')
   const [sprintStartDate, setSprintStartDate] = useState('')
@@ -38,13 +39,14 @@ export function Settings() {
   const [savedModel, setSavedModel] = useState(DEFAULT_MODEL)
   const [savedCheckInFreq, setSavedCheckInFreq] = useState<CheckInFrequency>('monthly')
   const [savedFeedbackDays, setSavedFeedbackDays] = useState(14)
+  const [savedStaleActionDays, setSavedStaleActionDays] = useState(5)
   const [savedSprintLength, setSavedSprintLength] = useState(2)
   const [savedEndOfWeekDay, setSavedEndOfWeekDay] = useState<DayOfWeek>('friday')
   const [savedSprintStartDate, setSavedSprintStartDate] = useState('')
   const [savedCustomInstructions, setSavedCustomInstructions] = useState('')
   const [repoPathError, setRepoPathError] = useState('')
 
-  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions
+  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
   const saveRef = useRef<() => void>(() => {})
 
@@ -52,11 +54,12 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
         const frd = s.feedbackReminderDays ?? 14
+        const sad = s.staleActionDays ?? 5
         const sl = s.sprintLengthWeeks ?? 2
         const eow = s.endOfWeekDay || 'friday'
         const ssd = s.sprintStartDate || ''
@@ -65,6 +68,7 @@ export function Settings() {
         setModel(m)
         setCheckInFreq(cif)
         setFeedbackDays(frd)
+        setStaleActionDays(sad)
         setSprintLength(sl)
         setEndOfWeekDay(eow)
         setSprintStartDate(ssd)
@@ -73,6 +77,7 @@ export function Settings() {
         setSavedModel(m)
         setSavedCheckInFreq(cif)
         setSavedFeedbackDays(frd)
+        setSavedStaleActionDays(sad)
         setSavedSprintLength(sl)
         setSavedEndOfWeekDay(eow)
         setSavedSprintStartDate(ssd)
@@ -88,7 +93,7 @@ export function Settings() {
     if (saving) return
     setSaving(true)
     try {
-      const allSettings = { repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, sprintLengthWeeks: sprintLength, endOfWeekDay, sprintStartDate, aiCustomInstructions: customInstructions }
+      const allSettings = { repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, staleActionDays, sprintLengthWeeks: sprintLength, endOfWeekDay, sprintStartDate, aiCustomInstructions: customInstructions }
       if (repoPathVal !== savedRepoPath && repoPathVal.trim()) {
         try {
           await window.api.saveSettings(allSettings)
@@ -96,7 +101,7 @@ export function Settings() {
           setRepoPathError('')
         } catch {
           setRepoPathError('Invalid repo path — no reports found at that location')
-          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions })
+          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions })
           setSaving(false)
           return
         }
@@ -107,6 +112,7 @@ export function Settings() {
       setSavedModel(model)
       setSavedCheckInFreq(checkInFreq)
       setSavedFeedbackDays(feedbackDays)
+      setSavedStaleActionDays(staleActionDays)
       setSavedSprintLength(sprintLength)
       setSavedEndOfWeekDay(endOfWeekDay)
       setSavedSprintStartDate(sprintStartDate)
@@ -331,6 +337,33 @@ export function Settings() {
             </div>
             <p className="text-xs text-zinc-600 mt-2">
               Fridays will remind you to log feedback for anyone who hasn't received any in this many days.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-300">
+                Stale action item threshold
+              </span>
+            </div>
+            <div className="relative">
+              <select
+                value={staleActionDays}
+                onChange={(e) => setStaleActionDays(Number(e.target.value))}
+                aria-label="Stale action item threshold in days"
+                className="w-full appearance-none px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors"
+              >
+                <option value={3}>3 days</option>
+                <option value={5}>5 days</option>
+                <option value={7}>7 days (default)</option>
+                <option value={10}>10 days</option>
+                <option value={14}>14 days</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" aria-hidden="true" />
+            </div>
+            <p className="text-xs text-zinc-600 mt-2">
+              Action items open longer than this are flagged as stale in the Today view.
             </p>
           </div>
 

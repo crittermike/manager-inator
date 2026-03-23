@@ -6,7 +6,62 @@ import { IMPACT_LOG_PATH } from '../../../shared/constants'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, Check, ChevronDown, ChevronRight } from 'lucide-react'
+
+const EditableSection = ({
+  title,
+  content,
+  setContent,
+  approved,
+  setApproved,
+  collapsed,
+  setCollapsed
+}: {
+  title: string
+  content: string
+  setContent: (val: string) => void
+  approved: boolean
+  setApproved: (val: boolean) => void
+  collapsed: boolean
+  setCollapsed: (val: boolean) => void
+}) => {
+  if (!content) return null
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between p-3 bg-surface-raised/50">
+        <button 
+          type="button"
+          className="flex items-center gap-2 cursor-pointer select-none text-zinc-400 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-sm transition-colors"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <h4 className="text-xs font-medium uppercase tracking-wider">{title}</h4>
+        </button>
+        <label className="text-xs text-zinc-400 cursor-pointer flex items-center gap-1.5">
+          <input 
+            type="checkbox" 
+            className="sr-only peer"
+            checked={approved} 
+            onChange={(e) => setApproved(e.target.checked)} 
+          />
+          <span className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${approved ? 'bg-brand border-brand' : 'border-border bg-surface'} peer-focus-visible:ring-2 peer-focus-visible:ring-brand/50`}>
+            {approved && <Check className="w-3 h-3 text-white" />}
+          </span>
+          Approve
+        </label>
+      </div>
+      {!collapsed && (
+        <div className="p-3 border-t border-border bg-surface">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full bg-surface-raised/50 text-zinc-200 border border-border rounded-lg text-sm p-3 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 focus:outline-none min-h-[120px] resize-y"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function InlineProcessor({
   filename,
@@ -29,6 +84,18 @@ export function InlineProcessor({
   const [feedback, setFeedback] = useState('')
   const [impact, setImpact] = useState('')
   const [processingLabel, setProcessingLabel] = useState('')
+  const [approved, setApproved] = useState({
+    summary: true,
+    actionItems: true,
+    feedback: true,
+    impact: true
+  })
+  const [collapsed, setCollapsed] = useState({
+    summary: false,
+    actionItems: false,
+    feedback: false,
+    impact: false
+  })
   const mountedRef = useRef(true)
   const cancelledRef = useRef(false)
 
@@ -133,24 +200,69 @@ export function InlineProcessor({
       const date = dateMatch?.[1] || format(new Date(), 'yyyy-MM-dd')
       const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.md$/, '').replace(/-/g, ' ')
 
-      if (summary) {
-        let summaryToSave = summary
-        if (titleSlug) {
-          const fmMatch = summaryToSave.match(/^---\n([\s\S]*?)\n---/)
+      let meetingContent = ''
+      let shouldSaveMeeting = false
+
+      if (approved.summary && summary) {
+        meetingContent = summary
+        shouldSaveMeeting = true
+      }
+
+      if (shouldSaveMeeting || (approved.actionItems && actionItems)) {
+        if (!shouldSaveMeeting) {
+          meetingContent = `---\ntitle: ${titleSlug}\n---\n`
+        } else {
+          const fmMatch = meetingContent.match(/^---\n([\s\S]*?)\n---/)
           if (fmMatch) {
-            summaryToSave = `---\ntitle: ${titleSlug}\n${fmMatch[1]}\n---` + summaryToSave.slice(fmMatch[0].length)
+            meetingContent = `---\ntitle: ${titleSlug}\n${fmMatch[1]}\n---` + meetingContent.slice(fmMatch[0].length)
           } else {
-            summaryToSave = `---\ntitle: ${titleSlug}\n---\n\n${summaryToSave}`
+            meetingContent = `---\ntitle: ${titleSlug}\n---\n\n${meetingContent}`
           }
         }
+
+        if (approved.actionItems && actionItems) {
+          meetingContent += `\n\n## Action Items\n\n${actionItems}`
+        }
+
         await window.api.commitFile(
           `meetings/${filename}`,
-          summaryToSave,
-          `Add meeting summary: ${titleSlug} on ${date}`
+          meetingContent,
+          `Process meeting notes: ${titleSlug} on ${date}`
         )
       }
 
-      if (impact && !impact.includes('No manager impact')) {
+      if (approved.feedback && feedback && !feedback.includes('No feedback')) {
+        const mentionedReports = reports.filter(r => feedback.includes(r.displayName))
+        if (mentionedReports.length === 0) {
+          toast.error('Skipped feedback: no reports mentioned')
+        } else {
+          for (const report of mentionedReports) {
+            const feedbackLogPath = `reports/${report.name}/feedback/log.md`
+            let type = 'mixed'
+            const lowerFeedback = feedback.toLowerCase()
+            if (lowerFeedback.includes('positive') && !lowerFeedback.includes('constructive')) {
+              type = 'positive'
+            } else if (lowerFeedback.includes('constructive') && !lowerFeedback.includes('positive')) {
+              type = 'constructive'
+            }
+
+            const entry = `### ${date} — ${type}\n**Source:** ${titleSlug}\n**Context:** Meeting on ${date}\n\n> ${feedback}\n\n---\n\n`
+            
+            let currentLog = ''
+            try {
+              currentLog = await window.api.getFileContent(feedbackLogPath)
+            } catch (e) {}
+            
+            await window.api.commitFile(
+              feedbackLogPath,
+              entry + currentLog,
+              `Add feedback from ${titleSlug} on ${date}`
+            )
+          }
+        }
+      }
+
+      if (approved.impact && impact && !impact.includes('No manager impact')) {
         try {
           const currentLog = await window.api.getImpactLog()
           const entry = `\n\n### ${date} — ${titleSlug}\n\n${impact}`
@@ -220,36 +332,48 @@ export function InlineProcessor({
   return (
     <div className="space-y-4 py-4 px-1">
       {summary && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Summary</h4>
-          <div className="prose-dark text-sm max-h-48 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
-          </div>
-        </div>
+        <EditableSection
+          title="Summary"
+          content={summary}
+          setContent={setSummary}
+          approved={approved.summary}
+          setApproved={(val) => setApproved(prev => ({ ...prev, summary: val }))}
+          collapsed={collapsed.summary}
+          setCollapsed={(val) => setCollapsed(prev => ({ ...prev, summary: val }))}
+        />
       )}
       {actionItems && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Action items</h4>
-          <div className="prose-dark text-sm max-h-32 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{actionItems}</ReactMarkdown>
-          </div>
-        </div>
+        <EditableSection
+          title="Action items"
+          content={actionItems}
+          setContent={setActionItems}
+          approved={approved.actionItems}
+          setApproved={(val) => setApproved(prev => ({ ...prev, actionItems: val }))}
+          collapsed={collapsed.actionItems}
+          setCollapsed={(val) => setCollapsed(prev => ({ ...prev, actionItems: val }))}
+        />
       )}
       {feedback && !feedback.includes('No feedback') && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Feedback</h4>
-          <div className="prose-dark text-sm max-h-32 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{feedback}</ReactMarkdown>
-          </div>
-        </div>
+        <EditableSection
+          title="Feedback"
+          content={feedback}
+          setContent={setFeedback}
+          approved={approved.feedback}
+          setApproved={(val) => setApproved(prev => ({ ...prev, feedback: val }))}
+          collapsed={collapsed.feedback}
+          setCollapsed={(val) => setCollapsed(prev => ({ ...prev, feedback: val }))}
+        />
       )}
       {impact && !impact.includes('No manager impact') && (
-        <div>
-          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Your impact</h4>
-          <div className="prose-dark text-sm max-h-32 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{impact}</ReactMarkdown>
-          </div>
-        </div>
+        <EditableSection
+          title="Your impact"
+          content={impact}
+          setContent={setImpact}
+          approved={approved.impact}
+          setApproved={(val) => setApproved(prev => ({ ...prev, impact: val }))}
+          collapsed={collapsed.impact}
+          setCollapsed={(val) => setCollapsed(prev => ({ ...prev, impact: val }))}
+        />
       )}
       <div className="flex items-center gap-2 pt-2">
         <button

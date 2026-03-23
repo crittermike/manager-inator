@@ -31,7 +31,8 @@ import {
   ChevronDown,
   ChevronRight,
   Filter,
-  Plus
+  Plus,
+  AlertCircle
 } from 'lucide-react'
 
 // ── Types ──
@@ -417,7 +418,7 @@ export function ReportDetail() {
 
   const handleEditAbout = useCallback(() => {
     if (!report) return
-    setAboutDraft(report.profile.about.replace(/<!--[\s\S]*?-->/g, '').trim())
+    setAboutDraft((report.profile.about || '').replace(/<!--[\s\S]*?-->/g, '').trim())
     setEditingAbout(true)
   }, [report])
 
@@ -609,7 +610,7 @@ export function ReportDetail() {
 
   const filteredEntries = useMemo(() => {
     if (activeFilter === 'all') return streamEntries
-    return streamEntries.filter(e => e.type === activeFilter)
+    return streamEntries.filter(e => e.pinned || e.type === activeFilter)
   }, [streamEntries, activeFilter])
 
   // ── Loading / Error states ──
@@ -624,8 +625,23 @@ export function ReportDetail() {
 
   if (error || !report) {
     return (
-      <div className="flex items-center justify-center h-full text-zinc-400">
-        {error || 'Report not found'}
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center space-y-4 p-8 bg-surface-raised/50 rounded-2xl border border-border max-w-sm">
+          <div className="w-12 h-12 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
+            <AlertCircle className="w-6 h-6 text-zinc-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-zinc-300 mb-1">{error || 'Report not found'}</h3>
+            <p className="text-xs text-zinc-500">This person may not exist in your data repo, or the profile hasn't been set up yet.</p>
+          </div>
+          <button
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Today
+          </button>
+        </div>
       </div>
     )
   }
@@ -644,7 +660,7 @@ export function ReportDetail() {
     all: streamEntries.length,
     '1:1': streamEntries.filter(e => e.type === '1:1').length,
     feedback: streamEntries.filter(e => e.type === 'feedback').length,
-    action: report.actionItems.length,
+    action: report.actionItems.filter(a => !a.completed).length,
     checkin: streamEntries.filter(e => e.type === 'checkin').length,
     review: streamEntries.filter(e => e.type === 'review').length
   }
@@ -664,11 +680,11 @@ export function ReportDetail() {
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       {/* Back + breadcrumb */}
       <button
-        onClick={() => navigate('/team')}
+        onClick={() => navigate('/')}
         className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-        Team
+        Today
       </button>
 
       {/* ── Profile header ── */}
@@ -680,76 +696,90 @@ export function ReportDetail() {
           <h1 className="text-2xl font-bold text-zinc-100">
             {report.profile.displayName}
           </h1>
-          <div className="flex items-center gap-4 mt-1 text-sm text-zinc-500 flex-wrap">
-            {report.profile.role && (
-              <span className="flex items-center gap-1">
-                <Briefcase className="w-3.5 h-3.5" aria-hidden="true" />
-                {report.profile.role}
-              </span>
-            )}
-            {report.profile.github && (
-              <span className="flex items-center gap-1">
-                <GithubIcon className="w-3.5 h-3.5" aria-hidden="true" />
-                @{report.profile.github}
-              </span>
-            )}
-            {report.profile.meetingDay && (
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-                {report.profile.meetingDay}s
-              </span>
-            )}
-            {report.profile.location && (
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
-                {report.profile.location}
-              </span>
-            )}
-          </div>
+          {report.profile.meetingDay && (
+            <div className="flex items-center gap-1 mt-1 text-sm text-zinc-500">
+              <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
+              {report.profile.meetingDay}s
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── Key Facts Bar ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last 1:1</div>
-          {lastTranscript ? (
-            <>
-              <div className="text-sm font-medium text-zinc-200">{formatDate(lastTranscript.date)}</div>
-              <div className="text-xs text-zinc-500 mt-0.5">{daysSince1on1} day{daysSince1on1 !== 1 ? 's' : ''} ago</div>
-            </>
-          ) : (
-            <div className="text-sm text-zinc-600">None recorded</div>
+      <div className="space-y-3">
+        {/* Identity facts */}
+        <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap bg-surface rounded-xl border border-border px-4 py-3">
+          {report.profile.role && (
+            <span className="flex items-center gap-1.5">
+              <Briefcase className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+              {report.profile.role}
+            </span>
+          )}
+          {report.profile.github && (
+            <span className="flex items-center gap-1.5">
+              <GithubIcon className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+              @{report.profile.github}
+            </span>
+          )}
+          {report.profile.location && (
+            <span className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+              {report.profile.location}
+            </span>
+          )}
+          {report.profile.timezone && (
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+              {report.profile.timezone}
+            </span>
+          )}
+          {!report.profile.role && !report.profile.github && !report.profile.location && !report.profile.timezone && (
+            <span className="text-zinc-600">No profile details set</span>
           )}
         </div>
 
-        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Next 1:1</div>
-          {nextMeeting ? (
-            <div className="text-sm font-medium text-zinc-200">{formatDate(nextMeeting)}</div>
-          ) : (
-            <div className="text-sm text-zinc-600">Not scheduled</div>
-          )}
-        </div>
+        {/* Metric facts */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last 1:1</div>
+            {lastTranscript ? (
+              <>
+                <div className="text-sm font-medium text-zinc-200">{formatDate(lastTranscript.date)}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">{daysSince1on1} day{daysSince1on1 !== 1 ? 's' : ''} ago</div>
+              </>
+            ) : (
+              <div className="text-sm text-zinc-600">None recorded</div>
+            )}
+          </div>
 
-        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Open actions</div>
-          <div className="text-sm font-medium text-zinc-200">{openActionCount}</div>
-          {report.actionItems.filter(a => a.completed).length > 0 && (
-            <div className="text-xs text-zinc-500 mt-0.5">{report.actionItems.filter(a => a.completed).length} completed</div>
-          )}
-        </div>
+          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Next 1:1</div>
+            {nextMeeting ? (
+              <div className="text-sm font-medium text-zinc-200">{formatDate(nextMeeting)}</div>
+            ) : (
+              <div className="text-sm text-zinc-600">Not scheduled</div>
+            )}
+          </div>
 
-        <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last feedback</div>
-          {daysSinceFeedback !== null ? (
-            <>
-              <div className="text-sm font-medium text-zinc-200">{daysSinceFeedback} day{daysSinceFeedback !== 1 ? 's' : ''} ago</div>
-              <div className="text-xs text-zinc-500 mt-0.5">{report.feedback.length} total</div>
-            </>
-          ) : (
-            <div className="text-sm text-zinc-600">None logged</div>
-          )}
+          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Open actions</div>
+            <div className="text-sm font-medium text-zinc-200">{openActionCount}</div>
+            {report.actionItems.filter(a => a.completed).length > 0 && (
+              <div className="text-xs text-zinc-500 mt-0.5">{report.actionItems.filter(a => a.completed).length} completed</div>
+            )}
+          </div>
+
+          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last feedback</div>
+            {daysSinceFeedback !== null ? (
+              <>
+                <div className="text-sm font-medium text-zinc-200">{daysSinceFeedback} day{daysSinceFeedback !== 1 ? 's' : ''} ago</div>
+                <div className="text-xs text-zinc-500 mt-0.5">{report.feedback.length} total</div>
+              </>
+            ) : (
+              <div className="text-sm text-zinc-600">None logged</div>
+            )}
+          </div>
         </div>
       </div>
 
