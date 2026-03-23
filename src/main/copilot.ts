@@ -121,7 +121,7 @@ export async function aiGenerate(
       streaming: true,
       ...(isChat
         ? {
-            availableTools: ['read_file', 'list_directory'],
+            availableTools: ['view', 'ls'],
             workingDirectory: settings.repoPath,
             systemMessage: systemMessages
               ? { mode: 'append' as const, content: systemMessages }
@@ -194,14 +194,17 @@ export async function aiGenerate(
     ])
     debugLog('[Copilot SDK] sendAndWait returned:', typeof response)
 
-    // Extract content from sendAndWait return value
+    // Extract content from sendAndWait return value (AssistantMessageEvent)
+    // The SDK returns { type: "assistant.message", data: { content: "..." } }
     let returnContent = ''
     if (response) {
       if (typeof response === 'string') {
         returnContent = response
       } else if (typeof response === 'object') {
         const r = response as Record<string, unknown>
-        returnContent = ((r.content || r.text || r.message) as string) || ''
+        const data = r.data as Record<string, unknown> | undefined
+        const candidate = data?.content || r.content || r.text || r.message
+        returnContent = typeof candidate === 'string' ? candidate : ''
       }
     }
 
@@ -519,7 +522,7 @@ ${context.crossMeetingMentions ? `Mentions of ${context.reportName} in other rec
       // Give the agent a map of the data repo so it knows where to look
       messages.push({
         role: 'system',
-        content: `You have read-only access to the manager's data repository via read_file and list_directory tools. Use them to look up specific information when answering questions.
+        content: `You have read-only access to the manager's data repository via the "view" tool (reads a file) and the "ls" tool (lists a directory). Use them to look up specific information when answering questions.
 
 DATA REPO STRUCTURE:
 reports/{name}/              — One directory per direct report
@@ -539,7 +542,7 @@ people/                      — Profiles for anyone (not just direct reports)
 mike-impact-log.md           — Manager's impact evidence log
 
 TIPS:
-- Start with list_directory to see what's available before reading specific files.
+- Start with ls to see what's available before reading specific files with view.
 - Every file in meetings/ is a summary. Raw transcripts are in transcripts/processed/.
 - Check-in files are in check-ins/monthly/ and named by YYYY-MM.
 - When looking for info about a person, check both reports/{name}/ and people/{slug}.md.`

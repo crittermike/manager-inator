@@ -293,7 +293,7 @@ function titleCase(value: string): string {
 }
 
 function deriveMeetingTitleFromContent(filename: string, content: string): string {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (fmMatch) {
     const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
     if (titleMatch?.[1]) return titleMatch[1].trim()
@@ -556,7 +556,7 @@ export function getTeamOverview(): TeamOverview {
 // Cache meeting file lists and speaker map to avoid re-scanning 300+ files on every call.
 // Invalidated on commit (which means we wrote new data).
 
-let _meetingsCache: { files: string[]; meetings: string[]; speakerMap: Map<string, string[]>; titleMap: Map<string, string> } | null = null
+let _meetingsCache: { files: string[]; meetings: string[]; speakerMap: Map<string, string[]>; titleMap: Map<string, string>; hasFrontmatter: Set<string> } | null = null
 
 function invalidateMeetingsCache(): void { _meetingsCache = null }
 
@@ -567,6 +567,7 @@ function getMeetingsCache() {
 
   const speakerMap = new Map<string, string[]>()
   const titleMap = new Map<string, string>()
+  const hasFrontmatter = new Set<string>()
   for (const mf of meetings) {
     try {
       const content = getFileContent(`meetings/${mf}`).slice(0, 800)
@@ -574,15 +575,16 @@ function getMeetingsCache() {
       if (speakers.length > 0) {
         speakerMap.set(mf, speakers)
       }
-      const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+      const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
       if (fmMatch) {
+        hasFrontmatter.add(mf)
         const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
         if (titleMatch) titleMap.set(mf, titleMatch[1].trim())
       }
     } catch { /* skip */ }
   }
 
-  _meetingsCache = { files, meetings, speakerMap, titleMap }
+  _meetingsCache = { files, meetings, speakerMap, titleMap, hasFrontmatter }
   return _meetingsCache
 }
 
@@ -596,7 +598,7 @@ export function listMeetings(): MeetingEntry[] {
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
       const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
       const title = cache.titleMap.get(f) || filenameTitle
-      const processed = cache.titleMap.has(f) || cache.speakerMap.has(f)
+      const processed = cache.hasFrontmatter.has(f)
       return { date: dateMatch?.[1] || name, title, filename: f, processed }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -617,7 +619,7 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
 
   try {
     let content = getFileContent(meetingPath)
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     if (fmMatch) {
       let fm = fmMatch[1]
       if (/^title:\s/m.test(fm)) {
@@ -640,7 +642,7 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
 
 /** Parse speakers list from YAML frontmatter of a summary file */
 function parseSpeakers(content: string): string[] {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!fmMatch) return []
   const speakersMatch = fmMatch[1].match(/speakers:\s*\n((?:\s+-\s+.+\n?)*)/)
   if (!speakersMatch) return []
@@ -708,7 +710,7 @@ export function listPeople(): PersonEntry[] {
       const content = getFileContent(`people/${f}`)
       const slug = f.replace('.md', '')
 
-      const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+      const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
       const fm: Record<string, string> = {}
       if (fmMatch) {
         for (const line of fmMatch[1].split('\n')) {

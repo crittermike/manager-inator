@@ -51,9 +51,12 @@ function titleFromMessage(content: string): string {
 
 function friendlyToolStatus(toolName: string, args: Record<string, unknown>): string {
   const path = (args.path as string) || (args.filePath as string) || ''
-  if (toolName === 'read_file' && path) return `Reading ${path}`
-  if (toolName === 'list_directory' && path) return `Browsing ${path}`
-  if (toolName === 'list_directory') return 'Browsing directory'
+  if (toolName === 'view' && path) return `Reading ${path}`
+  if (toolName === 'ls' && path) return `Browsing ${path}`
+  if (toolName === 'ls') return 'Browsing directory'
+  if (toolName === 'grep' && path) return `Searching ${path}`
+  if (toolName === 'grep') return 'Searching files'
+  if (toolName === 'glob') return 'Finding files'
   if (path) return `${toolName}: ${path}`
   return toolName
 }
