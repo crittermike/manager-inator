@@ -93,7 +93,12 @@ app.whenReady().then(() => {
   createWindow()
 
   // Pre-warm caches after window is shown so first navigation is instant
-  setTimeout(() => preWarmCaches(), 500)
+  setTimeout(() => preWarmCaches((message) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('app:loading-progress', { message })
+    }
+  }), 500)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

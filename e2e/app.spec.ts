@@ -15,7 +15,12 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  if (app) await app.close()
+  if (app) {
+    await Promise.race([
+      app.close(),
+      new Promise(resolve => setTimeout(resolve, 5000))
+    ])
+  }
 })
 
 test('app window opens', async () => {

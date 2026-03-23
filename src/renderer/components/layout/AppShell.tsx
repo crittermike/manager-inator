@@ -30,6 +30,7 @@ export function AppShell({ children }: AppShellProps) {
   const toast = useToast()
   const reports = overview?.reports ?? []
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
+  const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const cleanup = window.api.onPushStatus((data) => {
@@ -39,6 +40,12 @@ export function AppShell({ children }: AppShellProps) {
     })
     return cleanup
   }, [toast])
+
+  useEffect(() => {
+    window.api.getSettings().then((s) => {
+      setPtoReports(s.ptoReports || {})
+    }).catch(() => {})
+  }, [])
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-zinc-950 text-zinc-100">
@@ -93,6 +100,8 @@ export function AppShell({ children }: AppShellProps) {
               {reports.map((r) => {
                 const path = `/report/${r.name}`
                 const active = location.pathname === path
+                const expiry = ptoReports[r.name]
+                const onPto = !!expiry && new Date(expiry) > new Date()
                 return (
                   <button
                     key={r.name}
@@ -109,6 +118,11 @@ export function AppShell({ children }: AppShellProps) {
                       {r.displayName.charAt(0)}
                     </div>
                     <span className="truncate">{r.displayName}</span>
+                    {onPto && (
+                      <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        PTO
+                      </span>
+                    )}
                   </button>
                 )
               })}

@@ -16,7 +16,10 @@ import {
   Cpu,
   ChevronDown,
   CalendarClock,
-  MessageSquare
+  MessageSquare,
+  Github,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 
 export function Settings() {
@@ -44,9 +47,15 @@ export function Settings() {
   const [savedEndOfWeekDay, setSavedEndOfWeekDay] = useState<DayOfWeek>('friday')
   const [savedSprintStartDate, setSavedSprintStartDate] = useState('')
   const [savedCustomInstructions, setSavedCustomInstructions] = useState('')
+  const [githubOrgName, setGithubOrgName] = useState('')
+  const [savedGithubOrgName, setSavedGithubOrgName] = useState('')
+  const [githubOrgToken, setGithubOrgToken] = useState('')
+  const [savedGithubOrgToken, setSavedGithubOrgToken] = useState('')
+  const [showOrgToken, setShowOrgToken] = useState(false)
+  const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
   const [repoPathError, setRepoPathError] = useState('')
 
-  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions
+  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
   const saveRef = useRef<() => void>(() => {})
 
@@ -54,7 +63,7 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
@@ -64,6 +73,7 @@ export function Settings() {
         const eow = s.endOfWeekDay || 'friday'
         const ssd = s.sprintStartDate || ''
         const ci = s.aiCustomInstructions || ''
+        const gon = s.githubOrgName || ''
         setRepoPathVal(rp)
         setModel(m)
         setCheckInFreq(cif)
@@ -73,6 +83,8 @@ export function Settings() {
         setEndOfWeekDay(eow)
         setSprintStartDate(ssd)
         setCustomInstructions(ci)
+        setGithubOrgName(gon)
+        setHasGithubOrgToken(!!s.hasGithubOrgToken)
         setSavedRepoPath(rp)
         setSavedModel(m)
         setSavedCheckInFreq(cif)
@@ -82,6 +94,7 @@ export function Settings() {
         setSavedEndOfWeekDay(eow)
         setSavedSprintStartDate(ssd)
         setSavedCustomInstructions(ci)
+        setSavedGithubOrgName(gon)
         setLoading(false)
       })
       .catch(() => {
@@ -93,7 +106,19 @@ export function Settings() {
     if (saving) return
     setSaving(true)
     try {
-      const allSettings = { repoPath: repoPathVal, defaultModel: model, checkInFrequency: checkInFreq, feedbackReminderDays: feedbackDays, staleActionDays, sprintLengthWeeks: sprintLength, endOfWeekDay, sprintStartDate, aiCustomInstructions: customInstructions }
+      const allSettings = { 
+        repoPath: repoPathVal, 
+        defaultModel: model, 
+        checkInFrequency: checkInFreq, 
+        feedbackReminderDays: feedbackDays, 
+        staleActionDays, 
+        sprintLengthWeeks: sprintLength, 
+        endOfWeekDay, 
+        sprintStartDate, 
+        aiCustomInstructions: customInstructions, 
+        githubOrgName,
+        ...(githubOrgToken ? { githubOrgToken } : {})
+      }
       if (repoPathVal !== savedRepoPath && repoPathVal.trim()) {
         try {
           await window.api.saveSettings(allSettings)
@@ -101,12 +126,15 @@ export function Settings() {
           setRepoPathError('')
         } catch {
           setRepoPathError('Invalid repo path — no reports found at that location')
-          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions })
+          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions, githubOrgName: savedGithubOrgName })
           setSaving(false)
           return
         }
       } else {
         await window.api.saveSettings(allSettings)
+      }
+      if (githubOrgToken) {
+        setHasGithubOrgToken(true)
       }
       setSavedRepoPath(repoPathVal)
       setSavedModel(model)
@@ -117,6 +145,9 @@ export function Settings() {
       setSavedEndOfWeekDay(endOfWeekDay)
       setSavedSprintStartDate(sprintStartDate)
       setSavedCustomInstructions(customInstructions)
+      setSavedGithubOrgName(githubOrgName)
+      setGithubOrgToken('')
+      setSavedGithubOrgToken('')
       setSaved(true)
       toast.success('Settings saved')
       setTimeout(() => setSaved(false), 2000)
@@ -280,6 +311,67 @@ export function Settings() {
           <p className="text-xs text-zinc-600">
             These instructions are included in every AI prompt (check-ins, reviews, prep, chat, etc.).
           </p>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+          GitHub Organization
+        </h2>
+        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Github className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-300">
+                Organization name
+              </span>
+            </div>
+            <input
+              type="text"
+              value={githubOrgName}
+              onChange={(e) => setGithubOrgName(e.target.value)}
+              placeholder="e.g. github, vercel, my-org"
+              aria-label="GitHub Organization name"
+              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand transition-colors"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <Github className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                <span className="text-sm font-medium text-zinc-300">
+                  Personal Access Token (PAT)
+                </span>
+              </div>
+              {hasGithubOrgToken && (
+                <span className="text-xs text-success flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Token configured
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type={showOrgToken ? "text" : "password"}
+                value={githubOrgToken}
+                onChange={(e) => setGithubOrgToken(e.target.value)}
+                placeholder={hasGithubOrgToken ? "Enter new token to replace existing" : "ghp_..."}
+                aria-label="GitHub Personal Access Token"
+                className="w-full pl-4 pr-10 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOrgToken(!showOrgToken)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                aria-label={showOrgToken ? "Hide token" : "Show token"}
+              >
+                {showOrgToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-zinc-600 mt-2">
+              Provide a fine-grained or classic PAT with read-only access to your organization. Used to show team PR/issue activity in the Today view.
+            </p>
+          </div>
         </div>
       </section>
 

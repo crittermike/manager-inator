@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "electron-vite build && playwright test",
     "qa:search": "node scripts/qa-search.mjs"
   },
   "keywords": [],
@@ -36,7 +36,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "autoprefixer": "^10.4.27",
     "concurrently": "^9.2.1",
     "electron": "^41.0.3",

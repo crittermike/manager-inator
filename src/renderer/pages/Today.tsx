@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTeamOverview } from '../hooks/useData'
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, RawTranscriptEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { matchesMeetingDay } from '../utils/meetingDay'
 import {
   AlertCircle,
@@ -19,7 +19,9 @@ import {
   Users,
   AlertTriangle,
   Eye,
-  Sparkles
+  Sparkles,
+  GitPullRequest,
+  CircleDot
 } from 'lucide-react'
 import { InlineProcessor, InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
@@ -131,6 +133,7 @@ function getPracticeIdForItem(itemId: string): string | null {
 function computeTimelineItems(
   reports: ReportStatus[],
   meetings: MeetingEntry[],
+  rawTranscripts: RawTranscriptEntry[],
   cadence: CadenceSettings,
   doneIds: Set<string>,
   teamActions: TeamActionItem[],
@@ -504,19 +507,16 @@ function computeTimelineItems(
     })
   }
 
-  // ── Inbox: unprocessed meeting transcripts ──
-  for (const m of meetings) {
-    if (!m.processed) {
-      items.push({
-        id: `inbox-${m.filename}`,
-        section: doneIds.has(`inbox-${m.filename}`) ? 'done' : 'inbox',
-        title: m.title || m.filename.replace('.md', ''),
-        subtitle: `Transcript from ${m.date} — ready to process`,
-        meetingFilename: m.filename,
-        actionLabel: 'Process',
-        actionType: 'process'
-      })
-    }
+  for (const rt of rawTranscripts) {
+    items.push({
+      id: `inbox-${rt.filename}`,
+      section: doneIds.has(`inbox-${rt.filename}`) ? 'done' : 'inbox',
+      title: rt.title || rt.filename,
+      subtitle: `Transcript from ${rt.date} — ready to process`,
+      meetingFilename: rt.filename,
+      actionLabel: 'Process',
+      actionType: 'process'
+    })
   }
 
   // ── Custom practices: fire on Today based on cadence ──
@@ -768,11 +768,13 @@ export function Today() {
   const navigate = useNavigate()
   const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
+  const [rawTranscripts, setRawTranscripts] = useState<RawTranscriptEntry[]>([])
   const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
   const [customPractices, setCustomPractices] = useState<CustomPractice[]>([])
   const [disabledPractices, setDisabledPractices] = useState<string[]>([])
   const [snoozedPractices, setSnoozedPractices] = useState<Record<string, string>>({})
   const [snoozedActionItems, setSnoozedActionItems] = useState<Record<string, string>>({})
+  const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [cadence, setCadence] = useState<CadenceSettings>({
     checkInFrequency: 'monthly',
     feedbackReminderDays: 14,
@@ -797,6 +799,12 @@ export function Today() {
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [processingItem, setProcessingItem] = useState<string | null>(null)
 
+  const [teamActivity, setTeamActivity] = useState<TeamMemberActivity[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
+  const [activityExpanded, setActivityExpanded] = useState(true)
+  const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({})
+
   useEffect(() => {
     const todayKey = format(new Date(), 'yyyy-MM-dd')
     localStorage.setItem(`today-done-${todayKey}`, JSON.stringify([...doneIds]))
@@ -818,6 +826,7 @@ export function Today() {
 
   useEffect(() => {
     window.api.listMeetings().then(setMeetings).catch(() => {})
+    window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
     window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
     window.api.getSettings().then((s) => {
       setCadence({
@@ -843,8 +852,27 @@ export function Today() {
         if (new Date(dateStr) > now) validAI[id] = dateStr
       }
       setSnoozedActionItems(validAI)
+      setPtoReports(s.ptoReports || {})
+      setHasGithubOrgToken(s.hasGithubOrgToken || false)
     }).catch(() => {})
   }, [])
+
+  const fetchTeamActivity = useCallback(async () => {
+    if (!hasGithubOrgToken) return
+    setActivityLoading(true)
+    try {
+      const data = await window.api.getTeamActivity()
+      setTeamActivity(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setActivityLoading(false)
+    }
+  }, [hasGithubOrgToken])
+
+  useEffect(() => {
+    fetchTeamActivity()
+  }, [fetchTeamActivity])
 
   const reports = overview?.reports ?? []
 
@@ -859,7 +887,7 @@ export function Today() {
   }, [teamActions, snoozedActionItems])
 
   const items = useMemo(() => {
-    const raw = computeTimelineItems(reports, meetings, cadence, doneIds, filteredTeamActions, customPractices)
+    const raw = computeTimelineItems(reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices)
     return raw.filter(item => {
       const practiceId = getPracticeIdForItem(item.id)
       if (!practiceId) return true
@@ -867,8 +895,13 @@ export function Today() {
       const snoozeExpiry = snoozedPractices[practiceId]
       if (snoozeExpiry && new Date(snoozeExpiry) > new Date()) return false
       return true
+    }).filter(item => {
+      if (!item.reportName) return true
+      const expiry = ptoReports[item.reportName]
+      if (expiry && new Date(expiry) > new Date()) return false
+      return true
     })
-  }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices])
+  }, [reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports])
 
   const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'upcoming', 'inbox', 'coming-up', 'done']
 
@@ -890,6 +923,22 @@ export function Today() {
     })
     setExpandedItem(null)
   }, [])
+
+  const handleActionToggle = useCallback(async (action: TeamActionItem) => {
+    if (!action.sourceFile || action.sourceLineNumber == null) return
+    try {
+      await window.api.toggleActionItem(action.sourceFile, action.sourceLineNumber)
+      setTeamActions(prev => prev.map(item => {
+        if (item.sourceFile === action.sourceFile && item.sourceLineNumber === action.sourceLineNumber) {
+          return { ...item, completed: !item.completed }
+        }
+        return item
+      }))
+    } catch {
+      toast.error('Failed to toggle action item')
+      throw new Error('Failed to toggle action item')
+    }
+  }, [toast])
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
@@ -914,12 +963,12 @@ export function Today() {
 
       try {
         await window.api.commitFile(
-          `meetings/${filename}.md`,
-          `# ${stem} — ${today}\n\n${text}`,
+          `transcripts/raw/${filename}.txt`,
+          text,
           `Add meeting transcript: ${stem} on ${today}`
         )
         toast.success(`Transcript saved — process it from your inbox`)
-        window.api.listMeetings().then(setMeetings).catch(() => {})
+        window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
       } catch (err) {
         toast.error('Failed to save transcript: ' + (err instanceof Error ? err.message : 'Unknown error'))
       }
@@ -1024,7 +1073,9 @@ export function Today() {
           onClick={() => {
             refresh()
             window.api.listMeetings().then(setMeetings).catch(() => {})
+            window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
             window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
+            if (hasGithubOrgToken) fetchTeamActivity()
           }}
           className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
         >
@@ -1217,7 +1268,11 @@ export function Today() {
                               markDone(item.id)
                               setProcessingItem(null)
                               window.api.listMeetings().then(setMeetings).catch(() => {})
+                              window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
                               window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
+                            }}
+                            onProcessed={() => {
+                              window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
                             }}
                             onCancel={() => {
                               setProcessingItem(null)
@@ -1252,9 +1307,7 @@ export function Today() {
                             onCancel={() => {
                               setExpandedItem(null)
                             }}
-                            onRefresh={() => {
-                              window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
-                            }}
+                            onToggleAction={handleActionToggle}
                             onSnooze={(actionKey, untilDate) => {
                               setSnoozedActionItems(prev => {
                                 const next = { ...prev, [actionKey]: untilDate }
@@ -1303,6 +1356,148 @@ export function Today() {
           </div>
         )
       })}
+
+      {hasGithubOrgToken && (
+        <div className="bg-surface rounded-xl border border-border overflow-hidden border-l-[3px] border-l-purple-500/50 transition-all">
+          <div
+            onClick={() => setActivityExpanded(!activityExpanded)}
+            className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-lg bg-purple-500/10">
+                <GitPullRequest className="w-4 h-4 text-purple-400" aria-hidden="true" />
+              </div>
+              <span className="text-sm font-semibold text-zinc-200">Team Activity (24h)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fetchTeamActivity()
+                }}
+                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                title="Refresh Activity"
+              >
+                <RefreshCw className={`w-4 h-4 ${activityLoading ? 'animate-spin' : ''}`} />
+              </button>
+              {activityExpanded
+                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+              }
+            </div>
+          </div>
+
+          {activityExpanded && (
+            <div className="border-t border-border animate-slide-down">
+              {activityLoading ? (
+                <div className="p-5 space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                      <div className="w-8 h-8 rounded-full bg-surface-raised shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-surface-raised rounded w-1/4" />
+                        <div className="h-3 bg-surface-raised rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : teamActivity.length === 0 || teamActivity.every(m => m.items.length === 0 && !m.error) ? (
+                <div className="px-5 py-8 text-center text-sm text-zinc-500">
+                  No GitHub activity detected in the last 24 hours
+                </div>
+              ) : (
+                <div className="divide-y divide-border/30">
+                  {teamActivity.map(member => {
+                    const isMemberExpanded = expandedMembers[member.reportName]
+                    const isEmpty = member.items.length === 0
+                    
+                    return (
+                      <div key={member.reportName}>
+                        <div 
+                          className="flex items-center justify-between px-5 py-3.5 group cursor-pointer hover:bg-surface-raised/40 transition-all duration-150"
+                          onClick={() => {
+                            if (!isEmpty && !member.error) {
+                              setExpandedMembers(prev => ({
+                                ...prev,
+                                [member.reportName]: !prev[member.reportName]
+                              }))
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-brand/15 flex items-center justify-center text-sm font-medium text-brand-light shrink-0">
+                              {member.displayName.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-zinc-200">{member.displayName}</div>
+                              <div className="text-xs text-zinc-500">@{member.githubUsername}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            {member.error ? (
+                              <span className="text-xs font-medium text-warning px-2 py-1 bg-warning/10 rounded-md">Error fetching</span>
+                            ) : isEmpty ? (
+                              <span className="text-xs text-zinc-500">No activity in last 24h</span>
+                            ) : (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                                {member.items.length} items
+                              </span>
+                            )}
+                            
+                            {!isEmpty && !member.error && (
+                              isMemberExpanded 
+                                ? <ChevronDown className="w-4 h-4 text-zinc-600" /> 
+                                : <ChevronRight className="w-4 h-4 text-zinc-600" />
+                            )}
+                          </div>
+                        </div>
+
+                        {isMemberExpanded && !isEmpty && !member.error && (
+                          <div className="bg-surface-raised/20 border-t border-border/30 animate-slide-down">
+                            {member.items.map(item => (
+                              <div 
+                                key={item.id}
+                                className="flex items-start gap-3 px-5 py-3 border-b border-border/30 last:border-b-0 hover:bg-surface-raised/40 cursor-pointer"
+                                onClick={() => window.open(item.url, '_blank')}
+                              >
+                                <div className="mt-0.5 shrink-0">
+                                  {item.type === 'pr' ? (
+                                    <GitPullRequest className="w-4 h-4 text-purple-400" />
+                                  ) : (
+                                    <CircleDot className="w-4 h-4 text-zinc-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-zinc-200 truncate group-hover:text-brand-light transition-colors">
+                                    {item.title}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+                                    <span className="truncate">{item.repo}</span>
+                                    <span>·</span>
+                                    <span>{formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</span>
+                                    <span>·</span>
+                                    <span className={
+                                      item.state === 'open' ? 'text-emerald-400' :
+                                      item.state === 'merged' ? 'text-purple-400' : 'text-zinc-400'
+                                    }>
+                                      {item.state.charAt(0).toUpperCase() + item.state.slice(1)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

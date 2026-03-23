@@ -14,7 +14,7 @@ import {
   ArrowLeft,
   Calendar,
   MapPin,
-  GithubIcon,
+  Github,
   Briefcase,
   FileText,
   MessageSquare,
@@ -33,7 +33,8 @@ import {
   ChevronRight,
   Filter,
   Plus,
-  AlertCircle
+  AlertCircle,
+  Plane
 } from 'lucide-react'
 
 // ── Types ──
@@ -128,6 +129,7 @@ export function ReportDetail() {
   const [feedbackDraft, setFeedbackDraft] = useState('')
   const [feedbackType, setFeedbackType] = useState<'positive' | 'constructive' | 'mixed'>('positive')
   const [savingFeedback, setSavingFeedback] = useState(false)
+  const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
 
   // Refs
   const savePrepRef = useRef<() => void>(() => {})
@@ -136,6 +138,13 @@ export function ReportDetail() {
     mountedRef.current = true
     return () => { mountedRef.current = false; cancel() }
   }, [cancel])
+
+  useEffect(() => {
+    window.api.getSettings().then((s) => {
+      if (!mountedRef.current) return
+      setPtoReports(s.ptoReports || {})
+    }).catch(() => {})
+  }, [])
 
   // ── Utility callbacks ──
 
@@ -534,6 +543,56 @@ export function ReportDetail() {
     }
   }, [refresh, toast])
 
+  const handleTogglePto = useCallback(async () => {
+    if (!name || !report) return
+    const currentExpiry = ptoReports[name]
+    const isActive = !!currentExpiry && new Date(currentExpiry) > new Date()
+
+    if (isActive) {
+      const next = { ...ptoReports }
+      delete next[name]
+      try {
+        await window.api.saveSettings({ ptoReports: next })
+        setPtoReports(next)
+        toast.success(`${report.profile.displayName} marked back from PTO`)
+      } catch {
+        toast.error('Failed to update PTO status')
+      }
+      return
+    }
+
+    const choice = window.prompt('PTO return date: enter 1w, 2w, or YYYY-MM-DD', '1w')?.trim().toLowerCase()
+    if (!choice) return
+
+    const now = new Date()
+    let expiryDate: Date | null = null
+    if (choice === '1w' || choice === '1 week') {
+      expiryDate = new Date(now)
+      expiryDate.setDate(now.getDate() + 7)
+    } else if (choice === '2w' || choice === '2 weeks') {
+      expiryDate = new Date(now)
+      expiryDate.setDate(now.getDate() + 14)
+    } else {
+      const custom = new Date(choice)
+      if (!Number.isNaN(custom.getTime())) expiryDate = custom
+    }
+
+    if (!expiryDate) {
+      toast.error('Invalid date. Use 1w, 2w, or YYYY-MM-DD')
+      return
+    }
+
+    const iso = expiryDate.toISOString().split('T')[0]
+    const next = { ...ptoReports, [name]: iso }
+    try {
+      await window.api.saveSettings({ ptoReports: next })
+      setPtoReports(next)
+      toast.success(`${report.profile.displayName} marked on PTO until ${formatDate(iso)}`)
+    } catch {
+      toast.error('Failed to update PTO status')
+    }
+  }, [name, report, ptoReports, toast])
+
   // ── Build activity stream ──
 
   const streamEntries = useMemo((): StreamEntry[] => {
@@ -662,6 +721,8 @@ export function ReportDetail() {
   const daysSinceFeedback = sortedFeedback.length > 0 ? daysAgo(sortedFeedback[0].date) : null
   const nextMeeting = nextMeetingDate(report.profile.meetingDay)
   const aboutText = report.profile.about ? report.profile.about.replace(/<!--[\s\S]*?-->/g, '').trim() : ''
+  const ptoExpiry = name ? ptoReports[name] : undefined
+  const isOnPto = !!ptoExpiry && new Date(ptoExpiry) > new Date()
 
   const filterCounts: Record<StreamFilter, number> = {
     all: streamEntries.length,
@@ -712,7 +773,24 @@ export function ReportDetail() {
               }
             </div>
           )}
+          {isOnPto && ptoExpiry && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20">
+              <Plane className="w-3.5 h-3.5" aria-hidden="true" />
+              On PTO until {formatDate(ptoExpiry)}
+            </div>
+          )}
         </div>
+        <button
+          onClick={handleTogglePto}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border transition-colors ${
+            isOnPto
+              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/15'
+              : 'bg-surface-raised text-zinc-300 border-border hover:bg-surface-overlay'
+          }`}
+        >
+          <Plane className="w-3.5 h-3.5" aria-hidden="true" />
+          {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+        </button>
       </div>
 
       {/* ── Key Facts Bar ── */}
@@ -727,7 +805,7 @@ export function ReportDetail() {
           )}
           {report.profile.github && (
             <span className="flex items-center gap-1.5">
-              <GithubIcon className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+              <Github className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
               @{report.profile.github}
             </span>
           )}

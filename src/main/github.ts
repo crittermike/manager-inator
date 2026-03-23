@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, writeFileSync, mkdirSync, realpathSync, existsSync } from 'fs'
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, realpathSync, existsSync, unlinkSync } from 'fs'
 import { join, dirname, resolve, relative, isAbsolute } from 'path'
 import { spawn } from 'child_process'
 import { BrowserWindow } from 'electron'
@@ -15,7 +15,8 @@ import type {
   ReportStatus,
   TeamActionItem,
   TeamPriority,
-  MeetingEntry
+  MeetingEntry,
+  RawTranscriptEntry
 } from '../shared/types'
 
 function repoPath(): string {
@@ -57,6 +58,16 @@ function safePath(userPath: string): string {
 
 export function getFileContent(path: string): string {
   return readFileSync(safePath(path), 'utf-8')
+}
+
+export function getFilesContentBulk(paths: string[]): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const p of paths) {
+    try {
+      result[p] = readFileSync(safePath(p), 'utf-8')
+    } catch {}
+  }
+  return result
 }
 
 export function fileExists(relPath: string): boolean {
@@ -115,6 +126,12 @@ export function commitFile(path: string, content: string, message: string): Prom
   return task
 }
 
+export function deleteFile(path: string): Promise<void> {
+  const task = _writeQueue.then(() => _deleteFileImpl(path))
+  _writeQueue = task.catch(() => {})
+  return task
+}
+
 /** Run a git command asynchronously and resolve/reject based on exit code */
 function spawnAsync(command: string, args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -163,6 +180,46 @@ async function _commitFileImpl(path: string, content: string, message: string): 
   }
 
   await spawnAsync('git', ['commit', '-m', message], rp)
+
+  invalidateMeetingsCache()
+  invalidateReportCache()
+  invalidatePeopleCache()
+
+  const child = spawn('git', ['push'], { cwd: rp, stdio: 'ignore' })
+  child.unref()
+  child.on('exit', (code) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (code !== 0) {
+      console.error(`[Git] push failed (exit ${code})`)
+      safeSend(win, 'github:push-status', { success: false, error: `push exited with code ${code}` })
+    } else {
+      safeSend(win, 'github:push-status', { success: true })
+    }
+  })
+  child.on('error', (err) => {
+    console.error('[Git] push spawn error:', err.message)
+    safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
+  })
+}
+
+async function _deleteFileImpl(path: string): Promise<void> {
+  const fullPath = safePath(path)
+  if (!existsSync(fullPath)) return
+
+  unlinkSync(fullPath)
+
+  const rp = repoPath()
+  await spawnAsync('git', ['add', '--', path], rp)
+
+  try {
+    await spawnAsync('git', ['diff', '--cached', '--quiet', '--', path], rp)
+    invalidateMeetingsCache()
+    invalidateReportCache()
+    invalidatePeopleCache()
+    return
+  } catch {}
+
+  await spawnAsync('git', ['commit', '-m', `Delete file: ${path}`], rp)
 
   invalidateMeetingsCache()
   invalidateReportCache()
@@ -616,6 +673,25 @@ export function listMeetings(): MeetingEntry[] {
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
+export function listRawTranscripts(): RawTranscriptEntry[] {
+  const files = listFiles('transcripts/raw')
+    .filter((f) => f.endsWith('.txt') || f.endsWith('.md'))
+    .sort()
+
+  return files
+    .map((f) => {
+      const name = f.replace(/\.(txt|md)$/i, '')
+      const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
+      const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
+      return {
+        date: dateMatch?.[1] || name,
+        title: filenameTitle,
+        filename: f
+      }
+    })
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
 export function yamlEscapeValue(value: string): string {
   const sanitized = value.replace(/[\n\r]/g, ' ').trim()
   if (/[:#{}[\]|>&*!?,]/.test(sanitized) || sanitized !== value.trim() || /^['"]/.test(sanitized)) {
@@ -935,13 +1011,19 @@ export function clearAllCaches(): void {
 }
 
 /** Pre-warm all caches at startup so first navigation is instant */
-export function preWarmCaches(): void {
+export function preWarmCaches(onProgress?: (message: string) => void): void {
   try {
     console.log('[Cache] Pre-warming...')
     const t0 = Date.now()
+    onProgress?.('Scanning meeting files...')
     getMeetingsCache()
+    onProgress?.('Scanning raw transcripts...')
+    listRawTranscripts()
+    onProgress?.('Loading team data...')
     getTeamOverview()
+    onProgress?.('Building people index...')
     listPeople()
+    onProgress?.('Ready!')
     console.log(`[Cache] Pre-warmed in ${Date.now() - t0}ms`)
   } catch (e) {
     console.warn('[Cache] Pre-warm failed:', (e as Error).message)

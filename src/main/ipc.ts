@@ -7,8 +7,11 @@ import {
   getReportData,
   getTeamOverview,
   getFileContent,
+  getFilesContentBulk,
   commitFile,
+  deleteFile,
   listMeetings,
+  listRawTranscripts,
   listPeople,
   getPersonMeetings,
   findPersonByName,
@@ -23,8 +26,9 @@ import {
   clearAllCaches,
   safeSend
 } from './github'
-import { getSettingsForRenderer, saveSettings } from './store'
+import { getSettingsForRenderer, saveSettings, setGithubOrgToken } from './store'
 import { aiGenerate, aiCancel } from './copilot'
+import { getTeamActivity } from './github-activity'
 
 let _backfillAborted = false
 let _activeBackfillRequestId: string | null = null
@@ -56,7 +60,13 @@ export function setupIpcHandlers(): void {
   safeHandle('settings:get', () => getSettingsForRenderer())
   safeHandle('settings:save', (_e, settings) => {
     const raw = settings as Record<string, unknown>
-    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules'] as const
+
+    if ('githubOrgToken' in raw) {
+      const tokenVal = raw['githubOrgToken']
+      setGithubOrgToken(typeof tokenVal === 'string' && tokenVal.trim() ? tokenVal.trim() : null)
+    }
+
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules', 'ptoReports', 'githubOrgName'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]
@@ -70,10 +80,13 @@ export function setupIpcHandlers(): void {
   safeHandle('github:report-data', (_e, name) => getReportData(name as string))
   safeHandle('github:team-overview', () => getTeamOverview())
   safeHandle('github:file-content', (_e, path) => getFileContent(path as string))
+  safeHandle('github:get-files-bulk', (_e, paths) => getFilesContentBulk(paths as string[]))
   safeHandle('github:commit-file', (_e, path, content, message) =>
     commitFile(path as string, content as string, message as string)
   )
+  safeHandle('github:delete-file', (_e, path) => deleteFile(path as string))
   safeHandle('github:list-meetings', () => listMeetings())
+  safeHandle('github:list-raw-transcripts', () => listRawTranscripts())
   safeHandle('github:list-people', () => listPeople())
   safeHandle('github:person-meetings', (_e, slug) => getPersonMeetings(slug as string))
   safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
@@ -86,6 +99,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:save-report-priorities', (_e, reportName, content) => saveReportPriorities(reportName as string, content as string))
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
+  safeHandle('github:team-activity', () => getTeamActivity())
 
   // ── AI with streaming ──
   safeHandle('ai:generate', async (event, action, context, requestId) => {

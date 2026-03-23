@@ -4,8 +4,6 @@ import { useToast } from '../../components/common/Toast'
 import { useTeamOverview } from '../../hooks/useData'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
 import { format } from 'date-fns'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { Sparkles, Loader2, Check, ChevronDown, ChevronRight } from 'lucide-react'
 
 const EditableSection = ({
@@ -66,10 +64,12 @@ const EditableSection = ({
 export function InlineProcessor({
   filename,
   onDone,
+  onProcessed,
   onCancel
 }: {
   filename: string
   onDone: () => void
+  onProcessed?: () => void
   onCancel: () => void
 }) {
   const { streaming, streamedText, generate, cancel, reset } = useAI()
@@ -108,7 +108,7 @@ export function InlineProcessor({
   }, [cancel])
 
   useEffect(() => {
-    window.api.getFileContent(`meetings/${filename}`)
+    window.api.getFileContent(`transcripts/raw/${filename}`)
       .then(content => {
         if (mountedRef.current) {
           setTranscript(content)
@@ -130,7 +130,7 @@ export function InlineProcessor({
       const reportNames = reports.map(r => r.displayName).join(', ')
       const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/)
       const date = dateMatch?.[1] || format(new Date(), 'yyyy-MM-dd')
-      const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.md$/, '').replace(/-/g, ' ')
+      const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')
 
       setProcessingLabel('Generating summary...')
       try {
@@ -198,7 +198,14 @@ export function InlineProcessor({
     try {
       const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/)
       const date = dateMatch?.[1] || format(new Date(), 'yyyy-MM-dd')
-      const titleSlug = filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/\.md$/, '').replace(/-/g, ' ')
+      const rawStem = filename.replace(/\.(txt|md)$/i, '')
+      const derivedStem = rawStem.replace(/^\d{4}-\d{2}-\d{2}-?/, '')
+      const normalizedSlug = (derivedStem || 'meeting')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'meeting'
+      const summaryFilename = `${date}-${normalizedSlug}`
+      const titleSlug = normalizedSlug.replace(/-/g, ' ')
 
       let meetingContent = ''
       let shouldSaveMeeting = false
@@ -225,11 +232,19 @@ export function InlineProcessor({
         }
 
         await window.api.commitFile(
-          `meetings/${filename}`,
+          `meetings/${summaryFilename}.md`,
           meetingContent,
           `Process meeting notes: ${titleSlug} on ${date}`
         )
       }
+
+      await window.api.commitFile(
+        `transcripts/processed/${filename}`,
+        transcript,
+        `Archive raw transcript: ${titleSlug} on ${date}`
+      )
+      await window.api.deleteFile(`transcripts/raw/${filename}`)
+      onProcessed?.()
 
       if (approved.feedback && feedback && !feedback.includes('No feedback')) {
         const mentionedReports = reports.filter(r => feedback.includes(r.displayName))

@@ -4,6 +4,8 @@ import type { CheckInFrequency, DayOfWeek, CustomPractice, PracticeSchedule } fr
 
 interface StoreSchema {
   githubToken: string | null
+  githubOrgToken: string | null
+  githubOrgName: string
   repoOwner: string
   repoName: string
   repoPath: string
@@ -21,10 +23,13 @@ interface StoreSchema {
   practiceCompletions: Record<string, string>
   practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
+  ptoReports: Record<string, string>
 }
 
 const storeDefaults: StoreSchema = {
   githubToken: null,
+  githubOrgToken: null,
+  githubOrgName: '',
   repoOwner: '',
   repoName: '',
   repoPath: '',
@@ -41,7 +46,8 @@ const storeDefaults: StoreSchema = {
   customPractices: [],
   practiceCompletions: {},
   practiceSchedules: {},
-  snoozedActionItems: {}
+  snoozedActionItems: {},
+  ptoReports: {}
 }
 
 function createStore(): Store<StoreSchema> {
@@ -97,6 +103,36 @@ export function clearToken(): void {
   store.set('githubToken', null)
 }
 
+export function getGithubOrgToken(): string | null {
+  const raw = store.get('githubOrgToken')
+  if (!raw) return null
+
+  if (!safeStorage.isEncryptionAvailable()) return raw
+
+  try {
+    return safeStorage.decryptString(Buffer.from(raw, 'base64'))
+  } catch {
+    try {
+      const encrypted = safeStorage.encryptString(raw)
+      store.set('githubOrgToken', encrypted.toString('base64'))
+    } catch { /* migration failed */ }
+    return raw
+  }
+}
+
+export function setGithubOrgToken(token: string | null): void {
+  if (!token) {
+    store.set('githubOrgToken', null)
+    return
+  }
+  if (safeStorage.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(token)
+    store.set('githubOrgToken', encrypted.toString('base64'))
+  } else {
+    store.set('githubOrgToken', token)
+  }
+}
+
 export function getRepoConfig(): { owner: string; name: string } {
   return {
     owner: store.get('repoOwner'),
@@ -120,6 +156,10 @@ export function getSettings() {
   }
 }
 
+export function getGithubOrgName(): string {
+  return store.get('githubOrgName')
+}
+
 /** Settings safe for the renderer — excludes the raw token */
 export function getSettingsForRenderer() {
   return {
@@ -140,7 +180,10 @@ export function getSettingsForRenderer() {
     customPractices: store.get('customPractices'),
     practiceCompletions: store.get('practiceCompletions'),
     practiceSchedules: store.get('practiceSchedules'),
-    snoozedActionItems: store.get('snoozedActionItems')
+    snoozedActionItems: store.get('snoozedActionItems'),
+    ptoReports: store.get('ptoReports'),
+    hasGithubOrgToken: !!store.get('githubOrgToken'),
+    githubOrgName: store.get('githubOrgName')
   }
 }
 

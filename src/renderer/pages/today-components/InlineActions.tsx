@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useToast } from '../../components/common/Toast'
-import type { TeamActionItem, ActionItem } from '../../../shared/types'
+import type { TeamActionItem } from '../../../shared/types'
 import { CheckCircle2, Clock, ChevronDown } from 'lucide-react'
 
 const SNOOZE_OPTIONS = [
@@ -14,14 +14,14 @@ export function InlineActions({
   actions,
   onDone,
   onCancel,
-  onRefresh,
+  onToggleAction,
   onSnooze
 }: {
   reportName: string
   actions: TeamActionItem[]
   onDone: () => void
   onCancel: () => void
-  onRefresh: () => void
+  onToggleAction: (action: TeamActionItem) => Promise<void>
   onSnooze?: (actionKey: string, untilDate: string) => void
 }) {
   const toast = useToast()
@@ -30,25 +30,24 @@ export function InlineActions({
   const [snoozeOpenFor, setSnoozeOpenFor] = useState<string | null>(null)
   const snoozeRef = useRef<HTMLDivElement>(null)
 
-  const handleToggle = useCallback(async (a: ActionItem) => {
+  const handleToggle = useCallback(async (a: TeamActionItem) => {
     if (!a.sourceFile || a.sourceLineNumber == null) return
     const toggleKey = `${a.sourceFile}:${a.sourceLineNumber}`
     setTogglingItems(prev => new Set(prev).add(toggleKey))
     try {
-      await window.api.toggleActionItem(a.sourceFile, a.sourceLineNumber)
+      await onToggleAction(a)
       setLocalActions(prev => prev.filter(item =>
         !(item.sourceFile === a.sourceFile && item.sourceLineNumber === a.sourceLineNumber)
       ))
-      onRefresh()
       toast.success('Action item completed')
     } catch {
       toast.error('Failed to toggle action item')
     } finally {
       setTogglingItems(prev => { const s = new Set(prev); s.delete(toggleKey); return s })
     }
-  }, [onRefresh, toast])
+  }, [onToggleAction, toast])
 
-  const handleSnooze = useCallback((a: ActionItem, days: number) => {
+  const handleSnooze = useCallback((a: TeamActionItem, days: number) => {
     const key = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
     const until = new Date()
     until.setDate(until.getDate() + days)
@@ -78,7 +77,7 @@ export function InlineActions({
       <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
         Stale action items for {actions[0]?.displayName ?? reportName}
       </h4>
-      <div className="space-y-1 max-h-64 overflow-y-auto">
+      <div className="space-y-1">
         {localActions.map((a, i) => {
           const toggleKey = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
           const isToggling = togglingItems.has(toggleKey)
@@ -114,7 +113,7 @@ export function InlineActions({
                 )}
               </div>
               {isSnoozeOpen && (
-                <div ref={snoozeRef} className="absolute right-0 top-full mt-1 z-20 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-[120px]">
+                <div ref={snoozeRef} className="absolute right-0 bottom-full mb-1 z-20 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-[120px]">
                   {SNOOZE_OPTIONS.map(opt => (
                     <button
                       key={opt.days}

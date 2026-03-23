@@ -4,21 +4,28 @@ import { AppShell } from './components/layout/AppShell'
 import { AuthScreen } from './pages/AuthScreen'
 import { SetupScreen } from './pages/SetupScreen'
 import { Today } from './pages/Today'
-import { ReportDetail } from './pages/ReportDetail'
-import { TranscriptProcessor } from './pages/TranscriptProcessor'
 import { SearchPage } from './pages/Search'
-import { Settings } from './pages/Settings'
-import { Playbook } from './pages/Playbook'
-import { ImpactLog } from './pages/ImpactLog'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
+
+const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
+const TranscriptProcessor = lazy(() => import('./pages/TranscriptProcessor').then(m => ({ default: m.TranscriptProcessor })))
+const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
+const ImpactLog = lazy(() => import('./pages/ImpactLog').then(m => ({ default: m.ImpactLog })))
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 
 function Layout() {
   return (
     <AppShell>
       <ErrorBoundary>
-        <Outlet />
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-full">
+            <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          <Outlet />
+        </Suspense>
       </ErrorBoundary>
     </AppShell>
   )
@@ -27,6 +34,7 @@ function Layout() {
 export default function App() {
   const { authenticated, loading, bridgeError, refresh: refreshAuth } = useAuth()
   const [hasRepo, setHasRepo] = useState<boolean | null>(null)
+  const [loadingMessage, setLoadingMessage] = useState('Loading...')
 
   const router = useMemo(() => createHashRouter([
     {
@@ -57,6 +65,13 @@ export default function App() {
     }
   }, [authenticated])
 
+  useEffect(() => {
+    const unsub = window.api.onLoadingProgress?.((data) => {
+      setLoadingMessage(data.message)
+    })
+    return () => unsub?.()
+  }, [])
+
   if (bridgeError) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-zinc-950 p-8">
@@ -83,7 +98,7 @@ export default function App() {
       <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-          <span className="text-zinc-400 text-sm">Loading...</span>
+          <span className="text-zinc-400 text-sm animate-pulse">{loadingMessage}</span>
         </div>
       </div>
     )

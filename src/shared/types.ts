@@ -173,6 +173,9 @@ export interface AppSettings {
   practiceCompletions: Record<string, string>
   practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
+  ptoReports: Record<string, string>
+  hasGithubOrgToken: boolean
+  githubOrgName: string
 }
 
 // ── Meeting entry (from listMeetings) ──
@@ -180,8 +183,37 @@ export interface MeetingEntry {
   date: string
   title: string
   filename: string
-  /** true if the meeting file has been processed (has YAML frontmatter) */
-  processed: boolean
+}
+
+export interface RawTranscriptEntry {
+  date: string
+  title: string
+  filename: string
+}
+
+// ── GitHub Activity (org-level PR/issue tracking) ──
+export interface GitHubActivityItem {
+  id: number
+  type: 'pr' | 'issue'
+  title: string
+  url: string
+  repo: string              // e.g. "org/repo-name"
+  state: 'open' | 'closed' | 'merged'
+  createdAt: string         // ISO 8601
+  updatedAt: string         // ISO 8601
+  /** Number of comments on the item */
+  comments: number
+  /** Labels applied to the item */
+  labels: string[]
+}
+
+export interface TeamMemberActivity {
+  reportName: string        // directory name from reports/
+  displayName: string
+  githubUsername: string
+  items: GitHubActivityItem[]
+  /** null = not yet fetched, string = error message */
+  error: string | null
 }
 
 // ── Person entry (from listPeople) ──
@@ -228,8 +260,11 @@ export interface IpcApi {
   getReportData: (name: string) => Promise<Report>
   getTeamOverview: () => Promise<TeamOverview>
   getFileContent: (path: string) => Promise<string>
+  getFilesContentBulk: (paths: string[]) => Promise<Record<string, string>>
   commitFile: (path: string, content: string, message: string) => Promise<void>
+  deleteFile: (path: string) => Promise<void>
   listMeetings: () => Promise<MeetingEntry[]>
+  listRawTranscripts: () => Promise<RawTranscriptEntry[]>
   listPeople: () => Promise<PersonEntry[]>
   getPersonMeetings: (slug: string) => Promise<MeetingRef[]>
   findPersonByName: (name: string) => Promise<string | null>
@@ -241,9 +276,11 @@ export interface IpcApi {
   getTeamPriorities: () => Promise<TeamPriority[]>
   saveReportPriorities: (reportName: string, content: string) => Promise<void>
   clearCaches: () => Promise<void>
+  getTeamActivity: () => Promise<TeamMemberActivity[]>
   searchContent: (query: string) => Promise<{ filename: string; directory: 'meetings' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
   backfillSummaries: (filenames: string[]) => Promise<{ filename: string; success: boolean; error?: string }[]>
   onBackfillProgress: (cb: (data: { filename: string; status: string; error?: string }) => void) => () => void
+  onLoadingProgress: (cb: (data: { message: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void

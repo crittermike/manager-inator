@@ -19,9 +19,12 @@ contextBridge.exposeInMainWorld('api', {
   getReportData: (name: string) => ipcRenderer.invoke('github:report-data', name),
   getTeamOverview: () => ipcRenderer.invoke('github:team-overview'),
   getFileContent: (path: string) => ipcRenderer.invoke('github:file-content', path),
+  getFilesContentBulk: (paths: string[]) => ipcRenderer.invoke('github:get-files-bulk', paths),
   commitFile: (path: string, content: string, message: string) =>
     ipcRenderer.invoke('github:commit-file', path, content, message),
+  deleteFile: (path: string) => ipcRenderer.invoke('github:delete-file', path),
   listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
+  listRawTranscripts: () => ipcRenderer.invoke('github:list-raw-transcripts'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),
   searchContent: (query: string) => ipcRenderer.invoke('github:search-content', query),
   getPersonMeetings: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
@@ -37,11 +40,17 @@ contextBridge.exposeInMainWorld('api', {
   saveReportPriorities: (reportName: string, content: string) =>
     ipcRenderer.invoke('github:save-report-priorities', reportName, content),
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
+  getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
   backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
   onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {
     const handler = (_event: unknown, data: { filename: string; status: string }) => cb(data)
     ipcRenderer.on('ai:backfill-progress', handler)
     return () => ipcRenderer.removeListener('ai:backfill-progress', handler)
+  },
+  onLoadingProgress: (cb: (data: { message: string }) => void) => {
+    const handler = (_event: unknown, data: { message: string }) => cb(data)
+    ipcRenderer.on('app:loading-progress', handler)
+    return () => ipcRenderer.removeListener('app:loading-progress', handler)
   },
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => {
     const handler = (_event: unknown, data: { success: boolean; error?: string }) => cb(data)
