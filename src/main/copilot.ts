@@ -197,14 +197,22 @@ export async function aiGenerate(
     }
 
     // If sendAndWait returned content that streaming didn't capture (common in agent/tool mode),
-    // use it as the full response and stream any new text to the renderer
-    if (returnContent && (!fullResponse || returnContent.length > fullResponse.length)) {
-      fullResponse = returnContent
-      if (isChat) {
-        const { clean } = stripToolCalls(fullResponse)
-        if (clean.length > lastSentLength) {
-          onChunk(clean.slice(lastSentLength))
-          lastSentLength = clean.length
+    // use it as the full response and stream any new text to the renderer.
+    // In chat/agent mode, fullResponse may be bloated with tool-call XML that gets stripped,
+    // so compare against the clean text length, not the raw fullResponse length.
+    if (returnContent) {
+      const cleanSoFar = isChat ? stripToolCalls(fullResponse).clean : fullResponse
+      if (!cleanSoFar || returnContent.length > cleanSoFar.length) {
+        if (isChat) {
+          // returnContent from sendAndWait is already clean (no tool XML)
+          if (returnContent.length > lastSentLength) {
+            onChunk(returnContent.slice(lastSentLength))
+            lastSentLength = returnContent.length
+          }
+          // Rebuild fullResponse so final strip produces the right result
+          fullResponse = returnContent
+        } else {
+          fullResponse = returnContent
         }
       }
     }

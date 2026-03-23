@@ -1,6 +1,6 @@
 # Manager-inator App
 
-An AI-native Electron desktop app for engineering managers. Manages direct reports, meeting transcripts, performance check-ins, feedback, action items, and impact tracking — all backed by a local Git repo as the source of truth and powered by the GitHub Copilot SDK for AI features.
+An AI-native Electron desktop app for engineering managers. Surfaces what needs your attention right now — overdue items, upcoming 1:1 prep, unprocessed transcripts — and lets you act on everything in place. Backed by a local Git repo as the source of truth and powered by the GitHub Copilot SDK for AI features.
 
 ---
 
@@ -25,9 +25,8 @@ An AI-native Electron desktop app for engineering managers. Manages direct repor
 │                                                             │
 │  ┌─────────┐  ┌──────────────────────────────────────────┐  │
 │  │ AppShell│  │              Pages                        │  │
-│  │(sidebar)│  │ Dashboard · ReportDetail · Meetings      │  │
-│  │         │  │ People · TranscriptProcessor · ImpactLog │  │
-│  │         │  │ AIChat · Settings · Auth · Setup         │  │
+│  │(sidebar)│  │ Today · ReportDetail · Search            │  │
+│  │         │  │ TranscriptProcessor · Settings            │  │
 │  └─────────┘  └──────────────────────────────────────────┘  │
 │                                                             │
 │  Hooks: useAuth · useData · useAI                           │
@@ -84,7 +83,7 @@ npm run preview    # Run production build locally
 
 1. **Authenticate** — The app uses GitHub OAuth device flow. You'll get a code to enter at github.com/login/device.
 2. **Set repo path** — Point the app to your local clone of the data repo.
-3. **Done** — The dashboard loads with your direct reports.
+3. **Done** — The Today view loads with your action items.
 
 ---
 
@@ -99,25 +98,31 @@ All data lives in a local Git repository. The app reads from and writes to this 
 │   └── {name}/                    # One per direct report
 │       ├── profile.md             # Role, GitHub handle, meeting day, location
 │       ├── custom-instructions.md # AI context specific to this person
+│       ├── job-expectations.md    # Role expectations, competencies (used as AI context)
 │       ├── DASHBOARD.md           # Per-report status dashboard
+│       ├── priorities.md          # Current weekly priorities
 │       ├── check-ins/
 │       │   ├── monthly/YYYY-MM.md # Private monthly check-ins
 │       │   └── shared/YYYY-MM.md  # Shared versions for the employee
 │       ├── feedback/log.md        # Feedback entries
-│       ├── reviews/               # Performance reviews
+│       ├── reviews/               # Performance reviews (YYYY-H1.md or YYYY-H2.md)
 │       └── prep/YYYY-MM-DD.md     # 1:1 prep documents
 ├── meetings/
-│   ├── YYYY-MM-DD-slug.md         # Raw transcripts
-│   └── YYYY-MM-DD-slug-summary.md # AI-generated summaries (YAML frontmatter)
+│   └── YYYY-MM-DD-slug.md         # AI-generated summaries (YAML frontmatter)
+├── transcripts/
+│   └── processed/
+│       └── YYYY-MM-DD-slug.txt    # Original raw transcripts
 ├── people/
 │   └── firstname-lastname.md      # Profiles for anyone (not just reports)
 ├── mike-impact-log.md             # Manager's impact evidence log
 └── settings.md                    # Dropdown options for roles/relationships
 ```
 
+**Key convention**: Every `.md` file in `meetings/` is a processed summary. Raw transcripts are stored separately in `transcripts/processed/`. There is no `-summary.md` suffix — the meeting file itself is the summary.
+
 ### YAML frontmatter conventions
 
-**Meeting summaries** (`meetings/*-summary.md`):
+**Meeting summaries** (`meetings/*.md`):
 ```yaml
 ---
 title: Nic 1-1           # Optional display title override
@@ -145,7 +150,7 @@ relationship: Direct Report
 The app associates people with meetings through two mechanisms:
 
 1. **Filename segment matching** — The meeting slug is split by `-` and each segment is compared to the person's slug first part. E.g., person `nic-daantos` → first segment `nic` → matches `2026-03-11-nic-1-1.md`.
-2. **Speaker frontmatter** — Summary files list speakers in YAML frontmatter. The app parses these and matches by full name or first name against the person's name and aliases.
+2. **Speaker frontmatter** — Meeting files list speakers in YAML frontmatter. The app parses these and matches by full name or first name against the person's name and aliases.
 
 Both are used together. Filename matching is fast (no file reads); speaker matching catches cases where a person appears in a meeting but isn't in the filename (e.g., team meetings).
 
@@ -162,14 +167,15 @@ The core data module. All filesystem reads and Git writes happen here.
 |----------|---------|
 | `getReports()` | Lists report directories (those with `profile.md`) |
 | `getReportData(name)` | Full report: profile, check-ins, transcripts, action items, feedback, reviews |
-| `getTeamOverview()` | Dashboard data: all reports with status indicators |
+| `getTeamOverview()` | Team data: all reports with status indicators |
 | `listMeetings()` | All meetings with title overrides from frontmatter |
 | `listPeople()` | All people profiles with meeting counts |
 | `getPersonMeetings(slug)` | Meetings associated with a specific person |
 | `findPersonByName(name)` | Fuzzy lookup: exact → alias → first name match |
 | `commitFile(path, content, msg)` | Write + git add + commit + async push |
-| `saveMeetingTitle(filename, title)` | Save title override to summary frontmatter |
-| `toggleActionItem(sourceFile, sourceLine)` | Toggle checkbox in source summary file |
+| `saveMeetingTitle(filename, title)` | Save title override to YAML frontmatter |
+| `toggleActionItem(sourceFile, sourceLine)` | Toggle checkbox in source meeting file |
+| `getTeamActionItems()` | All open action items across all reports |
 | `getImpactLog()` | Read manager's impact log |
 | `getSettingsOptions()` | Parse dropdown options from `settings.md` |
 | `preWarmCaches()` | Pre-populate all caches at startup |
@@ -177,10 +183,14 @@ The core data module. All filesystem reads and Git writes happen here.
 **Caching architecture:**
 - `_meetingsCache` — File listing + speaker map + title map. Built once, invalidated on any `commitFile`.
 - `_reportDataCache` — Per-report data (Map). Invalidated on writes.
-- `_teamOverviewCache` — Dashboard data. Invalidated on writes.
+- `_teamOverviewCache` — Team overview data. Invalidated on writes.
 - `_peopleCache` — People list with meeting counts. Invalidated on writes.
 
 All caches are **write-invalidated only** — no time-based expiry. Since the app controls all writes to the repo, there's no stale data risk.
+
+**Load vs. Refresh pattern** (in `useData.ts` hooks):
+- `load()` — reads from caches without clearing. Used on page mount for instant navigation.
+- `refresh()` — clears caches first, then reloads. Used only on explicit user "Refresh" action.
 
 ### `src/main/copilot.ts` — AI integration
 
@@ -208,6 +218,7 @@ Uses `@github/copilot-sdk` with the user's existing GitHub Copilot CLI authentic
 | `extract-feedback` | Find feedback about direct reports |
 | `extract-impact` | Extract manager impact evidence |
 | `generate-checkin` | Monthly performance check-in |
+| `generate-review` | Semi-annual performance review draft |
 | `prep-one-on-one` | Interactive prep doc with checkboxes |
 | `chat` | Free-form conversation |
 
@@ -235,6 +246,7 @@ Uses `electron-store` with encryption key `manager-inator-v1`.
 - `githubToken` — OAuth access token
 - `repoPath` — Local filesystem path to data repo
 - `defaultModel` — AI model ID (default: `gpt-4.1`)
+- Cadence settings (check-in frequency, sprint length, end-of-week day, etc.)
 
 ### `src/main/ipc.ts` — IPC bridge
 
@@ -248,6 +260,8 @@ github:file-content, github:commit-file
 github:list-meetings, github:list-people, github:person-meetings, github:find-person
 github:impact-log, github:settings-options
 github:save-meeting-title, github:toggle-action-item
+github:team-action-items, github:team-priorities, github:save-report-priorities
+github:clear-caches, github:cancel-backfill
 ai:generate (streams chunks via ai:chunk event), ai:cancel
 ai:backfill-summaries (streams progress via ai:backfill-progress event)
 ```
@@ -256,40 +270,56 @@ ai:backfill-summaries (streams progress via ai:backfill-progress event)
 
 ## Renderer pages
 
-### Dashboard (`/`)
-Team overview grid. Each direct report shows: name, role, last 1:1 date, days since last meeting, open action items, status indicator (on-track / needs-attention / at-risk).
+### Today (`/`)
+
+The main screen. A sequential timeline of actionable items ordered by priority, driven by the management playbook cadence. Four sections:
+
+1. **Overdue (red)** — 1:1s more than 14 days old, stale action items (2+ days), overdue feedback, overdue check-ins
+2. **Before your next 1:1 (yellow)** — Upcoming 1:1 prep for today, tomorrow, and 2 days out. Inline prep generation with interactive checkboxes. Sprint start/end prompts. Management cadence items (weekly priorities, reflections, skip-level, peer sync, quarterly planning, semi-annual reviews)
+3. **Inbox (green)** — Unprocessed meeting transcripts. Each expands inline for AI processing (summary, action items, feedback, impact extraction)
+4. **Done today (collapsed)** — Completed items, auto-tracked per day via localStorage
+
+Every item is actionable in-place. Supports drag-and-drop transcript upload (.txt/.md files).
 
 ### Report Detail (`/report/:name`)
-Per-report view with tabs:
-- **Overview** — Dashboard markdown
-- **Prep 1:1** — AI-generated interactive prep with clickable checkboxes, saveable to repo
-- **Check-ins** — Monthly check-in documents
-- **1-1s** — Meeting transcripts with summary/raw transcript sub-tabs
-- **Feedback** — Feedback log sorted by date (newest first)
-- **Action items** — Extracted from recent meeting summaries, checkboxes toggle in source files
-- **Reviews** — Performance review documents
 
-### Meetings (`/meetings`, `/meetings/:filename`)
-List of all meetings with title, date. Detail view shows summary (with frontmatter stripped) and raw transcript in tabs. Speaker pills link to person profiles. Editable titles saved to summary frontmatter.
+Single scrollable page per person with:
+- **Profile header** — Name, role, GitHub handle, meeting day, location
+- **Key facts bar** — Last 1:1, next 1:1, open action items, days since last feedback
+- **Quick actions** — Prep 1:1, generate check-in, generate review, add feedback (all expand inline)
+- **About section** — Editable notes about the person (collapsible)
+- **Job expectations** — Editable role expectations used as AI context (collapsible)
+- **Filter bar** — Clickable type tags (All, 1:1s, Feedback, Actions, Check-ins, Reviews)
+- **Unified activity stream** — Reverse-chronological feed of all activity. Open action items pinned to top.
 
-### People (`/people`, `/people/:slug`)
-Grid of all people with meeting counts and last-seen dates. Profile detail with structured editor (name, role, GitHub, location, relationship) using autocomplete dropdowns from `settings.md`. Meeting history per person.
+Context-aware entry: arriving from Today with a `?filter=` param pre-selects the relevant filter.
+
+### Search (`/search`)
+
+Find meetings and people by keyword. Features:
+- Full-text search across meeting titles, filenames, and people profiles
+- Inline meeting viewer (no page navigation needed)
+- Recent meetings list shown when no search query
+- Deep-linkable via `?meeting=` query param
 
 ### Transcript Processor (`/transcript`)
-4-step AI pipeline:
+
+4-step AI pipeline for processing meeting transcripts:
 1. **Paste** — Input transcript + title + date
 2. **AI processing** — Summary → Action items → Feedback → Impact (with progress bar)
 3. **Review** — Edit title, review all AI outputs
-4. **Save** — Commits transcript, summary, and impact log entries to repo
-
-### Impact Log (`/impact`)
-Manager's evidence log. Quick-add form + AI summarize. Renders markdown with bullet points. Entries formatted as `### YYYY-MM-DD — Title` with bullet points, sorted newest-first.
-
-### AI Chat (`/chat`)
-Free-form conversation with Copilot. Maintains message history within session. Markdown rendering for responses.
+4. **Save** — Commits raw transcript to `transcripts/processed/`, summary to `meetings/`, and impact log entries to repo
 
 ### Settings (`/settings`)
-Model picker, repo path configuration.
+
+- AI model picker
+- Repo path configuration
+- Management cadence settings (check-in frequency, feedback reminder days, sprint length, sprint start date, end-of-week day)
+
+### Other pages (accessible but not in primary nav)
+
+- **Impact Log** (`/impact`) — Manager's evidence log with quick-add and AI summarize
+- **Team** (`/team`) — Grid of all direct reports (also accessible as sidebar quick-jump)
 
 ---
 
@@ -310,22 +340,27 @@ Dark theme with purple accent. Custom CSS variables in `globals.css`:
 
 Custom `.prose-dark` class handles markdown rendering with appropriate dark-mode colors for headings, paragraphs, lists, tables, blockquotes, and code blocks.
 
+AI floating panel available on every screen via bottom-right button. Context-aware (knows which page/person you're on).
+
 ---
 
 ## Type definitions (`src/shared/types.ts`)
 
 ```typescript
-ReportProfile    // name, role, team, github, startDate, meetingDay, location, etc.
+ReportProfile    // name, displayName, role, team, github, startDate, meetingDay, location, about
 CheckIn          // date, content, accomplishments, concerns
 Summary          // date, content, keyTopics, actionItems, sentiment
-Transcript       // date, content, hasSummary
-ActionItem       // text, owner, completed, sourceFile, sourceLine
+Transcript       // date, content
+ActionItem       // text, owner, completed, sourceFile, sourceLine, sourceLineNumber
+TeamActionItem   // extends ActionItem with reportName, displayName
 FeedbackEntry    // date, type (positive/constructive/mixed), source, context, content
-Goal             // title, description, category, status, timeline
-Report           // aggregate: profile + checkIns + summaries + transcripts + etc.
+CadenceSettings  // checkInFrequency, feedbackReminderDays, sprintLengthWeeks, endOfWeekDay, sprintStartDate
+Report           // aggregate: profile + checkIns + summaries + transcripts + actionItems + feedback + reviews + jobExpectations
 TeamOverview     // reports: ReportStatus[], attentionItems, lastUpdated
-ReportStatus     // name, displayName, lastOneOnOne, daysGap, openActionItems, status
-AppSettings      // githubToken, repoOwner, repoName, repoPath, defaultModel
+ReportStatus     // name, displayName, lastOneOnOne, daysGap, openActionItems, status, meetingDay, lastCheckIn, lastFeedback
+AppSettings      // hasToken, repoPath, defaultModel, cadence settings, aiCustomInstructions
+MeetingEntry     // date, title, filename
+PersonEntry      // name, slug, aliases, meetingCount, lastSeen, role, github, location, relationship
 ```
 
 ---
@@ -336,8 +371,9 @@ AppSettings      // githubToken, repoOwner, repoName, repoPath, defaultModel
 - **Model IDs use dashes** not dots: `claude-opus-4-6` not `claude-opus-4.6`. Old values in electron-store get normalized at runtime.
 - **`electron-store`** can corrupt if the process is force-killed mid-write. Normal quit (Cmd+Q) is fine.
 - **Git push** is fire-and-forget (detached process). If remote has diverged, it silently fails. Run `git pull` manually if needed.
-- **Summary frontmatter** format varies across AI-generated files. Some have proper `---` YAML blocks, some have the YAML inside markdown code fences. The `stripFrontmatter` and `parseSpeakers` functions handle both cases.
+- **YAML frontmatter** format varies across AI-generated files. Some have proper `---` YAML blocks, some have the YAML inside markdown code fences. The `stripFrontmatter` and `parseSpeakers` functions handle both cases.
 - **The `listFiles` and `listDirectory` functions** use `readdirSync` with `withFileTypes: true` to avoid per-file `statSync` calls.
+- **Load vs. Refresh**: Page mount uses `load()` (no cache clear) for instant navigation. Only the explicit "Refresh" button calls `refresh()` which clears caches. This prevents slow re-loads on every tab switch.
 
 ---
 
