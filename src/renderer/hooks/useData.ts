@@ -57,7 +57,7 @@ export function useReportData(name: string | undefined) {
 
   useEffect(() => { load() }, [load])
 
-  return { report, loading, error, refresh }
+  return { report, loading, error, load, refresh }
 }
 
 export function useFileContent(path: string | null) {

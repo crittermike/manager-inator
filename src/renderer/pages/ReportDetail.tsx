@@ -83,7 +83,7 @@ export function ReportDetail() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { report, loading, error, refresh } = useReportData(name)
+  const { report, loading, error, load, refresh } = useReportData(name)
   const { streaming, streamedText, generate, cancel, reset, fullTextRef } = useAI()
   const toast = useToast()
   const mountedRef = useRef(true)
@@ -263,6 +263,7 @@ export function ReportDetail() {
           `Save 1:1 prep for ${report.profile.displayName} on ${today}`
         )
         toast.success('Prep saved')
+        load()
       } catch {
         toast.error('Failed to auto-save prep')
       }
@@ -270,7 +271,7 @@ export function ReportDetail() {
       setAiContent('_Failed to generate prep. Try clicking Regenerate._')
     }
     setAiLoading(false)
-  }, [report, name, generate, reset, fullTextRef, toast, cancel])
+  }, [report, name, generate, reset, fullTextRef, toast, cancel, load])
 
   const handleGenerateCheckIn = useCallback(async () => {
     if (!report || !name) return
@@ -401,6 +402,7 @@ export function ReportDetail() {
           `Update 1:1 prep for ${report.profile.displayName} on ${today}`
         )
         toast.success('Prep updated')
+        load()
       } else if (aiMode === 'checkin') {
         const now = new Date()
         const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -410,6 +412,7 @@ export function ReportDetail() {
           `Save ${report.profile.displayName} check-in for ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}`
         )
         toast.success('Check-in saved')
+        load()
       } else if (aiMode === 'review') {
         const now = new Date()
         const month = now.getMonth()
@@ -421,6 +424,7 @@ export function ReportDetail() {
           `Save performance review for ${report.profile.displayName} (${periodFile})`
         )
         toast.success('Review saved')
+        load()
       }
     } catch (e) {
       console.error('Failed to save:', e)
@@ -428,7 +432,7 @@ export function ReportDetail() {
     } finally {
       setAiSaving(false)
     }
-  }, [name, report, aiContent, aiMode, prepContent, fullTextRef, streamedText, toast, refresh])
+  }, [name, report, aiContent, aiMode, prepContent, fullTextRef, streamedText, toast, load])
 
   savePrepRef.current = handleSaveAI
 
@@ -770,7 +774,7 @@ export function ReportDetail() {
 
   const filteredEntries = useMemo(() => {
     if (activeFilter === 'all') return streamEntries
-    return streamEntries.filter(e => e.pinned || e.type === activeFilter)
+    return streamEntries.filter(e => (e.pinned && activeFilter === 'action') || e.type === activeFilter)
   }, [streamEntries, activeFilter])
 
   // ── Loading / Error states ──
