@@ -81,12 +81,10 @@ await page.addInitScript(() => {
       return Promise.resolve('# Meeting Notes\n\nSome content here')
     },
     getTeamActionItems: () => Promise.resolve([]),
-    getTeamPriorities: () => Promise.resolve([]),
     getImpactLog: () => Promise.resolve(''),
     getSettingsOptions: () => Promise.resolve({ roles: [], relationships: [] }),
     saveMeetingTitle: () => Promise.resolve(),
     toggleActionItem: () => Promise.resolve(true),
-    saveReportPriorities: () => Promise.resolve(),
     commitFile: () => Promise.resolve(),
     clearCaches: () => Promise.resolve(),
     getPersonMeetings: () => Promise.resolve([]),

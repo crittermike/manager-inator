@@ -64,12 +64,6 @@ export interface TeamActionItem extends ActionItem {
   displayName: string
 }
 
-// ── Team priority (per-person weekly focus) ──
-export interface TeamPriority {
-  reportName: string
-  displayName: string
-  priorities: string  // markdown content from reports/{name}/priorities.md
-}
 
 // ── Cadence settings (customizable management rhythm) ──
 export type CheckInFrequency = 'monthly' | 'bimonthly' | 'quarterly'
@@ -273,8 +267,6 @@ export interface IpcApi {
   saveMeetingTitle: (filename: string, title: string) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
   getTeamActionItems: () => Promise<TeamActionItem[]>
-  getTeamPriorities: () => Promise<TeamPriority[]>
-  saveReportPriorities: (reportName: string, content: string) => Promise<void>
   clearCaches: () => Promise<void>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
   searchContent: (query: string) => Promise<{ filename: string; directory: 'meetings' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>

@@ -96,11 +96,9 @@ All data lives in a local Git repository. The app reads from and writes to this 
 ```
 ├── reports/
 │   └── {name}/                    # One per direct report
-│       ├── profile.md             # Role, GitHub handle, meeting day, location
-│       ├── custom-instructions.md # AI context specific to this person
+│       ├── profile.md             # Role, GitHub handle, meeting day, location (YAML frontmatter)
 │       ├── job-expectations.md    # Role expectations, competencies (used as AI context)
 │       ├── DASHBOARD.md           # Per-report status dashboard
-│       ├── priorities.md          # Current weekly priorities
 │       ├── check-ins/
 │       │   ├── monthly/YYYY-MM.md # Private monthly check-ins
 │       │   └── shared/YYYY-MM.md  # Shared versions for the employee
@@ -260,7 +258,7 @@ github:file-content, github:commit-file
 github:list-meetings, github:list-people, github:person-meetings, github:find-person
 github:impact-log, github:settings-options
 github:save-meeting-title, github:toggle-action-item
-github:team-action-items, github:team-priorities, github:save-report-priorities
+github:team-action-items
 github:clear-caches, github:cancel-backfill
 ai:generate (streams chunks via ai:chunk event), ai:cancel
 ai:backfill-summaries (streams progress via ai:backfill-progress event)

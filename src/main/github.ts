@@ -14,7 +14,6 @@ import type {
   TeamOverview,
   ReportStatus,
   TeamActionItem,
-  TeamPriority,
   MeetingEntry,
   RawTranscriptEntry
 } from '../shared/types'
@@ -263,6 +262,50 @@ async function _deleteFileImpl(path: string): Promise<void> {
 // ── Parsing helpers ──
 
 export function parseProfile(content: string, name: string): ReportProfile {
+  // Try YAML frontmatter first (preferred format)
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (fmMatch) {
+    const fm: Record<string, string> = {}
+    for (const line of fmMatch[1].split('\n')) {
+      const m = line.match(/^([a-zA-Z][\w-]*):\s*(.*)/)
+      if (m) fm[m[1].toLowerCase()] = m[2].trim()
+    }
+
+    const body = content.slice(fmMatch[0].length)
+    const aboutMatch = body.match(/## About\s*\n([\s\S]*?)(?=\n##|$)/)
+    const commMatch = body.match(/## Communication Preferences\s*\n([\s\S]*?)(?=\n##|$)/)
+    const prefs: Record<string, string> = {}
+    if (commMatch) {
+      const lines = commMatch[1].split('\n').filter((l) => l.startsWith('-'))
+      for (const line of lines) {
+        const pm = line.match(/-\s*\*\*(.+?)\*\*:\s*(.+)/)
+        if (pm) prefs[pm[1]] = pm[2]
+      }
+    }
+
+    const nameMatch = body.match(/^#\s+(.+)/m)
+    const displayName =
+      fm.name ||
+      nameMatch?.[1]?.replace(/profile/i, '').trim() ||
+      name.charAt(0).toUpperCase() + name.slice(1)
+
+    return {
+      name,
+      displayName,
+      role: fm.role || '',
+      team: fm.team || '',
+      github: (fm.github || '').replace('@', ''),
+      startDate: fm.startdate || fm['start-date'] || '',
+      meetingDay: fm.meetingday || fm['meeting-day'] || '',
+      location: fm.location || '',
+      timezone: fm.timezone || fm['time-zone'] || '',
+      manager: (fm.manager || '').replace('@', ''),
+      about: aboutMatch?.[1]?.trim() || '',
+      communicationPreferences: prefs
+    }
+  }
+
+  // Fall back to markdown table / inline format
   const getField = (field: string): string => {
     const tableMatch = content.match(
       new RegExp(`\\|\\s*\\*\\*${field}\\*\\*\\s*\\|\\s*(?:${field}:\\s*)?(.+?)\\s*\\|`, 'i')
@@ -849,6 +892,57 @@ export function listPeople(): PersonEntry[] {
     } catch { /* skip */ }
   }
 
+  // Merge direct reports: use report dir name as slug (e.g. 'nic') so /report/<slug> routes work
+  const existingSlugs = new Set(people.map(p => p.slug))
+  const existingNames = new Map(people.map(p => [p.name.toLowerCase(), p]))
+  try {
+    const reports = getReports()
+    for (const reportName of reports) {
+      try {
+        const profile = getReportProfile(reportName)
+        const displayName = profile.displayName || profile.name
+        const existing = existingNames.get(displayName.toLowerCase())
+        if (existing) {
+          if (!existing.role) existing.role = profile.role
+          if (!existing.github) existing.github = profile.github
+          if (!existing.location) existing.location = profile.location
+          existing.relationship = 'Direct Report'
+          existing.slug = reportName
+        } else if (!existingSlugs.has(reportName)) {
+          const personName = displayName
+
+          const filenameMatched = new Set<string>()
+          for (const m of meetingFiles) {
+            const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+            if (filenameMatchesPerson(mSlug, reportName)) {
+              filenameMatched.add(m)
+            }
+          }
+
+          const speakerMatched = new Set<string>()
+          for (const [meetingFile, speakers] of speakerMap) {
+            if (filenameMatched.has(meetingFile)) continue
+            if (!meetingFiles.includes(meetingFile)) continue
+            if (speakerMatchesPerson(speakers, personName, [])) {
+              speakerMatched.add(meetingFile)
+            }
+          }
+
+          const allMatched = [...filenameMatched, ...speakerMatched]
+          const dates = allMatched.map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter(Boolean).sort()
+
+          people.push({
+            name: personName, slug: reportName, aliases: [],
+            meetingCount: allMatched.length,
+            lastSeen: dates.length > 0 ? dates[dates.length - 1]! : '',
+            role: profile.role, github: profile.github,
+            location: profile.location, relationship: 'Direct Report'
+          })
+        }
+      } catch { /* skip individual report errors */ }
+    }
+  } catch { /* skip if reports can't be listed */ }
+
   const sorted = people.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
   _peopleCache = sorted
   return sorted
@@ -867,7 +961,12 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
     if (nameMatch) personName = nameMatch[1].trim()
     const aliasMatch = content.match(/aliases:\s*(.+)/)
     if (aliasMatch) aliases = aliasMatch[1].split(',').map(a => a.trim()).filter(Boolean)
-  } catch { /* use slug */ }
+  } catch {
+    try {
+      const profile = getReportProfile(slug)
+      personName = profile.displayName || profile.name
+    } catch { /* use slug-derived name */ }
+  }
 
   // Filename segment matching
   const filenameMatched = new Set<string>()
@@ -988,28 +1087,6 @@ export function getTeamActionItems(): TeamActionItem[] {
   return items
 }
 
-export function getTeamPriorities(): TeamPriority[] {
-  const reportNames = getReports()
-  const results: TeamPriority[] = []
-  for (const name of reportNames) {
-    try {
-      const profile = getReportProfile(name)
-      let priorities = ''
-      try { priorities = getFileContent(`reports/${name}/priorities.md`) } catch {}
-      results.push({ reportName: name, displayName: profile.displayName, priorities })
-    } catch { /* skip */ }
-  }
-  return results
-}
-
-export async function saveReportPriorities(reportName: string, content: string): Promise<void> {
-  const profile = getReportProfile(reportName)
-  await commitFile(
-    `reports/${reportName}/priorities.md`,
-    content,
-    `Update priorities for ${profile.displayName}`
-  )
-}
 
 export function clearAllCaches(): void {
   invalidateMeetingsCache()

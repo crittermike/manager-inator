@@ -36,9 +36,6 @@ contextBridge.exposeInMainWorld('api', {
   toggleActionItem: (sourceFile: string, lineNumber: number) =>
     ipcRenderer.invoke('github:toggle-action-item', sourceFile, lineNumber),
   getTeamActionItems: () => ipcRenderer.invoke('github:team-action-items'),
-  getTeamPriorities: () => ipcRenderer.invoke('github:team-priorities'),
-  saveReportPriorities: (reportName: string, content: string) =>
-    ipcRenderer.invoke('github:save-report-priorities', reportName, content),
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
   getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
   backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),

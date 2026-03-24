@@ -60,7 +60,6 @@ await page.addInitScript(() => {
       { date: '2026-03-11', title: 'Nic 1-1', filename: '2026-03-11-nic-1-1.md', processed: true }
     ]),
     getTeamActionItems: () => Promise.resolve([]),
-    getTeamPriorities: () => Promise.resolve([]),
     clearCaches: () => Promise.resolve(),
     getReportData: (name) => Promise.resolve({
       profile: { name: 'nic-daantos', displayName: 'Nic Daantos', role: 'Software Engineer', meetingDay: 'Tuesday', github: 'nicdaantos', location: 'North Carolina', timezone: 'ET' },
@@ -99,7 +98,6 @@ await page.addInitScript(() => {
     searchContent: () => Promise.resolve([]),
     getSettingsOptions: () => Promise.resolve({ roles: [], relationships: [] }),
     saveMeetingTitle: () => Promise.resolve(),
-    saveReportPriorities: () => Promise.resolve(),
     cancelBackfill: () => Promise.resolve(),
     backfillSummaries: () => Promise.resolve(),
     getPersonMeetings: () => Promise.resolve([]),

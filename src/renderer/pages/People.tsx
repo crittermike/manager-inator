@@ -97,7 +97,11 @@ export function People() {
       setRelOptions(opts.relationships || [])
       if (routeSlug) {
         const person = data.find((p: PersonEntry) => p.slug === routeSlug)
-        if (person) openPerson(person)
+        if (person && person.relationship?.toLowerCase() === 'direct report') {
+          navigate(`/report/${person.slug}`, { replace: true })
+        } else if (person) {
+          openPerson(person)
+        }
       }
       return data
     } catch (e) {
@@ -560,14 +564,25 @@ ${editNotes}`
             {filtered.map((p) => (
               <button
                 key={p.slug}
-                onClick={() => openPerson(p)}
+                onClick={() => {
+                  if (p.relationship?.toLowerCase() === 'direct report') {
+                    navigate(`/report/${p.slug}`)
+                  } else {
+                    openPerson(p)
+                  }
+                }}
                 className="flex items-center gap-4 p-4 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group"
               >
                 <div className="w-10 h-10 rounded-full bg-brand/15 flex items-center justify-center text-sm font-semibold text-brand-light shrink-0 group-hover:bg-brand/25 transition-colors">
                   {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-zinc-200">{p.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-200">{p.name}</span>
+                    {p.relationship?.toLowerCase() === 'direct report' && (
+                      <span className="text-[10px] font-medium text-brand-light bg-brand/10 px-1.5 py-0.5 rounded">Report</span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 text-xs text-zinc-500 mt-0.5">
                     {p.role && <span>{p.role}</span>}
                     <span>{p.meetingCount} meetings</span>

@@ -32,7 +32,6 @@ import {
   searchContent,
   getTeamOverview,
   getTeamActionItems,
-  getTeamPriorities,
   getImpactLog,
   getSettingsOptions,
   getFileContent,
@@ -237,7 +236,7 @@ describe('github.ts integration tests', () => {
 
     it('parses YAML frontmatter fields', () => {
       const people = listPeople()
-      const alice = people.find(p => p.slug === 'alice-smith')!
+      const alice = people.find(p => p.name === 'Alice Smith')!
       expect(alice.role).toBe('Senior Engineer')
       expect(alice.github).toBe('alicesmith')
       expect(alice.location).toBe('San Francisco')
@@ -246,21 +245,21 @@ describe('github.ts integration tests', () => {
 
     it('parses aliases', () => {
       const people = listPeople()
-      const alice = people.find(p => p.slug === 'alice-smith')!
+      const alice = people.find(p => p.name === 'Alice Smith')!
       expect(alice.aliases).toContain('Ali')
 
-      const bob = people.find(p => p.slug === 'bob-jones')!
+      const bob = people.find(p => p.name === 'Bob Jones')!
       expect(bob.aliases).toContain('Bobby')
       expect(bob.aliases).toContain('Robert')
     })
 
     it('counts meetings per person', () => {
       const people = listPeople()
-      const alice = people.find(p => p.slug === 'alice-smith')!
+      const alice = people.find(p => p.name === 'Alice Smith')!
       // alice-1-1 x2 + team-standup (speaker match) = 3
       expect(alice.meetingCount).toBeGreaterThanOrEqual(2)
 
-      const bob = people.find(p => p.slug === 'bob-jones')!
+      const bob = people.find(p => p.name === 'Bob Jones')!
       // bob-1-1 + team-standup (speaker match) = 2
       expect(bob.meetingCount).toBeGreaterThanOrEqual(1)
     })
@@ -434,17 +433,17 @@ describe('github.ts integration tests', () => {
 
   describe('findPersonByName', () => {
     it('finds person by exact name', () => {
-      expect(findPersonByName('Alice Smith')).toBe('alice-smith')
+      expect(findPersonByName('Alice Smith')).toBe('alice')
     })
 
     it('finds person by alias', () => {
-      expect(findPersonByName('Ali')).toBe('alice-smith')
-      expect(findPersonByName('Bobby')).toBe('bob-jones')
+      expect(findPersonByName('Ali')).toBe('alice')
+      expect(findPersonByName('Bobby')).toBe('bob')
     })
 
     it('finds person by first name', () => {
-      expect(findPersonByName('Alice')).toBe('alice-smith')
-      expect(findPersonByName('Bob')).toBe('bob-jones')
+      expect(findPersonByName('Alice')).toBe('alice')
+      expect(findPersonByName('Bob')).toBe('bob')
     })
 
     it('returns null for unknown person', () => {
@@ -452,7 +451,7 @@ describe('github.ts integration tests', () => {
     })
 
     it('strips parenthetical suffixes', () => {
-      expect(findPersonByName('Alice Smith (Senior Engineer)')).toBe('alice-smith')
+      expect(findPersonByName('Alice Smith (Senior Engineer)')).toBe('alice')
     })
   })
 
@@ -511,16 +510,6 @@ describe('github.ts integration tests', () => {
     })
   })
 
-  describe('getTeamPriorities', () => {
-    it('returns priorities for all reports', () => {
-      const priorities = getTeamPriorities()
-      expect(priorities.length).toBe(2)
-      const names = priorities.map(p => p.reportName)
-      expect(names).toContain('alice')
-      expect(names).toContain('bob')
-    })
-  })
-
   describe('edge cases', () => {
     it('handles missing meetings directory gracefully', () => {
       const minFixture = createMinimalFixtureRepo()
@@ -547,7 +536,10 @@ describe('github.ts integration tests', () => {
       clearAllCaches()
 
       const people = listPeople()
-      expect(people).toEqual([])
+      // With no people dir, direct reports still appear via report profile merge
+      expect(people.length).toBeGreaterThanOrEqual(1)
+      expect(people[0].name).toBe('Alice')
+      expect(people[0].relationship).toBe('Direct Report')
 
       setRepoPath(fixture.dir)
       clearAllCaches()

@@ -20,8 +20,6 @@ import {
   saveMeetingTitle,
   toggleActionItem,
   getTeamActionItems,
-  getTeamPriorities,
-  saveReportPriorities,
   searchContent,
   clearAllCaches,
   preWarmCaches,
@@ -96,8 +94,6 @@ export function setupIpcHandlers(): void {
   safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
   safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
   safeHandle('github:team-action-items', () => getTeamActionItems())
-  safeHandle('github:team-priorities', () => getTeamPriorities())
-  safeHandle('github:save-report-priorities', (_e, reportName, content) => saveReportPriorities(reportName as string, content as string))
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
   safeHandle('github:team-activity', () => getTeamActivity())

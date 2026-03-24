@@ -508,7 +508,6 @@ reports/{name}/              — One directory per direct report
   feedback/log.md            — Feedback entries (append-only log)
   reviews/YYYY-HN.md         — Performance reviews (H1/H2)
   prep/YYYY-MM-DD.md         — 1:1 prep documents
-  priorities.md              — Current weekly priorities/focus areas
 meetings/                    — AI-generated meeting summaries with YAML speaker frontmatter
   YYYY-MM-DD-slug.md         — Each file is a summary (title + speakers in frontmatter, summary content in body)
 transcripts/processed/       — Raw meeting transcripts
