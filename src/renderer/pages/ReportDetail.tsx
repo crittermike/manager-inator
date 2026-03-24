@@ -134,7 +134,11 @@ export function ReportDetail() {
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [showPtoModal, setShowPtoModal] = useState(false)
-  const [ptoInput, setPtoInput] = useState('1w')
+  const [ptoInput, setPtoInput] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().split('T')[0]
+  })
 
   // Refs
   const savePrepRef = useRef<() => void>(() => {})
@@ -639,33 +643,20 @@ export function ReportDetail() {
 
   const handleSavePto = useCallback(async () => {
     if (!name || !report) return
-    const choice = ptoInput.trim().toLowerCase()
-    if (!choice) return
+    const iso = ptoInput.trim()
+    if (!iso) return
 
-    const now = new Date()
-    let expiryDate: Date | null = null
-    if (choice === '1w' || choice === '1 week') {
-      expiryDate = new Date(now)
-      expiryDate.setDate(now.getDate() + 7)
-    } else if (choice === '2w' || choice === '2 weeks') {
-      expiryDate = new Date(now)
-      expiryDate.setDate(now.getDate() + 14)
-    } else {
-      const custom = new Date(choice)
-      if (!Number.isNaN(custom.getTime())) expiryDate = custom
-    }
-
-    if (!expiryDate) {
-      toast.error('Invalid date. Use 1w, 2w, or YYYY-MM-DD')
+    const parsed = new Date(iso + 'T00:00:00')
+    if (isNaN(parsed.getTime())) {
+      toast.error('Invalid date')
       return
     }
 
-    const iso = expiryDate.toISOString().split('T')[0]
     const next = { ...ptoReports, [name]: iso }
     try {
       await window.api.saveSettings({ ptoReports: next })
       setPtoReports(next)
-      toast.success(`${report.profile.displayName} marked on PTO until ${formatDate(iso)}`)
+      toast.success(`${report.profile.displayName} marked on PTO until ${parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
       setShowPtoModal(false)
     } catch {
       toast.error('Failed to update PTO status')
@@ -864,7 +855,7 @@ export function ReportDetail() {
           {isOnPto && ptoExpiry && (
             <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20">
               <Plane className="w-3.5 h-3.5" aria-hidden="true" />
-              On PTO until {formatDate(ptoExpiry)}
+              On PTO until {new Date(ptoExpiry + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </div>
           )}
         </div>
@@ -1498,35 +1489,35 @@ export function ReportDetail() {
             <div className="space-y-4">
               <div className="flex gap-2">
                 <button
-                  onClick={() => setPtoInput('1w')}
-                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
-                    ptoInput === '1w'
-                      ? 'bg-brand/10 border-brand/30 text-brand-light'
-                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
-                  }`}
+                  onClick={() => {
+                    const d = new Date()
+                    d.setDate(d.getDate() + 7)
+                    setPtoInput(d.toISOString().split('T')[0])
+                  }}
+                  className="flex-1 py-2 px-3 text-sm rounded-lg border transition-colors bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay"
                 >
                   1 week
                 </button>
                 <button
-                  onClick={() => setPtoInput('2w')}
-                  className={`flex-1 py-2 px-3 text-sm rounded-lg border transition-colors ${
-                    ptoInput === '2w'
-                      ? 'bg-brand/10 border-brand/30 text-brand-light'
-                      : 'bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay'
-                  }`}
+                  onClick={() => {
+                    const d = new Date()
+                    d.setDate(d.getDate() + 14)
+                    setPtoInput(d.toISOString().split('T')[0])
+                  }}
+                  className="flex-1 py-2 px-3 text-sm rounded-lg border transition-colors bg-surface-raised border-border text-zinc-300 hover:bg-surface-overlay"
                 >
                   2 weeks
                 </button>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Or enter custom date/format</label>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Return date</label>
                 <input
-                  type="text"
+                  type="date"
                   value={ptoInput}
                   onChange={e => setPtoInput(e.target.value)}
-                  placeholder="YYYY-MM-DD"
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-brand/40 transition-colors"
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
                   autoFocus
                   onKeyDown={e => {
                     if (e.key === 'Enter') handleSavePto()
