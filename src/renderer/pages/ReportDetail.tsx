@@ -8,7 +8,7 @@ import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { ActionItem, FeedbackEntry } from '../../shared/types'
+import type { ActionItem, FeedbackEntry, PrepEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import {
   ArrowLeft,
@@ -34,16 +34,17 @@ import {
   Filter,
   Plus,
   AlertCircle,
-  Plane
+  Plane,
+  ClipboardList
 } from 'lucide-react'
 
 // ── Types ──
 
-type StreamFilter = 'all' | '1:1' | 'feedback' | 'action' | 'checkin' | 'review'
+type StreamFilter = 'all' | '1:1' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
 
 interface StreamEntry {
   id: string
-  type: '1:1' | 'feedback' | 'action' | 'checkin' | 'review'
+  type: '1:1' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
   date: string
   title: string
   preview: string
@@ -254,6 +255,17 @@ export function ReportDetail() {
     if (content) {
       setAiContent(content)
       setPrepContent(content)
+      const today = new Date().toISOString().split('T')[0]
+      try {
+        await window.api.commitFile(
+          `reports/${name}/prep/${today}.md`,
+          content,
+          `Save 1:1 prep for ${report.profile.displayName} on ${today}`
+        )
+        toast.success('Prep saved')
+      } catch {
+        toast.error('Failed to auto-save prep')
+      }
     } else {
       setAiContent('_Failed to generate prep. Try clicking Regenerate._')
     }
@@ -386,9 +398,9 @@ export function ReportDetail() {
         await window.api.commitFile(
           `reports/${name}/prep/${today}.md`,
           prepContent || content,
-          `Save 1:1 prep for ${report.profile.displayName} on ${today}`
+          `Update 1:1 prep for ${report.profile.displayName} on ${today}`
         )
-        toast.success('Prep saved')
+        toast.success('Prep updated')
       } else if (aiMode === 'checkin') {
         const now = new Date()
         const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -410,7 +422,6 @@ export function ReportDetail() {
         )
         toast.success('Review saved')
       }
-      refresh()
     } catch (e) {
       console.error('Failed to save:', e)
       toast.error('Failed to save')
@@ -725,6 +736,18 @@ export function ReportDetail() {
       })
     }
 
+    // Preps
+    for (const p of (report.preps ?? [])) {
+      entries.push({
+        id: `prep-${p.date}`,
+        type: 'prep',
+        date: p.date,
+        title: `1:1 Prep — ${formatDate(p.date)}`,
+        preview: p.content.slice(0, 120).replace(/[#*_\[\]]/g, '').trim() + (p.content.length > 120 ? '…' : ''),
+        data: p
+      })
+    }
+
     // Sort reverse chronologically
     entries.sort((a, b) => b.date.localeCompare(a.date))
 
@@ -801,12 +824,14 @@ export function ReportDetail() {
     feedback: streamEntries.filter(e => e.type === 'feedback').length,
     action: report.actionItems.filter(a => !a.completed).length,
     checkin: streamEntries.filter(e => e.type === 'checkin').length,
-    review: streamEntries.filter(e => e.type === 'review').length
+    review: streamEntries.filter(e => e.type === 'review').length,
+    prep: streamEntries.filter(e => e.type === 'prep').length
   }
 
   const filters: { id: StreamFilter; label: string; icon: typeof FileText }[] = [
     { id: 'all', label: 'All', icon: Filter },
     { id: '1:1', label: '1:1s', icon: MessageSquare },
+    { id: 'prep', label: 'Prep', icon: ClipboardList },
     { id: 'feedback', label: 'Feedback', icon: Star },
     { id: 'action', label: 'Actions', icon: CheckSquare },
     { id: 'checkin', label: 'Check-ins', icon: FileText },
@@ -1236,7 +1261,7 @@ export function ReportDetail() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
               >
                 <Save className="w-3 h-3" aria-hidden="true" />
-                {aiSaving ? 'Saving…' : 'Save to repo'}
+                {aiSaving ? 'Saving…' : aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
               </button>
               <button
                 onClick={() => handleCopy(aiContent || prepContent || fullTextRef.current || streamedText)}
@@ -1592,7 +1617,8 @@ function StreamEntryCard({
     feedback: { bg: 'bg-amber-500/10', text: 'text-amber-400', label: 'Feedback' },
     action: { bg: 'bg-purple-500/10', text: 'text-purple-400', label: 'Actions' },
     checkin: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', label: 'Check-in' },
-    review: { bg: 'bg-pink-500/10', text: 'text-pink-400', label: 'Review' }
+    review: { bg: 'bg-pink-500/10', text: 'text-pink-400', label: 'Review' },
+    prep: { bg: 'bg-sky-500/10', text: 'text-sky-400', label: 'Prep' }
   }
 
   const style = typeStyles[entry.type] || typeStyles['1:1']
@@ -1632,6 +1658,7 @@ function StreamEntryCard({
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} togglingItems={togglingItems} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onViewContent={onViewContent} />}
+            {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onViewContent={onViewContent} />}
           </div>
         </div>
       )}
@@ -1773,6 +1800,27 @@ function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name
         className="text-xs text-brand-light hover:text-brand transition-colors"
       >
         View full review →
+      </button>
+    </div>
+  )
+}
+
+function PrepDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
+  const p = entry.data as PrepEntry
+
+  return (
+    <div className="space-y-2">
+      <div className="prose-dark text-sm max-h-48 overflow-y-auto">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{p.content}</ReactMarkdown>
+      </div>
+      <button
+        onClick={() => onViewContent(
+          `reports/${name}/prep/${p.date}.md`,
+          `1:1 Prep — ${formatDate(p.date)}`
+        )}
+        className="text-xs text-brand-light hover:text-brand transition-colors"
+      >
+        View full prep →
       </button>
     </div>
   )

@@ -5,7 +5,7 @@ import { AuthScreen } from './pages/AuthScreen'
 import { SetupScreen } from './pages/SetupScreen'
 import { Today } from './pages/Today'
 import { SearchPage } from './pages/Search'
-import { useState, useEffect, useMemo, Suspense, lazy } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 
@@ -34,10 +34,45 @@ function Layout() {
   )
 }
 
+const LOADING_STEPS = [
+  'Scanning meeting files...',
+  'Scanning raw transcripts...',
+  'Loading team data...',
+  'Building people index...',
+  'Building search index...',
+  'Ready!'
+]
+
+function LoadingScreen({ message }: { message: string }) {
+  const stepIndex = LOADING_STEPS.indexOf(message)
+  const progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 10
+
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
+      <div className="flex flex-col items-center gap-6 max-w-xs w-full">
+        <div className="text-3xl font-bold text-zinc-100 tracking-tight">Manager-inator</div>
+        <div className="w-full space-y-3">
+          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="text-center">
+            <span className="text-zinc-500 text-sm">{message}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const { authenticated, loading, bridgeError, refresh: refreshAuth } = useAuth()
   const [hasRepo, setHasRepo] = useState<boolean | null>(null)
-  const [loadingMessage, setLoadingMessage] = useState('Loading...')
+  const [loadingMessage, setLoadingMessage] = useState('Starting up...')
+  const [cachesReady, setCachesReady] = useState(false)
+  const cacheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const router = useMemo(() => createHashRouter([
     {
@@ -65,7 +100,6 @@ export default function App() {
           setHasRepo(!!s.repoPath)
         })
         .catch(() => {
-          // Settings fetch failed — fall through to setup screen
           setHasRepo(false)
         })
     }
@@ -74,8 +108,19 @@ export default function App() {
   useEffect(() => {
     const unsub = window.api.onLoadingProgress?.((data) => {
       setLoadingMessage(data.message)
+      if (data.message === 'Ready!') {
+        setCachesReady(true)
+      }
     })
-    return () => unsub?.()
+
+    cacheTimerRef.current = setTimeout(() => {
+      setCachesReady(true)
+    }, 60_000)
+
+    return () => {
+      unsub?.()
+      if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
+    }
   }, [])
 
   if (bridgeError) {
@@ -100,14 +145,7 @@ export default function App() {
   }
 
   if (loading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-          <span className="text-zinc-400 text-sm animate-pulse">{loadingMessage}</span>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message={loadingMessage} />
   }
 
   if (!authenticated) {
@@ -115,15 +153,15 @@ export default function App() {
   }
 
   if (hasRepo === null) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
-        <div className="w-10 h-10 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <LoadingScreen message={loadingMessage} />
   }
 
   if (!hasRepo) {
     return <SetupScreen onComplete={() => setHasRepo(true)} />
+  }
+
+  if (!cachesReady) {
+    return <LoadingScreen message={loadingMessage} />
   }
 
   return (

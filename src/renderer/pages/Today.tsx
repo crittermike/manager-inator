@@ -757,6 +757,7 @@ export function Today() {
   )
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [processingItem, setProcessingItem] = useState<string | null>(null)
+  const [prepExistsMap, setPrepExistsMap] = useState<Record<string, boolean>>({})
 
   const [teamActivity, setTeamActivity] = useState<TeamMemberActivity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
@@ -825,6 +826,19 @@ export function Today() {
     }).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    const reps = overview?.reports
+    if (!reps || reps.length === 0) return
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const paths = reps.map(r => `reports/${r.name}/prep/${today}.md`)
+    window.api.getFilesContentBulk(paths).then(result => {
+      const map: Record<string, boolean> = {}
+      for (const r of reps) {
+        map[r.name] = !!result[`reports/${r.name}/prep/${today}.md`]
+      }
+      setPrepExistsMap(map)
+    }).catch(() => {})
+  }, [overview])
   const fetchTeamActivity = useCallback(async () => {
     if (!hasGithubOrgToken) return
     setActivityLoading(true)
@@ -905,8 +919,18 @@ export function Today() {
       const expiry = ptoReports[item.reportName]
       if (expiry && new Date(expiry) > new Date()) return false
       return true
+    }).map(item => {
+      if (item.actionType === 'prep' && item.reportName && prepExistsMap[item.reportName]) {
+        return {
+          ...item,
+          title: `Review 1:1 prep for ${reports.find(r => r.name === item.reportName)?.displayName ?? item.reportName}`,
+          subtitle: `Prep saved · ${reports.find(r => r.name === item.reportName)?.openActionItems ?? 0} open action items`,
+          actionLabel: 'Review'
+        }
+      }
+      return item
     })
-  }, [reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports])
+  }, [reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap])
 
   const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'inbox', 'coming-up', 'done']
 
@@ -1292,9 +1316,15 @@ export function Today() {
                             reportName={item.reportName}
                             onDone={() => {
                               markDone(item.id)
+                              if (item.reportName) {
+                                setPrepExistsMap(prev => ({ ...prev, [item.reportName!]: false }))
+                              }
                             }}
                             onCancel={() => {
                               setExpandedItem(null)
+                              if (item.reportName) {
+                                setPrepExistsMap(prev => ({ ...prev, [item.reportName!]: true }))
+                              }
                             }}
                           />
                         </div>

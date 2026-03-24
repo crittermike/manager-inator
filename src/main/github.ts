@@ -11,6 +11,7 @@ import type {
   Transcript,
   ActionItem,
   FeedbackEntry,
+  PrepEntry,
   TeamOverview,
   ReportStatus,
   TeamActionItem,
@@ -641,7 +642,18 @@ export function getReportData(name: string): Report {
   const mdReviews = reviewFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep' && !f.startsWith('YYYY')).sort()
   const reviews = mdReviews.map((f) => ({ period: f.replace('.md', ''), content: '' }))
 
-  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
+  const prepFiles = listFiles(`reports/${name}/prep`).filter(f => f.endsWith('.md')).sort()
+  const preps: PrepEntry[] = prepFiles.map((f) => {
+    const date = f.replace('.md', '')
+    try {
+      const content = getFileContent(`reports/${name}/prep/${f}`)
+      return { date, content }
+    } catch {
+      return { date, content: '' }
+    }
+  })
+
+  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, preps, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
   _reportDataCache.set(name, result)
   return result
 }
@@ -1183,19 +1195,25 @@ export function clearAllCaches(): void {
 }
 
 /** Pre-warm all caches at startup so first navigation is instant */
-export function preWarmCaches(onProgress?: (message: string) => void): void {
+export async function preWarmCaches(onProgress?: (message: string) => void): Promise<void> {
+  const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
   try {
     console.log('[Cache] Pre-warming...')
     const t0 = Date.now()
     onProgress?.('Scanning meeting files...')
+    await yield_()
     getMeetingsCache()
     onProgress?.('Scanning raw transcripts...')
+    await yield_()
     listRawTranscripts()
     onProgress?.('Loading team data...')
+    await yield_()
     getTeamOverview()
     onProgress?.('Building people index...')
+    await yield_()
     listPeople()
     onProgress?.('Building search index...')
+    await yield_()
     getSearchIndex()
     onProgress?.('Ready!')
     console.log(`[Cache] Pre-warmed in ${Date.now() - t0}ms`)

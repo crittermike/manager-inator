@@ -460,22 +460,18 @@ ${context.actionItems ? `Action items (completed and open):\n${context.actionIte
         role: 'user',
         content: `Prepare notes for my upcoming 1:1 with ${context.reportName}.
 
-Return ONLY a markdown document with the sections below. Use checkbox syntax (- [ ]) for every action item and discussion topic so I can check them off during the meeting. Be specific and actionable.
+Return ONLY a markdown document with the sections below. Use checkbox syntax (- [ ]) for every action item and discussion topic so I can check them off during the meeting. Be specific and actionable. Keep it concise — no filler.
 
 ## Carry-forward action items
 List any unchecked action items from recent meetings as checkboxes:
 - [ ] Owner: specific action item text
 
-## Discussion topics
-Based on recent activity, suggest topics as checkboxes:
-- [ ] Topic description (why it matters)
+## Discussion topics & questions
+Based on recent activity, suggest discussion topics and questions to ask as checkboxes. Mix topics and questions together, ordered by importance:
+- [ ] Topic or question (brief context on why it matters)
 
 ## Quick context
-Brief bullet points on what's been happening recently.
-
-## Questions to ask
-Specific questions as checkboxes:
-- [ ] Question text
+2-3 brief bullet points on what's been happening recently. No fluff.
 
 ---
 

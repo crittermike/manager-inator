@@ -94,6 +94,12 @@ export interface CustomPractice {
   perReport: boolean
 }
 
+// ── 1:1 Prep entry ──
+export interface PrepEntry {
+  date: string // YYYY-MM-DD
+  content: string
+}
+
 // ── Report (aggregate of all data for one person) ──
 export interface Report {
   name: string // directory name
@@ -104,6 +110,7 @@ export interface Report {
   actionItems: ActionItem[]
   feedback: FeedbackEntry[]
   reviews: { period: string; content: string }[]
+  preps: PrepEntry[]
   dashboard: string
   jobExpectations: string
 }
