@@ -12,7 +12,6 @@ import { isSupportedTranscriptFile, readTranscriptFile, stripTranscriptExtension
 import {
   AlertCircle,
   BookOpen,
-  Calendar,
   ClipboardList,
   Inbox,
   CheckCircle2,
@@ -58,13 +57,7 @@ const sectionConfig: Record<TimelineSection, {
     bg: 'bg-sky-500/10',
     border: 'border-l-sky-500/50'
   },
-  upcoming: {
-    label: 'Before your next 1:1',
-    icon: Calendar,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-l-amber-500/50'
-  },
+
   inbox: {
     label: 'Inbox',
     icon: Inbox,
@@ -333,51 +326,13 @@ function computeTimelineItems(
     for (const r of todayMeetings) {
       items.push({
         id: `prep-today-${r.name}`,
-        section: doneIds.has(`prep-today-${r.name}`) ? 'done' : 'upcoming',
-        title: `1:1 with ${r.displayName} is today`,
+        section: doneIds.has(`prep-today-${r.name}`) ? 'done' : 'this-week',
+        title: `Review 1:1 prep for ${r.displayName}`,
         subtitle: `${r.openActionItems} open action items · prep notes available`,
         reportName: r.name,
-        actionLabel: 'Prep',
+        actionLabel: 'Review',
         actionType: 'prep'
       })
-    }
-
-    const tomorrowIndex = (dayIndex + 1) % 7
-    const tomorrowName = dayNames[tomorrowIndex]
-    if (tomorrowIndex >= 1 && tomorrowIndex <= 5) {
-      const tomorrowMeetings = reports.filter(r =>
-        r.meetingDay && matchesMeetingDay(r.meetingDay, tomorrowName)
-      )
-      for (const r of tomorrowMeetings) {
-        items.push({
-          id: `prep-tomorrow-${r.name}`,
-          section: doneIds.has(`prep-tomorrow-${r.name}`) ? 'done' : 'upcoming',
-          title: `1:1 with ${r.displayName} is tomorrow`,
-          subtitle: `${r.openActionItems} open action items`,
-          reportName: r.name,
-          actionLabel: 'Pre-prep',
-          actionType: 'prep'
-        })
-      }
-    }
-
-    const day2Index = (dayIndex + 2) % 7
-    const day2Name = dayNames[day2Index]
-    if (day2Index >= 1 && day2Index <= 5) {
-      const day2Meetings = reports.filter(r =>
-        r.meetingDay && matchesMeetingDay(r.meetingDay, day2Name)
-      )
-      for (const r of day2Meetings) {
-        items.push({
-          id: `prep-day2-${r.name}`,
-          section: doneIds.has(`prep-day2-${r.name}`) ? 'done' : 'upcoming',
-          title: `1:1 with ${r.displayName} in 2 days`,
-          subtitle: `${r.openActionItems} open action items`,
-          reportName: r.name,
-          actionLabel: 'View',
-          actionType: 'prep'
-        })
-      }
     }
   }
 
@@ -798,7 +753,7 @@ export function Today() {
     }
    })
   const [expandedSections, setExpandedSections] = useState<Set<TimelineSection>>(
-    new Set(['reflection', 'overdue', 'upcoming', 'inbox'])
+    new Set(['reflection', 'overdue', 'this-week', 'inbox'])
   )
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [processingItem, setProcessingItem] = useState<string | null>(null)
@@ -953,11 +908,11 @@ export function Today() {
     })
   }, [reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports])
 
-  const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'upcoming', 'inbox', 'coming-up', 'done']
+  const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'inbox', 'coming-up', 'done']
 
   const itemsBySection = useMemo(() => {
     const grouped: Record<TimelineSection, TimelineItem[]> = {
-      reflection: [], overdue: [], 'this-week': [], upcoming: [], inbox: [], 'coming-up': [], done: []
+      reflection: [], overdue: [], 'this-week': [], inbox: [], 'coming-up': [], done: []
     }
     for (const item of items) {
       grouped[item.section].push(item)
@@ -1044,11 +999,9 @@ export function Today() {
     const parts: string[] = []
     const overdueCount = itemsBySection.overdue.length
     const reflectionCount = itemsBySection.reflection.length
-    const upcomingCount = itemsBySection.upcoming.length
     const thisWeekCount = itemsBySection['this-week'].length
     const inboxCount = itemsBySection.inbox.length
     if (overdueCount > 0) parts.push(`${overdueCount} overdue`)
-    if (upcomingCount > 0) parts.push(`${upcomingCount} 1:1 prep`)
     if (thisWeekCount > 0) parts.push(`${thisWeekCount} this week`)
     if (reflectionCount > 0) parts.push(`${reflectionCount} reflection`)
     if (inboxCount > 0) parts.push(`${inboxCount} to process`)
@@ -1142,7 +1095,7 @@ export function Today() {
           </div>
           <p className="text-lg font-medium text-zinc-200">All caught up</p>
           <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto leading-relaxed">
-            No overdue items, no upcoming 1:1s to prep, and your inbox is clear. Enjoy the calm.
+            No overdue items and your inbox is clear. Enjoy the calm.
           </p>
         </div>
       )}
