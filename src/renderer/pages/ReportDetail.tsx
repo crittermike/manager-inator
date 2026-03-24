@@ -685,9 +685,10 @@ export function ReportDetail() {
     }
 
     // Feedback
-    for (const f of report.feedback) {
+    for (let i = 0; i < report.feedback.length; i++) {
+      const f = report.feedback[i]
       entries.push({
-        id: `feedback-${f.date}-${f.content.slice(0, 20)}`,
+        id: `feedback-${f.date}-${i}`,
         type: 'feedback',
         date: f.date,
         title: `${f.type === 'positive' ? '👍' : f.type === 'constructive' ? '🔧' : f.type === 'observation' ? '💡' : '💬'} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}`,
@@ -913,19 +914,38 @@ export function ReportDetail() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Meeting Day</label>
-                <select
-                  value={profileFields.meetingDay}
-                  onChange={e => setProfileFields({ ...profileFields, meetingDay: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors appearance-none"
-                >
-                  <option value="">Select a day...</option>
-                  <option value="Monday">Monday</option>
-                  <option value="Tuesday">Tuesday</option>
-                  <option value="Wednesday">Wednesday</option>
-                  <option value="Thursday">Thursday</option>
-                  <option value="Friday">Friday</option>
-                </select>
+                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Meeting Days</label>
+                <div className="flex gap-1.5">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => {
+                    const selected = profileFields.meetingDay
+                      .split('/')
+                      .map(d => d.trim().toLowerCase())
+                      .includes(day.toLowerCase())
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          const current = profileFields.meetingDay
+                            .split('/')
+                            .map(d => d.trim())
+                            .filter(Boolean)
+                          const updated = selected
+                            ? current.filter(d => d.toLowerCase() !== day.toLowerCase())
+                            : [...current, day]
+                          setProfileFields({ ...profileFields, meetingDay: updated.join('/') })
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          selected
+                            ? 'bg-brand/20 text-brand-light border border-brand/30'
+                            : 'bg-surface-raised text-zinc-500 border border-border hover:text-zinc-300 hover:border-zinc-600'
+                        }`}
+                      >
+                        {day.slice(0, 3)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-1.5">GitHub</label>
