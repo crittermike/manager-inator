@@ -265,6 +265,7 @@ export interface IpcApi {
   getImpactLog: () => Promise<string>
   getSettingsOptions: () => Promise<SettingsOptions>
   saveMeetingTitle: (filename: string, title: string) => Promise<void>
+  saveMeetingSpeakers: (filename: string, speakers: string[]) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
   getTeamActionItems: () => Promise<TeamActionItem[]>
   clearCaches: () => Promise<void>

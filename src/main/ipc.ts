@@ -18,6 +18,7 @@ import {
   getImpactLog,
   getSettingsOptions,
   saveMeetingTitle,
+  saveMeetingSpeakers,
   toggleActionItem,
   getTeamActionItems,
   searchContent,
@@ -92,6 +93,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:impact-log', () => getImpactLog())
   safeHandle('github:settings-options', () => getSettingsOptions())
   safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
+  safeHandle('github:save-meeting-speakers', (_e, filename, speakers) => saveMeetingSpeakers(filename as string, speakers as string[]))
   safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
   safeHandle('github:team-action-items', () => getTeamActionItems())
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))

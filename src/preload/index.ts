@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('api', {
   getSettingsOptions: () => ipcRenderer.invoke('github:settings-options'),
   saveMeetingTitle: (filename: string, title: string) =>
     ipcRenderer.invoke('github:save-meeting-title', filename, title),
+  saveMeetingSpeakers: (filename: string, speakers: string[]) =>
+    ipcRenderer.invoke('github:save-meeting-speakers', filename, speakers),
   toggleActionItem: (sourceFile: string, lineNumber: number) =>
     ipcRenderer.invoke('github:toggle-action-item', sourceFile, lineNumber),
   getTeamActionItems: () => ipcRenderer.invoke('github:team-action-items'),

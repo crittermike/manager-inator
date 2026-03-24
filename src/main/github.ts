@@ -158,6 +158,20 @@ export function safeSend(win: BrowserWindow | null, channel: string, payload: un
   }
 }
 
+function invalidateCachesForPath(filePath: string): void {
+  const p = filePath.replace(/\\/g, '/')
+  invalidateSearchIndex()
+
+  if (p.startsWith('meetings/')) {
+    invalidateMeetingsCache()
+  } else if (p.startsWith('reports/')) {
+    invalidateReportCache()
+    _teamOverviewCache = null
+  } else if (p.startsWith('people/')) {
+    invalidatePeopleCache()
+  }
+}
+
 async function _commitFileImpl(path: string, content: string, message: string): Promise<void> {
   const fullPath = safePath(path)
   mkdirSync(dirname(fullPath), { recursive: true })
@@ -170,9 +184,7 @@ async function _commitFileImpl(path: string, content: string, message: string): 
   try {
     await spawnAsync('git', ['diff', '--cached', '--quiet', '--', path], rp)
     // Exit 0 means no staged changes for this file — nothing to commit
-    invalidateMeetingsCache()
-    invalidateReportCache()
-    invalidatePeopleCache()
+    invalidateCachesForPath(path)
     return
   } catch {
     // Exit 1 means there are staged changes — proceed with commit
@@ -180,9 +192,7 @@ async function _commitFileImpl(path: string, content: string, message: string): 
 
   await spawnAsync('git', ['commit', '-m', message], rp)
 
-  invalidateMeetingsCache()
-  invalidateReportCache()
-  invalidatePeopleCache()
+  invalidateCachesForPath(path)
 
   fireAndForgetPush(rp)
 }
@@ -244,17 +254,13 @@ async function _deleteFileImpl(path: string): Promise<void> {
 
   try {
     await spawnAsync('git', ['diff', '--cached', '--quiet', '--', path], rp)
-    invalidateMeetingsCache()
-    invalidateReportCache()
-    invalidatePeopleCache()
+    invalidateCachesForPath(path)
     return
   } catch {}
 
   await spawnAsync('git', ['commit', '-m', `Delete file: ${path}`], rp)
 
-  invalidateMeetingsCache()
-  invalidateReportCache()
-  invalidatePeopleCache()
+  invalidateCachesForPath(path)
 
   fireAndForgetPush(rp)
 }
@@ -459,35 +465,31 @@ export function deriveReportTitle(relativePath: string): string {
   return `${reportName} — ${detail}`
 }
 
-export function searchContent(query: string): { filename: string; directory: string; title: string; snippet: string; date?: string }[] {
-  const q = query.trim().toLowerCase()
-  if (!q) return []
+interface SearchIndexEntry {
+  filename: string
+  directory: 'meetings' | 'reports' | 'people' | 'notes'
+  content: string
+  lowered: string
+}
 
-  const results: { filename: string; directory: string; title: string; snippet: string; date?: string }[] = []
+let _searchIndexCache: SearchIndexEntry[] | null = null
+
+function invalidateSearchIndex(): void { _searchIndexCache = null }
+
+function getSearchIndex(): SearchIndexEntry[] {
+  if (_searchIndexCache) return _searchIndexCache
+
+  const entries: SearchIndexEntry[] = []
 
   const meetingsCache = getMeetingsCache()
-  const meetingCandidates = meetingsCache.meetings
-  for (const f of meetingCandidates) {
-    if (results.length >= 50) break
-    let content = ''
+  for (const f of meetingsCache.meetings) {
     try {
-      content = getFileContent(`meetings/${f}`)
-    } catch { continue }
-    const lower = content.toLowerCase()
-    const idx = lower.indexOf(q)
-    if (idx === -1) continue
-    const name = f.replace(/\.(md|txt)$/i, '')
-    const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
-    results.push({
-      filename: f,
-      directory: 'meetings',
-      title: deriveMeetingTitleFromContent(f, content),
-      snippet: extractSnippet(content, idx, q.length),
-      date
-    })
+      const content = getFileContent(`meetings/${f}`)
+      entries.push({ filename: f, directory: 'meetings', content, lowered: content.toLowerCase() })
+    } catch { /* skip */ }
   }
 
-  const otherDirs: { dir: string; category: string }[] = [
+  const otherDirs: { dir: string; category: 'reports' | 'people' | 'notes' }[] = [
     { dir: 'reports', category: 'reports' },
     { dir: 'people', category: 'people' },
     { dir: 'weekly-log', category: 'notes' }
@@ -496,29 +498,53 @@ export function searchContent(query: string): { filename: string; directory: str
   for (const { dir, category } of otherDirs) {
     const files = listFilesRecursive(dir)
     for (const relPath of files) {
-      if (results.length >= 50) break
       if (!/\.(md|txt)$/i.test(relPath)) continue
-      let content = ''
       try {
-        content = readFileSync(safePath(relPath), 'utf-8')
-      } catch { continue }
-      const lower = content.toLowerCase()
-      const idx = lower.indexOf(q)
-      if (idx === -1) continue
-      const filename = relPath.slice(dir.length + 1)
-      const snippet = extractSnippet(content, idx, q.length)
+        const content = readFileSync(safePath(relPath), 'utf-8')
+        const filename = relPath.slice(dir.length + 1)
+        entries.push({ filename, directory: category, content, lowered: content.toLowerCase() })
+      } catch { /* skip */ }
+    }
+  }
 
-      if (category === 'reports') {
-        const date = filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
-        results.push({ filename, directory: 'reports', title: deriveReportTitle(filename), snippet, date })
-      } else if (category === 'people') {
-        results.push({ filename, directory: 'people', title: titleCase(filename.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')), snippet })
-      } else {
-        const name = filename.replace(/\.(md|txt)$/i, '')
-        const date = name.match(/^(\d{4})/)?.[1]
-        const titleParts = name.replace(/^\d{4}-W\d{2}-/, '').replace(/-/g, ' ')
-        results.push({ filename, directory: 'notes', title: titleParts.charAt(0).toUpperCase() + titleParts.slice(1), snippet, date })
-      }
+  _searchIndexCache = entries
+  return entries
+}
+
+export function searchContent(query: string): { filename: string; directory: string; title: string; snippet: string; date?: string }[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+
+  const results: { filename: string; directory: string; title: string; snippet: string; date?: string }[] = []
+  const index = getSearchIndex()
+
+  for (const entry of index) {
+    if (results.length >= 50) break
+    const idx = entry.lowered.indexOf(q)
+    if (idx === -1) continue
+
+    const snippet = extractSnippet(entry.content, idx, q.length)
+
+    if (entry.directory === 'meetings') {
+      const name = entry.filename.replace(/\.(md|txt)$/i, '')
+      const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+      results.push({
+        filename: entry.filename,
+        directory: 'meetings',
+        title: deriveMeetingTitleFromContent(entry.filename, entry.content),
+        snippet,
+        date
+      })
+    } else if (entry.directory === 'reports') {
+      const date = entry.filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+      results.push({ filename: entry.filename, directory: 'reports', title: deriveReportTitle(entry.filename), snippet, date })
+    } else if (entry.directory === 'people') {
+      results.push({ filename: entry.filename, directory: 'people', title: titleCase(entry.filename.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')), snippet })
+    } else {
+      const name = entry.filename.replace(/\.(md|txt)$/i, '')
+      const date = name.match(/^(\d{4})/)?.[1]
+      const titleParts = name.replace(/^\d{4}-W\d{2}-/, '').replace(/-/g, ' ')
+      results.push({ filename: entry.filename, directory: 'notes', title: titleParts.charAt(0).toUpperCase() + titleParts.slice(1), snippet, date })
     }
   }
 
@@ -564,7 +590,6 @@ export function getReportData(name: string): Report {
 
   // Read from local filesystem - instant
   const checkInFiles = listFiles(`reports/${name}/check-ins/monthly`)
-  const allMeetingFiles = listFiles('meetings')
   let feedbackRaw = ''
   try { feedbackRaw = getFileContent(`reports/${name}/feedback/log.md`) } catch {}
   const reviewFiles = listFiles(`reports/${name}/reviews`)
@@ -573,10 +598,8 @@ export function getReportData(name: string): Report {
   let jobExpectationsRaw = ''
   try { jobExpectationsRaw = getFileContent(`reports/${name}/job-expectations.md`) } catch {}
 
-  // Filter meetings for this person (all meeting files are summaries now)
-  const personMeetings = allMeetingFiles.filter(
-    (f) => f.includes(`${name}-1-1`)
-  ).sort()
+  // Match meetings via filename segments + speaker/attendee frontmatter (rich matching)
+  const personMeetings = getPersonMeetings(name).map(m => m.filename).sort()
 
   // Parse check-ins
   const mdCheckIns = checkInFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep').sort()
@@ -689,7 +712,7 @@ function getMeetingsCache() {
   const hasFrontmatter = new Set<string>()
   for (const mf of meetings) {
     try {
-      const content = getFileContent(`meetings/${mf}`).slice(0, 800)
+      const content = getFileContent(`meetings/${mf}`).slice(0, 2000)
       const speakers = parseSpeakers(content)
       if (speakers.length > 0) {
         speakerMap.set(mf, speakers)
@@ -776,18 +799,81 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
   invalidateMeetingsCache()
 }
 
+export async function saveMeetingSpeakers(meetingFilename: string, speakerNames: string[]): Promise<void> {
+  const meetingPath = `meetings/${meetingFilename}`
+  const speakersYaml = speakerNames.map(n => `  - ${yamlEscapeValue(n)}`).join('\n')
+
+  try {
+    let content = getFileContent(meetingPath)
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+    if (fmMatch) {
+      let fm = fmMatch[1]
+      if (/^speakers:\s/m.test(fm)) {
+        fm = fm.replace(/^speakers:\s*\n(?:\s+-\s+.+\n?)*/m, `speakers:\n${speakersYaml}\n`)
+      } else {
+        fm = `${fm}\nspeakers:\n${speakersYaml}`
+      }
+      content = `---\n${fm}\n---` + content.slice(fmMatch[0].length)
+    } else {
+      content = `---\nspeakers:\n${speakersYaml}\n---\n\n${content}`
+    }
+    await commitFile(meetingPath, content, `Update meeting speakers: ${speakerNames.join(', ')}`)
+  } catch {
+    await commitFile(meetingPath, `---\nspeakers:\n${speakersYaml}\n---\n`, `Set meeting speakers: ${speakerNames.join(', ')}`)
+  }
+  invalidateMeetingsCache()
+}
+
 // ── People helpers ──
 
-/** Parse speakers list from YAML frontmatter of a summary file */
+/** Strip parenthetical suffixes and clean a raw attendee name */
+function cleanAttendeeName(raw: string): string {
+  return raw.replace(/\s*\(.*?\)\s*/g, '').trim()
+}
+
+/**
+ * Parse attendees/speakers from meeting content.
+ * Checks three sources in order:
+ *   1. YAML frontmatter `speakers:` list
+ *   2. Inline `**Attendees:**` or `**Attendees**:` line (comma-separated)
+ *   3. `## Attendees` heading followed by bullet list
+ * Returns deduplicated names with parenthetical suffixes stripped.
+ */
 export function parseSpeakers(content: string): string[] {
+  // 1. YAML frontmatter speakers
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!fmMatch) return []
-  const speakersMatch = fmMatch[1].match(/speakers:\s*\n((?:\s+-\s+.+\n?)*)/)
-  if (!speakersMatch) return []
-  return speakersMatch[1]
-    .split('\n')
-    .map(l => l.replace(/^\s*-\s*/, '').replace(/\s*\(.*?\)\s*/g, '').trim())
-    .filter(Boolean)
+  if (fmMatch) {
+    const speakersMatch = fmMatch[1].match(/speakers:\s*\n((?:\s+-\s+.+\n?)*)/)
+    if (speakersMatch) {
+      const speakers = speakersMatch[1]
+        .split('\n')
+        .map(l => cleanAttendeeName(l.replace(/^\s*-\s*/, '')))
+        .filter(Boolean)
+      if (speakers.length > 0) return speakers
+    }
+  }
+
+  // 2. Inline **Attendees:** or **Attendees**: or - **Attendees**: (comma-separated on same line)
+  const inlineMatch = content.match(/(?:^|\n)-?\s*\*\*Attendees\*?\*?\s*:?\*{0,2}\s*:?\s*(.+)/m)
+  if (inlineMatch) {
+    const names = inlineMatch[1]
+      .split(',')
+      .map(n => cleanAttendeeName(n))
+      .filter(Boolean)
+    if (names.length > 0) return names
+  }
+
+  // 3. ## Attendees heading followed by bullet list
+  const sectionMatch = content.match(/^#{1,3}\s+Attendees\s*\n((?:\s*[-*]\s+.+\n?)*)/m)
+  if (sectionMatch) {
+    const names = sectionMatch[1]
+      .split('\n')
+      .map(l => cleanAttendeeName(l.replace(/^\s*[-*]\s*/, '')))
+      .filter(Boolean)
+    if (names.length > 0) return names
+  }
+
+  return []
 }
 
 /** Check if a meeting filename (slug part) matches a person */
@@ -992,7 +1078,8 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
     .map(f => {
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
-      return { date: dateMatch?.[1] || name, title: dateMatch?.[2]?.replace(/-/g, ' ') || name, filename: f }
+      const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
+      return { date: dateMatch?.[1] || name, title: cache.titleMap.get(f) || filenameTitle, filename: f }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
 }
@@ -1092,6 +1179,7 @@ export function clearAllCaches(): void {
   invalidateMeetingsCache()
   invalidateReportCache()
   invalidatePeopleCache()
+  invalidateSearchIndex()
 }
 
 /** Pre-warm all caches at startup so first navigation is instant */
@@ -1107,6 +1195,8 @@ export function preWarmCaches(onProgress?: (message: string) => void): void {
     getTeamOverview()
     onProgress?.('Building people index...')
     listPeople()
+    onProgress?.('Building search index...')
+    getSearchIndex()
     onProgress?.('Ready!')
     console.log(`[Cache] Pre-warmed in ${Date.now() - t0}ms`)
   } catch (e) {
