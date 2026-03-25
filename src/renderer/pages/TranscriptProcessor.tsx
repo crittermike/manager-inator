@@ -49,6 +49,10 @@ export function TranscriptProcessor() {
     }
   }, [cancel])
 
+  useEffect(() => {
+    if (saved) navigate('/')
+  }, [saved, navigate])
+
   const handleProcess = async () => {
     if (!transcript.trim() || !date) return
 
@@ -238,7 +242,6 @@ export function TranscriptProcessor() {
 
       setSaved(true)
       toast.success('Meeting saved successfully')
-      navigate('/')
     } catch (e) {
       console.error('Failed to save:', e)
       toast.error('Failed to save meeting')
