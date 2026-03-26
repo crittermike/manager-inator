@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useTeamOverview } from '../hooks/useData'
+import { useTeamOverview, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
 import type { ReportStatus, MeetingEntry, RawTranscriptEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
@@ -137,6 +138,7 @@ function computeTimelineItems(
   customPractices: CustomPractice[]
 ): TimelineItem[] {
   const items: TimelineItem[] = []
+  const reportMap = new Map(reports.map(r => [r.name, r]))
   const now = new Date()
   const dayIndex = getDay(now)
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
@@ -239,7 +241,7 @@ function computeTimelineItems(
     staleByReport.set(a.reportName, (staleByReport.get(a.reportName) || 0) + 1)
   }
   for (const [reportName, count] of staleByReport) {
-    const r = reports.find(rep => rep.name === reportName)
+    const r = reportMap.get(reportName)
     if (!r) continue
     items.push({
       id: `overdue-stale-actions-${reportName}`,
@@ -724,6 +726,7 @@ function computeTimelineItems(
 
 export function Today() {
   const { overview, loading, error, refresh } = useTeamOverview()
+  const { settings } = useSettings()
   const navigate = useNavigate()
   const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
@@ -784,8 +787,14 @@ export function Today() {
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
-      if (!key || !key.startsWith('today-done-')) continue
-      const dateStr = key.replace('today-done-', '')
+      if (!key) continue
+      let dateStr: string | null = null
+      if (key.startsWith('today-done-')) {
+        dateStr = key.replace('today-done-', '')
+      } else if (key.startsWith('activity-summary-')) {
+        dateStr = key.replace('activity-summary-', '')
+      }
+      if (!dateStr) continue
       const keyDate = new Date(dateStr + 'T00:00:00').getTime()
       if (now - keyDate > sevenDaysMs) {
         localStorage.removeItem(key)
@@ -794,37 +803,41 @@ export function Today() {
   }, [])
 
   useEffect(() => {
-    window.api.listMeetings().then(setMeetings).catch(() => {})
-    window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
-    window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
-    window.api.getSettings().then((s) => {
-      setCadence({
-        checkInFrequency: s.checkInFrequency || 'monthly',
-        feedbackReminderDays: s.feedbackReminderDays ?? 14,
-        sprintLengthWeeks: s.sprintLengthWeeks ?? 2,
-        endOfWeekDay: s.endOfWeekDay || 'friday',
-        sprintStartDate: s.sprintStartDate || '',
-        staleActionDays: s.staleActionDays ?? 5
-      })
-      setCustomPractices(s.customPractices || [])
-      setDisabledPractices(s.disabledPractices || [])
-      const snoozed = s.snoozedPractices || {}
-      const now = new Date()
-      const valid: Record<string, string> = {}
-      for (const [id, dateStr] of Object.entries(snoozed)) {
-        if (new Date(dateStr) > now) valid[id] = dateStr
-      }
-      setSnoozedPractices(valid)
-      const snoozedAI = s.snoozedActionItems || {}
-      const validAI: Record<string, string> = {}
-      for (const [id, dateStr] of Object.entries(snoozedAI)) {
-        if (new Date(dateStr) > now) validAI[id] = dateStr
-      }
-      setSnoozedActionItems(validAI)
-      setPtoReports(s.ptoReports || {})
-      setHasGithubOrgToken(s.hasGithubOrgToken || false)
+    window.api.getTodayBootstrap().then(({ meetings: m, rawTranscripts: rt, teamActionItems: ta }) => {
+      setMeetings(m)
+      setRawTranscripts(rt)
+      setTeamActions(ta)
     }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!settings) return
+    setCadence({
+      checkInFrequency: settings.checkInFrequency || 'monthly',
+      feedbackReminderDays: settings.feedbackReminderDays ?? 14,
+      sprintLengthWeeks: settings.sprintLengthWeeks ?? 2,
+      endOfWeekDay: settings.endOfWeekDay || 'friday',
+      sprintStartDate: settings.sprintStartDate || '',
+      staleActionDays: settings.staleActionDays ?? 5
+    })
+    setCustomPractices(settings.customPractices || [])
+    setDisabledPractices(settings.disabledPractices || [])
+    const snoozed = settings.snoozedPractices || {}
+    const now = new Date()
+    const valid: Record<string, string> = {}
+    for (const [id, dateStr] of Object.entries(snoozed)) {
+      if (new Date(dateStr) > now) valid[id] = dateStr
+    }
+    setSnoozedPractices(valid)
+    const snoozedAI = settings.snoozedActionItems || {}
+    const validAI: Record<string, string> = {}
+    for (const [id, dateStr] of Object.entries(snoozedAI)) {
+      if (new Date(dateStr) > now) validAI[id] = dateStr
+    }
+    setSnoozedActionItems(validAI)
+    setPtoReports(settings.ptoReports || {})
+    setHasGithubOrgToken(settings.hasGithubOrgToken || false)
+  }, [settings])
 
   useEffect(() => {
     const reps = overview?.reports
@@ -894,6 +907,7 @@ export function Today() {
   }, [teamActivity, activitySummary, activityAI.streaming, generateActivitySummary])
 
   const reports = overview?.reports ?? []
+  const reportByName = useMemo(() => new Map(reports.map(r => [r.name, r])), [reports])
 
   const filteredTeamActions = useMemo(() => {
     const now = new Date()
@@ -923,8 +937,8 @@ export function Today() {
       if (item.actionType === 'prep' && item.reportName && prepExistsMap[item.reportName]) {
         return {
           ...item,
-          title: `Review 1:1 prep for ${reports.find(r => r.name === item.reportName)?.displayName ?? item.reportName}`,
-          subtitle: `Prep saved · ${reports.find(r => r.name === item.reportName)?.openActionItems ?? 0} open action items`,
+          title: `Review 1:1 prep for ${reportByName.get(item.reportName)?.displayName ?? item.reportName}`,
+          subtitle: `Prep saved · ${reportByName.get(item.reportName)?.openActionItems ?? 0} open action items`,
           actionLabel: 'Review'
         }
       }
@@ -969,6 +983,70 @@ export function Today() {
     }
   }, [toast])
 
+  // ── Stable callbacks for TimelineRow ──
+
+  const handleToggleExpandedItem = useCallback((itemId: string) => {
+    setExpandedItem(prev => prev === itemId ? null : itemId)
+  }, [])
+
+  const handleStartProcessing = useCallback((itemId: string) => {
+    setExpandedItem(itemId)
+    setProcessingItem(itemId)
+  }, [])
+
+  const handleCancelProcessing = useCallback(() => {
+    setProcessingItem(null)
+    setExpandedItem(null)
+  }, [])
+
+  const handleCancelExpand = useCallback(() => {
+    setExpandedItem(null)
+  }, [])
+
+  const handleProcessorDone = useCallback((itemId: string) => {
+    setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
+    setExpandedItem(null)
+    setProcessingItem(null)
+    window.api.getTodayBootstrap().then(({ meetings: m, rawTranscripts: rt, teamActionItems: ta }) => {
+      setMeetings(m)
+      setRawTranscripts(rt)
+      setTeamActions(ta)
+    }).catch(() => {})
+  }, [])
+
+  const handleProcessorProcessed = useCallback(() => {
+    window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
+  }, [])
+
+  const handlePrepDone = useCallback((itemId: string, reportName: string) => {
+    setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
+    setExpandedItem(null)
+    setPrepExistsMap(prev => ({ ...prev, [reportName]: true }))
+  }, [])
+
+  const handlePrepCancel = useCallback((_reportName: string) => {
+    setExpandedItem(null)
+  }, [])
+
+  const handleSnoozeAction = useCallback((actionKey: string, untilDate: string) => {
+    setSnoozedActionItems(prev => {
+      const next = { ...prev, [actionKey]: untilDate }
+      window.api.saveSettings({ snoozedActionItems: next }).catch(() => {})
+      return next
+    })
+  }, [])
+
+  const handleFeedbackDone = useCallback((itemId: string) => {
+    setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
+    setExpandedItem(null)
+    refresh()
+  }, [refresh])
+
+  const handlePromptDone = useCallback((itemId: string) => {
+    setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
+    setExpandedItem(null)
+  }, [])
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
@@ -1006,14 +1084,14 @@ export function Today() {
     reader.readAsText(file)
   }, [toast])
 
-  const toggleSection = (section: TimelineSection) => {
+  const toggleSection = useCallback((section: TimelineSection) => {
     setExpandedSections(prev => {
       const next = new Set(prev)
       if (next.has(section)) next.delete(section)
       else next.add(section)
       return next
     })
-  }
+  }, [])
 
   const totalActive = items.filter(i => i.section !== 'done' && i.section !== 'coming-up').length
   const doneCount = itemsBySection.done.length
@@ -1100,9 +1178,11 @@ export function Today() {
         <button
           onClick={() => {
             refresh()
-            window.api.listMeetings().then(setMeetings).catch(() => {})
-            window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
-            window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
+            window.api.getTodayBootstrap().then(({ meetings: m, rawTranscripts: rt, teamActionItems: ta }) => {
+              setMeetings(m)
+              setRawTranscripts(rt)
+              setTeamActions(ta)
+            }).catch(() => {})
             if (hasGithubOrgToken) fetchTeamActivity()
           }}
           className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
@@ -1165,226 +1245,29 @@ export function Today() {
 
             {isExpanded && (
               <div className="border-t border-border animate-slide-down">
-                {sectionItems.map(item => {
-                  const isItemExpanded = expandedItem === item.id
-                  const isProcessing = processingItem === item.id
-
-                  return (
-                    <div key={item.id} className="border-b border-border/30 last:border-b-0">
-                      <div
-                        className="flex items-center gap-3 px-5 py-3.5 group cursor-pointer hover:bg-surface-raised/40 transition-all duration-150"
-                        onClick={() => {
-                          if (item.actionType === 'navigate' && item.route) {
-                            navigate(item.route)
-                          } else {
-                            setExpandedItem(isItemExpanded ? null : item.id)
-                          }
-                        }}
-                      >
-                        {item.reportName ? (
-                          <div className="w-7 h-7 rounded-full bg-brand/15 flex items-center justify-center text-xs font-medium text-brand-light shrink-0">
-                            {reports.find(r => r.name === item.reportName)?.displayName.charAt(0) ?? '?'}
-                          </div>
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-surface-raised flex items-center justify-center shrink-0">
-                            <FileText className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-                          </div>
-                        )}
-
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-zinc-200 truncate">{item.title}</div>
-                          {item.subtitle && (
-                            <div className="text-xs text-zinc-500 truncate mt-0.5">{item.subtitle}</div>
-                          )}
-                        </div>
-
-                        {item.section !== 'done' && item.actionType !== 'info' && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            {item.practiceLink && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  navigate(item.practiceLink!)
-                                }}
-                                className="p-1 text-zinc-600 hover:text-brand-light transition-colors opacity-0 group-hover:opacity-100"
-                                aria-label="View in Playbook"
-                                title="View in Playbook"
-                              >
-                                <BookOpen className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {item.actionLabel && item.actionType === 'process' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setExpandedItem(item.id)
-                                  setProcessingItem(item.id)
-                                }}
-                                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
-                              >
-                                {item.actionLabel}
-                              </button>
-                            )}
-                            {item.actionLabel && item.actionType === 'navigate' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  if (item.route) navigate(item.route)
-                                }}
-                                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-                              >
-                                {item.actionLabel}
-                              </button>
-                            )}
-                            {item.actionLabel && item.actionType === 'dismiss' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  markDone(item.id)
-                                }}
-                                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-                              >
-                                {item.actionLabel}
-                              </button>
-                            )}
-                            {item.actionLabel && (item.actionType === 'prep' || item.actionType === 'inline-actions' || item.actionType === 'prompt' || item.actionType === 'feedback') && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setExpandedItem(isItemExpanded ? null : item.id)
-                                }}
-                                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
-                              >
-                                {item.actionLabel}
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                markDone(item.id)
-                              }}
-                              className="p-1 text-zinc-600 hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100"
-                              aria-label="Mark done"
-                              title="Mark done"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                        {item.actionType === 'info' && item.practiceLink && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                navigate(item.practiceLink!)
-                              }}
-                              className="p-1 text-zinc-600 hover:text-brand-light transition-colors opacity-0 group-hover:opacity-100"
-                              aria-label="View in Playbook"
-                              title="View in Playbook"
-                            >
-                              <BookOpen className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {isProcessing && isItemExpanded && item.meetingFilename && (
-                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
-                          <InlineProcessor
-                            filename={item.meetingFilename}
-                            onDone={() => {
-                              markDone(item.id)
-                              setProcessingItem(null)
-                              window.api.listMeetings().then(setMeetings).catch(() => {})
-                              window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
-                              window.api.getTeamActionItems().then(setTeamActions).catch(() => {})
-                            }}
-                            onProcessed={() => {
-                              window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
-                            }}
-                            onCancel={() => {
-                              setProcessingItem(null)
-                              setExpandedItem(null)
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {isItemExpanded && item.actionType === 'prep' && item.reportName && (
-                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
-                          <InlinePrep
-                            reportName={item.reportName}
-                            onDone={() => {
-                              markDone(item.id)
-                              if (item.reportName) {
-                                setPrepExistsMap(prev => ({ ...prev, [item.reportName!]: false }))
-                              }
-                            }}
-                            onCancel={() => {
-                              setExpandedItem(null)
-                              if (item.reportName) {
-                                setPrepExistsMap(prev => ({ ...prev, [item.reportName!]: true }))
-                              }
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {isItemExpanded && item.actionType === 'inline-actions' && item.staleActionItems && (
-                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
-                          <InlineActions
-                            reportName={item.reportName ?? ''}
-                            actions={item.staleActionItems}
-                            onDone={() => {
-                              markDone(item.id)
-                            }}
-                            onCancel={() => {
-                              setExpandedItem(null)
-                            }}
-                            onToggleAction={handleActionToggle}
-                            onSnooze={(actionKey, untilDate) => {
-                              setSnoozedActionItems(prev => {
-                                const next = { ...prev, [actionKey]: untilDate }
-                                window.api.saveSettings({ snoozedActionItems: next }).catch(() => {})
-                                return next
-                              })
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {isItemExpanded && item.actionType === 'prompt' && item.promptType && (
-                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
-                          <InlinePrompt
-                            promptType={item.promptType}
-                            onDone={() => {
-                              markDone(item.id)
-                            }}
-                            onCancel={() => {
-                              setExpandedItem(null)
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {isItemExpanded && item.actionType === 'feedback' && item.reportName && (
-                        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
-                          <InlineFeedback
-                            reportName={item.reportName}
-                            displayName={reports.find(r => r.name === item.reportName)?.displayName ?? item.reportName}
-                            onDone={() => {
-                              markDone(item.id)
-                              refresh()
-                            }}
-                            onCancel={() => {
-                              setExpandedItem(null)
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                {sectionItems.map(item => (
+                  <TimelineRow
+                    key={item.id}
+                    item={item}
+                    isItemExpanded={expandedItem === item.id}
+                    isProcessing={processingItem === item.id}
+                    reportByName={reportByName}
+                    navigate={navigate}
+                    onToggleExpand={handleToggleExpandedItem}
+                    onStartProcessing={handleStartProcessing}
+                    onCancelProcessing={handleCancelProcessing}
+                    onCancelExpand={handleCancelExpand}
+                    markDone={markDone}
+                    onProcessorDone={handleProcessorDone}
+                    onProcessorProcessed={handleProcessorProcessed}
+                    onPrepDone={handlePrepDone}
+                    onPrepCancel={handlePrepCancel}
+                    handleActionToggle={handleActionToggle}
+                    onSnooze={handleSnoozeAction}
+                    onFeedbackDone={handleFeedbackDone}
+                    onPromptDone={handlePromptDone}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -1551,11 +1434,11 @@ export function Today() {
                 <div className="px-5 py-4">
                   {activityAI.streaming ? (
                     <div className="prose-dark text-sm">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{activityAI.streamedText || 'Generating team activity summary...'}</ReactMarkdown>
+                      <div className="text-sm whitespace-pre-wrap text-zinc-300">{activityAI.streamedText || 'Generating team activity summary...'}</div>
                     </div>
                   ) : activitySummary ? (
                     <div className="prose-dark text-sm">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{activitySummary}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{activitySummary}</ReactMarkdown>
                     </div>
                   ) : activityLoading ? (
                     <div className="flex items-center gap-2 text-sm text-zinc-500 py-4">
@@ -1576,3 +1459,224 @@ export function Today() {
     </div>
   )
 }
+
+// ── Memoized TimelineRow ──
+
+interface TimelineRowProps {
+  item: TimelineItem
+  isItemExpanded: boolean
+  isProcessing: boolean
+  reportByName: Map<string, ReportStatus>
+  navigate: (path: string) => void
+  onToggleExpand: (itemId: string) => void
+  onStartProcessing: (itemId: string) => void
+  onCancelProcessing: () => void
+  onCancelExpand: () => void
+  markDone: (id: string) => void
+  onProcessorDone: (itemId: string) => void
+  onProcessorProcessed: () => void
+  onPrepDone: (itemId: string, reportName: string) => void
+  onPrepCancel: (reportName: string) => void
+  handleActionToggle: (action: TeamActionItem) => Promise<void>
+  onSnooze: (actionKey: string, untilDate: string) => void
+  onFeedbackDone: (itemId: string) => void
+  onPromptDone: (itemId: string) => void
+}
+
+const TimelineRow = memo(function TimelineRow({
+  item,
+  isItemExpanded,
+  isProcessing,
+  reportByName,
+  navigate,
+  onToggleExpand,
+  onStartProcessing,
+  onCancelProcessing,
+  onCancelExpand,
+  markDone,
+  onProcessorDone,
+  onProcessorProcessed,
+  onPrepDone,
+  onPrepCancel,
+  handleActionToggle,
+  onSnooze,
+  onFeedbackDone,
+  onPromptDone
+}: TimelineRowProps) {
+  const handleRowClick = useCallback(() => {
+    if (item.actionType === 'navigate' && item.route) {
+      navigate(item.route)
+    } else {
+      onToggleExpand(item.id)
+    }
+  }, [item.actionType, item.route, item.id, navigate, onToggleExpand])
+
+  return (
+    <div className="border-b border-border/30 last:border-b-0">
+      <div
+        className="flex items-center gap-3 px-5 py-3.5 group cursor-pointer hover:bg-surface-raised/40 transition-all duration-150"
+        onClick={handleRowClick}
+      >
+        {item.reportName ? (
+          <div className="w-7 h-7 rounded-full bg-brand/15 flex items-center justify-center text-xs font-medium text-brand-light shrink-0">
+            {reportByName.get(item.reportName)?.displayName.charAt(0) ?? '?'}
+          </div>
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-surface-raised flex items-center justify-center shrink-0">
+            <FileText className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
+          </div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-zinc-200 truncate">{item.title}</div>
+          {item.subtitle && (
+            <div className="text-xs text-zinc-500 truncate mt-0.5">{item.subtitle}</div>
+          )}
+        </div>
+
+        {item.section !== 'done' && item.actionType !== 'info' && (
+          <div className="flex items-center gap-2 shrink-0">
+            {item.practiceLink && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate(item.practiceLink!)
+                }}
+                className="p-1 text-zinc-600 hover:text-brand-light transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="View in Playbook"
+                title="View in Playbook"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {item.actionLabel && item.actionType === 'process' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onStartProcessing(item.id)
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
+              >
+                {item.actionLabel}
+              </button>
+            )}
+            {item.actionLabel && item.actionType === 'navigate' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (item.route) navigate(item.route)
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              >
+                {item.actionLabel}
+              </button>
+            )}
+            {item.actionLabel && item.actionType === 'dismiss' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  markDone(item.id)
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              >
+                {item.actionLabel}
+              </button>
+            )}
+            {item.actionLabel && (item.actionType === 'prep' || item.actionType === 'inline-actions' || item.actionType === 'prompt' || item.actionType === 'feedback') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleExpand(item.id)
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
+              >
+                {item.actionLabel}
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                markDone(item.id)
+              }}
+              className="p-1 text-zinc-600 hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Mark done"
+              title="Mark done"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {item.actionType === 'info' && item.practiceLink && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(item.practiceLink!)
+              }}
+              className="p-1 text-zinc-600 hover:text-brand-light transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="View in Playbook"
+              title="View in Playbook"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {isProcessing && isItemExpanded && item.meetingFilename && (
+        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
+          <InlineProcessor
+            filename={item.meetingFilename}
+            onDone={() => onProcessorDone(item.id)}
+            onProcessed={onProcessorProcessed}
+            onCancel={onCancelProcessing}
+          />
+        </div>
+      )}
+
+      {isItemExpanded && item.actionType === 'prep' && item.reportName && (
+        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
+          <InlinePrep
+            reportName={item.reportName}
+            onDone={() => onPrepDone(item.id, item.reportName!)}
+            onCancel={() => onPrepCancel(item.reportName!)}
+          />
+        </div>
+      )}
+
+      {isItemExpanded && item.actionType === 'inline-actions' && item.staleActionItems && (
+        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
+          <InlineActions
+            reportName={item.reportName ?? ''}
+            actions={item.staleActionItems}
+            onDone={() => markDone(item.id)}
+            onCancel={onCancelExpand}
+            onToggleAction={handleActionToggle}
+            onSnooze={onSnooze}
+          />
+        </div>
+      )}
+
+      {isItemExpanded && item.actionType === 'prompt' && item.promptType && (
+        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
+          <InlinePrompt
+            promptType={item.promptType}
+            onDone={() => onPromptDone(item.id)}
+            onCancel={onCancelExpand}
+          />
+        </div>
+      )}
+
+      {isItemExpanded && item.actionType === 'feedback' && item.reportName && (
+        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
+          <InlineFeedback
+            reportName={item.reportName}
+            displayName={reportByName.get(item.reportName)?.displayName ?? item.reportName}
+            onDone={() => onFeedbackDone(item.id)}
+            onCancel={onCancelExpand}
+          />
+        </div>
+      )}
+    </div>
+  )
+})

@@ -7,8 +7,10 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import { isSupportedTranscriptFile, readTranscriptFile, stripTranscriptExtension } from '../utils/parseTranscript'
+import { parseFeedbackByPerson, matchFeedbackToReport } from '../utils/parseFeedback'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import {
   FileText,
   Sparkles,
@@ -211,28 +213,24 @@ export function TranscriptProcessor() {
 
       if (feedbackResult && !feedbackResult.includes('No feedback')) {
         const titleSlug = slug
-        const mentionedReports = reports.filter(r =>
-          feedbackResult.includes(r.displayName)
-        )
-        for (const report of mentionedReports) {
+        const parsed = parseFeedbackByPerson(feedbackResult)
+        for (const entry of parsed) {
+          const report = matchFeedbackToReport(entry, reports)
+          if (!report) continue
           try {
             const feedbackLogPath = `reports/${report.name}/feedback/log.md`
-            let type = 'mixed'
-            const lowerFeedback = feedbackResult.toLowerCase()
-            if (lowerFeedback.includes('positive') && !lowerFeedback.includes('constructive')) {
-              type = 'positive'
-            } else if (lowerFeedback.includes('constructive') && !lowerFeedback.includes('positive')) {
-              type = 'constructive'
-            }
-            const entry = `### ${date} — ${type}\n**Source:** ${titleSlug}\n**Context:** Meeting on ${date}\n\n> ${feedbackResult}\n\n---\n\n`
+            const formattedEntry = `### ${date}\n**Type:** ${entry.type}\n**Source:** ${titleSlug}\n\n${entry.content}\n`
+
             let currentLog = ''
             try {
               currentLog = await window.api.getFileContent(feedbackLogPath)
             } catch { /* file doesn't exist yet */ }
+
+            const updated = currentLog ? `${formattedEntry}\n---\n\n${currentLog}` : formattedEntry
             await window.api.commitFile(
               feedbackLogPath,
-              entry + currentLog,
-              `Add feedback from ${titleSlug} on ${date}`
+              updated,
+              `Add ${entry.type} feedback for ${report.displayName} from ${titleSlug}`
             )
           } catch (e) {
             console.error(`Failed to save feedback for ${report.name}:`, e)
@@ -424,9 +422,13 @@ export function TranscriptProcessor() {
               />
             </div>
             <div className={`prose-dark max-h-96 overflow-y-auto ${streaming ? 'cursor-blink' : ''}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {streamedText || '_Processing..._'}
-              </ReactMarkdown>
+              {streaming ? (
+                <div className="text-sm whitespace-pre-wrap text-zinc-300">{streamedText || 'Processing...'}</div>
+              ) : (
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+                  {streamedText || '_Processing..._'}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         </div>
@@ -470,7 +472,7 @@ export function TranscriptProcessor() {
                    Summary
                 </h3>
                 <div className="prose-dark max-h-80 overflow-y-auto">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                     {summaryResult}
                   </ReactMarkdown>
                 </div>
@@ -484,7 +486,7 @@ export function TranscriptProcessor() {
                      Action items
                   </h3>
                   <div className="prose-dark">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                       {actionItemsResult}
                     </ReactMarkdown>
                   </div>
@@ -499,7 +501,7 @@ export function TranscriptProcessor() {
                      Feedback for direct reports
                   </h3>
                   <div className="prose-dark">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                       {feedbackResult}
                     </ReactMarkdown>
                   </div>
@@ -514,7 +516,7 @@ export function TranscriptProcessor() {
                      Your impact
                   </h3>
                   <div className="prose-dark">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                       {impactResult}
                     </ReactMarkdown>
                   </div>

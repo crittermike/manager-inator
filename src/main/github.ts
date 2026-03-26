@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, writeFileSync, mkdirSync, realpathSync, existsSync, unlinkSync } from 'fs'
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, realpathSync, existsSync, unlinkSync, lstatSync, openSync, readSync, closeSync } from 'fs'
 import { join, dirname, resolve, relative, isAbsolute } from 'path'
 import { spawn } from 'child_process'
 import { BrowserWindow } from 'electron'
@@ -12,6 +12,7 @@ import type {
   ActionItem,
   FeedbackEntry,
   PrepEntry,
+  ContextNote,
   TeamOverview,
   ReportStatus,
   TeamActionItem,
@@ -28,33 +29,78 @@ function repoPath(): string {
 
 // ── Path safety ──
 
+let _resolvedRepoPath: string | null = null
+let _resolvedRepoPathSource: string | null = null
+
+function resolvedRepoPath(): string {
+  const source = resolve(repoPath())
+  if (_resolvedRepoPath && _resolvedRepoPathSource === source) return _resolvedRepoPath
+  _resolvedRepoPathSource = source
+  _resolvedRepoPath = realpathSync(source)
+  return _resolvedRepoPath
+}
+
+function invalidateResolvedRepoPath(): void {
+  _resolvedRepoPath = null
+  _resolvedRepoPathSource = null
+  _realpathCache.clear()
+}
+
 /** Resolve a renderer-supplied path and verify it stays within the repo root */
+const _realpathCache = new Map<string, string>()
+
+function cachedRealpathSync(p: string): string {
+  let cached = _realpathCache.get(p)
+  if (cached !== undefined) return cached
+  cached = realpathSync(p)
+  _realpathCache.set(p, cached)
+  return cached
+}
+
 function safePath(userPath: string): string {
-  const rp = realpathSync(resolve(repoPath()))
+  const rp = resolvedRepoPath()
   const full = resolve(rp, userPath)
 
-  // Canonicalize the nearest existing ancestor to catch symlinks
-  let check = full
-  while (!existsSync(check)) {
-    const parent = dirname(check)
-    if (parent === check) break
-    check = parent
-  }
-  const canonicalized = realpathSync(check)
-  const relCanon = relative(rp, canonicalized)
-  if (relCanon.startsWith('..') || isAbsolute(relCanon)) {
-    throw new Error(`Path traversal blocked: ${userPath}`)
-  }
-
-  // Also verify the full resolved path doesn't escape via '..' segments
   const relFull = relative(rp, full)
   if (relFull.startsWith('..') || isAbsolute(relFull)) {
     throw new Error(`Path traversal blocked: ${userPath}`)
   }
+
+  // Walk up to nearest existing ancestor for canonicalization
+  let ancestor = dirname(full)
+  while (ancestor !== rp && !existsSync(ancestor)) {
+    ancestor = dirname(ancestor)
+  }
+  const canonDir = cachedRealpathSync(ancestor)
+  const relCanon = relative(rp, canonDir)
+  if (relCanon.startsWith('..') || isAbsolute(relCanon)) {
+    throw new Error(`Path traversal blocked: ${userPath}`)
+  }
+
+  // Reject symlink files that could point outside the repo
+  if (existsSync(full) && lstatSync(full).isSymbolicLink()) {
+    const target = realpathSync(full)
+    const relTarget = relative(rp, target)
+    if (relTarget.startsWith('..') || isAbsolute(relTarget)) {
+      throw new Error(`Path traversal blocked (symlink): ${userPath}`)
+    }
+  }
+
   return full
 }
 
 // ── File operations (local filesystem) ──
+
+function readFileHead(absPath: string, bytes: number): string {
+  const fd = openSync(absPath, 'r')
+  try {
+    const buf = Buffer.alloc(bytes)
+    const bytesRead = readSync(fd, buf, 0, bytes, 0)
+    return buf.toString('utf-8', 0, bytesRead)
+  } finally {
+    closeSync(fd)
+  }
+}
 
 export function getFileContent(path: string): string {
   return readFileSync(safePath(path), 'utf-8')
@@ -132,6 +178,18 @@ export function deleteFile(path: string): Promise<void> {
   return task
 }
 
+export function commitAiModifiedFiles(absolutePaths: string[]): void {
+  if (absolutePaths.length === 0) return
+  const rp = repoPath()
+  for (const absPath of absolutePaths) {
+    const rel = absPath.startsWith(rp)
+      ? absPath.slice(rp.length).replace(/^\//, '')
+      : absPath
+    invalidateCachesForPath(rel)
+    _scheduleCommit(rel, `AI chat: update ${rel}`, rp)
+  }
+}
+
 /** Run a git command asynchronously and resolve/reject based on exit code */
 function spawnAsync(command: string, args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -159,17 +217,100 @@ export function safeSend(win: BrowserWindow | null, channel: string, payload: un
   }
 }
 
-function invalidateCachesForPath(filePath: string): void {
+export function invalidateCachesForPath(filePath: string): void {
   const p = filePath.replace(/\\/g, '/')
-  invalidateSearchIndex()
 
   if (p.startsWith('meetings/')) {
-    invalidateMeetingsCache()
+    // Incremental patch: update just the changed meeting file in the cache
+    const meetingFile = p.replace('meetings/', '')
+    const oldSpeakers = _meetingsCache?.speakerMap.get(meetingFile) || []
+    const wasNew = _meetingsCache ? !_meetingsCache.meetingsSet.has(meetingFile) : false
+    if (_meetingsCache && meetingFile.endsWith('.md')) {
+      try {
+        const content = readFileHead(safePath(p), 2048)
+        const speakers = parseSpeakers(content)
+        if (speakers.length > 0) {
+          _meetingsCache.speakerMap.set(meetingFile, speakers)
+        } else {
+          _meetingsCache.speakerMap.delete(meetingFile)
+        }
+        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+        if (fmMatch) {
+          _meetingsCache.hasFrontmatter.add(meetingFile)
+          const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
+          if (titleMatch) {
+            _meetingsCache.titleMap.set(meetingFile, titleMatch[1].trim())
+          } else {
+            _meetingsCache.titleMap.delete(meetingFile)
+          }
+        } else {
+          _meetingsCache.hasFrontmatter.delete(meetingFile)
+          _meetingsCache.titleMap.delete(meetingFile)
+        }
+        if (wasNew) {
+          _meetingsCache.meetings.push(meetingFile)
+          _meetingsCache.meetingsSet.add(meetingFile)
+          _meetingsCache.files.push(meetingFile)
+          const slug = meetingFile.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+          _meetingsCache.slugMap.set(meetingFile, slug)
+          for (const seg of slug.split('-')) {
+            const arr = _meetingsCache.segmentIndex.get(seg)
+            if (arr) arr.push(meetingFile)
+            else _meetingsCache.segmentIndex.set(seg, [meetingFile])
+          }
+        }
+
+        const newSpeakers = _meetingsCache.speakerMap.get(meetingFile) || []
+        const speakersChanged = wasNew
+          || oldSpeakers.length !== newSpeakers.length
+          || oldSpeakers.some((s, i) => s !== newSpeakers[i])
+        if (speakersChanged) {
+          for (const speaker of oldSpeakers) {
+            for (const key of [speaker.toLowerCase(), speaker.split(' ')[0].toLowerCase()]) {
+              const s = _meetingsCache.speakerIndex.get(key)
+              if (s) { s.delete(meetingFile); if (s.size === 0) _meetingsCache.speakerIndex.delete(key) }
+            }
+          }
+          for (const speaker of newSpeakers) {
+            for (const key of [speaker.toLowerCase(), speaker.split(' ')[0].toLowerCase()]) {
+              const s = _meetingsCache.speakerIndex.get(key)
+              if (s) s.add(meetingFile)
+              else _meetingsCache.speakerIndex.set(key, new Set([meetingFile]))
+            }
+          }
+          invalidatePeopleCache()
+        }
+      } catch {
+        invalidateMeetingsCache()
+        invalidatePeopleCache()
+      }
+    } else if (!_meetingsCache) {
+      // Cache not built yet — nothing to patch, it'll be built on next access
+    } else {
+      invalidateMeetingsCache()
+      invalidatePeopleCache()
+    }
+    _invalidateReportsForMeeting(meetingFile, oldSpeakers)
+    invalidateSearchIndex()
   } else if (p.startsWith('reports/')) {
-    invalidateReportCache()
+    const reportName = p.split('/')[1]
+    if (reportName) {
+      _reportDataCache.delete(reportName)
+    } else {
+      _reportDataCache.clear()
+    }
     _teamOverviewCache = null
+    _teamActionItemsCache = null
+    invalidateReportsCache()
+
+    const subPath = p.split('/').slice(2).join('/')
+    if (subPath === 'profile.md') {
+      invalidatePeopleCache()
+      invalidateSearchIndex()
+    }
   } else if (p.startsWith('people/')) {
     invalidatePeopleCache()
+    invalidateSearchIndex()
   }
 }
 
@@ -178,70 +319,132 @@ async function _commitFileImpl(path: string, content: string, message: string): 
   mkdirSync(dirname(fullPath), { recursive: true })
   writeFileSync(fullPath, content, 'utf-8')
 
-  const rp = repoPath()
-  await spawnAsync('git', ['add', '--', path], rp)
-
-  // Skip commit/push if file content is unchanged (git add was a no-op)
-  try {
-    await spawnAsync('git', ['diff', '--cached', '--quiet', '--', path], rp)
-    // Exit 0 means no staged changes for this file — nothing to commit
-    invalidateCachesForPath(path)
-    return
-  } catch {
-    // Exit 1 means there are staged changes — proceed with commit
-  }
-
-  await spawnAsync('git', ['commit', '-m', message], rp)
-
   invalidateCachesForPath(path)
 
-  fireAndForgetPush(rp)
+  const rp = repoPath()
+  _scheduleCommit(path, message, rp)
 }
 
-function fireAndForgetPush(cwd: string): void {
-  const tryPush = (isRetry: boolean): void => {
-    const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
-    child.unref()
-    let stderr = ''
-    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
-    child.on('exit', (code) => {
-      const win = BrowserWindow.getAllWindows()[0]
-      if (code !== 0) {
-        if (!isRetry) {
-          // First push failed — try pulling with rebase then push again
-          console.warn(`[Git] push failed, attempting pull --rebase and retry`)
-          const pull = spawn('git', ['pull', '--rebase'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
-          pull.unref()
-          let pullStderr = ''
-          pull.stderr?.on('data', (d: Buffer) => { pullStderr += d.toString() })
-          pull.on('exit', (pullCode) => {
-            if (pullCode === 0) {
-              tryPush(true)
-            } else {
-              const msg = pullStderr.trim() || `pull --rebase failed (exit ${pullCode})`
-              console.error(`[Git] pull --rebase failed: ${msg}`)
-              safeSend(win, 'github:push-status', { success: false, error: `Pull failed: ${msg}. Changes saved locally.` })
-            }
-          })
-          pull.on('error', (err) => {
-            console.error('[Git] pull spawn error:', err.message)
-            safeSend(win, 'github:push-status', { success: false, error: err.message })
-          })
-        } else {
-          const msg = stderr.trim() || `push exited with code ${code}`
-          console.error(`[Git] push failed after retry (exit ${code}): ${msg}`)
-          safeSend(win, 'github:push-status', { success: false, error: msg })
-        }
-      } else {
-        safeSend(win, 'github:push-status', { success: true })
-      }
-    })
-    child.on('error', (err) => {
-      console.error('[Git] push spawn error:', err.message)
-      safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
-    })
+// Batched commit: accumulate dirty paths then commit once after 2s idle
+let _pendingCommitPaths: Map<string, string> = new Map()
+let _commitTimer: ReturnType<typeof setTimeout> | null = null
+let _commitCwd: string | null = null
+
+function _scheduleCommit(path: string, message: string, cwd: string): void {
+  _pendingCommitPaths.set(path, message)
+  _commitCwd = cwd
+  if (_commitTimer) clearTimeout(_commitTimer)
+  _commitTimer = setTimeout(() => {
+    _commitTimer = null
+    _flushCommit()
+  }, 2000)
+}
+
+export function flushPendingCommits(): void {
+  if (_commitTimer) {
+    clearTimeout(_commitTimer)
+    _commitTimer = null
   }
-  tryPush(false)
+  _flushCommit()
+}
+
+/** Flush pending commits and wait for the git queue to drain. */
+export async function flushPendingCommitsAsync(): Promise<void> {
+  flushPendingCommits()
+  await _gitQueue
+}
+
+/** Cancel pending commits without flushing (used on repo-path change). */
+export function cancelPendingCommits(): void {
+  if (_commitTimer) {
+    clearTimeout(_commitTimer)
+    _commitTimer = null
+  }
+  _pendingCommitPaths = new Map()
+  _commitCwd = null
+}
+
+function _flushCommit(): void {
+  const paths = _pendingCommitPaths
+  const cwd = _commitCwd
+  _pendingCommitPaths = new Map()
+  _commitCwd = null
+  if (paths.size === 0 || !cwd) return
+
+  const pathList = [...paths.keys()]
+  let message: string
+  if (paths.size === 1) {
+    message = paths.values().next().value!
+  } else if (paths.size <= 20) {
+    message = `Update ${paths.size} files: ${pathList.join(', ')}`
+  } else {
+    message = `Update ${paths.size} files`
+  }
+
+  _gitQueue = _gitQueue.then(async () => {
+    try {
+      if (pathList.length <= 50) {
+        await spawnAsync('git', ['add', '-A', '--', ...pathList], cwd)
+      } else {
+        await spawnAsync('git', ['add', '-A'], cwd)
+      }
+      try {
+        await spawnAsync('git', ['diff', '--cached', '--quiet'], cwd)
+        // Exit 0 = no staged changes
+      } catch {
+        // Exit 1 = staged changes exist
+        await spawnAsync('git', ['commit', '-m', message], cwd)
+        schedulePush(cwd)
+      }
+    } catch (err) {
+      console.error(`[Git] Batched commit failed for [${pathList.join(', ')}]:`, (err as Error).message)
+    }
+  })
+}
+
+let _gitQueue: Promise<void> = Promise.resolve()
+
+let _pushTimer: ReturnType<typeof setTimeout> | null = null
+let _pushInFlight = false
+
+function schedulePush(cwd: string): void {
+  // Debounce: wait 5s of inactivity before pushing.
+  // If a push is already in flight, the timer will fire after it completes.
+  if (_pushTimer) clearTimeout(_pushTimer)
+  _pushTimer = setTimeout(() => {
+    _pushTimer = null
+    _executePush(cwd)
+  }, 5000)
+}
+
+function _executePush(cwd: string): void {
+  if (_pushInFlight) {
+    // Another push running — reschedule so we don't overlap
+    schedulePush(cwd)
+    return
+  }
+  _pushInFlight = true
+  const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+  child.unref()
+  let stderr = ''
+  child.stdout?.resume()
+  child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+  child.on('exit', (code) => {
+    _pushInFlight = false
+    const win = BrowserWindow.getAllWindows()[0]
+    if (code !== 0) {
+      const msg = stderr.trim() || `push exited with code ${code}`
+      console.error(`[Git] push failed (exit ${code}): ${msg}`)
+      safeSend(win, 'github:push-status', { success: false, error: `${msg}. Changes saved locally.` })
+    } else {
+      safeSend(win, 'github:push-status', { success: true })
+    }
+  })
+  child.on('error', (err) => {
+    _pushInFlight = false
+    console.error('[Git] push spawn error:', err.message)
+    safeSend(BrowserWindow.getAllWindows()[0], 'github:push-status', { success: false, error: err.message })
+  })
 }
 
 async function _deleteFileImpl(path: string): Promise<void> {
@@ -250,23 +453,26 @@ async function _deleteFileImpl(path: string): Promise<void> {
 
   unlinkSync(fullPath)
 
-  const rp = repoPath()
-  await spawnAsync('git', ['add', '--', path], rp)
-
-  try {
-    await spawnAsync('git', ['diff', '--cached', '--quiet', '--', path], rp)
-    invalidateCachesForPath(path)
-    return
-  } catch {}
-
-  await spawnAsync('git', ['commit', '-m', `Delete file: ${path}`], rp)
-
   invalidateCachesForPath(path)
 
-  fireAndForgetPush(rp)
+  const rp = repoPath()
+  _scheduleCommit(path, `Delete file: ${path}`, rp)
 }
 
 // ── Parsing helpers ──
+
+const _fieldRegexCache = new Map<string, { table: RegExp; inline: RegExp }>()
+function getFieldRegexes(field: string) {
+  let cached = _fieldRegexCache.get(field)
+  if (!cached) {
+    cached = {
+      table: new RegExp(`\\|\\s*\\*\\*${field}\\*\\*\\s*\\|\\s*(?:${field}:\\s*)?(.+?)\\s*\\|`, 'i'),
+      inline: new RegExp(`${field}:\\s*(.+)`, 'i')
+    }
+    _fieldRegexCache.set(field, cached)
+  }
+  return cached
+}
 
 export function parseProfile(content: string, name: string): ReportProfile {
   // Try YAML frontmatter first (preferred format)
@@ -314,11 +520,10 @@ export function parseProfile(content: string, name: string): ReportProfile {
 
   // Fall back to markdown table / inline format
   const getField = (field: string): string => {
-    const tableMatch = content.match(
-      new RegExp(`\\|\\s*\\*\\*${field}\\*\\*\\s*\\|\\s*(?:${field}:\\s*)?(.+?)\\s*\\|`, 'i')
-    )
+    const re = getFieldRegexes(field)
+    const tableMatch = content.match(re.table)
     if (tableMatch) return tableMatch[1].trim()
-    const inlineMatch = content.match(new RegExp(`${field}:\\s*(.+)`, 'i'))
+    const inlineMatch = content.match(re.inline)
     if (inlineMatch) return inlineMatch[1].trim()
     return ''
   }
@@ -380,32 +585,61 @@ export function parseFeedbackLog(content: string): FeedbackEntry[] {
   const entries: FeedbackEntry[] = []
   const blocks = content.split(/^#{2,3}\s+/m).filter((b) => b.trim())
   for (const block of blocks) {
+    // Format 1: ### YYYY-MM-DD — type (legacy)
     const headerMatch = block.match(
       /\[?(\d{4}-\d{2}-\d{2})\]?\s*[—–-]\s*(.+)/
     )
-    if (!headerMatch) continue
-    const date = headerMatch[1]
-    const rawType = headerMatch[2].split('\n')[0].trim().toLowerCase()
+    // Format 2: ### YYYY-MM-DD\n**Type:** type (canonical)
+    const dateOnlyMatch = !headerMatch ? block.match(/\[?(\d{4}-\d{2}-\d{2})\]?\s*\n/) : null
+    
+    if (!headerMatch && !dateOnlyMatch) continue
+    
+    const date = headerMatch ? headerMatch[1] : dateOnlyMatch![1]
 
     let type: FeedbackEntry['type']
-    if (/constructive/.test(rawType)) {
-      type = 'constructive'
-    } else if (/observation/.test(rawType)) {
-      type = 'observation'
-    } else if (/mixed/.test(rawType)) {
-      type = 'mixed'
+    if (headerMatch) {
+      const rawType = headerMatch[2].split('\n')[0].trim().toLowerCase()
+      if (/constructive/.test(rawType)) {
+        type = 'constructive'
+      } else if (/observation/.test(rawType)) {
+        type = 'observation'
+      } else if (/mixed/.test(rawType)) {
+        type = 'mixed'
+      } else {
+        type = 'positive'
+      }
     } else {
-      type = 'positive'
+      const typeLineMatch = block.match(/\*\*Type:\*\*\s*(positive|constructive|mixed|observation)/i)
+      const rawType = typeLineMatch?.[1]?.toLowerCase() || 'positive'
+      type = rawType as FeedbackEntry['type']
     }
 
     const sourceMatch = block.match(/\*\*Source\*\*:\s*(.+)/i)
     const contextMatch = block.match(/\*\*Context\*\*:\s*(.+)/i)
     const quoteMatch = block.match(/>\s*(.+(?:\n>\s*.+)*)/m)
+    
+    let feedbackContent: string
+    if (quoteMatch) {
+      feedbackContent = quoteMatch[1].replace(/^>\s*/gm, '').trim()
+    } else {
+      // For canonical format: content is everything after the metadata lines
+      const lines = block.split('\n')
+      const contentLines = lines.filter(l => 
+        !l.match(/^\[?\d{4}-\d{2}-\d{2}\]?/) &&
+        !l.match(/^\*\*Type:\*\*/i) &&
+        !l.match(/^\*\*Source\*\*:/i) &&
+        !l.match(/^\*\*Context\*\*:/i) &&
+        !l.match(/^---\s*$/) &&
+        l.trim()
+      )
+      feedbackContent = contentLines.join('\n').trim() || block.trim()
+    }
+    
     entries.push({
       date, type,
       source: sourceMatch?.[1]?.trim() || '',
       context: contextMatch?.[1]?.trim(),
-      content: quoteMatch?.[1]?.replace(/^>\s*/gm, '').trim() || block.trim()
+      content: feedbackContent
     })
   }
   return entries
@@ -473,6 +707,8 @@ interface SearchIndexEntry {
   lowered: string
 }
 
+let _prewarmComplete = false
+
 let _searchIndexCache: SearchIndexEntry[] | null = null
 
 function invalidateSearchIndex(): void { _searchIndexCache = null }
@@ -484,28 +720,21 @@ function getSearchIndex(): SearchIndexEntry[] {
 
   const meetingsCache = getMeetingsCache()
   for (const f of meetingsCache.meetings) {
-    try {
-      const content = getFileContent(`meetings/${f}`)
-      entries.push({ filename: f, directory: 'meetings', content, lowered: content.toLowerCase() })
-    } catch { /* skip */ }
+    const title = meetingsCache.titleMap.get(f) || f.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')
+    const content = `${f} ${title}`
+    entries.push({ filename: f, directory: 'meetings', content, lowered: content.toLowerCase() })
   }
 
-  const otherDirs: { dir: string; category: 'reports' | 'people' | 'notes' }[] = [
-    { dir: 'reports', category: 'reports' },
-    { dir: 'people', category: 'people' },
-    { dir: 'weekly-log', category: 'notes' }
-  ]
+  const reports = getReports()
+  for (const name of reports) {
+    const content = `${name} report`
+    entries.push({ filename: name, directory: 'reports', content, lowered: content.toLowerCase() })
+  }
 
-  for (const { dir, category } of otherDirs) {
-    const files = listFilesRecursive(dir)
-    for (const relPath of files) {
-      if (!/\.(md|txt)$/i.test(relPath)) continue
-      try {
-        const content = readFileSync(safePath(relPath), 'utf-8')
-        const filename = relPath.slice(dir.length + 1)
-        entries.push({ filename, directory: category, content, lowered: content.toLowerCase() })
-      } catch { /* skip */ }
-    }
+  const peopleCache = listPeople()
+  for (const person of peopleCache) {
+    const content = [person.name, person.slug, person.role || '', ...(person.aliases || [])].filter(Boolean).join(' ')
+    entries.push({ filename: `${person.slug}.md`, directory: 'people', content, lowered: content.toLowerCase() })
   }
 
   _searchIndexCache = entries
@@ -529,10 +758,12 @@ export function searchContent(query: string): { filename: string; directory: str
     if (entry.directory === 'meetings') {
       const name = entry.filename.replace(/\.(md|txt)$/i, '')
       const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
+      const meetingsCache = getMeetingsCache()
+      const title = meetingsCache.titleMap.get(entry.filename) || formatMeetingTitle(name.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/-/g, ' ') || name)
       results.push({
         filename: entry.filename,
         directory: 'meetings',
-        title: deriveMeetingTitleFromContent(entry.filename, entry.content),
+        title,
         snippet,
         date
       })
@@ -555,16 +786,24 @@ export function searchContent(query: string): { filename: string; directory: str
 
 // ── High-level data fetching ──
 
+let _reportsCache: string[] | null = null
+
+function invalidateReportsCache(): void {
+  _reportsCache = null
+}
+
 export function getReports(): string[] {
+  if (_reportsCache) return _reportsCache
   const dirs = listDirectory('reports')
-  return dirs.filter((d) => {
+  _reportsCache = dirs.filter((d) => {
     if (d === '_template' || d.startsWith('.')) return false
     // Only include directories that have a profile.md
     try {
-      readFileSync(join(repoPath(), 'reports', d, 'profile.md'))
+      readFileSync(safePath(`reports/${d}/profile.md`))
       return true
     } catch { return false }
   })
+  return _reportsCache
 }
 
 // ── Report data cache ──
@@ -572,10 +811,46 @@ export function getReports(): string[] {
 
 let _reportDataCache: Map<string, Report> = new Map()
 let _teamOverviewCache: TeamOverview | null = null
+let _teamActionItemsCache: TeamActionItem[] | null = null
 
 function invalidateReportCache(): void {
   _reportDataCache.clear()
   _teamOverviewCache = null
+  _teamActionItemsCache = null
+  invalidateReportsCache()
+}
+
+function _invalidateReportsForMeeting(meetingFile: string, priorSpeakers?: string[]): void {
+  if (_reportDataCache.size === 0) return
+
+  const mSlug = _meetingsCache?.slugMap.get(meetingFile) ?? meetingFile.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+  const currentSpeakers = _meetingsCache?.speakerMap.get(meetingFile) || []
+  const speakers = priorSpeakers
+    ? [...new Set([...priorSpeakers, ...currentSpeakers])]
+    : currentSpeakers
+
+  const reportNames = _reportsCache || [..._reportDataCache.keys()]
+  let anyDeleted = false
+  for (const name of reportNames) {
+    if (filenameMatchesPerson(mSlug, name)) {
+      _reportDataCache.delete(name)
+      anyDeleted = true
+      continue
+    }
+    if (speakers.length > 0) {
+      const cached = _reportDataCache.get(name)
+      const displayName = cached?.profile?.displayName || name.replace(/-/g, ' ')
+      if (speakerMatchesPerson(speakers, displayName, [])) {
+        _reportDataCache.delete(name)
+        anyDeleted = true
+      }
+    }
+  }
+
+  if (anyDeleted) {
+    _teamOverviewCache = null
+    _teamActionItemsCache = null
+  }
 }
 
 export function getReportProfile(name: string): ReportProfile {
@@ -617,14 +892,14 @@ export function getReportData(name: string): Report {
   // Parse summaries (every meeting file IS a summary)
   const summaries: Summary[] = personMeetings.map((f) => {
     const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
-    return { date: dateMatch?.[1] || f.replace('.md', ''), content: '', keyTopics: [], actionItems: [], sentiment: '' }
+    return { date: dateMatch?.[1] || f.replace('.md', ''), content: '', keyTopics: [], actionItems: [], sentiment: '', filename: f }
   })
 
   // Parse transcripts (derived from meeting files — raw transcripts live in transcripts/processed/)
   const transcripts: Transcript[] = personMeetings.map((f) => {
     const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
     const date = dateMatch?.[1] || f.replace('.md', '')
-    return { date, content: '' }
+    return { date, content: '', filename: f }
   })
 
   // Extract action items from recent meeting summaries
@@ -653,7 +928,29 @@ export function getReportData(name: string): Report {
     }
   })
 
-  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, preps, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
+  const contextFiles = listFiles(`reports/${name}/context`).filter(f => f.endsWith('.md')).sort()
+  const contextNotes: ContextNote[] = contextFiles.map((f) => {
+    const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
+    const date = dateMatch?.[1] || ''
+    try {
+      const raw = getFileContent(`reports/${name}/context/${f}`)
+      const frontmatterMatch = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+      if (frontmatterMatch) {
+        const fm = frontmatterMatch[1]
+        const body = frontmatterMatch[2].trim()
+        const source = (fm.match(/^source:\s*(.+)$/m)?.[1]?.trim() || 'other') as ContextNote['source']
+        const summary = fm.match(/^summary:\s*(.+)$/m)?.[1]?.trim() || ''
+        const tagsLine = fm.match(/^tags:\s*(.+)$/m)?.[1]?.trim() || ''
+        const tags = tagsLine ? tagsLine.split(',').map(t => t.trim()).filter(Boolean) : []
+        return { date, source, summary, tags, content: body, filename: f }
+      }
+      return { date, source: 'other' as const, summary: '', tags: [], content: raw.trim(), filename: f }
+    } catch {
+      return { date, source: 'other' as const, summary: '', tags: [], content: '', filename: f }
+    }
+  })
+
+  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, preps, contextNotes, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
   _reportDataCache.set(name, result)
   return result
 }
@@ -686,7 +983,7 @@ export function getTeamOverview(): TeamOverview {
         ? data.checkIns[data.checkIns.length - 1].date
         : null
       const lastFeedback = data.feedback.length > 0
-        ? data.feedback.sort((a, b) => b.date.localeCompare(a.date))[0].date
+        ? data.feedback.reduce((max, f) => f.date > max ? f.date : max, data.feedback[0].date)
         : null
 
       reports.push({
@@ -710,7 +1007,7 @@ export function getTeamOverview(): TeamOverview {
 // Cache meeting file lists and speaker map to avoid re-scanning 300+ files on every call.
 // Invalidated on commit (which means we wrote new data).
 
-let _meetingsCache: { files: string[]; meetings: string[]; speakerMap: Map<string, string[]>; titleMap: Map<string, string>; hasFrontmatter: Set<string> } | null = null
+let _meetingsCache: { files: string[]; meetings: string[]; meetingsSet: Set<string>; speakerMap: Map<string, string[]>; titleMap: Map<string, string>; hasFrontmatter: Set<string>; slugMap: Map<string, string>; segmentIndex: Map<string, string[]>; speakerIndex: Map<string, Set<string>> } | null = null
 
 function invalidateMeetingsCache(): void { _meetingsCache = null }
 
@@ -724,7 +1021,7 @@ function getMeetingsCache() {
   const hasFrontmatter = new Set<string>()
   for (const mf of meetings) {
     try {
-      const content = getFileContent(`meetings/${mf}`).slice(0, 2000)
+      const content = readFileHead(safePath(`meetings/${mf}`), 2048)
       const speakers = parseSpeakers(content)
       if (speakers.length > 0) {
         speakerMap.set(mf, speakers)
@@ -738,7 +1035,34 @@ function getMeetingsCache() {
     } catch { /* skip */ }
   }
 
-  _meetingsCache = { files, meetings, speakerMap, titleMap, hasFrontmatter }
+  // Precompute slug map and segment index for O(1) person-to-meeting lookups
+  const slugMap = new Map<string, string>()
+  const segmentIndex = new Map<string, string[]>()
+  for (const mf of meetings) {
+    const slug = mf.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
+    slugMap.set(mf, slug)
+    for (const seg of slug.split('-')) {
+      const arr = segmentIndex.get(seg)
+      if (arr) arr.push(mf)
+      else segmentIndex.set(seg, [mf])
+    }
+  }
+
+  // Inverted speaker index: normalized name → set of meeting filenames
+  const speakerIndex = new Map<string, Set<string>>()
+  for (const [mf, speakers] of speakerMap) {
+    for (const speaker of speakers) {
+      const fullKey = speaker.toLowerCase()
+      const firstKey = speaker.split(' ')[0].toLowerCase()
+      for (const key of [fullKey, firstKey]) {
+        const s = speakerIndex.get(key)
+        if (s) s.add(mf)
+        else speakerIndex.set(key, new Set([mf]))
+      }
+    }
+  }
+
+  _meetingsCache = { files, meetings, meetingsSet: new Set(meetings), speakerMap, titleMap, hasFrontmatter, slugMap, segmentIndex, speakerIndex }
   return _meetingsCache
 }
 
@@ -808,7 +1132,6 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
   } catch {
     await commitFile(meetingPath, `---\ntitle: ${safeTitle}\n---\n`, `Set meeting title: ${title}`)
   }
-  invalidateMeetingsCache()
 }
 
 export async function saveMeetingSpeakers(meetingFilename: string, speakerNames: string[]): Promise<void> {
@@ -833,7 +1156,6 @@ export async function saveMeetingSpeakers(meetingFilename: string, speakerNames:
   } catch {
     await commitFile(meetingPath, `---\nspeakers:\n${speakersYaml}\n---\n`, `Set meeting speakers: ${speakerNames.join(', ')}`)
   }
-  invalidateMeetingsCache()
 }
 
 // ── People helpers ──
@@ -890,25 +1212,61 @@ export function parseSpeakers(content: string): string[] {
 
 /** Check if a meeting filename (slug part) matches a person */
 export function filenameMatchesPerson(meetingSlug: string, personSlug: string): boolean {
-  const segments = meetingSlug.split('-')
   const personFirst = personSlug.split('-')[0]
   return meetingSlug === personSlug ||
     meetingSlug.startsWith(personSlug + '-') ||
     meetingSlug.endsWith('-' + personSlug) ||
-    segments.includes(personFirst)
+    meetingSlug.split('-').includes(personFirst)
+}
+
+function findMeetingsByFilename(personSlug: string, cache: NonNullable<typeof _meetingsCache>): Set<string> {
+  const personFirst = personSlug.split('-')[0]
+  const candidates = cache.segmentIndex.get(personFirst)
+  if (!candidates) return new Set()
+
+  const matched = new Set<string>()
+  for (const mf of candidates) {
+    const mSlug = cache.slugMap.get(mf)!
+    if (filenameMatchesPerson(mSlug, personSlug)) {
+      matched.add(mf)
+    }
+  }
+  return matched
+}
+
+function findMeetingsBySpeaker(personName: string, aliases: string[], exclude: Set<string>, cache: NonNullable<typeof _meetingsCache>): Set<string> {
+  const allNames = [personName, ...aliases]
+  const lookupKeys = new Set<string>()
+  for (const n of allNames) {
+    lookupKeys.add(n.toLowerCase())
+    lookupKeys.add(n.split(' ')[0].toLowerCase())
+  }
+
+  const candidates = new Set<string>()
+  for (const key of lookupKeys) {
+    const meetings = cache.speakerIndex.get(key)
+    if (meetings) {
+      for (const mf of meetings) {
+        if (!exclude.has(mf) && cache.meetingsSet.has(mf)) {
+          candidates.add(mf)
+        }
+      }
+    }
+  }
+  return candidates
 }
 
 /** Check if any speaker name matches a person */
 export function speakerMatchesPerson(speakers: string[], personName: string, aliases: string[]): boolean {
   const allNames = [personName, ...aliases]
-  const allFirstNames = allNames.map(n => n.split(' ')[0].toLowerCase())
-  const allFullNames = allNames.map(n => n.toLowerCase())
+  const allFirstNames = new Set(allNames.map(n => n.split(' ')[0].toLowerCase()))
+  const allFullNames = new Set(allNames.map(n => n.toLowerCase()))
 
   for (const speaker of speakers) {
     const sLower = speaker.toLowerCase()
     const sFirst = speaker.split(' ')[0].toLowerCase()
-    if (allFullNames.includes(sLower)) return true
-    if (allFirstNames.includes(sFirst) || allFirstNames.includes(sLower)) return true
+    if (allFullNames.has(sLower)) return true
+    if (allFirstNames.has(sFirst) || allFirstNames.has(sLower)) return true
   }
   return false
 }
@@ -937,8 +1295,6 @@ export function listPeople(): PersonEntry[] {
   const mdFiles = files.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
 
   const cache = getMeetingsCache()
-  const meetingFiles = cache.meetings
-  const speakerMap = cache.speakerMap
 
   const people: PersonEntry[] = []
   for (const f of mdFiles) {
@@ -958,24 +1314,8 @@ export function listPeople(): PersonEntry[] {
       const aliases: string[] = fm.aliases ? fm.aliases.split(',').map(a => a.trim()).filter(Boolean) : []
       const personName = fm.name || slug.replace(/-/g, ' ')
 
-      // Match by filename segments
-      const filenameMatched = new Set<string>()
-      for (const m of meetingFiles) {
-        const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-        if (filenameMatchesPerson(mSlug, slug)) {
-          filenameMatched.add(m)
-        }
-      }
-
-      // Also match by speaker frontmatter
-      const speakerMatched = new Set<string>()
-      for (const [meetingFile, speakers] of speakerMap) {
-        if (filenameMatched.has(meetingFile)) continue
-        if (!meetingFiles.includes(meetingFile)) continue
-        if (speakerMatchesPerson(speakers, personName, aliases)) {
-          speakerMatched.add(meetingFile)
-        }
-      }
+      const filenameMatched = findMeetingsByFilename(slug, cache)
+      const speakerMatched = findMeetingsBySpeaker(personName, aliases, filenameMatched, cache)
 
       const allMatched = [...filenameMatched, ...speakerMatched]
       const dates = allMatched.map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter(Boolean).sort()
@@ -1009,22 +1349,8 @@ export function listPeople(): PersonEntry[] {
         } else if (!existingSlugs.has(reportName)) {
           const personName = displayName
 
-          const filenameMatched = new Set<string>()
-          for (const m of meetingFiles) {
-            const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-            if (filenameMatchesPerson(mSlug, reportName)) {
-              filenameMatched.add(m)
-            }
-          }
-
-          const speakerMatched = new Set<string>()
-          for (const [meetingFile, speakers] of speakerMap) {
-            if (filenameMatched.has(meetingFile)) continue
-            if (!meetingFiles.includes(meetingFile)) continue
-            if (speakerMatchesPerson(speakers, personName, [])) {
-              speakerMatched.add(meetingFile)
-            }
-          }
+          const filenameMatched = findMeetingsByFilename(reportName, cache)
+          const speakerMatched = findMeetingsBySpeaker(personName, [], filenameMatched, cache)
 
           const allMatched = [...filenameMatched, ...speakerMatched]
           const dates = allMatched.map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter(Boolean).sort()
@@ -1048,8 +1374,6 @@ export function listPeople(): PersonEntry[] {
 
 export function getPersonMeetings(slug: string): { date: string; title: string; filename: string }[] {
   const cache = getMeetingsCache()
-  const meetingFiles = cache.meetings
-  const speakerMap = cache.speakerMap
 
   let personName = slug.replace(/-/g, ' ')
   let aliases: string[] = []
@@ -1066,24 +1390,8 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
     } catch { /* use slug-derived name */ }
   }
 
-  // Filename segment matching
-  const filenameMatched = new Set<string>()
-  for (const m of meetingFiles) {
-    const mSlug = m.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-    if (filenameMatchesPerson(mSlug, slug)) {
-      filenameMatched.add(m)
-    }
-  }
-
-  // Speaker frontmatter matching (uses cached speaker map)
-  const speakerMatched = new Set<string>()
-  for (const [meetingFile, speakers] of speakerMap) {
-    if (filenameMatched.has(meetingFile)) continue
-    if (!meetingFiles.includes(meetingFile)) continue
-    if (speakerMatchesPerson(speakers, personName, aliases)) {
-      speakerMatched.add(meetingFile)
-    }
-  }
+  const filenameMatched = findMeetingsByFilename(slug, cache)
+  const speakerMatched = findMeetingsBySpeaker(personName, aliases, filenameMatched, cache)
 
   const allMatched = [...filenameMatched, ...speakerMatched]
   return allMatched
@@ -1173,6 +1481,7 @@ export function getSettingsOptions(): { roles: string[]; relationships: string[]
 }
 
 export function getTeamActionItems(): TeamActionItem[] {
+  if (_teamActionItemsCache) return _teamActionItemsCache
   const reportNames = getReports()
   const items: TeamActionItem[] = []
   for (const name of reportNames) {
@@ -1183,11 +1492,27 @@ export function getTeamActionItems(): TeamActionItem[] {
       }
     } catch { /* skip */ }
   }
+  _teamActionItemsCache = items
   return items
 }
 
 
+export function getTodayBootstrap(): {
+  meetings: MeetingEntry[]
+  rawTranscripts: RawTranscriptEntry[]
+  teamActionItems: TeamActionItem[]
+} {
+  return {
+    meetings: listMeetings(),
+    rawTranscripts: listRawTranscripts(),
+    teamActionItems: getTeamActionItems()
+  }
+}
+
 export function clearAllCaches(): void {
+  _resolvedRepoPath = null
+  _resolvedRepoPathSource = null
+  _realpathCache.clear()
   invalidateMeetingsCache()
   invalidateReportCache()
   invalidatePeopleCache()
@@ -1198,6 +1523,11 @@ export function clearAllCaches(): void {
 export async function preWarmCaches(onProgress?: (message: string) => void): Promise<void> {
   const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
   try {
+    const rp = repoPath()
+    if (!existsSync(rp)) {
+      console.warn('[Cache] Repo path does not exist, skipping pre-warm:', rp)
+      return
+    }
     console.log('[Cache] Pre-warming...')
     const t0 = Date.now()
     onProgress?.('Scanning meeting files...')
@@ -1206,18 +1536,31 @@ export async function preWarmCaches(onProgress?: (message: string) => void): Pro
     onProgress?.('Scanning raw transcripts...')
     await yield_()
     listRawTranscripts()
-    onProgress?.('Loading team data...')
+    // Warm each report individually with yields between them to avoid blocking the event loop
+    const reportNames = getReports()
+    for (let i = 0; i < reportNames.length; i++) {
+      onProgress?.(`Loading report ${i + 1}/${reportNames.length}...`)
+      await yield_()
+      try { getReportData(reportNames[i]) } catch { /* skip */ }
+    }
+    // Now getTeamOverview is instant — all reportData is cached
+    onProgress?.('Building team overview...')
     await yield_()
     getTeamOverview()
     onProgress?.('Building people index...')
     await yield_()
     listPeople()
-    onProgress?.('Building search index...')
-    await yield_()
-    getSearchIndex()
     onProgress?.('Ready!')
+    _prewarmComplete = true
     console.log(`[Cache] Pre-warmed in ${Date.now() - t0}ms`)
   } catch (e) {
+    // Even on failure, mark complete so the app doesn't hang on LoadingScreen
+    _prewarmComplete = true
     console.warn('[Cache] Pre-warm failed:', (e as Error).message)
   }
+}
+
+/** Returns whether preWarmCaches() has finished (success or failure) */
+export function isPrewarmComplete(): boolean {
+  return _prewarmComplete
 }

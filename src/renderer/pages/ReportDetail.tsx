@@ -1,13 +1,14 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useReportData, useFileContent } from '../hooks/useData'
+import { useReportData, useFileContent, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
 import { parseMeetingDays } from '../utils/meetingDay'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import type { ActionItem, FeedbackEntry, PrepEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import {
@@ -149,12 +150,13 @@ export function ReportDetail() {
     return () => { mountedRef.current = false; cancel() }
   }, [cancel])
 
+  const { settings: _rdSettings } = useSettings()
+
   useEffect(() => {
-    window.api.getSettings().then((s) => {
-      if (!mountedRef.current) return
-      setPtoReports(s.ptoReports || {})
-    }).catch(() => {})
-  }, [])
+    if (!_rdSettings) return
+    if (!mountedRef.current) return
+    setPtoReports(_rdSettings.ptoReports || {})
+  }, [_rdSettings])
 
   // ── Utility callbacks ──
 
@@ -184,6 +186,10 @@ export function ReportDetail() {
     })
   }, [])
 
+  const handleViewContent = useCallback((path: string, title: string) => {
+    setViewingContent({ path, title })
+  }, [])
+
   // ── AI Handlers (preserved from original) ──
 
   const handlePrepOneOnOne = useCallback(async () => {
@@ -196,15 +202,9 @@ export function ReportDetail() {
     reset()
 
     const recentSummaryDates = report.summaries.slice(-5)
-    const summaryContents = await Promise.all(
-      recentSummaryDates.map(async (s) => {
-        try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1.md`)
-          return content
-        } catch { return '' }
-      })
-    )
-    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+    const summaryPaths = recentSummaryDates.map(s => `meetings/${s.date}-${name}-1-1.md`)
+    const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
+    const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
     if (!mountedRef.current) return
     const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
 
@@ -220,17 +220,15 @@ export function ReportDetail() {
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
 
-      const mentionResults = await Promise.all(
-        otherWithSummaries.map(async (m) => {
-          try {
-            const content = await window.api.getFileContent(`meetings/${m.filename}`)
-            if (namePattern.test(content)) {
-              return `### ${m.title} (${m.date})\n${content}`
-            }
-          } catch { /* skip */ }
-          return ''
-        })
-      )
+      const otherPaths = otherWithSummaries.map(m => `meetings/${m.filename}`)
+      const otherMap = await window.api.getFilesContentBulk(otherPaths)
+      const mentionResults = otherWithSummaries.map(m => {
+        const content = otherMap[`meetings/${m.filename}`]
+        if (content && namePattern.test(content)) {
+          return `### ${m.title} (${m.date})\n${content}`
+        }
+        return ''
+      })
       crossMentions = mentionResults.filter(Boolean).slice(0, 5).join('\n\n---\n\n')
     } catch { /* non-critical */ }
     if (!mountedRef.current) return
@@ -284,15 +282,12 @@ export function ReportDetail() {
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
     const recentSummaries = report.summaries.slice(-8)
-    const summaryContents = await Promise.all(
-      recentSummaries.map(async (s) => {
-        try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1.md`)
-          return `### ${s.date}\n${content}`
-        } catch { return '' }
-      })
-    )
-    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+    const checkInPaths = recentSummaries.map(s => `meetings/${s.date}-${name}-1-1.md`)
+    const checkInMap = await window.api.getFilesContentBulk(checkInPaths)
+    const summariesText = recentSummaries.map(s => {
+      const content = checkInMap[`meetings/${s.date}-${name}-1-1.md`]
+      return content ? `### ${s.date}\n${content}` : ''
+    }).filter(Boolean).join('\n\n---\n\n')
 
     const recentCheckIns = report.checkIns.slice(-3)
     const checkInHistoryText = recentCheckIns.length > 0
@@ -310,7 +305,10 @@ export function ReportDetail() {
         summaries: summariesText || 'No recent summaries available.',
         checkInHistory: checkInHistoryText,
         feedback: report.feedback.map(f => `${f.date}: ${f.content}`).join('\n---\n'),
-        actionItems: report.actionItems.filter(a => !a.completed).slice(0, 20).map(a => `- ${a.text}`).join('\n')
+        actionItems: report.actionItems.filter(a => !a.completed).slice(0, 20).map(a => `- ${a.text}`).join('\n'),
+        contextNotes: report.contextNotes.length > 0
+          ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
+          : undefined
       })
     } catch {
       if (!mountedRef.current) return
@@ -332,15 +330,12 @@ export function ReportDetail() {
     const periodLabel = isH2 ? `${year} H2 (Jul–Dec)` : `${year} H1 (Jan–Jun)`
 
     const recentSummaries = report.summaries.slice(-20)
-    const summaryContents = await Promise.all(
-      recentSummaries.map(async (s) => {
-        try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${name}-1-1.md`)
-          return `### ${s.date}\n${content}`
-        } catch { return '' }
-      })
-    )
-    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+    const reviewPaths = recentSummaries.map(s => `meetings/${s.date}-${name}-1-1.md`)
+    const reviewMap = await window.api.getFilesContentBulk(reviewPaths)
+    const summariesText = recentSummaries.map(s => {
+      const content = reviewMap[`meetings/${s.date}-${name}-1-1.md`]
+      return content ? `### ${s.date}\n${content}` : ''
+    }).filter(Boolean).join('\n\n---\n\n')
     if (!mountedRef.current) return
 
     const checkInsText = report.checkIns.slice(-6).map(c =>
@@ -370,7 +365,10 @@ export function ReportDetail() {
         checkIns: checkInsText || undefined,
         summaries: summariesText || undefined,
         feedback: feedbackText || undefined,
-        actionItems: allActions || undefined
+        actionItems: allActions || undefined,
+        contextNotes: report.contextNotes.length > 0
+          ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
+          : undefined
       })
     } catch (e) {
       console.error('Review generation failed:', e)
@@ -684,11 +682,12 @@ export function ReportDetail() {
     if (!report) return []
     const entries: StreamEntry[] = []
 
-    // 1:1 meetings (use summaries preferring summary content, fall back to transcripts)
+    const summaryByFilename = new Map(report.summaries.map(s => [s.filename || s.date, s]))
+
     for (const t of report.transcripts) {
-      const summary = report.summaries.find(s => s.date === t.date)
+      const summary = summaryByFilename.get(t.filename || t.date)
       entries.push({
-        id: `meeting-${t.date}`,
+        id: `meeting-${t.filename || t.date}`,
         type: '1:1',
         date: t.date,
         title: `1:1 meeting — ${formatDate(t.date)}`,
@@ -777,6 +776,10 @@ export function ReportDetail() {
     return streamEntries.filter(e => (e.pinned && activeFilter === 'action') || e.type === activeFilter)
   }, [streamEntries, activeFilter])
 
+  // ── Pre-computed values (must be above early returns to preserve hook ordering) ──
+
+  const sortedFeedback = useMemo(() => report ? [...report.feedback].sort((a, b) => b.date.localeCompare(a.date)) : [], [report])
+
   // ── Loading / Error states ──
 
   if (loading) {
@@ -810,12 +813,9 @@ export function ReportDetail() {
     )
   }
 
-  // ── Computed values ──
-
   const lastTranscript = report.transcripts.length > 0 ? report.transcripts[report.transcripts.length - 1] : null
   const daysSince1on1 = lastTranscript ? daysAgo(lastTranscript.date) : null
   const openActionCount = report.actionItems.filter(a => !a.completed).length
-  const sortedFeedback = [...report.feedback].sort((a, b) => b.date.localeCompare(a.date))
   const daysSinceFeedback = sortedFeedback.length > 0 ? daysAgo(sortedFeedback[0].date) : null
   const nextMeeting = nextMeetingDate(report.profile.meetingDay)
   const aboutText = report.profile.about ? report.profile.about.replace(/<!--[\s\S]*?-->/g, '').trim() : ''
@@ -1199,7 +1199,7 @@ export function ReportDetail() {
                 if (!hasCheckboxes) {
                   return (
                     <div className="prose-dark">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{prepContent}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{prepContent}</ReactMarkdown>
                     </div>
                   )
                 }
@@ -1216,7 +1216,7 @@ export function ReportDetail() {
                           className="mt-1 accent-brand w-4 h-4 shrink-0"
                         />
                         <span className="text-sm text-zinc-300 group-hover:text-zinc-100 leading-relaxed">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <>{children}</> }}>{unchecked[2]}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <>{children}</> }}>{unchecked[2]}</ReactMarkdown>
                         </span>
                       </label>
                     )
@@ -1231,7 +1231,7 @@ export function ReportDetail() {
                           className="mt-1 accent-brand w-4 h-4 shrink-0"
                         />
                         <span className="text-sm text-zinc-500 line-through leading-relaxed">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <>{children}</> }}>{checked[2]}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <>{children}</> }}>{checked[2]}</ReactMarkdown>
                         </span>
                       </label>
                     )
@@ -1250,9 +1250,13 @@ export function ReportDetail() {
             </div>
           ) : (
             <div className={`prose-dark max-h-[32rem] overflow-y-auto ${streaming ? 'cursor-blink' : ''}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {aiContent || streamedText || '_Generating…_'}
-              </ReactMarkdown>
+              {streaming ? (
+                <div className="text-sm whitespace-pre-wrap text-zinc-300">{streamedText || 'Generating...'}</div>
+              ) : (
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+                  {aiContent || streamedText || '_Generating…_'}
+                </ReactMarkdown>
+              )}
             </div>
           )}
 
@@ -1349,7 +1353,7 @@ export function ReportDetail() {
           </div>
           {!aboutCollapsed && (
             <div className="px-4 pb-4 prose-dark text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{aboutText}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -1419,7 +1423,7 @@ export function ReportDetail() {
           </div>
           {!jobExpCollapsed && (
             <div className="px-4 pb-4 prose-dark text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.jobExpectations}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -1462,7 +1466,7 @@ export function ReportDetail() {
                 {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
               <div className="prose-dark text-sm max-h-96 overflow-y-auto">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanSummaryContent(fileContent)}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(fileContent)}</ReactMarkdown>
               </div>
             </div>
           ) : (
@@ -1506,18 +1510,23 @@ export function ReportDetail() {
             <p className="text-sm text-zinc-500">No {activeFilter === 'all' ? 'activity' : activeFilter} entries yet</p>
           </div>
         ) : (
-          filteredEntries.map(entry => (
-            <StreamEntryCard
-              key={entry.id}
-              entry={entry}
-              expanded={expandedItems.has(entry.id)}
-              onToggle={() => toggleExpanded(entry.id)}
-              name={name!}
-              onViewContent={(path, title) => setViewingContent({ path, title })}
-              onToggleAction={handleToggleAction}
-              togglingItems={togglingItems}
-            />
-          ))
+          filteredEntries.map(entry => {
+            const toggleKey = entry.type === 'action'
+              ? (entry.data as ActionItem[]).some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
+              : false
+            return (
+              <StreamEntryCard
+                key={entry.id}
+                entry={entry}
+                expanded={expandedItems.has(entry.id)}
+                onToggle={toggleExpanded}
+                name={name!}
+                onViewContent={handleViewContent}
+                onToggleAction={handleToggleAction}
+                isToggling={toggleKey}
+              />
+            )
+          })
         )}
       </div>
 
@@ -1599,23 +1608,25 @@ export function ReportDetail() {
 
 // ── Stream Entry Card ──
 
-function StreamEntryCard({
+interface StreamEntryCardProps {
+  entry: StreamEntry
+  expanded: boolean
+  onToggle: (id: string) => void
+  name: string
+  onViewContent: (path: string, title: string) => void
+  onToggleAction: (a: ActionItem) => void
+  isToggling: boolean
+}
+
+const StreamEntryCard = memo(function StreamEntryCard({
   entry,
   expanded,
   onToggle,
   name,
   onViewContent,
   onToggleAction,
-  togglingItems
-}: {
-  entry: StreamEntry
-  expanded: boolean
-  onToggle: () => void
-  name: string
-  onViewContent: (path: string, title: string) => void
-  onToggleAction: (a: ActionItem) => void
-  togglingItems: Set<string>
-}) {
+  isToggling
+}: StreamEntryCardProps) {
   const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
     '1:1': { bg: 'bg-blue-500/10', text: 'text-blue-400', label: '1:1' },
     feedback: { bg: 'bg-amber-500/10', text: 'text-amber-400', label: 'Feedback' },
@@ -1626,12 +1637,13 @@ function StreamEntryCard({
   }
 
   const style = typeStyles[entry.type] || typeStyles['1:1']
+  const handleToggle = useCallback(() => onToggle(entry.id), [onToggle, entry.id])
 
   return (
     <div className={`bg-surface rounded-xl border transition-all duration-150 ${entry.pinned ? 'border-brand/20' : 'border-border hover:border-zinc-500 hover:shadow-lg hover:shadow-black/10'}`}>
       {/* Collapsed header — always visible */}
       <button
-        onClick={onToggle}
+        onClick={handleToggle}
         className="w-full flex items-center gap-3 p-3.5 text-left"
       >
         <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded ${style.bg} ${style.text}`}>
@@ -1659,7 +1671,7 @@ function StreamEntryCard({
           <div className="border-t border-border pt-3">
             {entry.type === '1:1' && <MeetingDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} />}
-            {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} togglingItems={togglingItems} />}
+            {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onViewContent={onViewContent} />}
@@ -1668,12 +1680,14 @@ function StreamEntryCard({
       )}
     </div>
   )
-}
+})
 
 // ── Detail sub-components ──
 
 function MeetingDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
-  const data = entry.data as { transcript: { date: string }; summary?: { keyTopics: string[]; content: string } }
+  const data = entry.data as { transcript: { date: string; filename?: string }; summary?: { keyTopics: string[]; content: string } }
+  const meetingFile = data.transcript.filename || `${data.transcript.date}-${name}-1-1.md`
+  const transcriptFile = meetingFile.replace(/\.md$/, '.txt')
 
   return (
     <div className="space-y-2">
@@ -1689,8 +1703,8 @@ function MeetingDetail({ entry, name, onViewContent }: { entry: StreamEntry; nam
       <div className="flex gap-2">
         <button
           onClick={() => onViewContent(
-            `meetings/${data.transcript.date}-${name}-1-1.md`,
-            `1:1 Summary — ${formatDate(data.transcript.date)}`
+            `meetings/${meetingFile}`,
+            `Summary — ${formatDate(data.transcript.date)}`
           )}
           className="text-xs text-brand-light hover:text-brand transition-colors"
         >
@@ -1698,8 +1712,8 @@ function MeetingDetail({ entry, name, onViewContent }: { entry: StreamEntry; nam
         </button>
         <button
           onClick={() => onViewContent(
-            `transcripts/processed/${data.transcript.date}-${name}-1-1.txt`,
-            `1:1 Transcript — ${formatDate(data.transcript.date)}`
+            `transcripts/processed/${transcriptFile}`,
+            `Transcript — ${formatDate(data.transcript.date)}`
           )}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
         >
@@ -1729,17 +1743,15 @@ function FeedbackDetail({ entry }: { entry: StreamEntry }) {
   )
 }
 
-function ActionDetail({ entry, onToggleAction, togglingItems }: { entry: StreamEntry; onToggleAction: (a: ActionItem) => void; togglingItems: Set<string> }) {
+function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntry; onToggleAction: (a: ActionItem) => void; isToggling: boolean }) {
   const actions = entry.data as ActionItem[]
 
   return (
     <div className="space-y-1 max-h-72 overflow-y-auto">
       {actions.map((a, i) => {
-        const toggleKey = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`
-        const isToggling = togglingItems.has(toggleKey)
         return (
           <button
-            key={i}
+            key={`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? i}`}
             disabled={isToggling || !a.sourceFile || a.sourceLineNumber == null}
             onClick={() => onToggleAction(a)}
             className="w-full flex items-start gap-2.5 py-1.5 px-1 rounded-lg hover:bg-surface-raised transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1815,7 +1827,7 @@ function PrepDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: 
   return (
     <div className="space-y-2">
       <div className="prose-dark text-sm max-h-48 overflow-y-auto">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{p.content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{p.content}</ReactMarkdown>
       </div>
       <button
         onClick={() => onViewContent(

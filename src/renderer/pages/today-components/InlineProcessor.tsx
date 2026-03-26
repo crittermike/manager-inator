@@ -3,6 +3,7 @@ import { useAI } from '../../hooks/useAI'
 import { useToast } from '../../components/common/Toast'
 import { useTeamOverview } from '../../hooks/useData'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
+import { parseFeedbackByPerson, matchFeedbackToReport } from '../../utils/parseFeedback'
 import { format } from 'date-fns'
 import { Sparkles, Loader2, Check, ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -247,31 +248,27 @@ export function InlineProcessor({
       onProcessed?.()
 
       if (approved.feedback && feedback && !feedback.includes('No feedback')) {
-        const mentionedReports = reports.filter(r => feedback.includes(r.displayName))
-        if (mentionedReports.length === 0) {
-          toast.error('Skipped feedback: no reports mentioned')
+        const parsed = parseFeedbackByPerson(feedback)
+        if (parsed.length === 0) {
+          toast.error('Skipped feedback: could not parse per-person entries')
         } else {
-          for (const report of mentionedReports) {
-            const feedbackLogPath = `reports/${report.name}/feedback/log.md`
-            let type = 'mixed'
-            const lowerFeedback = feedback.toLowerCase()
-            if (lowerFeedback.includes('positive') && !lowerFeedback.includes('constructive')) {
-              type = 'positive'
-            } else if (lowerFeedback.includes('constructive') && !lowerFeedback.includes('positive')) {
-              type = 'constructive'
-            }
+          for (const entry of parsed) {
+            const report = matchFeedbackToReport(entry, reports)
+            if (!report) continue
 
-            const entry = `### ${date} — ${type}\n**Source:** ${titleSlug}\n**Context:** Meeting on ${date}\n\n> ${feedback}\n\n---\n\n`
-            
+            const feedbackLogPath = `reports/${report.name}/feedback/log.md`
+            const formattedEntry = `### ${date}\n**Type:** ${entry.type}\n**Source:** ${titleSlug}\n\n${entry.content}\n`
+
             let currentLog = ''
             try {
               currentLog = await window.api.getFileContent(feedbackLogPath)
             } catch (e) {}
-            
+
+            const updated = currentLog ? `${formattedEntry}\n---\n\n${currentLog}` : formattedEntry
             await window.api.commitFile(
               feedbackLogPath,
-              entry + currentLog,
-              `Add feedback from ${titleSlug} on ${date}`
+              updated,
+              `Add ${entry.type} feedback for ${report.displayName} from ${titleSlug}`
             )
           }
         }

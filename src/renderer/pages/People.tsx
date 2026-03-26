@@ -7,6 +7,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import {
   Users,
   User,
@@ -418,7 +419,7 @@ ${editNotes}`
                 <>
                   {/* Profile content (strip frontmatter for display) */}
                   <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                       {profileContent.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()}
                     </ReactMarkdown>
                   </div>

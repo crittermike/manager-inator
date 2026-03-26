@@ -74,18 +74,24 @@ async function getClient(): Promise<CopilotClient> {
   return client
 }
 
+export interface AiGenerateResult {
+  content: string
+  modifiedFiles: string[]
+}
+
 export async function aiGenerate(
   action: string,
   context: Record<string, unknown>,
   onChunk: StreamCallback,
   requestId: string,
   onToolStatus?: ToolStatusCallback
-): Promise<string> {
+): Promise<AiGenerateResult> {
   const entry = { session: null as unknown as CopilotSession, cancelled: false }
   const unsubscribers: (() => void)[] = []
   const messages = buildMessages(action, context)
   const isChat = action === 'chat'
   const timeout = isChat ? CHAT_REQUEST_TIMEOUT_MS : AI_REQUEST_TIMEOUT_MS
+  const modifiedFiles = new Set<string>()
 
   try {
     const c = await getClient()
@@ -151,10 +157,19 @@ export async function aiGenerate(
 
       unsubscribers.push(session.on('tool.execution_start', (event) => {
         if (entry.cancelled) return
-        debugLog('[Copilot SDK] Tool:', event.data.toolName, event.data.arguments)
+        const toolName = event.data.toolName
+        const args = (event.data.arguments as Record<string, unknown>) || {}
+        debugLog('[Copilot SDK] Tool:', toolName, args)
         inToolPhase = true
+
+        // Track file-modifying tools
+        if (toolName === 'edit' || toolName === 'create') {
+          const filePath = (args.path as string) || (args.filePath as string)
+          if (filePath) modifiedFiles.add(filePath)
+        }
+
         if (onToolStatus) {
-          onToolStatus(event.data.toolName, (event.data.arguments as Record<string, unknown>) || {})
+          onToolStatus(toolName, args)
         }
       }))
 
@@ -172,13 +187,13 @@ export async function aiGenerate(
       const response = await session.sendAndWait({ prompt: userMessage }, timeout)
 
       const finalContent = response?.data?.content || ''
-      debugLog('[Copilot SDK] Chat complete:', finalContent.length, 'chars')
+      debugLog('[Copilot SDK] Chat complete:', finalContent.length, 'chars', 'Modified files:', [...modifiedFiles])
 
       if (finalContent && finalContent.length > lastSentLength) {
         onChunk(finalContent.slice(lastSentLength))
       }
 
-      return finalContent
+      return { content: finalContent, modifiedFiles: [...modifiedFiles] }
     } else {
       // ── Non-chat mode (simple generation, no tools) ──
       let fullResponse = ''
@@ -207,11 +222,11 @@ export async function aiGenerate(
       }
 
       debugLog('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
-      return fullResponse
+      return { content: fullResponse, modifiedFiles: [] }
     }
   } catch (error) {
     if (entry.cancelled) {
-      return ''
+      return { content: '', modifiedFiles: [] }
     }
     console.error('[Copilot SDK] Error:', (error as Error).message, (error as Error).stack)
     throw error
@@ -353,12 +368,25 @@ ${context.transcript}`
         role: 'user',
         content: `Review this meeting transcript and extract any feedback (positive, constructive, or notable observations) about any of my direct reports: ${context.reportNames}.
 
-For each piece of feedback, output markdown like:
+Output feedback grouped by person using EXACTLY this format (the <!-- markers are required):
 
-### [Report name] — [positive/constructive]
-> [specific observation with context]
+<!-- FEEDBACK: ExactReportName -->
+**Type:** positive
+[specific, behavior-anchored observation with context from the meeting]
+<!-- END FEEDBACK -->
 
-If there's no relevant feedback for a person, skip them. Only include concrete, behavior-anchored observations. No generic praise.
+<!-- FEEDBACK: AnotherReportName -->
+**Type:** constructive
+[specific observation]
+<!-- END FEEDBACK -->
+
+Rules:
+- Use EXACTLY the report name as provided above (case-sensitive)
+- Type must be exactly one of: positive, constructive, mixed
+- If a person has multiple pieces of feedback, include separate <!-- FEEDBACK --> blocks for each
+- If there's no relevant feedback for a person, skip them entirely
+- Only include concrete, behavior-anchored observations. No generic praise.
+- Do NOT combine feedback for multiple people in a single block
 
 TRANSCRIPT:
 ${context.transcript}`
@@ -408,7 +436,8 @@ ${context.jobExpectations ? `Job expectations for this role:\n${context.jobExpec
 ${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent summaries available.'}
 ${context.checkInHistory ? `\nPrevious check-ins:\n${context.checkInHistory}` : ''}
 ${context.feedback ? `\nFeedback log:\n${context.feedback}` : ''}
-${context.actionItems ? `\nAction items:\n${context.actionItems}` : ''}`
+${context.actionItems ? `\nAction items:\n${context.actionItems}` : ''}
+${context.contextNotes ? `\nCaptured context (Slack threads, GitHub discussions, emails, etc.):\n${context.contextNotes}` : ''}`
       })
       break
 
@@ -451,7 +480,8 @@ ${context.pastReviews ? `Previous performance reviews:\n${context.pastReviews}\n
 ${context.checkIns ? `Monthly check-ins from this period:\n${context.checkIns}\n` : 'No check-ins available for this period.\n'}
 ${context.summaries ? `1:1 meeting summaries:\n${context.summaries}\n` : 'No meeting summaries available.\n'}
 ${context.feedback ? `Feedback log:\n${context.feedback}\n` : 'No feedback logged.\n'}
-${context.actionItems ? `Action items (completed and open):\n${context.actionItems}` : 'No action items available.'}`
+${context.actionItems ? `Action items (completed and open):\n${context.actionItems}` : 'No action items available.'}
+${context.contextNotes ? `\nCaptured context (Slack threads, GitHub discussions, emails, etc.):\n${context.contextNotes}` : ''}`
       })
       break
 
@@ -537,6 +567,56 @@ TIPS:
       messages.push({ role: 'user', content: chatPrompt })
       break
     }
+
+    case 'classify-content':
+      messages.push({
+        role: 'user',
+        content: `Analyze this content that was pasted into the app. My direct reports are: ${context.reportNames}.
+
+Classify it and extract structured data. Return ONLY valid JSON (no markdown fences, no preamble).
+
+Required JSON shape:
+{
+  "source": "slack" | "github" | "email" | "other",
+  "summary": "2-3 sentence summary of the content",
+  "tags": ["relevant", "tags"],
+  "people_mentioned": ["Exact Name"],
+  "feedback": [
+    {
+      "person": "Exact Name",
+      "type": "positive" | "constructive" | "mixed",
+      "content": "specific behavior-anchored observation"
+    }
+  ],
+  "action_items": [
+    {
+      "text": "action item description",
+      "owner": "Name"
+    }
+  ],
+  "impact": [
+    {
+      "text": "YYYY-MM-DD — Short title: Description of the manager's impact"
+    }
+  ],
+  "key_context": "anything noteworthy the AI should remember for future reviews/check-ins"
+}
+
+Rules:
+- "people_mentioned" should only include people who are meaningfully discussed, not just @mentioned in passing
+- "feedback" should only contain concrete, behavior-anchored observations about my direct reports
+- For "person" fields, use the exact name from my reports list when possible
+- If no feedback, action items, or impact exist, use empty arrays
+- "source" should be inferred from the content format (slack threads have timestamps and usernames, github has PR/issue references, etc.)
+- "key_context" should capture strategic information, decisions, or context that would be useful when writing future performance reviews or check-ins
+- "impact" should capture evidence of MY impact as the manager (Mike): decisions I made or influenced, people I coached or unblocked, problems I solved, process improvements I drove, cross-team coordination I facilitated, recognition I received. Format each as a bullet-point-ready string starting with a bold date and short title.
+
+${context.sourceHint ? `The user indicated this is from: ${context.sourceHint}` : ''}
+
+CONTENT:
+${context.content}`
+      })
+      break
 
     case 'summarize-team-activity':
       messages.push({

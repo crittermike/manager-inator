@@ -1,7 +1,57 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Report, TeamOverview } from '../../shared/types'
+import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext, createElement, type ReactNode } from 'react'
+import type { Report, TeamOverview, AppSettings } from '../../shared/types'
 
-export function useTeamOverview() {
+// ── Settings Context (single fetch, shared across all consumers) ──
+
+interface SettingsContextValue {
+  settings: AppSettings | null
+  loading: boolean
+  refreshSettings: () => Promise<void>
+}
+
+const SettingsContext = createContext<SettingsContextValue | null>(null)
+
+export function SettingsProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      const s = await window.api.getSettings()
+      setSettings(s)
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const refreshSettings = useCallback(async () => {
+    await load()
+  }, [load])
+
+  useEffect(() => { load() }, [load])
+
+  const value = useMemo(() => ({ settings, loading, refreshSettings }), [settings, loading, refreshSettings])
+  return createElement(SettingsContext.Provider, { value }, children)
+}
+
+export function useSettings(): SettingsContextValue {
+  const ctx = useContext(SettingsContext)
+  if (!ctx) throw new Error('useSettings must be used within SettingsProvider')
+  return ctx
+}
+
+// ── Team Overview Context ──
+
+interface TeamOverviewContextValue {
+  overview: TeamOverview | null
+  loading: boolean
+  error: string | null
+  refresh: () => Promise<void>
+}
+
+const TeamOverviewContext = createContext<TeamOverviewContextValue | null>(null)
+
+export function TeamOverviewProvider({ children }: { children: ReactNode }) {
   const [overview, setOverview] = useState<TeamOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,13 +70,25 @@ export function useTeamOverview() {
   }, [])
 
   const refresh = useCallback(async () => {
-    await window.api.clearCaches()
     await load()
   }, [load])
 
   useEffect(() => { load() }, [load])
 
-  return { overview, loading, error, refresh }
+  useEffect(() => {
+    if (!window.api.onAiFilesChanged) return
+    const unsub = window.api.onAiFilesChanged(() => { load() })
+    return unsub
+  }, [load])
+
+  const value = useMemo(() => ({ overview, loading, error, refresh }), [overview, loading, error, refresh])
+  return createElement(TeamOverviewContext.Provider, { value }, children)
+}
+
+export function useTeamOverview(): TeamOverviewContextValue {
+  const ctx = useContext(TeamOverviewContext)
+  if (!ctx) throw new Error('useTeamOverview must be used within TeamOverviewProvider')
+  return ctx
 }
 
 export function useReportData(name: string | undefined) {
@@ -51,11 +113,16 @@ export function useReportData(name: string | undefined) {
   }, [name])
 
   const refresh = useCallback(async () => {
-    await window.api.clearCaches()
     await load()
   }, [load])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!window.api.onAiFilesChanged) return
+    const unsub = window.api.onAiFilesChanged(() => { load() })
+    return unsub
+  }, [load])
 
   return { report, loading, error, load, refresh }
 }

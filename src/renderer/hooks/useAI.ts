@@ -1,11 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 
+const STREAM_THROTTLE_MS = 150
+
 export function useAI() {
   const [streaming, setStreaming] = useState(false)
   const [streamedText, setStreamedText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const fullTextRef = useRef('')
   const requestIdRef = useRef<string | null>(null)
+  const throttleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingFlush = useRef(false)
 
   useEffect(() => {
     const unsub = window.api.onAiStreamReset((data) => {
@@ -14,7 +18,19 @@ export function useAI() {
         setStreamedText('')
       }
     })
-    return unsub
+    return () => {
+      unsub()
+      if (throttleTimer.current) {
+        clearTimeout(throttleTimer.current)
+        throttleTimer.current = null
+      }
+      pendingFlush.current = false
+    }
+  }, [])
+
+  const flushStreamedText = useCallback(() => {
+    setStreamedText(fullTextRef.current)
+    pendingFlush.current = false
   }, [])
 
   const generate = useCallback(
@@ -30,8 +46,16 @@ export function useAI() {
       try {
         const result = await window.api.aiGenerate(action, context, (chunk: string) => {
           fullTextRef.current += chunk
-          setStreamedText(fullTextRef.current)
+          if (!pendingFlush.current) {
+            pendingFlush.current = true
+            throttleTimer.current = setTimeout(flushStreamedText, STREAM_THROTTLE_MS)
+          }
         }, rid)
+        if (throttleTimer.current) {
+          clearTimeout(throttleTimer.current)
+          throttleTimer.current = null
+        }
+        pendingFlush.current = false
         setStreamedText(result)
         return result
       } catch (e) {
@@ -43,10 +67,15 @@ export function useAI() {
         requestIdRef.current = null
       }
     },
-    []
+    [flushStreamedText]
   )
 
   const cancel = useCallback(async () => {
+    if (throttleTimer.current) {
+      clearTimeout(throttleTimer.current)
+      throttleTimer.current = null
+    }
+    pendingFlush.current = false
     await window.api.aiCancel(requestIdRef.current ?? undefined)
     setStreaming(false)
     setStreamedText('')
@@ -54,6 +83,11 @@ export function useAI() {
   }, [])
 
   const reset = useCallback(() => {
+    if (throttleTimer.current) {
+      clearTimeout(throttleTimer.current)
+      throttleTimer.current = null
+    }
+    pendingFlush.current = false
     setStreamedText('')
     setError(null)
     fullTextRef.current = ''

@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import {
   UserCircle,
   Plus,
@@ -186,9 +187,13 @@ export function MyProfile() {
             </div>
           </div>
           <div className={`prose-dark max-h-96 overflow-y-auto ${streaming ? 'cursor-blink' : ''}`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {streamedText || '_Generating..._'}
-            </ReactMarkdown>
+            {streaming ? (
+              <div className="text-sm whitespace-pre-wrap text-zinc-300">{streamedText || 'Generating...'}</div>
+            ) : (
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+                {streamedText || '_Generating..._'}
+              </ReactMarkdown>
+            )}
           </div>
           <div className="sr-only" aria-live="polite">
             {streaming ? 'AI is summarizing your impact log...' : ''}
@@ -256,7 +261,7 @@ export function MyProfile() {
         </div>
       ) : (
         <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
         </div>
       )}
     </div>

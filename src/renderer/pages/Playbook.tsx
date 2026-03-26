@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useTeamOverview } from '../hooks/useData'
+import { useTeamOverview, useSettings } from '../hooks/useData'
 import { useSearchParams } from 'react-router-dom'
 import { format, addDays, getDay, getDate, getMonth, differenceInDays } from 'date-fns'
 import type { CadenceSettings, ReportStatus, CadenceType, CustomPractice, DayOfWeek, CheckInFrequency, PracticeSchedule } from '../../shared/types'
@@ -774,39 +774,41 @@ export function Playbook() {
   const [expandedWeeklyRhythm, setExpandedWeeklyRhythm] = useState<Set<number>>(new Set())
   const practiceRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
+  const { settings: _playbookSettings } = useSettings()
+  
   useEffect(() => {
-    window.api.getSettings().then((s) => {
-      setCadence({
-        checkInFrequency: s.checkInFrequency || 'monthly',
-        feedbackReminderDays: s.feedbackReminderDays ?? 14,
-        sprintLengthWeeks: s.sprintLengthWeeks ?? 2,
-        endOfWeekDay: s.endOfWeekDay || 'friday',
-        sprintStartDate: s.sprintStartDate || '',
-        staleActionDays: s.staleActionDays ?? 5
-      })
-      
-      setDisabledPractices(s.disabledPractices || [])
-      setCustomPractices(s.customPractices || [])
-      setPracticeCompletions(s.practiceCompletions || {})
-      setPracticeSchedules(s.practiceSchedules || {})
-      
-      const snoozed = s.snoozedPractices || {}
-      const now = new Date()
-      let needsSave = false
-      const validSnoozes: Record<string, string> = {}
-      for (const [id, dateStr] of Object.entries(snoozed)) {
-        if (new Date(dateStr) > now) {
-          validSnoozes[id] = dateStr
-        } else {
-          needsSave = true
-        }
+    if (!_playbookSettings) return
+    const s = _playbookSettings
+    setCadence({
+      checkInFrequency: s.checkInFrequency || 'monthly',
+      feedbackReminderDays: s.feedbackReminderDays ?? 14,
+      sprintLengthWeeks: s.sprintLengthWeeks ?? 2,
+      endOfWeekDay: s.endOfWeekDay || 'friday',
+      sprintStartDate: s.sprintStartDate || '',
+      staleActionDays: s.staleActionDays ?? 5
+    })
+    
+    setDisabledPractices(s.disabledPractices || [])
+    setCustomPractices(s.customPractices || [])
+    setPracticeCompletions(s.practiceCompletions || {})
+    setPracticeSchedules(s.practiceSchedules || {})
+    
+    const snoozed = s.snoozedPractices || {}
+    const now = new Date()
+    let needsSave = false
+    const validSnoozes: Record<string, string> = {}
+    for (const [id, dateStr] of Object.entries(snoozed)) {
+      if (new Date(dateStr) > now) {
+        validSnoozes[id] = dateStr
+      } else {
+        needsSave = true
       }
-      if (needsSave) {
-        window.api.saveSettings({ snoozedPractices: validSnoozes })
-      }
-      setSnoozedPractices(validSnoozes)
-    }).catch(() => {})
-  }, [])
+    }
+    if (needsSave) {
+      window.api.saveSettings({ snoozedPractices: validSnoozes })
+    }
+    setSnoozedPractices(validSnoozes)
+  }, [_playbookSettings])
 
   const reports = overview?.reports ?? []
 

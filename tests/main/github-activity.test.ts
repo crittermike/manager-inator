@@ -109,9 +109,15 @@ describe('getTeamActivity', () => {
       .mockReturnValueOnce(makeProfile('alice', 'alice-gh'))
       .mockReturnValueOnce(makeProfile('bob', 'bob-gh'))
 
-    mockFetch.mockResolvedValue(makeSearchResponse([
+    const issueResponse = makeSearchResponse([
       { title: 'Fix bug', state: 'open', pull_request: undefined }
-    ]))
+    ])
+    const emptyResponse = makeSearchResponse([])
+    mockFetch
+      .mockResolvedValueOnce(issueResponse)
+      .mockResolvedValueOnce(emptyResponse)
+      .mockResolvedValueOnce(issueResponse)
+      .mockResolvedValueOnce(emptyResponse)
 
     const result = await getTeamActivity()
 
@@ -125,7 +131,7 @@ describe('getTeamActivity', () => {
 
     expect(result[1].reportName).toBe('bob')
     expect(result[1].items).toHaveLength(1)
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockFetch).toHaveBeenCalledTimes(4)
   })
 
   it('returns error message for reports without GitHub username', async () => {
@@ -286,7 +292,7 @@ describe('getTeamActivity', () => {
 
     const result1 = await getTeamActivity()
     expect(result1[0].items[0].title).toBe('Cached item')
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
 
     const result2 = await getTeamActivity()
     expect(result2[0].items[0].title).toBe('Cached item')
@@ -300,7 +306,7 @@ describe('getTeamActivity', () => {
     mockFetch.mockResolvedValue(makeSearchResponse([{ title: 'Fresh data' }]))
 
     await getTeamActivity()
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
 
     clearActivityCache()
     mockFetch.mockClear()
@@ -308,7 +314,7 @@ describe('getTeamActivity', () => {
     mockFetch.mockResolvedValue(makeSearchResponse([{ title: 'Fresh data 2' }]))
     const result = await getTeamActivity()
     expect(result[0].items[0].title).toBe('Fresh data 2')
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
   it('handles mixed success and failure across reports', async () => {
@@ -319,15 +325,19 @@ describe('getTeamActivity', () => {
       .mockReturnValueOnce(makeProfile('alice', 'alice-gh'))
       .mockReturnValueOnce(makeProfile('bob', 'bob-gh'))
 
+    const errorResponse = {
+      ok: false,
+      status: 500,
+      statusText: 'Server Error',
+      headers: new Headers(),
+      json: async () => ({})
+    }
+
     mockFetch
       .mockResolvedValueOnce(makeSearchResponse([{ title: 'Alice PR' }]))
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Server Error',
-        headers: new Headers(),
-        json: async () => ({})
-      })
+      .mockResolvedValueOnce(makeSearchResponse([]))
+      .mockResolvedValueOnce(errorResponse)
+      .mockResolvedValueOnce(errorResponse)
 
     const result = await getTeamActivity()
 

@@ -38,7 +38,9 @@ contextBridge.exposeInMainWorld('api', {
   toggleActionItem: (sourceFile: string, lineNumber: number) =>
     ipcRenderer.invoke('github:toggle-action-item', sourceFile, lineNumber),
   getTeamActionItems: () => ipcRenderer.invoke('github:team-action-items'),
+  getTodayBootstrap: () => ipcRenderer.invoke('github:today-bootstrap'),
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
+  getPrewarmStatus: () => ipcRenderer.invoke('github:prewarm-status'),
   getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
   backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
   onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {
@@ -65,6 +67,11 @@ contextBridge.exposeInMainWorld('api', {
     const handler = (_event: unknown, data: { requestId: string }) => cb(data)
     ipcRenderer.on('ai:stream-reset', handler)
     return () => ipcRenderer.removeListener('ai:stream-reset', handler)
+  },
+  onAiFilesChanged: (cb: (data: { requestId: string; files: string[] }) => void) => {
+    const handler = (_event: unknown, data: { requestId: string; files: string[] }) => cb(data)
+    ipcRenderer.on('ai:files-changed', handler)
+    return () => ipcRenderer.removeListener('ai:files-changed', handler)
   },
   cancelBackfill: () => ipcRenderer.invoke('ai:cancel-backfill'),
 

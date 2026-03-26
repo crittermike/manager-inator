@@ -30,12 +30,14 @@ export interface Summary {
   keyTopics: string[]
   actionItems: ActionItem[]
   sentiment: string
+  filename?: string // e.g. "2026-03-19-steve-1-1.md" — used for unique keys & navigation
 }
 
 // ── Transcript ──
 export interface Transcript {
   date: string // YYYY-MM-DD
   content: string
+  filename?: string // e.g. "2026-03-19-steve-1-1.md" — used for unique keys & navigation
 }
 
 // ── Action Item ──
@@ -94,6 +96,16 @@ export interface CustomPractice {
   perReport: boolean
 }
 
+// ── Captured context note ──
+export interface ContextNote {
+  date: string // YYYY-MM-DD
+  source: 'slack' | 'github' | 'email' | 'other'
+  summary: string
+  tags: string[]
+  content: string // raw pasted content
+  filename: string // e.g. "2026-03-26-slack-thread.md"
+}
+
 // ── 1:1 Prep entry ──
 export interface PrepEntry {
   date: string // YYYY-MM-DD
@@ -111,6 +123,7 @@ export interface Report {
   feedback: FeedbackEntry[]
   reviews: { period: string; content: string }[]
   preps: PrepEntry[]
+  contextNotes: ContextNote[]
   dashboard: string
   jobExpectations: string
 }
@@ -275,7 +288,9 @@ export interface IpcApi {
   saveMeetingSpeakers: (filename: string, speakers: string[]) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
   getTeamActionItems: () => Promise<TeamActionItem[]>
+  getTodayBootstrap: () => Promise<{ meetings: MeetingEntry[]; rawTranscripts: RawTranscriptEntry[]; teamActionItems: TeamActionItem[] }>
   clearCaches: () => Promise<void>
+  getPrewarmStatus: () => Promise<boolean>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
   searchContent: (query: string) => Promise<{ filename: string; directory: 'meetings' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
   backfillSummaries: (filenames: string[]) => Promise<{ filename: string; success: boolean; error?: string }[]>
@@ -284,6 +299,7 @@ export interface IpcApi {
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void
+  onAiFilesChanged: (cb: (data: { requestId: string; files: string[] }) => void) => () => void
   cancelBackfill: () => Promise<void>
 
   // AI

@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import type { Report } from '../../../shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import { Sparkles, Loader2, RotateCcw, Pencil, Trash2, Check, X } from 'lucide-react'
 
 export function InlinePrep({
@@ -79,15 +80,12 @@ export function InlinePrep({
 
     const openActions = data.actionItems.filter(a => !a.completed)
     const recentSummaryDates = data.summaries.slice(-5)
-    const summaryContents = await Promise.all(
-      recentSummaryDates.map(async (s) => {
-        try {
-          const content = await window.api.getFileContent(`meetings/${s.date}-${reportName}-1-1.md`)
-          return content
-        } catch { return '' }
-      })
-    )
-    const summariesText = summaryContents.filter(Boolean).join('\n\n---\n\n')
+    const summaryPaths = recentSummaryDates.map(s => `meetings/${s.date}-${reportName}-1-1.md`)
+    const summaryFileMap = await window.api.getFilesContentBulk(summaryPaths)
+    const summariesText = summaryPaths
+      .map(p => summaryFileMap[p])
+      .filter(Boolean)
+      .join('\n\n---\n\n')
     if (!mountedRef.current) return
 
     const openActionsText = openActions.map(a => `- [ ] ${a.text}`).join('\n')
@@ -104,18 +102,17 @@ export function InlinePrep({
       const otherMeetings = allMeetings
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
-      const mentionResults = await Promise.all(
-        otherMeetings.map(async (m) => {
-          try {
-            const content = await window.api.getFileContent(`meetings/${m.filename}`)
-            if (namePattern.test(content)) {
-              return `### ${m.title} (${m.date})\n${content}`
-            }
-          } catch { /* skip */ }
-          return ''
-        })
-      )
-      crossMentions = mentionResults.filter(Boolean).slice(0, 5).join('\n\n---\n\n')
+      const paths = otherMeetings.map(m => `meetings/${m.filename}`)
+      const fileMap = await window.api.getFilesContentBulk(paths)
+      const mentions: string[] = []
+      for (const m of otherMeetings) {
+        const content = fileMap[`meetings/${m.filename}`]
+        if (content && namePattern.test(content)) {
+          mentions.push(`### ${m.title} (${m.date})\n${content}`)
+          if (mentions.length >= 5) break
+        }
+      }
+      crossMentions = mentions.join('\n\n---\n\n')
     } catch { /* non-critical */ }
     if (!mountedRef.current) return
 
@@ -262,7 +259,7 @@ export function InlinePrep({
         />
       ) : (
         <div className="prose-dark text-sm max-h-64 overflow-y-auto rounded-lg bg-surface-raised/50 p-3">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{prepContent}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{prepContent}</ReactMarkdown>
         </div>
       )}
       <div className="flex items-center gap-2">

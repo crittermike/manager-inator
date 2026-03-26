@@ -9,6 +9,7 @@ import {
   getFileContent,
   getFilesContentBulk,
   commitFile,
+  commitAiModifiedFiles,
   deleteFile,
   listMeetings,
   listRawTranscripts,
@@ -21,12 +22,15 @@ import {
   saveMeetingSpeakers,
   toggleActionItem,
   getTeamActionItems,
+  getTodayBootstrap,
   searchContent,
   clearAllCaches,
+  cancelPendingCommits,
   preWarmCaches,
+  isPrewarmComplete,
   safeSend
 } from './github'
-import { getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
+import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity } from './github-activity'
 
@@ -66,12 +70,21 @@ export function setupIpcHandlers(): void {
       setGithubOrgToken(typeof tokenVal === 'string' && tokenVal.trim() ? tokenVal.trim() : null)
     }
 
+    const repoPathChanging = 'repoPath' in raw && raw['repoPath'] !== getSettings().repoPath
+
     const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules', 'ptoReports', 'githubOrgName'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]
     }
-    return saveSettings(sanitized as Parameters<typeof saveSettings>[0])
+    const result = saveSettings(sanitized as Parameters<typeof saveSettings>[0])
+
+    if (repoPathChanging) {
+      cancelPendingCommits()
+      clearAllCaches()
+    }
+
+    return result
   })
 
   // ── GitHub data ──
@@ -96,8 +109,10 @@ export function setupIpcHandlers(): void {
   safeHandle('github:save-meeting-speakers', (_e, filename, speakers) => saveMeetingSpeakers(filename as string, speakers as string[]))
   safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
   safeHandle('github:team-action-items', () => getTeamActionItems())
+  safeHandle('github:today-bootstrap', () => getTodayBootstrap())
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
+  safeHandle('github:prewarm-status', () => isPrewarmComplete())
   safeHandle('github:team-activity', () => getTeamActivity())
 
   // ── AI with streaming ──
@@ -112,7 +127,12 @@ export function setupIpcHandlers(): void {
       safeSend(win, 'ai:tool-status', { requestId: rid, toolName, args })
     })
 
-    return result
+    if (result.modifiedFiles.length > 0) {
+      commitAiModifiedFiles(result.modifiedFiles)
+      safeSend(win, 'ai:files-changed', { requestId: rid, files: result.modifiedFiles })
+    }
+
+    return result.content
   })
 
   safeHandle('ai:cancel', (_e, requestId) => aiCancel(requestId as string | undefined))
@@ -144,6 +164,15 @@ export function setupIpcHandlers(): void {
     const results: { filename: string; success: boolean; error?: string }[] = []
     _backfillAborted = false
 
+    // Hoist report names + profiles outside the per-file loop
+    const reportNames = getReports()
+    const profiles = reportNames.map((n) => {
+      try {
+        const p = getReportProfile(n)
+        return p.displayName
+      } catch { return n }
+    })
+
     for (const filename of filenames) {
       if (_backfillAborted) break
       try {
@@ -154,19 +183,11 @@ export function setupIpcHandlers(): void {
         const date = dateMatch?.[1] || name
         const title = dateMatch?.[2]?.replace(/-/g, ' ') || name
 
-        const reportNames = getReports()
-        const profiles = reportNames.map((n) => {
-          try {
-            const p = getReportProfile(n)
-            return p.displayName
-          } catch { return n }
-        })
-
         safeSend(win, 'ai:backfill-progress', { filename, status: 'generating' })
 
         const backfillRequestId = randomUUID()
         _activeBackfillRequestId = backfillRequestId
-        const summary = await aiGenerate('summarize-meeting', {
+        const backfillResult = await aiGenerate('summarize-meeting', {
           meetingTitle: title,
           date,
           reportNames: profiles.join(', '),
@@ -182,7 +203,7 @@ export function setupIpcHandlers(): void {
 
         await commitFile(
           `meetings/${filename}`,
-          summary,
+          backfillResult.content,
           `Add meeting summary with speakers: ${title} on ${date}`
         )
 

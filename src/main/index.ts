@@ -1,7 +1,7 @@
 import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'path'
 import { setupIpcHandlers } from './ipc'
-import { preWarmCaches } from './github'
+import { preWarmCaches, flushPendingCommitsAsync } from './github'
 import { stopClient } from './copilot'
 
 // Support custom userDataDir for test isolation
@@ -118,6 +118,10 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('will-quit', () => {
-  stopClient()
+app.on('will-quit', (e) => {
+  e.preventDefault()
+  flushPendingCommitsAsync().finally(() => {
+    stopClient()
+    app.exit(0)
+  })
 })

@@ -36,7 +36,9 @@ import {
   getSettingsOptions,
   getFileContent,
   fileExists,
-  clearAllCaches
+  clearAllCaches,
+  getTodayBootstrap,
+  preWarmCaches
 } from '../../src/main/github'
 
 function setRepoPath(p: string) {
@@ -266,22 +268,22 @@ describe('github.ts integration tests', () => {
   })
 
   describe('searchContent', () => {
-    it('finds content in meeting files', () => {
-      const results = searchContent('platform migration')
+    it('finds meetings by title', () => {
+      const results = searchContent('alice 1:1')
       expect(results.length).toBeGreaterThanOrEqual(1)
       const meetingResult = results.find(r => r.directory === 'meetings')
       expect(meetingResult).toBeDefined()
     })
 
-    it('finds content in report files', () => {
-      const results = searchContent('strong technical leader')
+    it('finds reports by name', () => {
+      const results = searchContent('alice')
       expect(results.length).toBeGreaterThanOrEqual(1)
       const reportResult = results.find(r => r.directory === 'reports')
       expect(reportResult).toBeDefined()
     })
 
-    it('finds content in people files', () => {
-      const results = searchContent('Platform team')
+    it('finds people by name and role', () => {
+      const results = searchContent('Senior Engineer')
       const peopleResult = results.find(r => r.directory === 'people')
       expect(peopleResult).toBeDefined()
     })
@@ -298,15 +300,16 @@ describe('github.ts integration tests', () => {
     })
 
     it('includes snippet with context', () => {
-      const results = searchContent('migration')
+      const results = searchContent('standup')
       const hit = results[0]
+      expect(hit).toBeDefined()
       expect(hit.snippet.length).toBeGreaterThan(0)
     })
 
-    it('searches weekly-log files', () => {
-      const results = searchContent('Q2 roadmap')
-      const noteResult = results.find(r => r.directory === 'notes')
-      expect(noteResult).toBeDefined()
+    it('finds people by alias', () => {
+      const results = searchContent('Bobby')
+      const peopleResult = results.find(r => r.directory === 'people')
+      expect(peopleResult).toBeDefined()
     })
   })
 
@@ -560,6 +563,71 @@ describe('github.ts integration tests', () => {
       setRepoPath(fixture.dir)
       clearAllCaches()
       minFixture.cleanup()
+    })
+  })
+
+  describe('performance benchmarks', () => {
+    it('cold getTodayBootstrap completes under 500ms', () => {
+      clearAllCaches()
+      const t0 = performance.now()
+      const result = getTodayBootstrap()
+      const elapsed = performance.now() - t0
+      expect(result.meetings.length).toBeGreaterThan(0)
+      expect(result.teamActionItems.length).toBeGreaterThan(0)
+      expect(elapsed).toBeLessThan(500)
+    })
+
+    it('cached getTodayBootstrap completes under 10ms', () => {
+      getTodayBootstrap()
+      const t0 = performance.now()
+      const result = getTodayBootstrap()
+      const elapsed = performance.now() - t0
+      expect(result.meetings.length).toBeGreaterThan(0)
+      expect(elapsed).toBeLessThan(10)
+    })
+
+    it('cold getTeamOverview completes under 500ms', () => {
+      clearAllCaches()
+      const t0 = performance.now()
+      const result = getTeamOverview()
+      const elapsed = performance.now() - t0
+      expect(result.reports.length).toBeGreaterThan(0)
+      expect(elapsed).toBeLessThan(500)
+    })
+
+    it('cached getTeamOverview completes under 5ms', () => {
+      getTeamOverview()
+      const t0 = performance.now()
+      const result = getTeamOverview()
+      const elapsed = performance.now() - t0
+      expect(result.reports.length).toBeGreaterThan(0)
+      expect(elapsed).toBeLessThan(5)
+    })
+
+    it('cached getReportData completes under 5ms', () => {
+      getReportData('alice')
+      const t0 = performance.now()
+      const result = getReportData('alice')
+      const elapsed = performance.now() - t0
+      expect(result.profile.name).toBeTruthy()
+      expect(elapsed).toBeLessThan(5)
+    })
+
+    it('cached listPeople completes under 5ms', () => {
+      listPeople()
+      const t0 = performance.now()
+      const result = listPeople()
+      const elapsed = performance.now() - t0
+      expect(result.length).toBeGreaterThan(0)
+      expect(elapsed).toBeLessThan(5)
+    })
+
+    it('preWarmCaches completes under 1000ms', async () => {
+      clearAllCaches()
+      const t0 = performance.now()
+      await preWarmCaches()
+      const elapsed = performance.now() - t0
+      expect(elapsed).toBeLessThan(1000)
     })
   })
 })

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import type { PersonEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import { useToast } from '../components/common/Toast'
@@ -395,7 +396,7 @@ export function MeetingDetail() {
         </div>
         
         <div className="px-6 py-8 prose-dark max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Sun,
@@ -8,12 +8,15 @@ import {
   BookOpen,
   Search,
   UserCircle,
-  NotebookPen
+  NotebookPen,
+  ClipboardPaste
 } from 'lucide-react'
-import { useTeamOverview } from '../../hooks/useData'
-import { CommandPalette } from '../common/CommandPalette'
-import { AIFloatingPanel } from '../common/AIFloatingPanel'
+import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
+
+const CommandPalette = lazy(() => import('../common/CommandPalette').then(m => ({ default: m.CommandPalette })))
+const AIFloatingPanel = lazy(() => import('../common/AIFloatingPanel').then(m => ({ default: m.AIFloatingPanel })))
+const CapturePanel = lazy(() => import('../common/CapturePanel').then(m => ({ default: m.CapturePanel })))
 
 interface AppShellProps {
   children: ReactNode
@@ -29,25 +32,38 @@ export function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { overview } = useTeamOverview()
+  const { settings } = useSettings()
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const reports = overview?.reports ?? []
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
-  const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
+  const [capturePanelOpen, setCapturePanelOpen] = useState(false)
+  const ptoReports = settings?.ptoReports ?? {}
+
+  const toggleCapture = useCallback(() => {
+    setCapturePanelOpen(prev => !prev)
+  }, [])
 
   useEffect(() => {
     const cleanup = window.api.onPushStatus((data) => {
       if (!data.success) {
-        toast.warning(`Git push failed: ${data.error || 'Unknown error'}. Changes saved locally.`, 'Sync Issue')
+        toastRef.current.warning(`Git push failed: ${data.error || 'Unknown error'}. Changes saved locally.`, 'Sync Issue')
       }
     })
     return cleanup
-  }, [toast])
+  }, [])
 
   useEffect(() => {
-    window.api.getSettings().then((s) => {
-      setPtoReports(s.ptoReports || {})
-    }).catch(() => {})
-  }, [])
+    const handleShortcut = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'v') {
+        e.preventDefault()
+        toggleCapture()
+      }
+    }
+    document.addEventListener('keydown', handleShortcut)
+    return () => document.removeEventListener('keydown', handleShortcut)
+  }, [toggleCapture])
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-zinc-950 text-zinc-100">
@@ -57,7 +73,9 @@ export function AppShell({ children }: AppShellProps) {
       >
         Skip to main content
       </a>
-      <CommandPalette />
+      <Suspense fallback={null}>
+        <CommandPalette />
+      </Suspense>
       {/* Sidebar */}
       <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
         {/* Title bar drag region — sits below traffic lights */}
@@ -178,11 +196,27 @@ export function AppShell({ children }: AppShellProps) {
           />
         )}
 
-        {/* AI floating panel */}
-        <AIFloatingPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+        <Suspense fallback={null}>
+          <AIFloatingPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+        </Suspense>
 
-        {/* Floating action buttons */}
+        <Suspense fallback={null}>
+          <CapturePanel open={capturePanelOpen} onClose={() => setCapturePanelOpen(false)} />
+        </Suspense>
+
         <div className="absolute bottom-6 right-6 flex items-center gap-3 z-20">
+          <button
+            onClick={toggleCapture}
+            className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${
+              capturePanelOpen
+                ? 'bg-brand text-white shadow-brand/25'
+                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
+            }`}
+            aria-label="Capture content"
+            title="Capture content (Cmd+Shift+V)"
+          >
+            <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
+          </button>
           <button
             onClick={() => navigate('/transcript')}
             className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${

@@ -3,11 +3,10 @@ import { useAuth } from './hooks/useAuth'
 import { AppShell } from './components/layout/AppShell'
 import { AuthScreen } from './pages/AuthScreen'
 import { SetupScreen } from './pages/SetupScreen'
-import { Today } from './pages/Today'
-import { SearchPage } from './pages/Search'
 import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
+import { TeamOverviewProvider, SettingsProvider } from './hooks/useData'
 
 const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
 const TranscriptProcessor = lazy(() => import('./pages/TranscriptProcessor').then(m => ({ default: m.TranscriptProcessor })))
@@ -17,35 +16,52 @@ const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.S
 const People = lazy(() => import('./pages/People').then(m => ({ default: m.People })))
 const MeetingDetail = lazy(() => import('./pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })))
 const MyProfile = lazy(() => import('./pages/MyProfile').then(m => ({ default: m.MyProfile })))
+const Today = lazy(() => import('./pages/Today').then(m => ({ default: m.Today })))
+const SearchPage = lazy(() => import('./pages/Search').then(m => ({ default: m.SearchPage })))
 
 function Layout() {
   return (
-    <AppShell>
-      <ErrorBoundary>
-        <Suspense fallback={
-          <div className="flex items-center justify-center h-full">
-            <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-          </div>
-        }>
-          <Outlet />
-        </Suspense>
-      </ErrorBoundary>
-    </AppShell>
+    <SettingsProvider>
+      <TeamOverviewProvider>
+        <AppShell>
+          <ErrorBoundary>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+              </div>
+            }>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </AppShell>
+      </TeamOverviewProvider>
+    </SettingsProvider>
   )
 }
 
 const LOADING_STEPS = [
   'Scanning meeting files...',
   'Scanning raw transcripts...',
-  'Loading team data...',
+  'Loading reports...',
+  'Building team overview...',
   'Building people index...',
-  'Building search index...',
   'Ready!'
 ]
 
 function LoadingScreen({ message }: { message: string }) {
-  const stepIndex = LOADING_STEPS.indexOf(message)
-  const progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 10
+  const reportMatch = message.match(/^Loading report (\d+)\/(\d+)/)
+  let progress: number
+  if (reportMatch) {
+    const [, current, total] = reportMatch
+    const reportsBase = (3 / LOADING_STEPS.length) * 100
+    const reportsEnd = (4 / LOADING_STEPS.length) * 100
+    progress = reportsBase + (Number(current) / Number(total)) * (reportsEnd - reportsBase)
+  } else {
+    const stepIndex = LOADING_STEPS.indexOf(message)
+    progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 10
+  }
+
+  const displayMessage = reportMatch ? `Loading reports... (${reportMatch[1]}/${reportMatch[2]})` : message
 
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
@@ -59,7 +75,7 @@ function LoadingScreen({ message }: { message: string }) {
             />
           </div>
           <div className="text-center">
-            <span className="text-zinc-500 text-sm">{message}</span>
+            <span className="text-zinc-500 text-sm">{displayMessage}</span>
           </div>
         </div>
       </div>
@@ -112,6 +128,10 @@ export default function App() {
         setCachesReady(true)
       }
     })
+
+    window.api.getPrewarmStatus?.().then((ready) => {
+      if (ready) setCachesReady(true)
+    }).catch(() => {})
 
     cacheTimerRef.current = setTimeout(() => {
       setCachesReady(true)

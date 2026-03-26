@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAI } from '../../hooks/useAI'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+const REMARK_PLUGINS = [remarkGfm]
 import {
   Send, Bot, StopCircle, X, User, FolderOpen,
   Trash2, Plus, MessageSquare, Copy, Check
@@ -380,7 +381,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               )}
               {msg.role === 'assistant' ? (
                 <div className="prose-dark text-xs [&_p]:text-xs [&_li]:text-xs [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
@@ -399,20 +400,20 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <div className="w-6 h-6 rounded-md bg-brand/15 flex items-center justify-center shrink-0 mt-0.5">
               <Bot className="w-3.5 h-3.5 text-brand" aria-hidden="true" />
             </div>
-            <div className="max-w-[85%] rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer">
+            <div className={`rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer ${streamedText ? 'max-w-[85%]' : 'w-fit'}`}>
               {streamedText ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedText}</ReactMarkdown>
+                  <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText}</div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-1 py-0.5">
-                  <div className="flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1 h-1 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1 h-1 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                   {toolStatus && (
-                    <div className="flex items-center gap-1 text-[10px] text-zinc-500">
+                    <div className="flex items-center gap-1 text-[10px] text-zinc-500 max-w-[200px]">
                       <FolderOpen className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
                       <span className="truncate">{toolStatus}</span>
                     </div>

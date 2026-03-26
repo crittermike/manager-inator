@@ -83,7 +83,7 @@ export function InlineActions({
           const isToggling = togglingItems.has(toggleKey)
           const isSnoozeOpen = snoozeOpenFor === toggleKey
           return (
-            <div key={i} className="relative group">
+            <div key={`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? i}`} className="relative group">
               <div className="flex items-start gap-2.5 py-1.5 px-1 rounded-lg hover:bg-surface-raised transition-colors">
                 <button
                   disabled={isToggling || !a.sourceFile || a.sourceLineNumber == null}
