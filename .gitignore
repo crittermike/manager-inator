@@ -3,5 +3,6 @@ dist/
 out/
 .DS_Store
 *.log
+.sisyphus/
 test-results/
 test-compile.tsx
