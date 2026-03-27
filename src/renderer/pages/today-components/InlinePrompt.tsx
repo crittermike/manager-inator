@@ -3,17 +3,26 @@ import { useToast } from '../../components/common/Toast'
 import { useAI } from '../../hooks/useAI'
 import { format } from 'date-fns'
 import type { PromptType } from './types'
-import { Save, Sparkles, Loader2 } from 'lucide-react'
+import { Save, Sparkles, Loader2, Target } from 'lucide-react'
+
+function getWeekNumber() {
+  const now = new Date()
+  const year = now.getFullYear()
+  return {
+    year,
+    weekNum: Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
+  }
+}
+
+function getWeeklyPath(type: 'priorities' | 'reflection') {
+  const { year, weekNum } = getWeekNumber()
+  return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-${type}.md`
+}
 
 const promptConfig: Record<PromptType, { placeholder: string; savePath: () => string; commitMsg: () => string }> = {
   'weekly-priorities': {
     placeholder: 'What are your top priorities this week? What must get done?',
-    savePath: () => {
-      const now = new Date()
-      const year = now.getFullYear()
-      const weekNum = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
-      return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-priorities.md`
-    },
+    savePath: () => getWeeklyPath('priorities'),
     commitMsg: () => `Save weekly priorities for ${format(new Date(), 'yyyy-MM-dd')}`
   },
   'sprint-goal': {
@@ -23,12 +32,7 @@ const promptConfig: Record<PromptType, { placeholder: string; savePath: () => st
   },
   'weekly-reflection': {
     placeholder: 'What shipped this week? What\'s at risk? What did you learn?',
-    savePath: () => {
-      const now = new Date()
-      const year = now.getFullYear()
-      const weekNum = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + new Date(year, 0, 1).getDay() + 1) / 7)
-      return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-reflection.md`
-    },
+    savePath: () => getWeeklyPath('reflection'),
     commitMsg: () => `Save weekly reflection for ${format(new Date(), 'yyyy-MM-dd')}`
   }
 }
@@ -47,6 +51,19 @@ export function InlinePrompt({
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
+  const [weeklyGoals, setWeeklyGoals] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    if (promptType !== 'weekly-reflection') return
+    window.api.getFileContent(getWeeklyPath('priorities'))
+      .then(content => {
+        const lines = content.split('\n')
+          .filter(l => l.startsWith('- '))
+          .map(l => l.replace(/^-\s*/, '').trim())
+        if (lines.length > 0) setWeeklyGoals(lines)
+      })
+      .catch(() => {})
+  }, [promptType])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -101,6 +118,19 @@ export function InlinePrompt({
 
   return (
     <div className="space-y-3 py-4 px-1">
+      {promptType === 'weekly-reflection' && weeklyGoals && (
+        <div className="bg-surface-raised/50 border border-border/50 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="w-3.5 h-3.5 text-brand-light" />
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">This week's goals</span>
+          </div>
+          <ul className="space-y-1">
+            {weeklyGoals.map((goal, i) => (
+              <li key={i} className="text-sm text-zinc-300 pl-1">• {goal}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}

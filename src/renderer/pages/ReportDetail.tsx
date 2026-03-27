@@ -2176,12 +2176,81 @@ function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name
 function PrepDetail({ entry, name, onEdit, onDelete }: { entry: StreamEntry; name: string; onEdit: (id: string, path: string) => void; onDelete: (path: string) => void }) {
   const p = entry.data as PrepEntry
   const prepPath = `reports/${name}/prep/${p.date}.md`
+  const [content, setContent] = useState(p.content)
+
+  const handleCheckboxToggle = useCallback(async (lineIndex: number) => {
+    const lines = content.split('\n')
+    const line = lines[lineIndex]
+    if (line.includes('- [ ] ')) {
+      lines[lineIndex] = line.replace('- [ ] ', '- [x] ')
+    } else if (line.includes('- [x] ')) {
+      lines[lineIndex] = line.replace('- [x] ', '- [ ] ')
+    } else {
+      return
+    }
+    const updated = lines.join('\n')
+    setContent(updated)
+    try {
+      await window.api.commitFile(prepPath, updated, `Toggle prep checkbox for ${name}`)
+    } catch { }
+  }, [content, prepPath, name])
+
+  const lines = content.split('\n')
+  const hasCheckboxes = lines.some(l => /^(\s*)- \[[ x]\]/.test(l))
 
   return (
     <div className="space-y-2">
-      <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{p.content}</ReactMarkdown>
-      </div>
+      {hasCheckboxes ? (
+        <div className="max-h-96 overflow-y-auto pr-2">
+          {lines.map((line, i) => {
+            const unchecked = line.match(/^(\s*)- \[ \] (.+)/)
+            const checked = line.match(/^(\s*)- \[x\] (.+)/)
+            if (unchecked) {
+              return (
+                <label key={i} className="flex items-start gap-2.5 py-1.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    onChange={() => handleCheckboxToggle(i)}
+                    className="mt-1 accent-brand w-4 h-4 shrink-0"
+                  />
+                  <span className="text-sm text-zinc-300 group-hover:text-zinc-100 leading-relaxed">
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <>{children}</> }}>{unchecked[2]}</ReactMarkdown>
+                  </span>
+                </label>
+              )
+            }
+            if (checked) {
+              return (
+                <label key={i} className="flex items-start gap-2.5 py-1.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    onChange={() => handleCheckboxToggle(i)}
+                    className="mt-1 accent-brand w-4 h-4 shrink-0"
+                  />
+                  <span className="text-sm text-zinc-500 line-through leading-relaxed">
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <>{children}</> }}>{checked[2]}</ReactMarkdown>
+                  </span>
+                </label>
+              )
+            }
+            if (line.match(/^#{1,3}\s/)) {
+              return <h3 key={i} className="text-base font-semibold text-zinc-100 mt-5 mb-2 first:mt-0">{line.replace(/^#{1,3}\s*/, '')}</h3>
+            }
+            if (line.match(/^-\s/)) {
+              return <p key={i} className="text-sm text-zinc-400 pl-1 py-0.5 leading-relaxed">• {line.replace(/^-\s*/, '')}</p>
+            }
+            if (line.trim() === '' || line.match(/^---/)) return <div key={i} className="h-1" />
+            if (line.trim()) return <p key={i} className="text-sm text-zinc-400 py-0.5 leading-relaxed">{line}</p>
+            return null
+          })}
+        </div>
+      ) : (
+        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <button onClick={() => onEdit(entry.id, prepPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
           <Pencil className="w-3 h-3" /> Edit

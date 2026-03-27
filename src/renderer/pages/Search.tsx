@@ -193,8 +193,10 @@ export function SearchPage() {
   }, [selectedIndex])
 
   const handleResultClick = (r: SearchResult) => {
-    if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'contexts')) && r.filename) {
+    if (r.type === 'meeting' && r.filename) {
       navigate(`/meeting/${encodeURIComponent(r.filename)}`)
+    } else if (r.type === 'content' && r.directory === 'contexts' && r.filename) {
+      navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=contexts`)
     } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
       navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=weekly-log`)
     } else if (r.route.startsWith('/search?q=')) {
