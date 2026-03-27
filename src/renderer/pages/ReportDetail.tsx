@@ -36,7 +36,8 @@ import {
   Plus,
   AlertCircle,
   Plane,
-  ClipboardList
+  ClipboardList,
+  Trash2
 } from 'lucide-react'
 
 // ── Types ──
@@ -123,8 +124,9 @@ export function ReportDetail() {
   // Prep checkbox editing
   const [prepContent, setPrepContent] = useState<string | null>(null)
 
-  // Content viewing
-  const [viewingContent, setViewingContent] = useState<{ path: string; title: string } | null>(null)
+  // Content viewing & editing
+  const [viewingContent, setViewingContent] = useState<{ id: string; path: string; title: string } | null>(null)
+  const [isEditingContent, setIsEditingContent] = useState(false)
   const { content: fileContent, loading: fileLoading } = useFileContent(viewingContent?.path ?? null)
 
   // Copy state
@@ -187,8 +189,54 @@ export function ReportDetail() {
     })
   }, [])
 
-  const handleViewContent = useCallback((path: string, title: string) => {
-    setViewingContent({ path, title })
+  const handleViewContent = useCallback((id: string, path: string, title: string) => {
+    setViewingContent({ id, path, title })
+    setIsEditingContent(false)
+    setExpandedItems(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleEditContent = useCallback((id: string, path: string) => {
+    setViewingContent({ id, path, title: 'Edit Content' })
+    setIsEditingContent(true)
+    setExpandedItems(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleDeleteContent = useCallback(async (path: string) => {
+    if (confirm('Are you sure you want to delete this file? This cannot be undone.')) {
+      try {
+        await window.api.deleteFile(path)
+        toast.success('File deleted successfully')
+        refresh()
+        setViewingContent(null)
+        setIsEditingContent(false)
+      } catch (err) {
+        toast.error('Failed to delete file')
+      }
+    }
+  }, [refresh, toast])
+
+  const handleSaveContent = useCallback(async (path: string, newContent: string) => {
+    try {
+      await window.api.commitFile(path, newContent, 'Update context note')
+      toast.success('Changes saved successfully')
+      refresh()
+      setIsEditingContent(false)
+    } catch (err) {
+      toast.error('Failed to save changes')
+    }
+  }, [refresh, toast])
+
+  const handleCloseContent = useCallback(() => {
+    setViewingContent(null)
+    setIsEditingContent(false)
   }, [])
 
   // ── AI Handlers (preserved from original) ──
@@ -1460,42 +1508,6 @@ export function ReportDetail() {
         </button>
       )}
 
-      {/* ── Content viewer (for expanded items) ── */}
-      {viewingContent && (
-        <div className="bg-surface rounded-xl border border-brand/20 p-5 animate-fade-in">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-zinc-300">{viewingContent.title}</span>
-            <button
-              onClick={() => setViewingContent(null)}
-              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-              aria-label="Close viewer"
-            >
-              <X className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </div>
-          {fileLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : fileContent ? (
-            <div className="relative group/content">
-              <button
-                onClick={() => handleCopy(fileContent)}
-                className="absolute top-0 right-0 p-1.5 rounded-lg bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/content:opacity-100 transition-opacity"
-                aria-label="Copy"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-              <div className="prose-dark text-sm max-h-96 overflow-y-auto">
-                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(fileContent)}</ReactMarkdown>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">Unable to load content.</p>
-          )}
-        </div>
-      )}
-
       {/* ── Filter bar ── */}
       <div className="flex gap-1.5 flex-wrap">
         {filters.map(({ id, label, icon: Icon }) => {
@@ -1545,6 +1557,19 @@ export function ReportDetail() {
                 onViewContent={handleViewContent}
                 onToggleAction={handleToggleAction}
                 isToggling={toggleKey}
+                isViewing={viewingContent?.id === entry.id}
+                viewingPath={viewingContent?.path ?? null}
+                viewingTitle={viewingContent?.title ?? null}
+                fileContent={fileContent}
+                fileLoading={fileLoading}
+                onCloseContent={handleCloseContent}
+                onCopyContent={handleCopy}
+                copied={copied}
+                isEditing={isEditingContent}
+                onEditContent={handleEditContent}
+                onDeleteContent={handleDeleteContent}
+                onSaveContent={handleSaveContent}
+                onCancelEdit={() => setIsEditingContent(false)}
               />
             )
           })
@@ -1627,6 +1652,37 @@ export function ReportDetail() {
   )
 }
 
+// ── Inline Editor ──
+
+function InlineEditor({ initialContent, onSave }: { initialContent: string; onSave: (content: string) => Promise<void> }) {
+  const [content, setContent] = useState(initialContent)
+  const [isSaving, setIsSaving] = useState(false)
+  
+  return (
+    <div className="space-y-3">
+      <textarea
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        className="w-full h-64 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-300 font-mono resize-y focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"
+      />
+      <div className="flex justify-end">
+        <button
+          onClick={async () => {
+            setIsSaving(true)
+            await onSave(content)
+            setIsSaving(false)
+          }}
+          disabled={isSaving || content === initialContent}
+          className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-light text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+        >
+          {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
+          Save
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Stream Entry Card ──
 
 interface StreamEntryCardProps {
@@ -1634,9 +1690,22 @@ interface StreamEntryCardProps {
   expanded: boolean
   onToggle: (id: string) => void
   name: string
-  onViewContent: (path: string, title: string) => void
+  onViewContent: (id: string, path: string, title: string) => void
   onToggleAction: (a: ActionItem) => void
   isToggling: boolean
+  isViewing: boolean
+  viewingPath: string | null
+  viewingTitle: string | null
+  fileContent: string | null
+  fileLoading: boolean
+  onCloseContent: () => void
+  onCopyContent: (text: string) => void
+  copied: boolean
+  isEditing: boolean
+  onEditContent: (id: string, path: string) => void
+  onDeleteContent: (path: string) => void
+  onSaveContent: (path: string, content: string) => Promise<void>
+  onCancelEdit: () => void
 }
 
 const StreamEntryCard = memo(function StreamEntryCard({
@@ -1646,7 +1715,20 @@ const StreamEntryCard = memo(function StreamEntryCard({
   name,
   onViewContent,
   onToggleAction,
-  isToggling
+  isToggling,
+  isViewing,
+  viewingPath,
+  viewingTitle,
+  fileContent,
+  fileLoading,
+  onCloseContent,
+  onCopyContent,
+  copied,
+  isEditing,
+  onEditContent,
+  onDeleteContent,
+  onSaveContent,
+  onCancelEdit
 }: StreamEntryCardProps) {
   const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
     context: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Context' },
@@ -1690,13 +1772,58 @@ const StreamEntryCard = memo(function StreamEntryCard({
       {expanded && (
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
-            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onViewContent={onViewContent} />}
+            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onViewContent={onViewContent} onEdit={onEditContent} onDelete={onDeleteContent} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onViewContent={onViewContent} />}
           </div>
+
+          {isViewing && viewingPath && (
+            <div className="mt-4 pt-4 border-t border-zinc-800/50 animate-fade-in">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-zinc-300">
+                  {isEditing ? `Editing: ${viewingTitle}` : viewingTitle}
+                </span>
+                <button
+                  onClick={isEditing ? onCancelEdit : onCloseContent}
+                  className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+              
+              {fileLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : fileContent !== null ? (
+                isEditing ? (
+                  <InlineEditor
+                    initialContent={fileContent}
+                    onSave={(content) => onSaveContent(viewingPath, content)}
+                  />
+                ) : (
+                  <div className="relative group/content">
+                    <button
+                      onClick={() => onCopyContent(fileContent)}
+                      className="absolute top-0 right-0 p-1.5 rounded-lg bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/content:opacity-100 transition-opacity"
+                      aria-label="Copy"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+                      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(fileContent)}</ReactMarkdown>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <p className="text-sm text-zinc-500">Unable to load content.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1705,74 +1832,103 @@ const StreamEntryCard = memo(function StreamEntryCard({
 
 // ── Detail sub-components ──
 
-function ContextDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
+function ContextDetail({ 
+  entry, 
+  name, 
+  onViewContent, 
+  onEdit, 
+  onDelete 
+}: { 
+  entry: StreamEntry; 
+  name: string; 
+  onViewContent: (id: string, path: string, title: string) => void;
+  onEdit: (id: string, path: string) => void;
+  onDelete: (path: string) => void;
+}) {
   const raw = entry.data as Record<string, unknown>
+  const isLegacyMeeting = !!raw.transcript
 
-  if (raw.transcript) {
+  let sourceBadge = entry.source
+  if (isLegacyMeeting && !sourceBadge) {
+    sourceBadge = 'meeting'
+  }
+
+  let tags: string[] = []
+  let summaryText: string | null = null
+  let links: React.ReactNode = null
+  let contextPath = ''
+
+  if (isLegacyMeeting) {
     const data = raw as { transcript: { date: string; filename?: string }; summary?: { keyTopics: string[]; content: string } }
+    tags = data.summary?.keyTopics || []
     const meetingFile = data.transcript.filename || `${data.transcript.date}-${name}-1-1.md`
     const transcriptFile = meetingFile.replace(/\.md$/, '.txt')
-    return (
-      <div className="space-y-2">
-        {data.summary && data.summary.keyTopics.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {data.summary.keyTopics.map((topic, i) => (
-              <span key={i} className="px-2 py-0.5 bg-surface-raised rounded text-[11px] text-zinc-400 border border-border">
-                {topic}
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-2">
-          <button
-            onClick={() => onViewContent(
-              `contexts/${meetingFile}`,
-              `Summary — ${formatDate(data.transcript.date)}`
-            )}
-            className="text-xs text-brand-light hover:text-brand transition-colors"
-          >
-            View summary →
-          </button>
-          <button
-            onClick={() => onViewContent(
-              `transcripts/processed/${transcriptFile}`,
-              `Transcript — ${formatDate(data.transcript.date)}`
-            )}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            View transcript →
-          </button>
-        </div>
-      </div>
+    contextPath = `contexts/${meetingFile}`
+    
+    links = (
+      <>
+        <button
+          onClick={() => onViewContent(entry.id, contextPath, `Summary — ${formatDate(data.transcript.date)}`)}
+          className="text-xs text-brand-light hover:text-brand transition-colors"
+        >
+          View summary →
+        </button>
+        <button
+          onClick={() => onViewContent(entry.id, `transcripts/processed/${transcriptFile}`, `Transcript — ${formatDate(data.transcript.date)}`)}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+        >
+          View transcript →
+        </button>
+      </>
+    )
+  } else {
+    const ctx = raw as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string }
+    tags = ctx.tags || []
+    summaryText = ctx.summary
+    contextPath = `contexts/${ctx.filename}`
+    
+    links = (
+      <button
+        onClick={() => onViewContent(entry.id, contextPath, ctx.summary || `Context — ${formatDate(ctx.date)}`)}
+        className="text-xs text-brand-light hover:text-brand transition-colors"
+      >
+        View full context →
+      </button>
     )
   }
 
-  const ctx = raw as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string }
   return (
     <div className="space-y-2">
-      {entry.source && (
+      {sourceBadge && (
         <span className="inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-700/50 text-zinc-400">
-          {entry.source}
+          {sourceBadge}
         </span>
       )}
-      {ctx.tags && ctx.tags.length > 0 && (
+      {summaryText && (
+        <p className="text-sm text-zinc-300 leading-relaxed">{summaryText}</p>
+      )}
+      {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {ctx.tags.map((tag, i) => (
+          {tags.map((tag, i) => (
             <span key={i} className="px-2 py-0.5 bg-surface-raised rounded text-[11px] text-zinc-400 border border-border">
               {tag}
             </span>
           ))}
         </div>
       )}
-      <button
-        onClick={() => onViewContent(
-          `contexts/${ctx.filename}`,
-          ctx.summary || `Context — ${formatDate(ctx.date)}`
-        )}
-        className="text-xs text-brand-light hover:text-brand transition-colors"
-      >
-        View full context →
-      </button>
+      <div className="flex items-center gap-3">
+        <div className="flex gap-2">
+          {links}
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <button onClick={() => onEdit(entry.id, contextPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
+            <Pencil className="w-3 h-3" /> Edit
+          </button>
+          <button onClick={() => onDelete(contextPath)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
+            <Trash2 className="w-3 h-3" /> Delete
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1825,7 +1981,7 @@ function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntr
   )
 }
 
-function CheckinDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
+function CheckinDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (id: string, path: string, title: string) => void }) {
   const c = entry.data as { date: string; accomplishments: string[] }
 
   return (
@@ -1842,6 +1998,7 @@ function CheckinDetail({ entry, name, onViewContent }: { entry: StreamEntry; nam
       )}
       <button
         onClick={() => onViewContent(
+          entry.id,
           `reports/${name}/check-ins/monthly/${c.date}.md`,
           `Check-in — ${c.date}`
         )}
@@ -1853,7 +2010,7 @@ function CheckinDetail({ entry, name, onViewContent }: { entry: StreamEntry; nam
   )
 }
 
-function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
+function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (id: string, path: string, title: string) => void }) {
   const r = entry.data as { period: string; content: string }
 
   return (
@@ -1863,6 +2020,7 @@ function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name
       </p>
       <button
         onClick={() => onViewContent(
+          entry.id,
           `reports/${name}/reviews/${r.period}.md`,
           `Review — ${r.period}`
         )}
@@ -1874,7 +2032,7 @@ function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name
   )
 }
 
-function PrepDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
+function PrepDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (id: string, path: string, title: string) => void }) {
   const p = entry.data as PrepEntry
 
   return (
@@ -1884,6 +2042,7 @@ function PrepDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: 
       </div>
       <button
         onClick={() => onViewContent(
+          entry.id,
           `reports/${name}/prep/${p.date}.md`,
           `1:1 Prep — ${formatDate(p.date)}`
         )}
