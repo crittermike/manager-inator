@@ -1801,38 +1801,79 @@ const StreamEntryCard = memo(function StreamEntryCard({
     ? sourceStyles[entry.source] || typeStyles['context']
     : typeStyles[entry.type] || typeStyles['context']
   const handleToggle = useCallback(() => onToggle(entry.id), [onToggle, entry.id])
+  const [contextTab, setContextTab] = useState<'processed' | 'raw'>('processed')
+
+  // For context entries: build the file path so we can wire up edit/delete
+  const contextData = entry.type === 'context' ? entry.data as unknown as { filename: string } : null
+  const contextPath = contextData ? `contexts/${contextData.filename}` : ''
 
   return (
     <div className={`bg-surface rounded-xl border transition-all duration-150 ${entry.pinned ? 'border-brand/20' : 'border-border hover:border-zinc-500 hover:shadow-lg hover:shadow-black/10'}`}>
-      {/* Collapsed header — always visible */}
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center gap-3 p-3.5 text-left"
-      >
-        <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded ${style.bg} ${style.text}`}>
-          {style.label}
-        </span>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm text-zinc-300 block">{entry.title}</span>
-          {!expanded && (
-            <span className="text-xs text-zinc-500 truncate block mt-0.5">{entry.preview}</span>
+      {/* Header row — always visible */}
+      <div className="flex items-center gap-3 p-3.5">
+        {/* Clickable area: badge + title + date + chevron */}
+        <button
+          onClick={handleToggle}
+          className="flex-1 flex items-center gap-3 text-left min-w-0"
+        >
+          <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded ${style.bg} ${style.text}`}>
+            {style.label}
+          </span>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm text-zinc-300 block">{entry.title}</span>
+            {!expanded && (
+              <span className="text-xs text-zinc-500 truncate block mt-0.5">{entry.preview}</span>
+            )}
+          </div>
+          {!entry.pinned && (
+            <span className="text-xs text-zinc-600 shrink-0">{formatDate(entry.date)}</span>
           )}
-        </div>
-        {!entry.pinned && (
-          <span className="text-xs text-zinc-600 shrink-0">{formatDate(entry.date)}</span>
+          {expanded ? (
+            <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
+          )}
+        </button>
+
+        {/* Inline controls — only when expanded */}
+        {expanded && entry.type === 'context' && (
+          <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setContextTab('processed')}
+              className={`px-2 py-1 text-[11px] rounded transition-colors ${contextTab === 'processed' ? 'bg-surface-raised text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Processed
+            </button>
+            <button
+              onClick={() => setContextTab('raw')}
+              className={`px-2 py-1 text-[11px] rounded transition-colors ${contextTab === 'raw' ? 'bg-surface-raised text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Raw
+            </button>
+            <div className="w-px h-4 bg-border mx-1" />
+            <button
+              onClick={() => onEditContent(entry.id, contextPath)}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+              aria-label="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => onDeleteContent(contextPath)}
+              className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+              aria-label="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
-        {expanded ? (
-          <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
-        )}
-      </button>
+      </div>
 
       {/* Expanded content */}
       {expanded && (
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
-            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
+            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} activeTab={contextTab} onTabChange={setContextTab} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
@@ -1896,17 +1937,20 @@ function ContextDetail({
   entry, 
   name, 
   onEdit, 
-  onDelete 
+  onDelete,
+  activeTab,
+  onTabChange
 }: { 
   entry: StreamEntry; 
   name: string; 
   onEdit: (id: string, path: string) => void;
   onDelete: (path: string) => void;
+  activeTab: 'processed' | 'raw';
+  onTabChange: (tab: 'processed' | 'raw') => void;
 }) {
   const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string; title: string }
   const tags = ctx.tags || []
   const contextPath = `contexts/${ctx.filename}`
-  const [activeTab, setActiveTab] = useState<'processed' | 'raw'>('processed')
 
   const { content: fileContent, loading: fileLoading } = useFileContent(contextPath)
 
@@ -1935,50 +1979,16 @@ function ContextDetail({
           ))}
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <button onClick={() => onEdit(entry.id, contextPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
-          <Pencil className="w-3 h-3" /> Edit
-        </button>
-        <button onClick={() => onDelete(contextPath)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
-          <Trash2 className="w-3 h-3" /> Delete
-        </button>
-      </div>
 
       {fileLoading ? (
         <div className="flex items-center justify-center py-8">
           <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
         </div>
       ) : fileContent ? (
-        <div className="space-y-2">
-          {raw && (
-            <div className="flex gap-1">
-              <button
-                onClick={() => setActiveTab('processed')}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                  activeTab === 'processed'
-                    ? 'bg-surface-raised text-zinc-200 font-medium'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                Processed
-              </button>
-              <button
-                onClick={() => setActiveTab('raw')}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                  activeTab === 'raw'
-                    ? 'bg-surface-raised text-zinc-200 font-medium'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                Raw
-              </button>
-            </div>
-          )}
-          <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
-            <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
-              {activeTab === 'processed' || !raw ? processed : raw}
-            </ReactMarkdown>
-          </div>
+        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+            {activeTab === 'processed' || !raw ? processed : raw}
+          </ReactMarkdown>
         </div>
       ) : null}
     </div>
