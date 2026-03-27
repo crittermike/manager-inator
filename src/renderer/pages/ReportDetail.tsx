@@ -664,6 +664,45 @@ export function ReportDetail() {
     }
   }, [name, report, feedbackDraft, feedbackType, toast, refresh])
 
+  const handleUpdateFeedback = useCallback(async (original: FeedbackEntry, newContent: string, newType: FeedbackEntry['type']) => {
+    if (!name) return
+    try {
+      const feedbackLogPath = `reports/${name}/feedback/log.md`
+      const existing = await window.api.getFileContent(feedbackLogPath)
+      const oldEntry = `### ${original.date}\n**Type:** ${original.type}\n\n${original.content.trim()}\n`
+      const newEntry = `### ${original.date}\n**Type:** ${newType}\n\n${newContent.trim()}\n`
+      const updated = existing.replace(oldEntry, newEntry)
+      if (updated === existing) {
+        toast.error('Could not locate feedback entry to update')
+        return
+      }
+      await window.api.commitFile(feedbackLogPath, updated, `Update feedback for ${name}`)
+      toast.success('Feedback updated')
+      refresh()
+    } catch {
+      toast.error('Failed to update feedback')
+    }
+  }, [name, toast, refresh])
+
+  const handleDeleteFeedback = useCallback(async (f: FeedbackEntry) => {
+    if (!name) return
+    try {
+      const feedbackLogPath = `reports/${name}/feedback/log.md`
+      const existing = await window.api.getFileContent(feedbackLogPath)
+      const entryPattern = `### ${f.date}\n**Type:** ${f.type}\n\n${f.content.trim()}\n`
+      let updated = existing.replace(entryPattern, '')
+      updated = updated.replace(/\n---\n\n\n---\n/g, '\n---\n')
+      updated = updated.replace(/^\n*---\n\n/g, '')
+      updated = updated.replace(/\n---\n\n$/g, '')
+      updated = updated.trim() + '\n'
+      await window.api.commitFile(feedbackLogPath, updated, `Delete feedback for ${name}`)
+      toast.success('Feedback deleted')
+      refresh()
+    } catch {
+      toast.error('Failed to delete feedback')
+    }
+  }, [name, toast, refresh])
+
   // ── Action item toggle ──
 
   const handleToggleAction = useCallback(async (a: ActionItem) => {
@@ -1562,6 +1601,8 @@ export function ReportDetail() {
                 onDeleteContent={handleDeleteContent}
                 onSaveContent={handleSaveContent}
                 onCancelEdit={() => setIsEditingContent(false)}
+                onUpdateFeedback={handleUpdateFeedback}
+                onDeleteFeedback={handleDeleteFeedback}
               />
               </div>
             )
@@ -1711,6 +1752,8 @@ interface StreamEntryCardProps {
   onDeleteContent: (path: string) => void
   onSaveContent: (path: string, content: string) => Promise<void>
   onCancelEdit: () => void
+  onUpdateFeedback: (original: FeedbackEntry, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
+  onDeleteFeedback: (f: FeedbackEntry) => Promise<void>
 }
 
 const StreamEntryCard = memo(function StreamEntryCard({
@@ -1733,7 +1776,9 @@ const StreamEntryCard = memo(function StreamEntryCard({
   onEditContent,
   onDeleteContent,
   onSaveContent,
-  onCancelEdit
+  onCancelEdit,
+  onUpdateFeedback,
+  onDeleteFeedback
 }: StreamEntryCardProps) {
   const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
     context: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Context' },
@@ -1788,11 +1833,11 @@ const StreamEntryCard = memo(function StreamEntryCard({
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
             {entry.type === 'context' && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
-            {entry.type === 'feedback' && <FeedbackDetail entry={entry} />}
+            {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onViewContent={onViewContent} />}
-            {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onViewContent={onViewContent} />}
+            {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
           </div>
 
           {isViewing && viewingPath && (
@@ -1940,8 +1985,71 @@ function ContextDetail({
   )
 }
 
-function FeedbackDetail({ entry }: { entry: StreamEntry }) {
+function FeedbackDetail({ entry, onUpdate, onDelete }: { 
+  entry: StreamEntry; 
+  onUpdate: (original: FeedbackEntry, newContent: string, newType: FeedbackEntry['type']) => Promise<void>;
+  onDelete: (f: FeedbackEntry) => Promise<void>;
+}) {
   const f = entry.data as FeedbackEntry
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(f.content)
+  const [draftType, setDraftType] = useState<FeedbackEntry['type']>(f.type)
+  const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const handleSave = useCallback(async () => {
+    if (!draft.trim()) return
+    setSaving(true)
+    await onUpdate(f, draft, draftType)
+    setSaving(false)
+    setEditing(false)
+  }, [f, draft, draftType, onUpdate])
+
+  const handleDelete = useCallback(async () => {
+    await onDelete(f)
+  }, [f, onDelete])
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-1.5">
+          {(['positive', 'constructive', 'mixed', 'observation'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setDraftType(t)}
+              className={`px-2 py-0.5 text-[11px] rounded transition-colors ${
+                draftType === t
+                  ? 'bg-brand/20 text-brand-light'
+                  : 'bg-surface-raised text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
+          className="w-full h-24 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => { setEditing(false); setDraft(f.content); setDraftType(f.type) }} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !draft.trim()}
+            className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+          >
+            <Save className="w-3 h-3" />
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-2">
@@ -1953,6 +2061,22 @@ function FeedbackDetail({ entry }: { entry: StreamEntry }) {
           <a href={f.context} target="_blank" rel="noopener noreferrer" className="text-brand-light hover:text-brand">
             View context →
           </a>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => setEditing(true)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+        {confirmDelete ? (
+          <span className="flex items-center gap-2">
+            <span className="text-xs text-zinc-400">Delete this feedback?</span>
+            <button onClick={handleDelete} className="text-xs text-danger hover:text-red-400">Yes</button>
+            <button onClick={() => setConfirmDelete(false)} className="text-xs text-zinc-500 hover:text-zinc-300">No</button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
+            <Trash2 className="w-3 h-3" /> Delete
+          </button>
         )}
       </div>
     </div>
@@ -2039,24 +2163,23 @@ function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name
   )
 }
 
-function PrepDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (id: string, path: string, title: string) => void }) {
+function PrepDetail({ entry, name, onEdit, onDelete }: { entry: StreamEntry; name: string; onEdit: (id: string, path: string) => void; onDelete: (path: string) => void }) {
   const p = entry.data as PrepEntry
+  const prepPath = `reports/${name}/prep/${p.date}.md`
 
   return (
     <div className="space-y-2">
-      <div className="prose-dark text-sm max-h-48 overflow-y-auto">
+      <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
         <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{p.content}</ReactMarkdown>
       </div>
-      <button
-        onClick={() => onViewContent(
-          entry.id,
-          `reports/${name}/prep/${p.date}.md`,
-          `1:1 Prep — ${formatDate(p.date)}`
-        )}
-        className="text-xs text-brand-light hover:text-brand transition-colors"
-      >
-        View full prep →
-      </button>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onEdit(entry.id, prepPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+        <button onClick={() => onDelete(prepPath)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
+          <Trash2 className="w-3 h-3" /> Delete
+        </button>
+      </div>
     </div>
   )
 }
