@@ -474,6 +474,17 @@ ${context.content}`
       })
       break
 
+    case 'rewrite-feedback':
+      messages.push({
+        role: 'system',
+        content: 'You are a management coach. Rewrite the following feedback to be more specific, behavior-anchored, and actionable. Preserve the sentiment type (positive, constructive, or mixed). Return only the rewritten feedback, no preamble or explanation.'
+      })
+      messages.push({
+        role: 'user',
+        content: `Rewrite this ${context.feedbackType || 'positive'} feedback:\n\n${context.feedback}`
+      })
+      break
+
     case 'summarize-team-activity':
       messages.push({
         role: 'user',

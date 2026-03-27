@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useToast } from '../../components/common/Toast'
 import type { TeamActionItem } from '../../../shared/types'
 import { CheckCircle2, Clock, ChevronDown } from 'lucide-react'
@@ -29,6 +29,21 @@ export function InlineActions({
   const [localActions, setLocalActions] = useState(actions)
   const [snoozeOpenFor, setSnoozeOpenFor] = useState<string | null>(null)
   const snoozeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        if (snoozeOpenFor) {
+          setSnoozeOpenFor(null)
+        } else {
+          onCancel()
+        }
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onCancel, snoozeOpenFor])
 
   const handleToggle = useCallback(async (a: TeamActionItem) => {
     if (!a.sourceFile || a.sourceLineNumber == null) return

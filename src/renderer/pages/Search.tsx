@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
 import type { MeetingEntry, PersonEntry } from '../../shared/types'
@@ -26,6 +26,11 @@ export function SearchPage() {
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
   const [people, setPeople] = useState<PersonEntry[]>([])
   const [contentResults, setContentResults] = useState<ContentSearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'meeting' | 'person' | 'content'>('all')
+  const resultsContainerRef = useRef<HTMLDivElement>(null)
+  
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -35,13 +40,26 @@ export function SearchPage() {
   }, [])
 
   useEffect(() => {
+    setSelectedIndex(-1)
+    setTypeFilter('all')
+
     if (!query.trim()) {
       setContentResults([])
+      setIsSearching(false)
       return
     }
 
+    setIsSearching(true)
     const timer = window.setTimeout(() => {
-      window.api.searchContent(query).then(setContentResults).catch(() => setContentResults([]))
+      window.api.searchContent(query)
+        .then(res => {
+          setContentResults(res)
+          setIsSearching(false)
+        })
+        .catch(() => {
+          setContentResults([])
+          setIsSearching(false)
+        })
     }, 300)
 
     return () => window.clearTimeout(timer)
@@ -156,6 +174,63 @@ export function SearchPage() {
     return [...titleItems, ...contentItems].slice(0, 50)
   }, [query, meetings, people, contentResults])
 
+  const filteredResults = useMemo(() => {
+    if (typeFilter === 'all') return results
+    return results.filter(r => r.type === typeFilter)
+  }, [results, typeFilter])
+
+  useEffect(() => {
+    setSelectedIndex(-1)
+  }, [typeFilter, results.length])
+
+  useEffect(() => {
+    if (selectedIndex >= 0 && resultsContainerRef.current) {
+      const selectedEl = resultsContainerRef.current.querySelector(`[data-search-result="${selectedIndex}"]`)
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest' })
+      }
+    }
+  }, [selectedIndex])
+
+  const handleResultClick = (r: SearchResult) => {
+    if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'contexts')) && r.filename) {
+      navigate(`/meeting/${encodeURIComponent(r.filename)}`)
+    } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
+      navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=weekly-log`)
+    } else if (r.route.startsWith('/search?q=')) {
+      const name = new URL(r.route, 'http://x').searchParams.get('q') || r.title
+      setQuery(name)
+    } else {
+      navigate(r.route)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!query.trim() || filteredResults.length === 0) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setQuery('')
+      }
+      return
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex(prev => (prev < filteredResults.length - 1 ? prev + 1 : 0))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex(prev => (prev > 0 ? prev - 1 : filteredResults.length - 1))
+    } else if (e.key === 'Enter') {
+      if (selectedIndex >= 0 && selectedIndex < filteredResults.length) {
+        e.preventDefault()
+        handleResultClick(filteredResults[selectedIndex])
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setQuery('')
+    }
+  }
+
   const typeIcon = (type: string) => {
     if (type === 'person') return <User className="w-4 h-4" aria-hidden="true" />
     if (type === 'content') return <FileText className="w-4 h-4" aria-hidden="true" />
@@ -169,19 +244,52 @@ export function SearchPage() {
         <p className="text-sm text-zinc-500 mt-1">Find meetings, people, and notes</p>
       </div>
 
-      <div className="relative group/search">
-        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within/search:text-brand-light transition-colors" aria-hidden="true" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search meetings, people, notes..."
-          className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 text-sm transition-all"
-          autoFocus
-        />
+      <div className="space-y-3">
+        <div className="relative group/search">
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within/search:text-brand-light transition-colors" aria-hidden="true" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search meetings, people, notes..."
+            className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 text-sm transition-all"
+            autoFocus
+          />
+        </div>
+
+        {isSearching && query.trim() && (
+          <div className="flex items-center gap-2 text-xs text-zinc-500 px-1">
+            <div className="w-3 h-3 border-2 border-brand/40 border-t-brand rounded-full animate-spin" />
+            Searching...
+          </div>
+        )}
+
+        {query.trim() && results.length > 0 && (
+          <div className="flex items-center gap-2">
+            {(['all', 'meeting', 'person', 'content'] as const).map(filter => (
+              <button
+                key={filter}
+                onClick={() => setTypeFilter(filter)}
+                className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                  typeFilter === filter
+                    ? 'bg-brand/15 text-brand-light font-medium'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+                }`}
+              >
+                {filter === 'all' ? 'All' : filter === 'meeting' ? 'Meetings' : filter === 'person' ? 'People' : 'Content'}
+                {filter !== 'all' && (
+                  <span className="ml-1.5 text-zinc-600">
+                    {results.filter(r => r.type === filter).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {query.trim() && results.length === 0 && (
+      {query.trim() && filteredResults.length === 0 && !isSearching && (
         <div className="text-center py-16 animate-fade-in">
           <div className="w-12 h-12 rounded-2xl bg-zinc-800/50 flex items-center justify-center mx-auto mb-4">
             <SearchIcon className="w-6 h-6 text-zinc-600" aria-hidden="true" />
@@ -191,24 +299,18 @@ export function SearchPage() {
         </div>
       )}
 
-      {results.length > 0 && (
-        <div className="space-y-1 animate-fade-in">
-          {results.map((r, i) => (
+      {filteredResults.length > 0 && (
+        <div className="space-y-1 animate-fade-in" ref={resultsContainerRef}>
+          {filteredResults.map((r, i) => (
             <button
               key={`${r.type}-${r.route || r.filename}-${i}`}
-              onClick={() => {
-                if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'contexts')) && r.filename) {
-                  navigate(`/meeting/${encodeURIComponent(r.filename)}`)
-                } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
-                  navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=weekly-log`)
-                } else if (r.route.startsWith('/search?q=')) {
-                  const name = new URL(r.route, 'http://x').searchParams.get('q') || r.title
-                  setQuery(name)
-                } else {
-                  navigate(r.route)
-                }
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group"
+              data-search-result={i}
+              onClick={() => handleResultClick(r)}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
+                selectedIndex === i
+                  ? 'bg-brand/10 border-brand/20 shadow-md shadow-black/10'
+                  : 'border-transparent'
+              }`}
             >
               <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
                 {typeIcon(r.type)}
@@ -230,7 +332,8 @@ export function SearchPage() {
           <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
             <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
           </div>
-          <p className="text-sm text-zinc-400 mb-4">Search across everything</p>
+          <h2 className="text-base font-medium text-zinc-200 mb-1">What are you looking for?</h2>
+          <p className="text-sm text-zinc-500 mb-6">Search meetings, people, feedback, notes, and more</p>
           <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
             {['meetings', 'people', 'feedback', 'action items', 'check-ins', 'notes'].map(tag => (
               <span

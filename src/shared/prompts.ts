@@ -194,6 +194,122 @@ TEAM ACTIVITY DATA:
 {activityData}`,
   },
   {
+    id: 'draft-email',
+    label: 'Draft email',
+    description: 'Drafts a professional email about a direct report based on recent activity and context.',
+    template: `Draft a professional email about {reportName}.
+
+Tone: warm but professional. No em dashes. Keep it concise and actionable.
+
+The email should:
+- Reference specific recent activity where possible
+- Be ready to send with minimal editing
+- Include a clear ask or next step
+
+Context about this person:
+{about}
+{jobExpectations}
+
+Recent activity:
+{summaries}
+{feedback}
+{actionItems}
+
+Email purpose/topic:
+{topic}`,
+  },
+  {
+    id: 'rewrite-feedback',
+    label: 'Rewrite feedback',
+    description: 'Rewrites feedback to be more specific, behavior-anchored, and actionable.',
+    template: `Rewrite this feedback to be more behavior-anchored and actionable.
+
+Rules:
+- Cite specific observable behaviors, not personality traits
+- Use "I noticed..." or "When you..." framing
+- Include impact: what was the effect of the behavior?
+- End with a clear, specific suggestion or reinforcement
+- Keep the same tone (positive stays positive, constructive stays constructive)
+- No em dashes. Casual, direct tone.
+
+Original feedback:
+{feedback}`,
+  },
+  {
+    id: 'generate-agenda',
+    label: 'Meeting agenda',
+    description: 'Generates a structured meeting agenda based on recent activity and open items.',
+    template: `Generate a focused meeting agenda for my 1:1 with {reportName}.
+
+Format as a markdown checklist (- [ ] items) grouped by topic. Keep it to 15-20 minutes of content max.
+
+Prioritize:
+1. Open action items that need follow-up
+2. Recent wins worth acknowledging
+3. Any concerns or areas needing attention
+4. Forward-looking goals or development topics
+
+Context:
+{about}
+{summaries}
+{actionItems}
+{feedback}`,
+  },
+  {
+    id: 'suggest-practice',
+    label: 'Suggest practice',
+    description: 'Suggests a management practice based on the current team situation.',
+    template: `Based on my current team situation, suggest one specific management practice I should adopt or improve.
+
+Be concrete. Don't say "have regular 1:1s" — tell me something specific I might not be doing, like "start each 1:1 by asking what's blocking them before diving into your agenda."
+
+Consider the team context:
+{teamContext}
+
+Format:
+## The practice
+[One sentence describing it]
+
+## Why now
+[2-3 sentences on why this matters given my current situation]
+
+## How to start
+[3-4 concrete bullet points to get started this week]`,
+  },
+  {
+    id: 'summarize-recent-activity',
+    label: 'TL;DR recent activity',
+    description: 'Generates a quick summary of recent activity for a report — meetings, feedback, action items.',
+    template: `Give me a quick TL;DR of recent activity for {reportName}. I want to get caught up in 30 seconds.
+
+Format:
+**What's been happening**: 2-3 sentences covering recent meetings and themes
+**Open threads**: bullet list of unresolved action items or ongoing topics
+**Vibe check**: one sentence on overall trajectory (thriving / steady / needs attention)
+
+Be direct. No filler. If data is thin, say so.
+
+Recent data:
+{summaries}
+{feedback}
+{actionItems}`,
+  },
+  {
+    id: 'prompt-fill-weekly-priorities',
+    label: 'Suggest weekly priorities',
+    description: 'AI-generated suggestion for weekly priorities based on open items, upcoming meetings, and team context.',
+    template: `Suggest my top priorities for this week as an engineering manager.
+
+Look at what's open, what's upcoming, and what needs attention. Give me 3-5 priorities, each one sentence. Order by importance.
+
+Format as a simple numbered list. No headers, no fluff. Each item should be specific and actionable, not generic ("review PRs" is bad, "follow up on Nic's auth refactor PR that's been open 3 days" is good).
+
+Context:
+{teamContext}
+{actionItems}
+{upcomingMeetings}`,
+  },
+  {
     id: 'chat',
     label: 'Chat',
     description: 'Free-form conversation with access to your data repo. The AI can read, edit, and create files.',

@@ -4,6 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import { format, addDays, getDay, getDate, getMonth, differenceInDays } from 'date-fns'
 import type { CadenceSettings, ReportStatus, CadenceType, CustomPractice, DayOfWeek, CheckInFrequency, PracticeSchedule } from '../../shared/types'
 import { matchesMeetingDay } from '../utils/meetingDay'
+import { useToast } from '../components/common/Toast'
+import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import {
   BookOpen,
   ChevronDown,
@@ -635,8 +637,8 @@ function EditBuiltInPracticeForm({
         )}
 
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-colors">Cancel</button>
-          <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors">Save settings</button>
+          <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-all active:scale-[0.97]">Cancel</button>
+          <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97]">Save settings</button>
         </div>
      </div>
   )
@@ -681,6 +683,7 @@ function CustomPracticeForm({
           placeholder="What is this practice for?" 
           value={formData.description} 
           onChange={e => setFormData({...formData, description: e.target.value})} 
+          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && formData.name) { e.preventDefault(); onSave(formData) } }}
           className={`${inputClasses} min-h-[80px]`} 
         />
       </div>
@@ -732,13 +735,13 @@ function CustomPracticeForm({
       </label>
 
       <div className="flex justify-end gap-2 pt-2">
-         <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-zinc-200 bg-surface hover:bg-surface-raised rounded-lg border border-border transition-colors">
+         <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-zinc-200 bg-surface hover:bg-surface-raised rounded-lg border border-border transition-all active:scale-[0.97]">
            Cancel
          </button>
          <button 
            onClick={() => onSave(formData)} 
            disabled={!formData.name} 
-           className="px-4 py-2 text-sm font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+           className="px-4 py-2 text-sm font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
          >
            Save practice
          </button>
@@ -749,7 +752,9 @@ function CustomPracticeForm({
 
 export function Playbook() {
   const { overview, loading, refresh } = useTeamOverview()
+  const toast = useToast()
   const [searchParams] = useSearchParams()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [cadence, setCadence] = useState<CadenceSettings>({
     checkInFrequency: 'monthly',
     feedbackReminderDays: 14,
@@ -867,6 +872,10 @@ export function Playbook() {
         })
       }
       setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+      setTimeout(() => {
+        el.classList.add('highlight-flash')
+        setTimeout(() => el.classList.remove('highlight-flash'), 1500)
+      }, 200)
     }
   }
 
@@ -900,6 +909,8 @@ export function Playbook() {
     setSnoozedPractices(updated)
     window.api.saveSettings({ snoozedPractices: updated })
     setSnoozeOpenId(null)
+    const practiceName = allPractices.find(p => p.id === id)?.name || 'Practice'
+    toast.success(`${practiceName} snoozed`, 'Snoozed', { label: 'Undo', onClick: () => handleUnsnooze(id) })
   }
 
   const handleUnsnooze = (id: string) => {
@@ -943,23 +954,71 @@ export function Playbook() {
   }
 
   const handleDeleteCustom = (id: string) => {
+    setShowDeleteConfirm(id)
+  }
+
+  const confirmDeleteCustom = (id: string) => {
     const newList = customPractices.filter(p => p.id !== id)
     setCustomPractices(newList)
     window.api.saveSettings({ customPractices: newList })
+    setShowDeleteConfirm(null)
   }
 
   const handleMarkComplete = (id: string) => {
     const updated = { ...practiceCompletions, [id]: new Date().toISOString() }
     setPracticeCompletions(updated)
     window.api.saveSettings({ practiceCompletions: updated })
+    toast.success('Practice completed! 🎯', 'Nice work')
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-zinc-500">Loading...</span>
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        <div className="space-y-2">
+          <div className="skeleton h-8 w-40 rounded" />
+          <div className="skeleton h-4 w-80 rounded" />
+        </div>
+        <div className="space-y-3">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="flex gap-3">
+              <div className="skeleton w-2 h-16 rounded-full" />
+              <div className="flex-1 bg-surface rounded-xl border border-border p-4 space-y-2">
+                <div className="skeleton h-4 w-48 rounded" />
+                <div className="skeleton h-3 w-32 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (reports.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2.5">
+            <BookOpen className="w-6 h-6 text-zinc-400" aria-hidden="true" />
+            Playbook
+          </h1>
+          <p className="text-sm text-zinc-500 mt-1">Your management system. Every practice, when it fires, and what's ahead.</p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border p-12 text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-surface-raised flex items-center justify-center">
+            <BookOpen className="w-8 h-8 text-zinc-600" />
+          </div>
+          <h2 className="text-lg font-medium text-zinc-200">Your playbook is waiting</h2>
+          <p className="text-sm text-zinc-500 max-w-md mx-auto">
+            Add your direct reports first, then come back here to see your personalized management cadence with timeline, practices, and reminders.
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <a href="#/people" className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors">
+              Add people
+            </a>
+            <a href="#/settings" className="px-4 py-2 text-sm font-medium text-zinc-300 bg-surface-raised hover:bg-surface-overlay rounded-lg border border-border transition-colors">
+              Settings
+            </a>
+          </div>
         </div>
       </div>
     )
@@ -1127,7 +1186,7 @@ export function Playbook() {
 
                 {isExpanded && (
                   <div className="border-t border-border divide-y divide-border/30 animate-slide-down">
-                    {groupPractices.map(practice => {
+                    {groupPractices.map((practice, pIdx) => {
                       const next = getNextOccurrence(practice, events)
                       const status = getPracticeStatus(practice, events)
                       const nextLabel = next
@@ -1147,7 +1206,8 @@ export function Playbook() {
                         <div
                           key={practice.id}
                           ref={el => { practiceRefs.current[practice.id] = el }}
-                          className={`px-5 py-4 transition-colors group relative ${
+                          style={{ animationDelay: `${Math.min(pIdx * 50, 300)}ms`, animationFillMode: 'both' }}
+                          className={`px-5 py-4 transition-colors group relative animate-fade-up ${
                             isDisabled ? 'opacity-50' : ''
                           } ${
                             isSnoozed ? 'border-l-2 border-amber-500/30 bg-amber-500/[0.02]' : ''
@@ -1315,6 +1375,16 @@ export function Playbook() {
           </div>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={showDeleteConfirm !== null}
+        title="Delete practice"
+        message="This custom practice will be permanently removed. This can't be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (showDeleteConfirm) confirmDeleteCustom(showDeleteConfirm); }}
+        onCancel={() => setShowDeleteConfirm(null)}
+      />
     </div>
   )
 }

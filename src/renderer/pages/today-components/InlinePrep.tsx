@@ -185,6 +185,25 @@ export function InlinePrep({
     setEditDraft('')
   }, [])
 
+  // Escape key handler
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        if (editing) {
+          handleCancelEdit()
+        } else if (streaming) {
+          cancel()
+          onCancel()
+        } else {
+          onCancel()
+        }
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [editing, streaming, cancel, onCancel, handleCancelEdit])
+
   const handleSaveEdit = useCallback(async () => {
     if (!editDraft.trim()) return
     setSaving(true)
@@ -254,6 +273,7 @@ export function InlinePrep({
         <textarea
           value={editDraft}
           onChange={e => setEditDraft(e.target.value)}
+          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveEdit() } }}
           className="w-full min-h-[16rem] bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 font-mono focus:outline-none focus:border-brand/40 transition-colors resize-y"
           autoFocus
         />
@@ -268,14 +288,14 @@ export function InlinePrep({
             <button
               onClick={handleSaveEdit}
               disabled={saving || !editDraft.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
             >
               <Check className="w-3.5 h-3.5" />
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={handleCancelEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-all active:scale-[0.97]"
             >
               <X className="w-3.5 h-3.5" />
               Cancel
@@ -285,14 +305,14 @@ export function InlinePrep({
           <>
             <button
               onClick={handleStartEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-all active:scale-[0.97]"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit
             </button>
             <button
               onClick={handleRegenerate}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-all active:scale-[0.97]"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Regenerate
@@ -300,7 +320,7 @@ export function InlinePrep({
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400/70 hover:text-red-400 bg-surface-raised hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400/70 hover:text-red-400 bg-surface-raised hover:bg-red-500/10 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {deleting ? 'Deleting...' : 'Delete'}

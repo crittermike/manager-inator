@@ -8,6 +8,7 @@ import {
   Send, Bot, StopCircle, X, User, FolderOpen,
   Trash2, Plus, MessageSquare, Copy, Check
 } from 'lucide-react'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -83,6 +84,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
+  const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     saveSessions(sessions)
@@ -134,11 +136,17 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     const path = location.pathname
     if (path.startsWith('/report/')) {
       const name = path.replace('/report/', '')
-      return `The user is currently viewing ${name}'s person page.`
+      return `The user is currently viewing the report page for "${name}". They can see this person's profile, recent 1:1 summaries, action items, feedback history, check-ins, and reviews. Help them with anything related to managing this person — prep for 1:1s, draft feedback, analyze patterns, or answer questions about their history.`
     }
-    if (path === '/') return 'The user is on the Today view.'
-    if (path === '/playbook') return 'The user is on the Playbook — their management cadence system.'
-    if (path === '/search') return 'The user is on the Search page.'
+    if (path === '/') return 'The user is on the Today view — their daily action plan showing overdue items, upcoming 1:1 prep, and inbox items. Help them prioritize, prep for meetings, or tackle their to-do list.'
+    if (path === '/playbook') return 'The user is on the Playbook — their management cadence system with practices like weekly reflections, monthly check-ins, and skip-levels.'
+    if (path === '/search') return 'The user is on the Search page. Help them find meetings, people, or specific information.'
+    if (path === '/impact') return 'The user is viewing their Impact Log — a record of their wins and contributions as an engineering manager.'
+    if (path.startsWith('/meeting/')) return 'The user is viewing a meeting summary. Help them with follow-ups, action items, or analysis of the discussion.'
+    if (path.startsWith('/people/')) {
+      const slug = path.replace('/people/', '')
+      return `The user is viewing the profile for "${slug}" in their people directory.`
+    }
     return ''
   }
 
@@ -251,12 +259,50 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
   if (!open) return null
 
-  const suggestions = [
-    'How is my team doing?',
-    'Help me prep for 1:1s',
-    'Draft some feedback',
-    'What patterns do you see?'
-  ]
+  const getSuggestions = (): string[] => {
+    const path = location.pathname
+    if (path.startsWith('/report/')) {
+      const name = path.replace('/report/', '')
+      return [
+        `Give me a TL;DR on ${name}`,
+        `Help me prep for my 1:1 with ${name}`,
+        `Draft feedback for ${name}`,
+        `What should I watch for with ${name}?`
+      ]
+    }
+    if (path === '/impact') {
+      return [
+        'Summarize my impact this quarter',
+        'What themes stand out?',
+        'Help me write a self-review',
+        'What areas could I grow in?'
+      ]
+    }
+    if (path === '/playbook') {
+      return [
+        'Which practices need attention?',
+        'Suggest a new management practice',
+        'How can I improve my 1:1 format?',
+        'What am I missing in my cadence?'
+      ]
+    }
+    if (path === '/') {
+      return [
+        'What should I focus on today?',
+        'Help me prioritize my to-do list',
+        'Draft a team update email',
+        'Any patterns I should worry about?'
+      ]
+    }
+    return [
+      'How is my team doing?',
+      'Help me prep for 1:1s',
+      'Draft some feedback',
+      'What should I focus on today?'
+    ]
+  }
+
+  const suggestions = getSuggestions()
 
   return (
     <div className="absolute bottom-20 right-6 w-[420px] max-w-[calc(100vw-18rem-3rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
@@ -318,7 +364,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                   <p className="text-[10px] text-zinc-600">{s.messages.length} msg{s.messages.length !== 1 ? 's' : ''}</p>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); handleDeleteSession(s.id) }}
+                  onClick={e => { e.stopPropagation(); setDeleteSessionId(s.id) }}
                   className="p-0.5 text-zinc-600 hover:text-danger opacity-0 group-hover/hist:opacity-100 transition-opacity"
                   aria-label="Delete"
                 >
@@ -345,7 +391,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                 <button
                   key={s}
                   onClick={() => sendMessage(s)}
-                  className="text-left p-2.5 bg-surface rounded-lg border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all duration-150 text-[11px] text-zinc-400 hover:text-zinc-300"
+                  className="text-left p-2.5 bg-surface rounded-lg border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all active:scale-[0.97] duration-150 text-[11px] text-zinc-400 hover:text-zinc-300"
                 >
                   {s}
                 </button>
@@ -454,13 +500,22 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               onClick={() => sendMessage()}
               disabled={!input.trim()}
               aria-label="Send message"
-              className="p-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-30 shrink-0"
+              className="p-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
             >
               <Send className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteSessionId !== null}
+        title="Delete chat"
+        message="This conversation will be permanently deleted."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (deleteSessionId) handleDeleteSession(deleteSessionId); setDeleteSessionId(null) }}
+        onCancel={() => setDeleteSessionId(null)}
+      />
     </div>
   )
 }

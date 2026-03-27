@@ -24,7 +24,8 @@ import {
   Eye,
   Sparkles,
   GitPullRequest,
-  CircleDot
+  CircleDot,
+  Undo2
 } from 'lucide-react'
 import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
@@ -118,6 +119,32 @@ function getPracticeIdForItem(itemId: string): string | null {
     return withoutPrefix
   }
   return null
+}
+
+function getGreeting(): { text: string; emoji: string } {
+  const hour = new Date().getHours()
+  if (hour < 12) return { text: 'Good morning', emoji: '☀️' }
+  if (hour < 17) return { text: 'Good afternoon', emoji: '🌤️' }
+  return { text: 'Good evening', emoji: '🌙' }
+}
+
+const motivationalSubtitles = [
+  'Your team is counting on you. You got this.',
+  'Small actions, big impact. Let\'s go.',
+  'The best managers ship clarity, not chaos.',
+  'Today\'s prep is tomorrow\'s smooth 1:1.',
+  'Feedback is a gift. Give one today.',
+  'You\'re building careers, not just software.',
+  'A 2-minute check-in can change someone\'s week.',
+  'Great managers notice what others miss.',
+  'Your calendar is a reflection of your priorities.',
+  'Lead the team you wish you\'d had.',
+]
+
+function getDailyMotivation(): string {
+  // Deterministic per day so it doesn't change on re-renders
+  const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24))
+  return motivationalSubtitles[daysSinceEpoch % motivationalSubtitles.length]
 }
 
 function computeTimelineItems(
@@ -940,7 +967,17 @@ export function Today() {
       return next
     })
     setExpandedItem(null)
-  }, [])
+    toast.success('Done ✓', undefined, {
+      label: 'Undo',
+      onClick: () => {
+        setDoneIds(prev => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      }
+    })
+  }, [toast])
 
   const handleActionToggle = useCallback(async (action: TeamActionItem) => {
     if (!action.sourceFile || action.sourceLineNumber == null) return
@@ -1023,11 +1060,20 @@ export function Today() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-zinc-500">Loading...</span>
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        <div className="space-y-2">
+          <div className="skeleton h-8 w-56 rounded" />
+          <div className="skeleton h-4 w-72 rounded" />
         </div>
+        {[1,2,3].map(i => (
+          <div key={i} className="bg-surface rounded-xl border border-border p-5 space-y-3">
+            <div className="skeleton h-4 w-32 rounded" />
+            <div className="space-y-2">
+              <div className="skeleton h-12 w-full rounded-lg" />
+              <div className="skeleton h-12 w-full rounded-lg" />
+            </div>
+          </div>
+        ))}
       </div>
     )
   }
@@ -1050,9 +1096,10 @@ export function Today() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-3">
-          <Users className="w-8 h-8 text-zinc-700 mx-auto" aria-hidden="true" />
-          <p className="text-sm text-zinc-400">No team data yet.</p>
-          <button onClick={refresh} className="text-sm text-brand-light hover:text-brand transition-colors">
+          <Users className="w-8 h-8 text-zinc-600 mx-auto" aria-hidden="true" />
+          <p className="text-lg font-medium text-zinc-200">No team set up yet 👋</p>
+          <p className="text-sm text-zinc-500 max-w-sm mx-auto">Add your first direct report to get started. Your daily action plan will appear here.</p>
+          <button onClick={refresh} className="text-sm text-brand-light hover:text-brand transition-colors mt-2">
             Refresh
           </button>
         </div>
@@ -1069,10 +1116,11 @@ export function Today() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Today</h1>
+          <h1 className="text-2xl font-bold text-zinc-100">{getGreeting().text} {getGreeting().emoji}</h1>
           <p className="text-sm text-zinc-500 mt-1">
             {format(new Date(), 'EEEE, MMMM d')} · {headerSummary}
           </p>
+          <p className="text-xs text-zinc-600 mt-1 italic">{getDailyMotivation()}</p>
         </div>
         <button
           onClick={() => {
@@ -1095,9 +1143,9 @@ export function Today() {
           <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-emerald-500/60" aria-hidden="true" />
           </div>
-          <p className="text-lg font-medium text-zinc-200">All caught up</p>
+          <p className="text-lg font-medium text-zinc-200">Zero inbox. Zero overdue. Zero stress. 🧘</p>
           <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto leading-relaxed">
-            No overdue items and your inbox is clear. Enjoy the calm.
+            You&apos;re fully caught up. Go grab a coffee, take a walk, or just enjoy the rare calm.
           </p>
         </div>
       )}
@@ -1107,9 +1155,9 @@ export function Today() {
           <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="w-7 h-7 text-emerald-400" aria-hidden="true" />
           </div>
-          <p className="text-lg font-medium text-zinc-200">All done for today</p>
+          <p className="text-lg font-medium text-zinc-200">Crushed it 💪</p>
           <p className="text-sm text-zinc-500 mt-1.5">
-            You knocked out {doneCount} item{doneCount !== 1 ? 's' : ''}. Nice work.
+            {doneCount} item{doneCount !== 1 ? 's' : ''} knocked out today. Your team is lucky to have you.
           </p>
         </div>
       )}
@@ -1143,9 +1191,9 @@ export function Today() {
 
             {isExpanded && (
               <div className="border-t border-border animate-slide-down">
-                {sectionItems.map(item => (
+                {sectionItems.map((item, idx) => (
+                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
                   <TimelineRow
-                    key={item.id}
                     item={item}
                     isItemExpanded={expandedItem === item.id}
                     reportByName={reportByName}
@@ -1160,6 +1208,7 @@ export function Today() {
                     onFeedbackDone={handleFeedbackDone}
                     onPromptDone={handlePromptDone}
                   />
+                  </div>
                 ))}
               </div>
             )}

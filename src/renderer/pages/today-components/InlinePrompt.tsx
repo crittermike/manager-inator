@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToast } from '../../components/common/Toast'
+import { useAI } from '../../hooks/useAI'
 import { format } from 'date-fns'
 import type { PromptType } from './types'
-import { Save } from 'lucide-react'
+import { Save, Sparkles, Loader2 } from 'lucide-react'
 
 const promptConfig: Record<PromptType, { placeholder: string; savePath: () => string; commitMsg: () => string }> = {
   'weekly-priorities': {
@@ -42,10 +43,36 @@ export function InlinePrompt({
   onCancel: () => void
 }) {
   const toast = useToast()
+  const { streaming, generate, cancel } = useAI()
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        if (streaming) cancel()
+        onCancel()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onCancel, streaming, cancel])
 
   const config = promptConfig[promptType]
+
+  const handleSuggest = async () => {
+    setSuggesting(true)
+    try {
+      const result = await generate('prompt-fill-weekly-priorities', { promptType })
+      if (result) setText(result)
+    } catch {
+      toast.error('AI suggestion failed')
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!text.trim()) return
@@ -77,6 +104,7 @@ export function InlinePrompt({
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}
+        onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
         placeholder={config.placeholder}
         className="w-full h-28 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
         autoFocus
@@ -85,10 +113,18 @@ export function InlinePrompt({
         <button
           onClick={handleSave}
           disabled={!text.trim() || saving}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
           <Save className="w-4 h-4" />
           {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          onClick={handleSuggest}
+          disabled={suggesting || streaming}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm text-brand-light hover:text-white hover:bg-brand/15 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+        >
+          {suggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {suggesting ? 'Thinking...' : 'AI suggest'}
         </button>
         <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
           Cancel

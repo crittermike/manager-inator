@@ -11,6 +11,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import type { ActionItem, FeedbackEntry, PrepEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
+import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import {
   ArrowLeft,
   Calendar,
@@ -37,7 +38,8 @@ import {
   AlertCircle,
   Plane,
   ClipboardList,
-  Trash2
+  Trash2,
+  Mail
 } from 'lucide-react'
 
 // ── Types ──
@@ -132,6 +134,9 @@ export function ReportDetail() {
   // Copy state
   const [copied, setCopied] = useState(false)
 
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
   // Adding feedback
   const [addingFeedback, setAddingFeedback] = useState(false)
   const [feedbackDraft, setFeedbackDraft] = useState('')
@@ -210,18 +215,23 @@ export function ReportDetail() {
   }, [])
 
   const handleDeleteContent = useCallback(async (path: string) => {
-    if (confirm('Are you sure you want to delete this file? This cannot be undone.')) {
-      try {
-        await window.api.deleteFile(path)
-        toast.success('File deleted successfully')
-        refresh()
-        setViewingContent(null)
-        setIsEditingContent(false)
-      } catch (err) {
-        toast.error('Failed to delete file')
-      }
+    setDeleteTarget(path)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    try {
+      await window.api.deleteFile(deleteTarget)
+      toast.success('File deleted successfully')
+      refresh()
+      setViewingContent(null)
+      setIsEditingContent(false)
+    } catch (err) {
+      toast.error('Failed to delete file')
+    } finally {
+      setDeleteTarget(null)
     }
-  }, [refresh, toast])
+  }, [deleteTarget, refresh, toast])
 
   const handleSaveContent = useCallback(async (path: string, newContent: string) => {
     try {
@@ -670,9 +680,28 @@ export function ReportDetail() {
   const handleToggleAction = useCallback(async (a: ActionItem) => {
     if (!a.sourceFile || a.sourceLineNumber == null) return
     const toggleKey = `${a.sourceFile}:${a.sourceLineNumber}`
+    const wasCompleted = a.completed
+    
+    // Optimistic update
     setTogglingItems(prev => new Set(prev).add(toggleKey))
+    
     try {
       await window.api.toggleActionItem(a.sourceFile, a.sourceLineNumber)
+      
+      if (!wasCompleted) {
+        toast.success('Action item completed ✓', 'Done', { 
+          label: 'Undo', 
+          onClick: async () => {
+            try {
+              await window.api.toggleActionItem(a.sourceFile!, a.sourceLineNumber!)
+              refresh()
+            } catch {
+              toast.error('Failed to undo')
+            }
+          }
+        })
+      }
+      
       refresh()
     } catch (e) {
       console.error('Failed to toggle action item:', e)
@@ -853,8 +882,35 @@ export function ReportDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        {/* Profile header skeleton */}
+        <div className="flex items-center gap-4">
+          <div className="skeleton w-10 h-10 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <div className="skeleton h-6 w-48 rounded" />
+            <div className="skeleton h-4 w-32 rounded" />
+          </div>
+        </div>
+        {/* Key facts skeleton */}
+        <div className="grid grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="skeleton h-20 rounded-xl" />)}
+        </div>
+        {/* Filter bar skeleton */}
+        <div className="flex gap-2">
+          {[1,2,3,4,5].map(i => <div key={i} className="skeleton h-8 w-20 rounded-lg" />)}
+        </div>
+        {/* Stream entries skeleton */}
+        <div className="space-y-3">
+          {[1,2,3].map(i => (
+            <div key={i} className="bg-surface rounded-xl border border-border p-5">
+              <div className="space-y-3">
+                <div className="skeleton h-4 w-3/4 rounded" />
+                <div className="skeleton h-3 w-1/2 rounded" />
+                <div className="skeleton h-3 w-2/3 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -867,7 +923,7 @@ export function ReportDetail() {
             <AlertCircle className="w-6 h-6 text-zinc-500" />
           </div>
           <div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">{error || 'Report not found'}</h3>
+            <h3 className="text-sm font-medium text-zinc-300 mb-1">{error || 'We looked everywhere but couldn\'t find this report 🕵️'}</h3>
             <p className="text-xs text-zinc-500">This person may not exist in your data repo, or the profile hasn't been set up yet.</p>
           </div>
           <button
@@ -985,7 +1041,7 @@ export function ReportDetail() {
                 <button
                   onClick={handleSaveProfile}
                   disabled={savingProfile}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
                 >
                   <Save className="w-3 h-3" aria-hidden="true" />
                   {savingProfile ? 'Saving…' : 'Save'}
@@ -1113,7 +1169,7 @@ export function ReportDetail() {
                 <div className="text-xs text-zinc-500 mt-0.5">{daysSince1on1} day{daysSince1on1 !== 1 ? 's' : ''} ago</div>
               </>
             ) : (
-              <div className="text-sm text-zinc-600">None recorded</div>
+              <div className="text-sm text-zinc-500">None yet</div>
             )}
           </div>
 
@@ -1122,13 +1178,17 @@ export function ReportDetail() {
             {nextMeeting ? (
               <div className="text-sm font-medium text-zinc-200">{formatDate(nextMeeting)}</div>
             ) : (
-              <div className="text-sm text-zinc-600">Not scheduled</div>
+              <div className="text-sm text-zinc-500">Not scheduled yet</div>
             )}
           </div>
 
           <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
             <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Open actions</div>
-            <div className="text-sm font-medium text-zinc-200">{openActionCount}</div>
+            {openActionCount === 0 ? (
+              <div className="text-sm text-zinc-500">All clear 🎯</div>
+            ) : (
+              <div className="text-sm font-medium text-zinc-200">{openActionCount}</div>
+            )}
             {report.actionItems.filter(a => a.completed).length > 0 && (
               <div className="text-xs text-zinc-500 mt-0.5">{report.actionItems.filter(a => a.completed).length} completed</div>
             )}
@@ -1142,7 +1202,7 @@ export function ReportDetail() {
                 <div className="text-xs text-zinc-500 mt-0.5">{report.feedback.length} total</div>
               </>
             ) : (
-              <div className="text-sm text-zinc-600">None logged</div>
+              <div className="text-sm text-zinc-500">None yet</div>
             )}
           </div>
         </div>
@@ -1153,7 +1213,7 @@ export function ReportDetail() {
         <button
           onClick={handlePrepOneOnOne}
           disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-border"
+          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-border"
         >
           <Sparkles className="w-4 h-4 text-brand-light" aria-hidden="true" />
           Prep 1:1
@@ -1161,7 +1221,7 @@ export function ReportDetail() {
         <button
           onClick={handleGenerateCheckIn}
           disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-border"
+          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-border"
         >
           <FileText className="w-4 h-4" aria-hidden="true" />
           Generate check-in
@@ -1169,17 +1229,41 @@ export function ReportDetail() {
         <button
           onClick={handleGenerateReview}
           disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-border"
+          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-border"
         >
           <BookOpen className="w-4 h-4" aria-hidden="true" />
           Generate review
         </button>
         <button
           onClick={() => setAddingFeedback(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-colors border border-border"
+          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] border border-border"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
           Add feedback
+        </button>
+        <button
+          onClick={() => {
+            const displayName = report.profile.displayName
+            const msg = `Draft a short, professional email to ${displayName}'s skip-level manager about ${displayName}'s recent performance. Include specific recent examples from their 1:1s and feedback.`
+            navigator.clipboard.writeText(msg)
+            toast.success('Email prompt copied — paste it in the AI chat', 'Copied')
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg border border-border transition-all active:scale-[0.97]"
+        >
+          <Mail className="w-3.5 h-3.5" />
+          Draft email
+        </button>
+        <button
+          onClick={() => {
+            const displayName = report.profile.displayName
+            const msg = `Give me a 3-bullet TL;DR of what's been going on with ${displayName} recently. What should I know before my next conversation with them?`
+            navigator.clipboard.writeText(msg)
+            toast.success('Summary prompt copied — paste it in the AI chat', 'Copied')
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg border border-border transition-all active:scale-[0.97]"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          TL;DR
         </button>
       </div>
 
@@ -1216,6 +1300,7 @@ export function ReportDetail() {
           <textarea
             value={feedbackDraft}
             onChange={e => setFeedbackDraft(e.target.value)}
+            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveFeedback() } }}
             placeholder="What happened? Be specific about the behavior and its impact..."
             className="w-full h-24 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
             autoFocus
@@ -1224,7 +1309,7 @@ export function ReportDetail() {
             <button
               onClick={handleSaveFeedback}
               disabled={!feedbackDraft.trim() || savingFeedback}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
             >
               <Save className="w-3 h-3" aria-hidden="true" />
               {savingFeedback ? 'Saving…' : 'Save feedback'}
@@ -1335,7 +1420,7 @@ export function ReportDetail() {
               <button
                 onClick={handleSaveAI}
                 disabled={aiSaving}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
               >
                 <Save className="w-3 h-3" aria-hidden="true" />
                 {aiSaving ? 'Saving…' : aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
@@ -1381,7 +1466,7 @@ export function ReportDetail() {
               <button
                 onClick={handleSaveAbout}
                 disabled={savingAbout}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
               >
                 <Save className="w-3 h-3" aria-hidden="true" />
                 {savingAbout ? 'Saving…' : 'Save'}
@@ -1391,6 +1476,7 @@ export function ReportDetail() {
           <textarea
             value={aboutDraft}
             onChange={e => setAboutDraft(e.target.value)}
+            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
             placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
             className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
             autoFocus
@@ -1401,6 +1487,7 @@ export function ReportDetail() {
           <div
             role="button"
             tabIndex={0}
+            aria-expanded={!aboutCollapsed}
             onClick={() => setAboutCollapsed(!aboutCollapsed)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAboutCollapsed(!aboutCollapsed) } }}
             className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors cursor-pointer"
@@ -1450,7 +1537,7 @@ export function ReportDetail() {
               <button
                 onClick={handleSaveJobExpectations}
                 disabled={savingJobExpectations}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
               >
                 <Save className="w-3 h-3" aria-hidden="true" />
                 {savingJobExpectations ? 'Saving…' : 'Save'}
@@ -1460,6 +1547,7 @@ export function ReportDetail() {
           <textarea
             value={jobExpectationsDraft}
             onChange={e => setJobExpectationsDraft(e.target.value)}
+            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
             placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
             className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
             autoFocus
@@ -1471,6 +1559,7 @@ export function ReportDetail() {
           <div
             role="button"
             tabIndex={0}
+            aria-expanded={!jobExpCollapsed}
             onClick={() => setJobExpCollapsed(!jobExpCollapsed)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setJobExpCollapsed(!jobExpCollapsed) } }}
             className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors cursor-pointer"
@@ -1539,15 +1628,25 @@ export function ReportDetail() {
       <div className="space-y-2">
         {filteredEntries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Filter className="w-8 h-8 text-zinc-700 mb-3" aria-hidden="true" />
-            <p className="text-sm text-zinc-500">No {activeFilter === 'all' ? 'activity' : activeFilter} entries yet</p>
+            <div className="w-12 h-12 rounded-full bg-surface-raised flex items-center justify-center mb-4">
+              <Filter className="w-6 h-6 text-zinc-500" aria-hidden="true" />
+            </div>
+            {activeFilter === 'all' ? (
+              <>
+                <p className="text-sm font-medium text-zinc-300 mb-1">No activity yet</p>
+                <p className="text-sm text-zinc-500 max-w-sm">Once you have 1:1s and feedback, they'll show up here.</p>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500">No {activeFilter} entries yet</p>
+            )}
           </div>
         ) : (
-          filteredEntries.map(entry => {
+          filteredEntries.map((entry, idx) => {
             const toggleKey = entry.type === 'action'
               ? (entry.data as ActionItem[]).some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
               : false
             return (
+              <div key={entry.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
               <StreamEntryCard
                 key={entry.id}
                 entry={entry}
@@ -1571,6 +1670,7 @@ export function ReportDetail() {
                 onSaveContent={handleSaveContent}
                 onCancelEdit={() => setIsEditingContent(false)}
               />
+              </div>
             )
           })
         )}
@@ -1639,7 +1739,7 @@ export function ReportDetail() {
                 <button
                   onClick={handleSavePto}
                   disabled={!ptoInput.trim()}
-                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand/90 transition-all active:scale-[0.97] disabled:opacity-50"
                 >
                   Save
                 </button>
@@ -1648,6 +1748,15 @@ export function ReportDetail() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete file"
+        message="Are you sure you want to delete this file? This cannot be undone."
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }
@@ -1657,23 +1766,26 @@ export function ReportDetail() {
 function InlineEditor({ initialContent, onSave }: { initialContent: string; onSave: (content: string) => Promise<void> }) {
   const [content, setContent] = useState(initialContent)
   const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    await onSave(content)
+    setIsSaving(false)
+  }
   
   return (
     <div className="space-y-3">
       <textarea
         value={content}
         onChange={e => setContent(e.target.value)}
+        onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
         className="w-full h-64 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-300 font-mono resize-y focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"
       />
       <div className="flex justify-end">
         <button
-          onClick={async () => {
-            setIsSaving(true)
-            await onSave(content)
-            setIsSaving(false)
-          }}
+          onClick={handleSave}
           disabled={isSaving || content === initialContent}
-          className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-light text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-light text-white text-sm rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
           {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
           Save

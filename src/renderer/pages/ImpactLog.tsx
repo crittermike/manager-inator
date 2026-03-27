@@ -15,7 +15,10 @@ import {
   RefreshCw,
   Sparkles,
   X,
-  Edit3
+  Edit3,
+  Copy,
+  Check,
+  Download
 } from 'lucide-react'
 
 export function ImpactLog() {
@@ -28,6 +31,7 @@ export function ImpactLog() {
   const [showAdd, setShowAdd] = useState(false)
   const { streaming, streamedText, generate, cancel, reset } = useAI()
   const [showAI, setShowAI] = useState(false)
+  const [copiedSummary, setCopiedSummary] = useState(false)
   const toast = useToast()
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(editing)
   const saveRef = useRef<() => void>(() => {})
@@ -44,7 +48,7 @@ export function ImpactLog() {
       const data = await window.api.getImpactLog()
       setContent(data)
     } catch {
-      setContent('# Impact log\n\n_No entries yet._')
+      setContent('# Impact log\n\n_No entries yet. Start tracking your wins — you deserve the credit._')
     } finally {
       setLoading(false)
     }
@@ -112,10 +116,40 @@ export function ImpactLog() {
     })
   }
 
+  const handleCopySummary = async () => {
+    if (!streamedText) return
+    await navigator.clipboard.writeText(streamedText)
+    setCopiedSummary(true)
+    toast.success('Summary copied')
+    setTimeout(() => setCopiedSummary(false), 2000)
+  }
+
+  const handleExportLog = () => {
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `impact-log-${new Date().toISOString().split('T')[0]}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Impact log downloaded')
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        <div className="space-y-2">
+          <div className="skeleton h-8 w-48 rounded" />
+          <div className="skeleton h-4 w-64 rounded" />
+        </div>
+        <div className="bg-surface rounded-xl border border-border p-5 space-y-3">
+          {[1,2,3].map(i => (
+            <div key={i} className="space-y-2">
+              <div className="skeleton h-4 w-3/4 rounded" />
+              <div className="skeleton h-3 w-1/2 rounded" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -130,7 +164,7 @@ export function ImpactLog() {
             My impact log
           </h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Track your own contributions and impact as a manager
+            Your wins, your growth, your receipts 🏆
           </p>
         </div>
         <div className="flex gap-2">
@@ -145,10 +179,18 @@ export function ImpactLog() {
           <button
             onClick={handleAISummarize}
             disabled={streaming}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" aria-hidden="true" />
             Summarize
+          </button>
+          <button
+            onClick={handleExportLog}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+            aria-label="Export impact log"
+            title="Download as markdown"
+          >
+            <Download className="w-4 h-4" aria-hidden="true" />
           </button>
           <button
             onClick={() => { setEditing(!editing); setEditContent(content) }}
@@ -159,7 +201,7 @@ export function ImpactLog() {
           </button>
           <button
             onClick={() => setShowAdd(!showAdd)}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             Add entry
@@ -176,6 +218,16 @@ export function ImpactLog() {
               Impact summary
             </div>
             <div className="flex items-center gap-2">
+              {!streaming && streamedText && (
+                <button
+                  onClick={handleCopySummary}
+                  className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  aria-label="Copy summary"
+                  title="Copy summary"
+                >
+                  {copiedSummary ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              )}
               {streaming && (
                 <button onClick={cancel} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
                   Stop generating
@@ -210,6 +262,7 @@ export function ImpactLog() {
           <textarea
             value={newEntry}
             onChange={(e) => setNewEntry(e.target.value)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleAddEntry() } }}
             placeholder="e.g. Led architecture review for Quick Setup, identified 3 security gaps before launch..."
             rows={4}
             className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors resize-none"
@@ -218,7 +271,7 @@ export function ImpactLog() {
             <button
               onClick={handleAddEntry}
               disabled={!newEntry.trim() || saving}
-              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-40 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-40 transition-all active:scale-[0.97]"
             >
               {saving ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -243,13 +296,14 @@ export function ImpactLog() {
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveEdit() } }}
             rows={24}
             className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 font-mono focus:outline-none focus:border-brand transition-colors resize-none"
           />
           <button
             onClick={handleSaveEdit}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-all active:scale-[0.97]"
           >
             {saving ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -268,7 +322,7 @@ export function ImpactLog() {
       <ConfirmDialog
         open={blockerState === 'blocked'}
         title="Unsaved changes"
-        message="You have unsaved edits to your impact log. Leave anyway?"
+        message="You have unsaved changes. Leave without saving?"
         confirmLabel="Leave"
         cancelLabel="Stay"
         variant="danger"

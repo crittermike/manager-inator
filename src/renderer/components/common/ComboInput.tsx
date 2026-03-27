@@ -106,7 +106,7 @@ export function ComboInput({ value, onChange, options, placeholder, label }: Com
           ref={listRef}
           id={listId}
           role="listbox"
-          className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface-raised border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto"
+          className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface-raised border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto animate-slide-down"
         >
           {filtered.map((opt, i) => (
             <li

@@ -4,6 +4,7 @@ import { useToast } from './Toast'
 import { useTeamOverview } from '../../hooks/useData'
 import { format } from 'date-fns'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
+import { ConfirmDialog } from './ConfirmDialog'
 import {
   ClipboardPaste, X, ChevronDown, ChevronUp,
   Loader2, Check, AlertCircle, Sparkles,
@@ -56,6 +57,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   const [minimized, setMinimized] = useState(false)
   const [savedFilepath, setSavedFilepath] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const mountedRef = useRef(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -127,6 +129,18 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
       setState('error')
     }
   }, [content, sourceHint, streaming, reports, generate, reset])
+
+  useEffect(() => {
+    if (!open || state !== 'idle') return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        handleProcess()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, state, handleProcess])
 
   const autoSave = useCallback(async (classified: ClassifiedResult) => {
     const today = format(new Date(), 'yyyy-MM-dd')
@@ -394,10 +408,11 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               <button
                 onClick={handleProcess}
                 disabled={!content.trim()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Sparkles className="w-3 h-3" />
                 Capture
+                <kbd className="ml-1 text-[9px] opacity-50 font-sans">⌘↵</kbd>
               </button>
             </div>
           </>
@@ -454,6 +469,16 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                       }`}>{fb.type}</span>
                     </div>
                     <p className="text-zinc-400">{fb.content}</p>
+                    <button
+                      onClick={() => {
+                        const prompt = `Rewrite this feedback to be more specific, behavior-anchored, and actionable. Keep the same sentiment (${fb.type}).\n\nOriginal: ${fb.content}`
+                        navigator.clipboard.writeText(prompt)
+                        toast.success('Rewrite prompt copied — paste in AI chat')
+                      }}
+                      className="mt-1 text-[10px] text-brand-light/60 hover:text-brand-light transition-colors"
+                    >
+                      Rewrite with AI →
+                    </button>
                   </div>
                 ))}
               </div>
@@ -497,7 +522,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                 Edit
               </button>
               <button
-                onClick={handleDelete}
+                onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
@@ -518,6 +543,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             <textarea
               value={editContent}
               onChange={e => setEditContent(e.target.value)}
+              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveEdit() } }}
               className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 font-mono focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[320px] max-h-[500px]"
             />
             <div className="flex items-center justify-end gap-2">
@@ -530,7 +556,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               <button
                 onClick={handleSaveEdit}
                 disabled={!editContent.trim()}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Save changes
               </button>
@@ -561,6 +587,19 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete captured content"
+        message="This will permanently delete the captured content and any extracted feedback. This can't be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          setShowDeleteConfirm(false)
+          handleDelete()
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }

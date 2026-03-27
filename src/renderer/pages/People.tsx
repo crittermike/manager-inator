@@ -278,8 +278,23 @@ ${editNotes}`
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        <div className="space-y-2">
+          <div className="skeleton h-8 w-48 rounded" />
+          <div className="skeleton h-4 w-64 rounded" />
+        </div>
+        <div className="skeleton h-10 w-full rounded-lg" />
+        <div className="space-y-2">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
+              <div className="skeleton w-9 h-9 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <div className="skeleton h-4 w-32 rounded" />
+                <div className="skeleton h-3 w-48 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -389,6 +404,7 @@ ${editNotes}`
                     <textarea
                       value={editNotes}
                       onChange={(e) => setEditNotes(e.target.value)}
+                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
                       rows={10}
                       placeholder="Any notes about this person..."
                       className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors resize-none"
@@ -398,7 +414,7 @@ ${editNotes}`
                     <button
                       onClick={handleSave}
                       disabled={saving}
-                      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-all active:scale-[0.97]"
                     >
                       {saving ? (
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -469,7 +485,7 @@ ${editNotes}`
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
               >
                 <UserPlus className="w-4 h-4" aria-hidden="true" />
                 Add person
@@ -499,7 +515,7 @@ ${editNotes}`
               <button
                 onClick={handleCreatePerson}
                 disabled={!newPersonName.trim() || addingSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-all active:scale-[0.97]"
               >
                 {addingSaving ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -538,8 +554,8 @@ ${editNotes}`
               </div>
               {people.length === 0 ? (
                 <>
-                  <p className="text-lg font-medium text-zinc-300 mb-2">No people yet</p>
-                  <p className="text-sm text-zinc-500 mb-4">Add someone to start tracking meetings and relationships.</p>
+                  <p className="text-lg font-medium text-zinc-300 mb-2">Your network starts here 🤝</p>
+                  <p className="text-sm text-zinc-500 mb-4">Add the people you work with and we'll help you keep track of meetings, feedback, and relationships.</p>
                   <button
                     onClick={() => setShowAddForm(true)}
                     className="flex items-center gap-2 px-4 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-colors"
@@ -550,7 +566,7 @@ ${editNotes}`
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-zinc-500 mb-2">No people match "{search}"</p>
+                  <p className="text-sm text-zinc-500 mb-2">Hmm, nobody by that name 🔍</p>
                   <button
                     onClick={() => setSearch('')}
                     className="text-sm text-brand-light hover:text-brand transition-colors"
@@ -562,9 +578,13 @@ ${editNotes}`
             </div>
           ) : (
           <div className="grid grid-cols-1 gap-3">
-            {filtered.map((p) => (
-              <button
+            {filtered.map((p, idx) => (
+              <div
                 key={p.slug}
+                style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}
+                className="animate-fade-up"
+              >
+              <button
                 onClick={() => {
                   if (p.relationship?.toLowerCase() === 'direct report') {
                     navigate(`/report/${p.slug}`)
@@ -572,7 +592,7 @@ ${editNotes}`
                     openPerson(p)
                   }
                 }}
-                className="flex items-center gap-4 p-4 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group"
+                className="w-full flex items-center gap-4 p-4 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group"
               >
                 <div className="w-10 h-10 rounded-full bg-brand/15 flex items-center justify-center text-sm font-semibold text-brand-light shrink-0 group-hover:bg-brand/25 transition-colors">
                   {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
@@ -593,6 +613,7 @@ ${editNotes}`
                   </div>
                 </div>
               </button>
+              </div>
             ))}
           </div>
           )}
@@ -602,7 +623,7 @@ ${editNotes}`
       <ConfirmDialog
         open={blockerState === 'blocked'}
         title="Unsaved changes"
-        message="You have unsaved profile edits. Leave anyway?"
+        message="You have unsaved changes. Leave without saving?"
         confirmLabel="Leave"
         cancelLabel="Stay"
         variant="danger"

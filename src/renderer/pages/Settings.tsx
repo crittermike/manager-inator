@@ -165,8 +165,20 @@ export function Settings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+        <div className="space-y-2">
+          <div className="skeleton h-8 w-32 rounded" />
+          <div className="skeleton h-4 w-64 rounded" />
+        </div>
+        {[1,2,3].map(i => (
+          <div key={i} className="space-y-4">
+            <div className="skeleton h-4 w-24 rounded" />
+            <div className="bg-surface rounded-xl border border-border p-5 space-y-3">
+              <div className="skeleton h-10 w-full rounded-lg" />
+              <div className="skeleton h-10 w-full rounded-lg" />
+            </div>
+          </div>
+        ))}
       </div>
     )
   }
@@ -178,6 +190,7 @@ export function Settings() {
           <SettingsIcon className="w-6 h-6 text-zinc-400" aria-hidden="true" />
           Settings
         </h1>
+        <p className="text-sm text-zinc-500 mt-1">Tweak the knobs. Turn the dials. Make it yours.</p>
       </div>
 
       {/* Account */}
@@ -253,7 +266,18 @@ export function Settings() {
           </div>
 
           {repoPathError && (
-            <p className="text-xs text-danger">{repoPathError}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-danger">{repoPathError}</p>
+              <button
+                onClick={async () => {
+                  const result = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'Select repo folder' })
+                  if (result) { setRepoPathVal(result); setRepoPathError('') }
+                }}
+                className="text-xs text-brand-light hover:text-brand transition-colors underline underline-offset-2"
+              >
+                Pick a folder
+              </button>
+            </div>
           )}
         </div>
       </section>
@@ -306,6 +330,7 @@ export function Settings() {
           <textarea
             value={customInstructions}
             onChange={(e) => setCustomInstructions(e.target.value)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
             placeholder="e.g. Always use bullet points. Focus on actionable feedback. Keep summaries under 500 words."
             aria-label="Custom instructions for AI"
             rows={4}
@@ -597,13 +622,13 @@ export function Settings() {
 
       {/* Fixed save bar */}
       {isDirty && (
-        <div className="fixed bottom-0 left-64 right-0 z-10 px-8 py-4 bg-zinc-950/90 backdrop-blur-md border-t border-border animate-fade-in shadow-2xl">
+        <div className={`fixed bottom-0 left-64 right-0 z-10 px-8 py-4 bg-zinc-950/90 backdrop-blur-md border-t border-border shadow-2xl ${saved ? 'animate-success-pop' : 'animate-fade-in'}`}>
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <p className="text-sm font-medium text-zinc-300">You have unsaved changes</p>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -626,7 +651,7 @@ export function Settings() {
       <ConfirmDialog
         open={blockerState === 'blocked'}
         title="Unsaved changes"
-        message="You have unsaved settings changes. Leave anyway?"
+        message="You have unsaved changes. Leave without saving?"
         confirmLabel="Leave"
         cancelLabel="Stay"
         variant="danger"

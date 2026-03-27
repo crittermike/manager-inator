@@ -74,7 +74,7 @@ export function ConfirmDialog({
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl p-6 m-4"
+        className="w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl p-6 m-4 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

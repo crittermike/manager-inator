@@ -3,17 +3,23 @@ import { X, AlertCircle, CheckCircle2, Info, AlertTriangle } from 'lucide-react'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 export interface ToastMessage {
   id: string
   type: ToastType
   message: string
   title?: string
   duration?: number
+  action?: ToastAction
 }
 
 interface ToastContextType {
   toast: (toast: Omit<ToastMessage, 'id'>) => void
-  success: (message: string, title?: string) => void
+  success: (message: string, title?: string, action?: ToastAction) => void
   error: (message: string, title?: string) => void
   info: (message: string, title?: string) => void
   warning: (message: string, title?: string) => void
@@ -43,7 +49,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
-  const success = useCallback((message: string, title?: string) => addToast({ type: 'success', message, title }), [addToast])
+  const success = useCallback((message: string, title?: string, action?: ToastAction) => addToast({ type: 'success', message, title, action }), [addToast])
   const error = useCallback((message: string, title?: string) => addToast({ type: 'error', message, title, duration: 8000 }), [addToast])
   const info = useCallback((message: string, title?: string) => addToast({ type: 'info', message, title }), [addToast])
   const warning = useCallback((message: string, title?: string) => addToast({ type: 'warning', message, title, duration: 8000 }), [addToast])
@@ -117,6 +123,14 @@ function ToastItem({ toast, onRemove }: { toast: ToastMessage; onRemove: () => v
       <div className="flex-1 min-w-0">
         {toast.title && <h4 className="text-sm font-medium text-zinc-100 mb-1">{toast.title}</h4>}
         <p className="text-sm text-zinc-300 break-words leading-relaxed">{toast.message}</p>
+        {toast.action && (
+          <button
+            onClick={() => { toast.action!.onClick(); handleManualClose() }}
+            className="mt-1.5 text-xs font-medium text-brand-light hover:text-brand transition-colors"
+          >
+            {toast.action.label}
+          </button>
+        )}
       </div>
       <button
         onClick={handleManualClose}

@@ -7,18 +7,28 @@ import {
   BookOpen,
   Settings,
   Search,
-  User
+  User,
+  ClipboardPaste,
+  Sparkles,
+  MessageSquare
 } from 'lucide-react'
 
 interface PaletteItem {
   id: string
   label: string
-  path: string
+  path?: string
   icon: React.ReactNode
   section: string
+  action?: () => void
+  subtitle?: string
 }
 
-export function CommandPalette() {
+interface CommandPaletteProps {
+  onOpenCapture?: () => void
+  onOpenAI?: () => void
+}
+
+export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)
@@ -61,7 +71,43 @@ export function CommandPalette() {
       section: 'People',
     }))
 
-  const allItems = [...pages, ...reportItems, ...peopleItems]
+  const actionItems: PaletteItem[] = [
+    {
+      id: 'action-capture',
+      label: 'Capture context',
+      icon: <ClipboardPaste className="w-4 h-4" aria-hidden="true" />,
+      section: 'Actions',
+      action: onOpenCapture,
+      subtitle: 'Paste a meeting or document'
+    },
+    {
+      id: 'action-ai',
+      label: 'Ask AI assistant',
+      icon: <Sparkles className="w-4 h-4" aria-hidden="true" />,
+      section: 'Actions',
+      action: onOpenAI,
+      subtitle: 'Chat with your AI assistant'
+    }
+  ]
+
+  const quickActionItems: PaletteItem[] = reports.flatMap(r => [
+    {
+      id: `action-prep-${r.name}`,
+      label: `Prep 1:1 with ${r.displayName}`,
+      path: `/report/${r.name}?action=prep`,
+      icon: <Sparkles className="w-4 h-4" aria-hidden="true" />,
+      section: 'Quick actions'
+    },
+    {
+      id: `action-feedback-${r.name}`,
+      label: `Add feedback for ${r.displayName}`,
+      path: `/report/${r.name}?action=feedback`,
+      icon: <MessageSquare className="w-4 h-4" aria-hidden="true" />,
+      section: 'Quick actions'
+    }
+  ])
+
+  const allItems = [...pages, ...reportItems, ...peopleItems, ...actionItems, ...quickActionItems]
 
   const filtered = query.trim()
     ? allItems.filter(item =>
@@ -70,7 +116,11 @@ export function CommandPalette() {
     : allItems
 
   const handleSelect = useCallback((item: PaletteItem) => {
-    navigate(item.path)
+    if (item.action) {
+      item.action()
+    } else if (item.path) {
+      navigate(item.path)
+    }
     setOpen(false)
     setQuery('')
   }, [navigate])
@@ -185,14 +235,21 @@ export function CommandPalette() {
                         data-palette-item
                         onClick={() => handleSelect(item)}
                         onMouseEnter={() => setHighlightIndex(globalIdx)}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        className={`w-full flex ${item.subtitle ? 'items-start' : 'items-center'} gap-3 px-4 py-2.5 text-sm transition-colors ${
                           globalIdx === highlightIndex
                             ? 'bg-brand/15 text-brand-light'
                             : 'text-zinc-300 hover:bg-surface-raised'
                         }`}
                       >
-                        <span className="text-zinc-500">{item.icon}</span>
-                        {item.label}
+                        <span className={`text-zinc-500 shrink-0 ${item.subtitle ? 'mt-0.5' : ''}`}>{item.icon}</span>
+                        <div className="flex flex-col text-left">
+                          <span>{item.label}</span>
+                          {item.subtitle && (
+                            <span className="text-[11px] text-zinc-500 leading-tight mt-0.5">
+                              {item.subtitle}
+                            </span>
+                          )}
+                        </div>
                       </button>
                     )
                   })}

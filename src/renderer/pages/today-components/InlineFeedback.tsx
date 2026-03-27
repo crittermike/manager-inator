@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useToast } from '../../components/common/Toast'
+import { useAI } from '../../hooks/useAI'
 import { format } from 'date-fns'
+import { Sparkles, Loader2 } from 'lucide-react'
 
 type FeedbackType = 'positive' | 'constructive' | 'mixed'
 
@@ -22,9 +24,36 @@ export function InlineFeedback({
   onCancel: () => void
 }) {
   const toast = useToast()
+  const { streaming, generate, cancel } = useAI()
   const [draft, setDraft] = useState('')
   const [type, setType] = useState<FeedbackType>('positive')
   const [saving, setSaving] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
+
+  const handleRewrite = useCallback(async () => {
+    if (!draft.trim()) return
+    setRewriting(true)
+    try {
+      const result = await generate('rewrite-feedback', { feedback: draft, feedbackType: type })
+      if (result) setDraft(result)
+    } catch {
+      toast.error('AI rewrite failed')
+    } finally {
+      setRewriting(false)
+    }
+  }, [draft, type, generate, toast])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        if (streaming) cancel()
+        onCancel()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onCancel, streaming, cancel])
 
   const handleSave = useCallback(async () => {
     if (!draft.trim()) return
@@ -74,6 +103,7 @@ export function InlineFeedback({
         autoFocus
         value={draft}
         onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
         placeholder={`What did you observe about ${displayName}?`}
         className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none"
         rows={3}
@@ -86,9 +116,17 @@ export function InlineFeedback({
           Cancel
         </button>
         <button
+          onClick={handleRewrite}
+          disabled={rewriting || streaming || !draft.trim()}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-brand-light hover:text-white hover:bg-brand/15 rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          {rewriting ? 'Rewriting…' : 'AI rewrite'}
+        </button>
+        <button
           onClick={handleSave}
           disabled={saving || !draft.trim()}
-          className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving…' : 'Save feedback'}
         </button>

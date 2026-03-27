@@ -22,9 +22,9 @@ interface AppShellProps {
 }
 
 const navItems = [
-  { path: '/', icon: Sun, label: 'Today' },
-  { path: '/playbook', icon: BookOpen, label: 'Playbook' },
-  { path: '/search', icon: Search, label: 'Search' }
+  { path: '/', icon: Sun, label: 'Today', shortcut: null },
+  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: null },
+  { path: '/search', icon: Search, label: 'Search', shortcut: '⌘K' }
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -73,7 +73,7 @@ export function AppShell({ children }: AppShellProps) {
         Skip to main content
       </a>
       <Suspense fallback={null}>
-        <CommandPalette />
+        <CommandPalette onOpenCapture={() => setCapturePanelOpen(true)} onOpenAI={() => setAiPanelOpen(true)} />
       </Suspense>
       {/* Sidebar */}
       <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
@@ -89,7 +89,7 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(({ path, icon: Icon, label }) => {
+          {navItems.map(({ path, icon: Icon, label, shortcut }) => {
             const active = path === '/'
               ? location.pathname === '/'
               : location.pathname.startsWith(path)
@@ -104,7 +104,10 @@ export function AppShell({ children }: AppShellProps) {
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-                {label}
+                <span className="flex-1 text-left">{label}</span>
+                {shortcut && (
+                  <kbd className="text-[10px] text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono">{shortcut}</kbd>
+                )}
               </button>
             )
           })}
@@ -150,31 +153,37 @@ export function AppShell({ children }: AppShellProps) {
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-3 border-t border-border flex items-center justify-between">
-          <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => navigate('/my-profile')}
-              className={`p-1.5 rounded-lg transition-colors no-drag ${
-                location.pathname === '/my-profile'
-                  ? 'text-brand-light bg-brand/15'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
-              }`}
-              aria-label="My Profile"
-            >
-              <UserCircle className="w-4 h-4" aria-hidden="true" />
-            </button>
-            <button
-              onClick={() => navigate('/settings')}
-              className={`p-1.5 rounded-lg transition-colors no-drag ${
-                location.pathname === '/settings'
-                  ? 'text-brand-light bg-brand/15'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
-              }`}
-              aria-label="Settings"
-            >
-              <Settings className="w-4 h-4" aria-hidden="true" />
-            </button>
+        <div className="px-3 py-3 border-t border-border space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => navigate('/my-profile')}
+                className={`p-1.5 rounded-lg transition-colors no-drag ${
+                  location.pathname === '/my-profile'
+                    ? 'text-brand-light bg-brand/15'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+                }`}
+                aria-label="My Profile"
+              >
+                <UserCircle className="w-4 h-4" aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className={`p-1.5 rounded-lg transition-colors no-drag ${
+                  location.pathname === '/settings'
+                    ? 'text-brand-light bg-brand/15'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+                }`}
+                aria-label="Settings"
+              >
+                <Settings className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] text-zinc-600">
+            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">⌘K</kbd> Search</span>
+            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">⌘⇧V</kbd> Capture</span>
           </div>
         </div>
       </aside>

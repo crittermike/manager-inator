@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X } from 'lucide-react'
+import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X, Copy, Download } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -34,6 +34,28 @@ export function MeetingDetail() {
   
   const decodedFilename = filename ? decodeURIComponent(filename) : ''
   const dateStr = decodedFilename.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || ''
+
+  const [copiedContent, setCopiedContent] = useState(false)
+
+  const handleCopyContent = useCallback(async () => {
+    if (!content) return
+    await navigator.clipboard.writeText(content)
+    setCopiedContent(true)
+    success('Copied to clipboard')
+    setTimeout(() => setCopiedContent(false), 2000)
+  }, [content, success])
+
+  const handleDownloadContent = useCallback(() => {
+    if (!content) return
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = decodedFilename || 'meeting.md'
+    a.click()
+    URL.revokeObjectURL(url)
+    success('Downloaded')
+  }, [content, decodedFilename, success])
 
   useEffect(() => {
     window.api.listPeople().then(setPeople).catch(console.error)
@@ -183,8 +205,20 @@ export function MeetingDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-3xl mx-auto py-12 space-y-6 animate-fade-in">
+        <div className="skeleton h-4 w-16 rounded" />
+        <div className="bg-surface rounded-xl border border-border p-6 space-y-4">
+          <div className="skeleton h-6 w-64 rounded" />
+          <div className="flex gap-3">
+            <div className="skeleton h-4 w-24 rounded" />
+            <div className="skeleton h-4 w-32 rounded" />
+          </div>
+          <div className="space-y-2 pt-2">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="skeleton h-3 rounded" style={{ width: `${85 - i * 10}%` }} />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -201,8 +235,8 @@ export function MeetingDetail() {
         </button>
         <div className="bg-surface rounded-xl border border-border p-8 text-center">
           <FileText className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-          <h2 className="text-lg font-medium text-zinc-200 mb-2">Meeting Not Found</h2>
-          <p className="text-sm text-zinc-500">{error || 'The meeting content could not be loaded.'}</p>
+          <h2 className="text-lg font-medium text-zinc-200 mb-2">Meeting not found 📋</h2>
+          <p className="text-sm text-zinc-500">This meeting may have been moved or deleted.</p>
         </div>
       </div>
     )
@@ -350,7 +384,7 @@ export function MeetingDetail() {
                     <div className="flex items-center gap-2">
                       <div className="flex flex-wrap gap-2">
                         {speakers.length === 0 ? (
-                          <span className="text-zinc-500 italic">No attendees</span>
+                          <span className="text-zinc-500 italic">No attendees recorded</span>
                         ) : (
                           speakers.map((speaker, i) => {
                             const person = findPerson(speaker)
@@ -395,7 +429,25 @@ export function MeetingDetail() {
           </div>
         </div>
         
-        <div className="px-6 py-8 prose-dark max-w-none">
+        <div className="px-6 py-8 prose-dark max-w-none relative group/content">
+          <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover/content:opacity-100 transition-opacity">
+            <button
+              onClick={handleCopyContent}
+              className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
+              title="Copy content"
+              aria-label="Copy content"
+            >
+              {copiedContent ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={handleDownloadContent}
+              className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
+              title="Download as markdown"
+              aria-label="Download as markdown"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
         </div>
       </div>
