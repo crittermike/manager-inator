@@ -880,6 +880,13 @@ export function getReportData(name: string): Report {
     } catch { /* skip */ }
   }
 
+  const personFirstName = (profile.displayName || profile.name || name).split(/\s+/)[0].toLowerCase()
+  const relevantActions = actionItems.filter(a => {
+    const ownerLower = a.owner.toLowerCase()
+    const ownerFirst = ownerLower.split(/\s+/)[0]
+    return ownerFirst === personFirstName || ownerFirst === 'mike' || ownerLower === 'unknown'
+  })
+
   const feedback = parseFeedbackLog(feedbackRaw)
 
   const mdReviews = reviewFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep' && !f.startsWith('YYYY')).sort()
@@ -921,7 +928,7 @@ export function getReportData(name: string): Report {
     }
   }).filter((n): n is ContextNote => n !== null)
 
-  const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, preps, contextNotes, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
+  const result = { name, profile, checkIns, summaries, transcripts, actionItems: relevantActions, feedback, reviews, preps, contextNotes, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
   _reportDataCache.set(name, result)
   return result
 }
