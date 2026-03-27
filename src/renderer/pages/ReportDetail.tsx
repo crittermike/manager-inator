@@ -37,7 +37,8 @@ import {
   AlertCircle,
   Plane,
   ClipboardList,
-  Trash2
+  Trash2,
+  MoreHorizontal
 } from 'lucide-react'
 
 // ── Types ──
@@ -93,7 +94,9 @@ export function ReportDetail() {
   const [jobExpectationsDraft, setJobExpectationsDraft] = useState('')
   const [savingJobExpectations, setSavingJobExpectations] = useState(false)
   const [detailsTab, setDetailsTab] = useState<'about' | 'expectations'>('about')
-  const [detailsCollapsed, setDetailsCollapsed] = useState(true)
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsRef = useRef<HTMLDivElement>(null)
 
   // Action item toggling
   const [togglingItems, setTogglingItems] = useState<Set<string>>(new Set())
@@ -132,6 +135,17 @@ export function ReportDetail() {
     mountedRef.current = true
     return () => { mountedRef.current = false; cancel() }
   }, [cancel])
+
+  useEffect(() => {
+    if (!actionsOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+        setActionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [actionsOpen])
 
   const { settings: _rdSettings } = useSettings()
 
@@ -735,22 +749,6 @@ export function ReportDetail() {
     if (!report) return []
     const entries: StreamEntry[] = []
 
-    const summaryByFilename = new Map(report.summaries.map(s => [s.filename || s.date, s]))
-
-    for (const t of report.transcripts) {
-      const summary = summaryByFilename.get(t.filename || t.date)
-      entries.push({
-        id: `meeting-${t.filename || t.date}`,
-        type: 'context',
-        date: t.date,
-        title: `1:1 meeting — ${formatDate(t.date)}`,
-        preview: summary
-          ? (summary.keyTopics.length > 0 ? summary.keyTopics.join(', ') : 'Meeting summarized')
-          : 'Transcript available (not yet summarized)',
-        data: { transcript: t, summary }
-      })
-    }
-
     for (const ctx of report.contextNotes) {
       const sourceLabels: Record<string, string> = {
         slack: 'Slack',
@@ -760,11 +758,14 @@ export function ReportDetail() {
         other: 'Note'
       }
       const sourceLabel = sourceLabels[ctx.source] || ctx.source
+      const title = ctx.source === 'meeting'
+        ? `1:1 with ${report.profile.displayName}`
+        : ctx.summary || `${sourceLabel} — ${formatDate(ctx.date)}`
       entries.push({
         id: `context-${ctx.filename}`,
         type: 'context',
         date: ctx.date,
-        title: ctx.summary || `${sourceLabel} — ${formatDate(ctx.date)}`,
+        title,
         preview: ctx.tags.length > 0 ? ctx.tags.join(', ') : sourceLabel,
         data: ctx,
         source: ctx.source
@@ -1016,20 +1017,63 @@ export function ReportDetail() {
             </div>
           )}
         </div>
-        <button
-          onClick={handleTogglePto}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border transition-colors ${
-            isOnPto
-              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/15'
-              : 'bg-surface-raised text-zinc-300 border-border hover:bg-surface-overlay'
-          }`}
-        >
-          <Plane className="w-3.5 h-3.5" aria-hidden="true" />
-          {isOnPto ? 'Clear PTO' : 'Mark PTO'}
-        </button>
+        <div className="relative shrink-0" ref={actionsRef}>
+          <button
+            onClick={() => setActionsOpen(!actionsOpen)}
+            className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-lg transition-colors"
+            aria-label="Actions"
+          >
+            <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
+          </button>
+          {actionsOpen && (
+            <div className="absolute right-0 top-full mt-1 w-52 bg-surface-raised border border-border rounded-xl shadow-xl z-20 py-1 animate-fade-in">
+              <button
+                onClick={() => { handlePrepOneOnOne(); setActionsOpen(false) }}
+                disabled={streaming || aiLoading}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors disabled:opacity-40"
+              >
+                <Sparkles className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                Prep 1:1
+              </button>
+              <button
+                onClick={() => { handleGenerateCheckIn(); setActionsOpen(false) }}
+                disabled={streaming || aiLoading}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors disabled:opacity-40"
+              >
+                <FileText className="w-4 h-4" aria-hidden="true" />
+                Generate check-in
+              </button>
+              <button
+                onClick={() => { handleGenerateReview(); setActionsOpen(false) }}
+                disabled={streaming || aiLoading}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors disabled:opacity-40"
+              >
+                <BookOpen className="w-4 h-4" aria-hidden="true" />
+                Generate review
+              </button>
+              <div className="border-t border-border my-1" />
+              <button
+                onClick={() => { setAddingFeedback(true); setActionsOpen(false) }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors"
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                Add feedback
+              </button>
+              <div className="border-t border-border my-1" />
+              <button
+                onClick={() => { handleTogglePto(); setActionsOpen(false) }}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${
+                  isOnPto ? 'text-amber-300 hover:bg-amber-500/10' : 'text-zinc-300 hover:bg-surface-overlay'
+                }`}
+              >
+                <Plane className="w-4 h-4" aria-hidden="true" />
+                {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Edit Profile (expands below header) ── */}
       {editingProfile && (
         <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in space-y-4">
           <div className="flex items-center justify-between mb-2">
@@ -1122,41 +1166,6 @@ export function ReportDetail() {
           </div>
         </div>
       )}
-
-      {/* ── Quick Actions ── */}
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={handlePrepOneOnOne}
-          disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-border"
-        >
-          <Sparkles className="w-4 h-4 text-brand-light" aria-hidden="true" />
-          Prep 1:1
-        </button>
-        <button
-          onClick={handleGenerateCheckIn}
-          disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-border"
-        >
-          <FileText className="w-4 h-4" aria-hidden="true" />
-          Generate check-in
-        </button>
-        <button
-          onClick={handleGenerateReview}
-          disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-border"
-        >
-          <BookOpen className="w-4 h-4" aria-hidden="true" />
-          Generate review
-        </button>
-        <button
-          onClick={() => setAddingFeedback(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-surface-raised text-zinc-300 rounded-lg text-sm hover:bg-surface-overlay transition-all active:scale-[0.97] border border-border"
-        >
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          Add feedback
-        </button>
-      </div>
 
       {/* ── Inline feedback form ── */}
       {addingFeedback && (
@@ -1719,7 +1728,17 @@ const StreamEntryCard = memo(function StreamEntryCard({
     prep: { bg: 'bg-sky-500/10', text: 'text-sky-400', label: 'Prep' }
   }
 
-  const style = typeStyles[entry.type] || typeStyles['context']
+  const sourceStyles: Record<string, { bg: string; text: string; label: string }> = {
+    meeting: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Meeting' },
+    slack: { bg: 'bg-violet-500/10', text: 'text-violet-400', label: 'Slack' },
+    github: { bg: 'bg-zinc-500/10', text: 'text-zinc-400', label: 'GitHub' },
+    email: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', label: 'Email' },
+    other: { bg: 'bg-zinc-500/10', text: 'text-zinc-400', label: 'Note' }
+  }
+
+  const style = entry.type === 'context' && entry.source
+    ? sourceStyles[entry.source] || typeStyles['context']
+    : typeStyles[entry.type] || typeStyles['context']
   const handleToggle = useCallback(() => onToggle(entry.id), [onToggle, entry.id])
 
   return (
@@ -1825,67 +1844,18 @@ function ContextDetail({
   onEdit: (id: string, path: string) => void;
   onDelete: (path: string) => void;
 }) {
-  const raw = entry.data as Record<string, unknown>
-  const isLegacyMeeting = !!raw.transcript
+  const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string }
+  const tags = ctx.tags || []
+  const contextPath = `contexts/${ctx.filename}`
 
-  let sourceBadge = entry.source
-  if (isLegacyMeeting && !sourceBadge) {
-    sourceBadge = 'meeting'
-  }
-
-  let tags: string[] = []
-  let summaryText: string | null = null
-  let links: React.ReactNode = null
-  let contextPath = ''
-
-  if (isLegacyMeeting) {
-    const data = raw as { transcript: { date: string; filename?: string }; summary?: { keyTopics: string[]; content: string } }
-    tags = data.summary?.keyTopics || []
-    const meetingFile = data.transcript.filename || `${data.transcript.date}-${name}-1-1.md`
-    const transcriptFile = meetingFile.replace(/\.md$/, '.txt')
-    contextPath = `contexts/${meetingFile}`
-    
-    links = (
-      <>
-        <button
-          onClick={() => onViewContent(entry.id, contextPath, `Summary — ${formatDate(data.transcript.date)}`)}
-          className="text-xs text-brand-light hover:text-brand transition-colors"
-        >
-          View summary →
-        </button>
-        <button
-          onClick={() => onViewContent(entry.id, `transcripts/processed/${transcriptFile}`, `Transcript — ${formatDate(data.transcript.date)}`)}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          View transcript →
-        </button>
-      </>
-    )
-  } else {
-    const ctx = raw as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string }
-    tags = ctx.tags || []
-    summaryText = ctx.summary
-    contextPath = `contexts/${ctx.filename}`
-    
-    links = (
-      <button
-        onClick={() => onViewContent(entry.id, contextPath, ctx.summary || `Context — ${formatDate(ctx.date)}`)}
-        className="text-xs text-brand-light hover:text-brand transition-colors"
-      >
-        View full context →
-      </button>
-    )
-  }
+  useEffect(() => {
+    onViewContent(entry.id, contextPath, ctx.summary || `Context — ${formatDate(ctx.date)}`)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-2">
-      {sourceBadge && (
-        <span className="inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-700/50 text-zinc-400">
-          {sourceBadge}
-        </span>
-      )}
-      {summaryText && (
-        <p className="text-sm text-zinc-300 leading-relaxed">{summaryText}</p>
+      {ctx.summary && (
+        <p className="text-sm text-zinc-300 leading-relaxed">{ctx.summary}</p>
       )}
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -1896,18 +1866,13 @@ function ContextDetail({
           ))}
         </div>
       )}
-      <div className="flex items-center gap-3">
-        <div className="flex gap-2">
-          {links}
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => onEdit(entry.id, contextPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
-            <Pencil className="w-3 h-3" /> Edit
-          </button>
-          <button onClick={() => onDelete(contextPath)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
-            <Trash2 className="w-3 h-3" /> Delete
-          </button>
-        </div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onEdit(entry.id, contextPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+        <button onClick={() => onDelete(contextPath)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
+          <Trash2 className="w-3 h-3" /> Delete
+        </button>
       </div>
     </div>
   )

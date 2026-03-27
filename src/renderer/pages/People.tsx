@@ -23,7 +23,7 @@ import {
   X,
   UserPlus
 } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { formatRelativeDate } from '../utils/formatDate'
 import { ComboInput } from '../components/common/ComboInput'
 
 interface PersonEntry {
@@ -350,7 +350,7 @@ ${editNotes}`
                   <div className="flex items-center gap-4 mt-1 text-xs text-zinc-600">
                     <span>{meetings.length > 0 ? meetings.length : selected.meetingCount} meetings</span>
                     {selected.lastSeen && (
-                      <span>Last seen {formatDistanceToNow(new Date(selected.lastSeen), { addSuffix: true })}</span>
+                      <span>Last seen {formatRelativeDate(new Date(selected.lastSeen)).toLowerCase()}</span>
                     )}
                   </div>
                 </div>
@@ -608,7 +608,7 @@ ${editNotes}`
                     {p.role && <span>{p.role}</span>}
                     <span>{p.meetingCount} meetings</span>
                     {p.lastSeen && (
-                      <span>Last {formatDistanceToNow(new Date(p.lastSeen), { addSuffix: true })}</span>
+                      <span>Last seen {formatRelativeDate(new Date(p.lastSeen)).toLowerCase()}</span>
                     )}
                   </div>
                 </div>

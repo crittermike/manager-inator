@@ -6,9 +6,10 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
-import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
+import { getDay, format, getMonth, getDate } from 'date-fns'
 import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { matchesMeetingDay } from '../utils/meetingDay'
+import { formatRelativeDate } from '../utils/formatDate'
 
 import {
   AlertCircle,
@@ -174,7 +175,7 @@ function computeTimelineItems(
         id: `overdue-1on1-${r.name}`,
         section: doneIds.has(`overdue-1on1-${r.name}`) ? 'done' : 'overdue',
         title: `1:1 with ${r.displayName} is overdue`,
-        subtitle: `Last met ${formatDistanceToNow(new Date(r.lastOneOnOne), { addSuffix: true })} (${r.daysGap} days)`,
+        subtitle: `Last met ${formatRelativeDate(new Date(r.lastOneOnOne)).toLowerCase()} (${r.daysGap} days)`,
         reportName: r.name,
         route: `/report/${r.name}`,
         actionLabel: 'View',
@@ -1353,7 +1354,7 @@ export function Today() {
                                   <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
                                     <span className="truncate">{item.repo}</span>
                                     <span>·</span>
-                                    <span>{formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</span>
+                                    <span>{formatRelativeDate(new Date(item.updatedAt)).toLowerCase()}</span>
                                     <span>·</span>
                                     <span className={
                                       item.state === 'open' ? 'text-emerald-400' :
