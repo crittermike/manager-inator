@@ -166,6 +166,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
       '---',
       `date: ${today}`,
       `source: ${classified.source}`,
+      `title: ${classified.summary.replace(/\n/g, ' ')}`,
       `summary: ${classified.summary.replace(/\n/g, ' ')}`,
       `tags: ${classified.tags.join(', ')}`,
       peopleYaml,

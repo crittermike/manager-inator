@@ -1813,7 +1813,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
           {style.label}
         </span>
         <div className="flex-1 min-w-0">
-          <span className="text-sm text-zinc-300 truncate block">{entry.title}</span>
+          <span className="text-sm text-zinc-300 block">{entry.title}</span>
           {!expanded && (
             <span className="text-xs text-zinc-500 truncate block mt-0.5">{entry.preview}</span>
           )}
