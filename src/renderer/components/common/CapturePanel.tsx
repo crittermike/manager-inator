@@ -3,26 +3,31 @@ import { useAI } from '../../hooks/useAI'
 import { useToast } from './Toast'
 import { useTeamOverview } from '../../hooks/useData'
 import { format } from 'date-fns'
+import { IMPACT_LOG_PATH } from '../../../shared/constants'
 import {
   ClipboardPaste, X, ChevronDown, ChevronUp,
-  Loader2, Check, AlertCircle, Sparkles
+  Loader2, Check, AlertCircle, Sparkles,
+  Pencil, Trash2
 } from 'lucide-react'
 
-type PanelState = 'idle' | 'processing' | 'saved' | 'error'
-type SourceHint = 'slack' | 'github' | 'email' | 'other' | ''
+type PanelState = 'idle' | 'processing' | 'saved' | 'editing' | 'error'
+type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'other' | ''
 
 interface ClassifiedResult {
-  source: 'slack' | 'github' | 'email' | 'other'
+  source: 'slack' | 'github' | 'email' | 'meeting' | 'other'
   summary: string
+  detailed_summary: string
   tags: string[]
   people_mentioned: string[]
   feedback: { person: string; type: 'positive' | 'constructive' | 'mixed'; content: string }[]
   action_items: { text: string; owner: string }[]
+  impact: { text: string }[]
   key_context: string
 }
 
 const SOURCE_OPTIONS: { value: SourceHint; label: string }[] = [
   { value: '', label: 'Auto-detect' },
+  { value: 'meeting', label: 'Meeting' },
   { value: 'slack', label: 'Slack' },
   { value: 'github', label: 'GitHub' },
   { value: 'email', label: 'Email' },
@@ -49,6 +54,8 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   const [result, setResult] = useState<ClassifiedResult | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [minimized, setMinimized] = useState(false)
+  const [savedFilepath, setSavedFilepath] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
 
   const mountedRef = useRef(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -127,18 +134,29 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     const summarySlug = slugify(classified.summary.split(' ').slice(0, 5).join(' ') || 'captured-content')
     const baseFilename = `${today}-${sourceSlug}-${summarySlug}.md`
 
+    const peopleSlugs: string[] = []
+    for (const personName of classified.people_mentioned) {
+      const slug = await window.api.findPersonByName(personName)
+      if (slug) peopleSlugs.push(slug)
+    }
+
+    const peopleYaml = peopleSlugs.length > 0
+      ? `people:\n${peopleSlugs.map(s => `  - ${s}`).join('\n')}`
+      : 'people: []'
+
     const frontmatter = [
       '---',
       `date: ${today}`,
       `source: ${classified.source}`,
       `summary: ${classified.summary.replace(/\n/g, ' ')}`,
       `tags: ${classified.tags.join(', ')}`,
-      `people: ${classified.people_mentioned.join(', ')}`,
+      peopleYaml,
       '---',
       '',
     ].join('\n')
 
     const body = [
+      classified.detailed_summary ? `## Summary\n\n${classified.detailed_summary}\n` : '',
       classified.key_context ? `## Context\n\n${classified.key_context}\n` : '',
       classified.feedback.length > 0
         ? `## Feedback\n\n${classified.feedback.map(f => `- **${f.person}** (${f.type}): ${f.content}`).join('\n')}\n`
@@ -152,29 +170,16 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     const fileContent = frontmatter + body
 
     try {
+      const filepath = `contexts/${baseFilename}`
       await window.api.commitFile(
-        `contexts/${baseFilename}`,
+        filepath,
         fileContent,
         `Capture: ${classified.summary.slice(0, 60)}`
       )
 
+      setSavedFilepath(filepath)
+
       const savePromises: Promise<void>[] = []
-
-      for (const personName of classified.people_mentioned) {
-        const slug = await window.api.findPersonByName(personName)
-        if (!slug) continue
-
-        const reportDir = reports.find(r => r.name === slug)
-        if (!reportDir) continue
-
-        savePromises.push(
-          window.api.commitFile(
-            `reports/${slug}/context/${baseFilename}`,
-            fileContent,
-            `Capture context for ${personName}`
-          )
-        )
-      }
 
       for (const fb of classified.feedback) {
         const slug = await window.api.findPersonByName(fb.person)
@@ -203,6 +208,23 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
 
       await Promise.all(savePromises)
 
+      // Save impact items
+      if (classified.impact && classified.impact.length > 0) {
+        let existingImpact = ''
+        try {
+          existingImpact = await window.api.getFileContent(IMPACT_LOG_PATH)
+        } catch { /* file may not exist */ }
+        const impactEntries = classified.impact.map(i => `- ${i.text}`).join('\n')
+        const updatedImpact = existingImpact
+          ? `${existingImpact.trimEnd()}\n${impactEntries}\n`
+          : `${impactEntries}\n`
+        await window.api.commitFile(
+          IMPACT_LOG_PATH,
+          updatedImpact,
+          'Add impact items from captured content'
+        )
+      }
+
       if (mountedRef.current) {
         setState('saved')
         toast.success('Content captured and saved')
@@ -222,9 +244,48 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     setSourceHint('')
     setResult(null)
     setSaveError(null)
+    setSavedFilepath(null)
+    setEditContent('')
     reset()
     setTimeout(() => textareaRef.current?.focus(), 100)
   }, [reset])
+
+  const handleEdit = useCallback(async () => {
+    if (!savedFilepath) return
+    try {
+      const fileContent = await window.api.getFileContent(savedFilepath)
+      setEditContent(fileContent)
+      setState('editing')
+    } catch (e) {
+      toast.error('Failed to load file for editing')
+    }
+  }, [savedFilepath, toast])
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!savedFilepath || !editContent.trim()) return
+    try {
+      await window.api.commitFile(
+        savedFilepath,
+        editContent,
+        `Edit captured context: ${savedFilepath.split('/').pop()}`
+      )
+      toast.success('Changes saved')
+      setState('saved')
+    } catch (e) {
+      toast.error('Failed to save changes')
+    }
+  }, [savedFilepath, editContent, toast])
+
+  const handleDelete = useCallback(async () => {
+    if (!savedFilepath) return
+    try {
+      await window.api.deleteFile(savedFilepath)
+      toast.success('Context deleted')
+      handleReset()
+    } catch (e) {
+      toast.error('Failed to delete context')
+    }
+  }, [savedFilepath, toast, handleReset])
 
   const handleClose = useCallback(() => {
     if (streaming) {
@@ -242,7 +303,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     return (
       <button
         onClick={() => setMinimized(false)}
-        className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-2 bg-brand/20 border border-brand/30 rounded-full text-xs text-brand-light hover:bg-brand/30 transition-colors z-20 animate-scale-in"
+        className="absolute bottom-20 right-6 flex items-center gap-2 px-3 py-2 bg-brand/20 border border-brand/30 rounded-full text-xs text-brand-light hover:bg-brand/30 transition-colors z-20 animate-scale-in"
       >
         <Loader2 className="w-3 h-3 animate-spin" />
         Capture processing…
@@ -256,7 +317,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   return (
-    <div className="absolute bottom-20 left-6 w-[420px] max-w-[calc(100vw-18rem-3rem)] max-h-[calc(100vh-8rem)] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
+    <div className="absolute bottom-20 right-6 w-[560px] max-w-[calc(100vw-18rem-3rem)] max-h-[calc(100vh-8rem)] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
@@ -272,6 +333,12 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             <span className="text-[10px] text-success flex items-center gap-1">
               <Check className="w-2.5 h-2.5" />
               Saved
+            </span>
+          )}
+          {state === 'editing' && (
+            <span className="text-[10px] text-amber-400 flex items-center gap-1">
+              <Pencil className="w-2.5 h-2.5" />
+              Editing
             </span>
           )}
         </div>
@@ -317,8 +384,8 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               ref={textareaRef}
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder="Paste a Slack thread, GitHub discussion, email, or any content…"
-              className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[200px] max-h-[400px]"
+              placeholder="Paste a meeting transcript, Slack thread, GitHub discussion, email, or any content…"
+              className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[320px] max-h-[500px]"
             />
             <div className="flex items-center justify-between">
               <p className="text-[10px] text-zinc-600">
@@ -403,6 +470,17 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               </div>
             )}
 
+            {result.impact && result.impact.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Impact logged</span>
+                {result.impact.map((item, i) => (
+                  <div key={i} className="text-xs text-zinc-400">
+                    {item.text}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {result.key_context && (
               <div className="space-y-1">
                 <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Key context</span>
@@ -410,12 +488,53 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               </div>
             )}
 
-            <button
-              onClick={handleReset}
-              className="text-xs text-brand-light hover:text-brand transition-colors"
-            >
-              Capture another
-            </button>
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleEdit}
+                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                Delete
+              </button>
+              <button
+                onClick={handleReset}
+                className="text-xs text-brand-light hover:text-brand transition-colors ml-auto"
+              >
+                Capture another
+              </button>
+            </div>
+          </div>
+        )}
+
+        {state === 'editing' && (
+          <div className="space-y-3">
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 font-mono focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[320px] max-h-[500px]"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setState('saved')}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={!editContent.trim()}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Save changes
+              </button>
+            </div>
           </div>
         )}
 

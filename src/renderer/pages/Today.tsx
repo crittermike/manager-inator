@@ -7,14 +7,13 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
-import type { ReportStatus, MeetingEntry, RawTranscriptEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { matchesMeetingDay } from '../utils/meetingDay'
-import { isSupportedTranscriptFile, readTranscriptFile, stripTranscriptExtension } from '../utils/parseTranscript'
+
 import {
   AlertCircle,
   BookOpen,
   ClipboardList,
-  Inbox,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -27,7 +26,7 @@ import {
   GitPullRequest,
   CircleDot
 } from 'lucide-react'
-import { InlineProcessor, InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
+import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
 
 const sectionConfig: Record<TimelineSection, {
@@ -59,13 +58,6 @@ const sectionConfig: Record<TimelineSection, {
     border: 'border-l-sky-500/50'
   },
 
-  inbox: {
-    label: 'Inbox',
-    icon: Inbox,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-l-emerald-500/50'
-  },
   done: {
     label: 'Done today',
     icon: CheckCircle2,
@@ -131,7 +123,6 @@ function getPracticeIdForItem(itemId: string): string | null {
 function computeTimelineItems(
   reports: ReportStatus[],
   meetings: MeetingEntry[],
-  rawTranscripts: RawTranscriptEntry[],
   cadence: CadenceSettings,
   doneIds: Set<string>,
   teamActions: TeamActionItem[],
@@ -468,18 +459,6 @@ function computeTimelineItems(
     })
   }
 
-  for (const rt of rawTranscripts) {
-    items.push({
-      id: `inbox-${rt.filename}`,
-      section: doneIds.has(`inbox-${rt.filename}`) ? 'done' : 'inbox',
-      title: rt.title || rt.filename,
-      subtitle: `Transcript from ${rt.date} — ready to process`,
-      meetingFilename: rt.filename,
-      actionLabel: 'Process',
-      actionType: 'process'
-    })
-  }
-
   // ── Custom practices: fire on Today based on cadence ──
   for (const cp of customPractices) {
     const cpId = cp.id
@@ -730,7 +709,6 @@ export function Today() {
   const navigate = useNavigate()
   const toast = useToast()
   const [meetings, setMeetings] = useState<MeetingEntry[]>([])
-  const [rawTranscripts, setRawTranscripts] = useState<RawTranscriptEntry[]>([])
   const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
   const [customPractices, setCustomPractices] = useState<CustomPractice[]>([])
   const [disabledPractices, setDisabledPractices] = useState<string[]>([])
@@ -745,7 +723,6 @@ export function Today() {
     sprintStartDate: '',
     staleActionDays: 7
   })
-  const [dragging, setDragging] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(() => {
     try {
       const todayKey = format(new Date(), 'yyyy-MM-dd')
@@ -756,10 +733,9 @@ export function Today() {
     }
    })
   const [expandedSections, setExpandedSections] = useState<Set<TimelineSection>>(
-    new Set(['reflection', 'overdue', 'this-week', 'inbox'])
+    new Set(['reflection', 'overdue', 'this-week'])
   )
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
-  const [processingItem, setProcessingItem] = useState<string | null>(null)
   const [prepExistsMap, setPrepExistsMap] = useState<Record<string, boolean>>({})
 
   const [teamActivity, setTeamActivity] = useState<TeamMemberActivity[]>([])
@@ -803,9 +779,8 @@ export function Today() {
   }, [])
 
   useEffect(() => {
-    window.api.getTodayBootstrap().then(({ meetings: m, rawTranscripts: rt, teamActionItems: ta }) => {
+    window.api.getTodayBootstrap().then(({ meetings: m, teamActionItems: ta }) => {
       setMeetings(m)
-      setRawTranscripts(rt)
       setTeamActions(ta)
     }).catch(() => {})
   }, [])
@@ -920,7 +895,7 @@ export function Today() {
   }, [teamActions, snoozedActionItems])
 
   const items = useMemo(() => {
-    const raw = computeTimelineItems(reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices)
+    const raw = computeTimelineItems(reports, meetings, cadence, doneIds, filteredTeamActions, customPractices)
     return raw.filter(item => {
       const practiceId = getPracticeIdForItem(item.id)
       if (!practiceId) return true
@@ -944,13 +919,13 @@ export function Today() {
       }
       return item
     })
-  }, [reports, meetings, rawTranscripts, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap])
+  }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap])
 
-  const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'inbox', 'coming-up', 'done']
+  const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'coming-up', 'done']
 
   const itemsBySection = useMemo(() => {
     const grouped: Record<TimelineSection, TimelineItem[]> = {
-      reflection: [], overdue: [], 'this-week': [], inbox: [], 'coming-up': [], done: []
+      reflection: [], overdue: [], 'this-week': [], 'coming-up': [], done: []
     }
     for (const item of items) {
       grouped[item.section].push(item)
@@ -989,33 +964,8 @@ export function Today() {
     setExpandedItem(prev => prev === itemId ? null : itemId)
   }, [])
 
-  const handleStartProcessing = useCallback((itemId: string) => {
-    setExpandedItem(itemId)
-    setProcessingItem(itemId)
-  }, [])
-
-  const handleCancelProcessing = useCallback(() => {
-    setProcessingItem(null)
-    setExpandedItem(null)
-  }, [])
-
   const handleCancelExpand = useCallback(() => {
     setExpandedItem(null)
-  }, [])
-
-  const handleProcessorDone = useCallback((itemId: string) => {
-    setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
-    setExpandedItem(null)
-    setProcessingItem(null)
-    window.api.getTodayBootstrap().then(({ meetings: m, rawTranscripts: rt, teamActionItems: ta }) => {
-      setMeetings(m)
-      setRawTranscripts(rt)
-      setTeamActions(ta)
-    }).catch(() => {})
-  }, [])
-
-  const handleProcessorProcessed = useCallback(() => {
-    window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
   }, [])
 
   const handlePrepDone = useCallback((itemId: string, reportName: string) => {
@@ -1047,43 +997,6 @@ export function Today() {
     setExpandedItem(null)
   }, [])
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (!file) return
-    if (!isSupportedTranscriptFile(file.name)) {
-      toast.error('Only .txt, .md, .vtt, and .srt files are supported')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const raw = reader.result as string
-      const text = readTranscriptFile(file.name, raw)
-      if (!text.trim()) {
-        toast.error('File is empty')
-        return
-      }
-      const stem = stripTranscriptExtension(file.name).replace(/[-_]/g, ' ')
-      const today = format(new Date(), 'yyyy-MM-dd')
-      const slug = stem.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      const filename = `${today}-${slug}`
-
-      try {
-        await window.api.commitFile(
-          `transcripts/raw/${filename}.txt`,
-          text,
-          `Add meeting transcript: ${stem} on ${today}`
-        )
-        toast.success(`Transcript saved — process it from your inbox`)
-        window.api.listRawTranscripts().then(setRawTranscripts).catch(() => {})
-      } catch (err) {
-        toast.error('Failed to save transcript: ' + (err instanceof Error ? err.message : 'Unknown error'))
-      }
-    }
-    reader.readAsText(file)
-  }, [toast])
-
   const toggleSection = useCallback((section: TimelineSection) => {
     setExpandedSections(prev => {
       const next = new Set(prev)
@@ -1102,11 +1015,9 @@ export function Today() {
     const overdueCount = itemsBySection.overdue.length
     const reflectionCount = itemsBySection.reflection.length
     const thisWeekCount = itemsBySection['this-week'].length
-    const inboxCount = itemsBySection.inbox.length
     if (overdueCount > 0) parts.push(`${overdueCount} overdue`)
     if (thisWeekCount > 0) parts.push(`${thisWeekCount} this week`)
     if (reflectionCount > 0) parts.push(`${reflectionCount} reflection`)
-    if (inboxCount > 0) parts.push(`${inboxCount} to process`)
     return parts.join(' · ') || 'All clear'
   }, [totalActive, itemsBySection])
 
@@ -1154,19 +1065,7 @@ export function Today() {
   return (
     <div
       className="max-w-3xl mx-auto space-y-6 animate-fade-in relative"
-      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-      onDragLeave={(e) => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false) }}
-      onDrop={handleDrop}
     >
-      {dragging && (
-        <div className="absolute inset-0 z-30 rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 flex items-center justify-center backdrop-blur-sm pointer-events-none animate-fade-in">
-          <div className="text-center">
-            <FileText className="w-8 h-8 text-brand/60 mx-auto mb-2" aria-hidden="true" />
-            <p className="text-sm font-medium text-brand-light">Drop transcript here</p>
-            <p className="text-xs text-zinc-500 mt-1">.txt, .md, .vtt, or .srt files</p>
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center justify-between">
         <div>
@@ -1178,11 +1077,10 @@ export function Today() {
         <button
           onClick={() => {
             refresh()
-            window.api.getTodayBootstrap().then(({ meetings: m, rawTranscripts: rt, teamActionItems: ta }) => {
-              setMeetings(m)
-              setRawTranscripts(rt)
-              setTeamActions(ta)
-            }).catch(() => {})
+    window.api.getTodayBootstrap().then(({ meetings: m, teamActionItems: ta }) => {
+      setMeetings(m)
+      setTeamActions(ta)
+    }).catch(() => {})
             if (hasGithubOrgToken) fetchTeamActivity()
           }}
           className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
@@ -1250,16 +1148,11 @@ export function Today() {
                     key={item.id}
                     item={item}
                     isItemExpanded={expandedItem === item.id}
-                    isProcessing={processingItem === item.id}
                     reportByName={reportByName}
                     navigate={navigate}
                     onToggleExpand={handleToggleExpandedItem}
-                    onStartProcessing={handleStartProcessing}
-                    onCancelProcessing={handleCancelProcessing}
                     onCancelExpand={handleCancelExpand}
                     markDone={markDone}
-                    onProcessorDone={handleProcessorDone}
-                    onProcessorProcessed={handleProcessorProcessed}
                     onPrepDone={handlePrepDone}
                     onPrepCancel={handlePrepCancel}
                     handleActionToggle={handleActionToggle}
@@ -1465,16 +1358,11 @@ export function Today() {
 interface TimelineRowProps {
   item: TimelineItem
   isItemExpanded: boolean
-  isProcessing: boolean
   reportByName: Map<string, ReportStatus>
   navigate: (path: string) => void
   onToggleExpand: (itemId: string) => void
-  onStartProcessing: (itemId: string) => void
-  onCancelProcessing: () => void
   onCancelExpand: () => void
   markDone: (id: string) => void
-  onProcessorDone: (itemId: string) => void
-  onProcessorProcessed: () => void
   onPrepDone: (itemId: string, reportName: string) => void
   onPrepCancel: (reportName: string) => void
   handleActionToggle: (action: TeamActionItem) => Promise<void>
@@ -1486,16 +1374,11 @@ interface TimelineRowProps {
 const TimelineRow = memo(function TimelineRow({
   item,
   isItemExpanded,
-  isProcessing,
   reportByName,
   navigate,
   onToggleExpand,
-  onStartProcessing,
-  onCancelProcessing,
   onCancelExpand,
   markDone,
-  onProcessorDone,
-  onProcessorProcessed,
   onPrepDone,
   onPrepCancel,
   handleActionToggle,
@@ -1547,17 +1430,6 @@ const TimelineRow = memo(function TimelineRow({
                 title="View in Playbook"
               >
                 <BookOpen className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {item.actionLabel && item.actionType === 'process' && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onStartProcessing(item.id)
-                }}
-                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
-              >
-                {item.actionLabel}
               </button>
             )}
             {item.actionLabel && item.actionType === 'navigate' && (
@@ -1622,17 +1494,6 @@ const TimelineRow = memo(function TimelineRow({
           </div>
         )}
       </div>
-
-      {isProcessing && isItemExpanded && item.meetingFilename && (
-        <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">
-          <InlineProcessor
-            filename={item.meetingFilename}
-            onDone={() => onProcessorDone(item.id)}
-            onProcessed={onProcessorProcessed}
-            onCancel={onCancelProcessing}
-          />
-        </div>
-      )}
 
       {isItemExpanded && item.actionType === 'prep' && item.reportName && (
         <div className="px-5 pb-4 border-t border-border/30 animate-slide-down">

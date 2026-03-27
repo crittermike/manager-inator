@@ -1,6 +1,6 @@
 import type { TeamActionItem } from '../../../shared/types'
 
-export type TimelineSection = 'reflection' | 'overdue' | 'this-week' | 'inbox' | 'coming-up' | 'done'
+export type TimelineSection = 'reflection' | 'overdue' | 'this-week' | 'coming-up' | 'done'
 
 export type PromptType = 'weekly-priorities' | 'sprint-goal' | 'weekly-reflection'
 
@@ -12,8 +12,7 @@ export interface TimelineItem {
   reportName?: string
   route?: string
   actionLabel?: string
-  actionType?: 'navigate' | 'process' | 'dismiss' | 'prep' | 'inline-actions' | 'prompt' | 'feedback' | 'info'
-  meetingFilename?: string
+  actionType?: 'navigate' | 'dismiss' | 'prep' | 'inline-actions' | 'prompt' | 'feedback' | 'info'
   promptType?: PromptType
   staleActionItems?: TeamActionItem[]
   /** Links Coming Up items to the relevant Playbook practice */

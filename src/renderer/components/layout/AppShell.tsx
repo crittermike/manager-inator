@@ -8,7 +8,6 @@ import {
   BookOpen,
   Search,
   UserCircle,
-  NotebookPen,
   ClipboardPaste
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
@@ -216,18 +215,6 @@ export function AppShell({ children }: AppShellProps) {
             title="Capture content (Cmd+Shift+V)"
           >
             <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
-          </button>
-          <button
-            onClick={() => navigate('/transcript')}
-            className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${
-              location.pathname === '/transcript'
-                ? 'bg-brand text-white shadow-brand/25'
-                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
-            }`}
-            aria-label="Add meeting transcript or notes"
-            title="Add meeting transcript or notes"
-          >
-            <NotebookPen className="w-5 h-5" aria-hidden="true" />
           </button>
           <button
             onClick={() => setAiPanelOpen(prev => !prev)}

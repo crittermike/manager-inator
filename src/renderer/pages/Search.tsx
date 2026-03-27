@@ -10,12 +10,12 @@ interface SearchResult {
   route: string
   date?: string
   filename?: string
-  directory?: 'meetings' | 'reports' | 'people' | 'notes'
+  directory?: 'contexts' | 'reports' | 'people' | 'notes'
 }
 
 interface ContentSearchResult {
   filename: string
-  directory: 'meetings' | 'reports' | 'people' | 'notes'
+  directory: 'contexts' | 'reports' | 'people' | 'notes'
   title: string
   snippet: string
   date?: string
@@ -96,7 +96,7 @@ export function SearchPage() {
     }
 
     for (const c of contentResults) {
-      if (c.directory === 'meetings') {
+      if (c.directory === 'contexts') {
         contentItems.push({
           type: 'content',
           title: c.title,
@@ -104,7 +104,7 @@ export function SearchPage() {
           route: '',
           date: c.date,
           filename: c.filename,
-          directory: 'meetings'
+          directory: 'contexts'
         })
       } else if (c.directory === 'reports') {
         const reportName = c.filename.split('/')[0]
@@ -197,7 +197,7 @@ export function SearchPage() {
             <button
               key={`${r.type}-${r.route || r.filename}-${i}`}
               onClick={() => {
-                if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'meetings')) && r.filename) {
+                if ((r.type === 'meeting' || (r.type === 'content' && r.directory === 'contexts')) && r.filename) {
                   navigate(`/meeting/${encodeURIComponent(r.filename)}`)
                 } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
                   navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=weekly-log`)

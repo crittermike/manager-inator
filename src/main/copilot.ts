@@ -17,15 +17,7 @@ WRITING RULES (apply to ALL generated content):
 - Always use sentence case for headings. Never Title Case.
 - Casual, direct tone. Short sentences. Conversational.
 - No filler. Skip "Great work!" or "I'd like to highlight..." Just state what happened.
-- Behavior-anchored feedback. Cite specific PRs, issues, meetings, decisions.
-
-NAME CORRECTIONS (always apply):
-- "Nick" → "Nic"
-- "gas" / "Gas" → "GHAS" (GitHub Advanced Security)
-- "Akash" → "Aakash"
-- "Chanakia" / "Chinakia" → "Chanakya"
-- "Katu" → "Catu"
-- Tara uses they/them pronouns`
+- Behavior-anchored feedback. Cite specific PRs, issues, meetings, decisions.`
 
 const AI_REQUEST_TIMEOUT_MS = 120_000
 const CHAT_REQUEST_TIMEOUT_MS = 300_000
@@ -275,145 +267,6 @@ export function buildMessages(
   }
 
   switch (action) {
-    case 'summarize-transcript':
-      messages.push({
-        role: 'user',
-        content: `Summarize this 1:1 transcript for ${context.reportName}.
-
-Use this exact markdown format with proper headings and bullet points:
-
-# 1:1 Summary — ${context.date}
-_Auto-generated summary of [transcript](../transcripts/${context.date}.md)_
-
-## Meeting overview
-[1-2 sentence context]
-
-## Key discussion topics
-- [bullet point per topic]
-
-## Wins and accomplishments
-- [specific wins]
-
-## Challenges and concerns
-- [challenges]
-
-## Action items
-- [ ] **Owner**: Action description (due date if mentioned)
-
-## Sentiment check
-[emotional/engagement tone]
-
-## Follow-up needed
-- [next steps]
-
-TRANSCRIPT:
-${context.transcript}`
-      })
-      break
-
-    case 'summarize-meeting':
-      messages.push({
-        role: 'user',
-        content: `Summarize this meeting transcript. My direct reports are: ${context.reportNames}.
-
-Start the output with a YAML frontmatter block listing the speakers, then the markdown summary.
-
-Use this EXACT format:
-
----
-speakers:
-  - Name One
-  - Name Two
----
-
-# Meeting summary: ${context.meetingTitle} — ${context.date}
-
-## Overview
-[2-3 sentence summary]
-
-## Key topics discussed
-- [bullet point per topic]
-
-## Decisions made
-- [any decisions]
-
-## Action items
-- [ ] **Owner**: Action description (due date if mentioned)
-
-## Relevant notes for my reports
-[anything noteworthy about specific direct reports]
-
-Do NOT include a separate "Attendees" section — the speakers frontmatter already captures who was in the meeting.
-
-TRANSCRIPT:
-${context.transcript}`
-      })
-      break
-
-    case 'extract-action-items':
-      messages.push({
-        role: 'user',
-        content: `Extract action items from this transcript for ${context.reportName}.
-
-Return as a markdown checkbox list:
-- [ ] **Owner**: Action description
-
-TRANSCRIPT:
-${context.transcript}`
-      })
-      break
-
-    case 'extract-feedback':
-      messages.push({
-        role: 'user',
-        content: `Review this meeting transcript and extract any feedback (positive, constructive, or notable observations) about any of my direct reports: ${context.reportNames}.
-
-Output feedback grouped by person using EXACTLY this format (the <!-- markers are required):
-
-<!-- FEEDBACK: ExactReportName -->
-**Type:** positive
-[specific, behavior-anchored observation with context from the meeting]
-<!-- END FEEDBACK -->
-
-<!-- FEEDBACK: AnotherReportName -->
-**Type:** constructive
-[specific observation]
-<!-- END FEEDBACK -->
-
-Rules:
-- Use EXACTLY the report name as provided above (case-sensitive)
-- Type must be exactly one of: positive, constructive, mixed
-- If a person has multiple pieces of feedback, include separate <!-- FEEDBACK --> blocks for each
-- If there's no relevant feedback for a person, skip them entirely
-- Only include concrete, behavior-anchored observations. No generic praise.
-- Do NOT combine feedback for multiple people in a single block
-
-TRANSCRIPT:
-${context.transcript}`
-      })
-      break
-
-    case 'extract-impact':
-      messages.push({
-        role: 'user',
-        content: `Review this meeting transcript and extract any evidence of MY impact as a manager (Mike / crittermike). Look for:
-- Decisions I made or influenced
-- Problems I identified or solved
-- People I coached, unblocked, or supported
-- Process improvements I drove
-- Cross-team coordination I facilitated
-- Recognition I received from others
-
-Format each item as a bullet point starting with a bold date and short title, like:
-- **YYYY-MM-DD — Short title:** Description of the impact.
-
-Only include concrete, specific items. Do NOT include any preamble like "Here's the impact..." — just the bullet list. If there's nothing notable, return "No manager impact items found in this transcript."
-
-TRANSCRIPT:
-${context.transcript}`
-      })
-      break
-
     case 'generate-checkin':
       messages.push({
         role: 'user',
@@ -534,8 +387,8 @@ reports/{name}/              — One directory per direct report
   feedback/log.md            — Feedback entries (append-only log)
   reviews/YYYY-HN.md         — Performance reviews (H1/H2)
   prep/YYYY-MM-DD.md         — 1:1 prep documents
-meetings/                    — AI-generated meeting summaries with YAML speaker frontmatter
-  YYYY-MM-DD-slug.md         — Each file is a summary (title + speakers in frontmatter, summary content in body)
+contexts/                    — All captured content (meetings, slack, email, etc.) with YAML frontmatter
+  YYYY-MM-DD-slug.md         — Each file has frontmatter (date, source, title, people, tags) and body content
 transcripts/processed/       — Raw meeting transcripts
   YYYY-MM-DD-slug.txt        — Original unprocessed transcripts
 people/                      — Profiles for anyone (not just direct reports)
@@ -544,11 +397,11 @@ mike-impact-log.md           — Manager's impact evidence log
 
 TIPS:
 - Start with ls to see what's available before reading specific files.
-- Every file in meetings/ is a summary. Raw transcripts are in transcripts/processed/.
+- Every file in contexts/ is a captured piece of content (meeting summary, slack thread, etc.). Raw transcripts are in transcripts/processed/.
 - Check-in files are in check-ins/monthly/ and named by YYYY-MM.
 - When looking for info about a person, check both reports/{name}/ and people/{slug}.md.
 - When writing feedback to feedback/log.md, APPEND to the file (don't overwrite).
-- For new meeting summaries, use the YYYY-MM-DD-slug.md naming convention.`
+- For new content captures, use the YYYY-MM-DD-slug.md naming convention in contexts/.`
       })
 
       // SDK is single-turn (sendAndWait) — fold history into prompt text
@@ -577,8 +430,9 @@ Classify it and extract structured data. Return ONLY valid JSON (no markdown fen
 
 Required JSON shape:
 {
-  "source": "slack" | "github" | "email" | "other",
+  "source": "slack" | "github" | "email" | "meeting" | "other",
   "summary": "2-3 sentence summary of the content",
+  "detailed_summary": "A thorough markdown summary. For meetings: key topics discussed, decisions made, wins, challenges, sentiment. For Slack/email: main thread of discussion, conclusions reached, open questions. Use bullet points and short paragraphs. This should be useful months later when reviewing what happened.",
   "tags": ["relevant", "tags"],
   "people_mentioned": ["Exact Name"],
   "feedback": [
@@ -607,7 +461,9 @@ Rules:
 - "feedback" should only contain concrete, behavior-anchored observations about my direct reports
 - For "person" fields, use the exact name from my reports list when possible
 - If no feedback, action items, or impact exist, use empty arrays
-- "source" should be inferred from the content format (slack threads have timestamps and usernames, github has PR/issue references, etc.)
+- "source" should be inferred from the content format (slack threads have timestamps and usernames, github has PR/issue references, meeting transcripts have speaker turns, etc.)
+- "summary" is a short 2-3 sentence overview for metadata
+- "detailed_summary" is a thorough, structured markdown summary that captures the substance of the content. Write it so someone reading it months later can understand what happened without reading the raw content. Include specific names, decisions, and outcomes.
 - "key_context" should capture strategic information, decisions, or context that would be useful when writing future performance reviews or check-ins
 - "impact" should capture evidence of MY impact as the manager (Mike): decisions I made or influenced, people I coached or unblocked, problems I solved, process improvements I drove, cross-team coordination I facilitated, recognition I received. Format each as a bullet-point-ready string starting with a bold date and short title.
 

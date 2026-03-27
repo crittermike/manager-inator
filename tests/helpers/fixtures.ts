@@ -133,11 +133,15 @@ Exceeds Expectations
   mkdirSync(tmpl, { recursive: true })
   writeFileSync(join(tmpl, 'profile.md'), `# Template\n\nThis is a template.`)
 
-  // ── meetings/ ──
-  mkdirSync(join(dir, 'meetings'), { recursive: true })
+  // ── contexts/ ──
+  mkdirSync(join(dir, 'contexts'), { recursive: true })
 
-  writeFileSync(join(dir, 'meetings', '2026-03-11-alice-1-1.md'), `---
+  writeFileSync(join(dir, 'contexts', '2026-03-11-alice-1-1.md'), `---
+date: 2026-03-11
+source: meeting
 title: Alice 1:1
+people:
+  - alice-smith
 speakers:
   - Mike Crittenden
   - Alice Smith
@@ -155,13 +159,25 @@ speakers:
 - [x] **Alice**: Send Q1 metrics summary
 `)
 
-  writeFileSync(join(dir, 'meetings', '2026-03-04-alice-1-1.md'), `# Alice 1:1 - March 4
+  writeFileSync(join(dir, 'contexts', '2026-03-04-alice-1-1.md'), `---
+date: 2026-03-04
+source: meeting
+title: Alice 1-1
+people:
+  - alice-smith
+---
+
+# Alice 1:1 - March 4
 
 Quick sync on migration progress. No blockers.
 `)
 
-  writeFileSync(join(dir, 'meetings', '2026-03-10-bob-1-1.md'), `---
+  writeFileSync(join(dir, 'contexts', '2026-03-10-bob-1-1.md'), `---
+date: 2026-03-10
+source: meeting
 title: Bob 1:1
+people:
+  - bob-jones
 speakers:
   - Mike Crittenden
   - Bob Jones
@@ -177,8 +193,13 @@ speakers:
 - [ ] **Bob**: Draft career growth plan
 `)
 
-  writeFileSync(join(dir, 'meetings', '2026-03-12-team-standup.md'), `---
+  writeFileSync(join(dir, 'contexts', '2026-03-12-team-standup.md'), `---
+date: 2026-03-12
+source: meeting
 title: Team Standup
+people:
+  - alice-smith
+  - bob-jones
 speakers:
   - Mike Crittenden
   - Alice Smith
@@ -288,7 +309,7 @@ export function createMinimalFixtureRepo(): FixtureRepo {
   mkdirSync(join(dir, 'reports', 'alice'), { recursive: true })
   writeFileSync(join(dir, 'reports', 'alice', 'profile.md'), `# Alice\n\n| Field | Value |\n|---|---|\n| **Role** | Engineer |\n`)
 
-  mkdirSync(join(dir, 'meetings'), { recursive: true })
+  mkdirSync(join(dir, 'contexts'), { recursive: true })
   mkdirSync(join(dir, 'people'), { recursive: true })
   mkdirSync(join(dir, 'transcripts', 'raw'), { recursive: true })
 

@@ -9,7 +9,6 @@ import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { TeamOverviewProvider, SettingsProvider } from './hooks/useData'
 
 const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
-const TranscriptProcessor = lazy(() => import('./pages/TranscriptProcessor').then(m => ({ default: m.TranscriptProcessor })))
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
 const ImpactLog = lazy(() => import('./pages/ImpactLog').then(m => ({ default: m.ImpactLog })))
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
@@ -40,8 +39,7 @@ function Layout() {
 }
 
 const LOADING_STEPS = [
-  'Scanning meeting files...',
-  'Scanning raw transcripts...',
+  'Scanning context files...',
   'Loading reports...',
   'Building team overview...',
   'Building people index...',
@@ -97,7 +95,6 @@ export default function App() {
         { path: '/', element: <Today /> },
         { path: '/playbook', element: <Playbook /> },
         { path: '/report/:name', element: <ReportDetail /> },
-        { path: '/transcript', element: <TranscriptProcessor /> },
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <ImpactLog /> },
         { path: '/settings', element: <Settings /> },

@@ -1,4 +1,3 @@
-export { InlineProcessor } from './InlineProcessor'
 export { InlinePrep } from './InlinePrep'
 export { InlineActions } from './InlineActions'
 export { InlinePrompt } from './InlinePrompt'

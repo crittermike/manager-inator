@@ -12,7 +12,6 @@ import {
   commitAiModifiedFiles,
   deleteFile,
   listMeetings,
-  listRawTranscripts,
   listPeople,
   getPersonMeetings,
   findPersonByName,
@@ -33,9 +32,6 @@ import {
 import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity } from './github-activity'
-
-let _backfillAborted = false
-let _activeBackfillRequestId: string | null = null
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -99,7 +95,6 @@ export function setupIpcHandlers(): void {
   )
   safeHandle('github:delete-file', (_e, path) => deleteFile(path as string))
   safeHandle('github:list-meetings', () => listMeetings())
-  safeHandle('github:list-raw-transcripts', () => listRawTranscripts())
   safeHandle('github:list-people', () => listPeople())
   safeHandle('github:person-meetings', (_e, slug) => getPersonMeetings(slug as string))
   safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
@@ -137,13 +132,6 @@ export function setupIpcHandlers(): void {
 
   safeHandle('ai:cancel', (_e, requestId) => aiCancel(requestId as string | undefined))
 
-  safeHandle('ai:cancel-backfill', async () => {
-    _backfillAborted = true
-    if (_activeBackfillRequestId) {
-      await aiCancel(_activeBackfillRequestId)
-    }
-  })
-
   // ── Electron dialogs ──
   safeHandle('dialog:open', async (_e, options) => {
     const opts = options as { properties: string[]; title?: string }
@@ -155,74 +143,6 @@ export function setupIpcHandlers(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
-  })
-
-  // ── Backfill meeting summaries ──
-  safeHandle('ai:backfill-summaries', async (event, meetingFilenames) => {
-    const filenames = meetingFilenames as string[]
-    const win = BrowserWindow.fromWebContents(event.sender)
-    const results: { filename: string; success: boolean; error?: string }[] = []
-    _backfillAborted = false
-
-    // Hoist report names + profiles outside the per-file loop
-    const reportNames = getReports()
-    const profiles = reportNames.map((n) => {
-      try {
-        const p = getReportProfile(n)
-        return p.displayName
-      } catch { return n }
-    })
-
-    for (const filename of filenames) {
-      if (_backfillAborted) break
-      try {
-        const transcript = getFileContent(`meetings/${filename}`)
-
-        const name = filename.replace('.md', '')
-        const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
-        const date = dateMatch?.[1] || name
-        const title = dateMatch?.[2]?.replace(/-/g, ' ') || name
-
-        safeSend(win, 'ai:backfill-progress', { filename, status: 'generating' })
-
-        const backfillRequestId = randomUUID()
-        _activeBackfillRequestId = backfillRequestId
-        const backfillResult = await aiGenerate('summarize-meeting', {
-          meetingTitle: title,
-          date,
-          reportNames: profiles.join(', '),
-          transcript
-        }, () => {}, backfillRequestId)
-        _activeBackfillRequestId = null
-
-        if (_backfillAborted) {
-          results.push({ filename, success: false, error: 'Cancelled' })
-          safeSend(win, 'ai:backfill-progress', { filename, status: 'cancelled' })
-          break
-        }
-
-        await commitFile(
-          `meetings/${filename}`,
-          backfillResult.content,
-          `Add meeting summary with speakers: ${title} on ${date}`
-        )
-
-        results.push({ filename, success: true })
-        safeSend(win, 'ai:backfill-progress', { filename, status: 'done' })
-      } catch (err) {
-        _activeBackfillRequestId = null
-        if (_backfillAborted) {
-          results.push({ filename, success: false, error: 'Cancelled' })
-          safeSend(win, 'ai:backfill-progress', { filename, status: 'cancelled' })
-          break
-        }
-        console.error(`[Backfill] Failed for ${filename}:`, (err as Error).message)
-        results.push({ filename, success: false, error: (err as Error).message })
-        safeSend(win, 'ai:backfill-progress', { filename, status: 'error', error: (err as Error).message })
-      }
-    }
-
-    return results
   })
 
   // ── Test-only IPC handlers for E2E setup ──

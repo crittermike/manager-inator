@@ -24,7 +24,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('github:commit-file', path, content, message),
   deleteFile: (path: string) => ipcRenderer.invoke('github:delete-file', path),
   listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
-  listRawTranscripts: () => ipcRenderer.invoke('github:list-raw-transcripts'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),
   searchContent: (query: string) => ipcRenderer.invoke('github:search-content', query),
   getPersonMeetings: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
@@ -42,12 +41,6 @@ contextBridge.exposeInMainWorld('api', {
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
   getPrewarmStatus: () => ipcRenderer.invoke('github:prewarm-status'),
   getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
-  backfillSummaries: (filenames: string[]) => ipcRenderer.invoke('ai:backfill-summaries', filenames),
-  onBackfillProgress: (cb: (data: { filename: string; status: string }) => void) => {
-    const handler = (_event: unknown, data: { filename: string; status: string }) => cb(data)
-    ipcRenderer.on('ai:backfill-progress', handler)
-    return () => ipcRenderer.removeListener('ai:backfill-progress', handler)
-  },
   onLoadingProgress: (cb: (data: { message: string }) => void) => {
     const handler = (_event: unknown, data: { message: string }) => cb(data)
     ipcRenderer.on('app:loading-progress', handler)
@@ -73,7 +66,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('ai:files-changed', handler)
     return () => ipcRenderer.removeListener('ai:files-changed', handler)
   },
-  cancelBackfill: () => ipcRenderer.invoke('ai:cancel-backfill'),
 
   // AI
   aiGenerate: async (

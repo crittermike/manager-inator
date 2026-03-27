@@ -17,7 +17,7 @@ import type {
   ReportStatus,
   TeamActionItem,
   MeetingEntry,
-  RawTranscriptEntry
+  PersonEntry
 } from '../shared/types'
 
 function repoPath(): string {
@@ -220,78 +220,64 @@ export function safeSend(win: BrowserWindow | null, channel: string, payload: un
 export function invalidateCachesForPath(filePath: string): void {
   const p = filePath.replace(/\\/g, '/')
 
-  if (p.startsWith('meetings/')) {
-    // Incremental patch: update just the changed meeting file in the cache
-    const meetingFile = p.replace('meetings/', '')
-    const oldSpeakers = _meetingsCache?.speakerMap.get(meetingFile) || []
-    const wasNew = _meetingsCache ? !_meetingsCache.meetingsSet.has(meetingFile) : false
-    if (_meetingsCache && meetingFile.endsWith('.md')) {
+  if (p.startsWith('contexts/')) {
+    const contextFile = p.replace('contexts/', '')
+    if (_contextsCache && contextFile.endsWith('.md')) {
+      const priorEntry = _contextsCache.entries.find(e => e.filename === contextFile)
+      const priorPeople = priorEntry?.people || []
       try {
         const content = readFileHead(safePath(p), 2048)
-        const speakers = parseSpeakers(content)
-        if (speakers.length > 0) {
-          _meetingsCache.speakerMap.set(meetingFile, speakers)
+        const parsed = parseContextsCacheEntry(contextFile, content)
+
+        const existingIndex = _contextsCache.entries.findIndex(e => e.filename === contextFile)
+        if (existingIndex >= 0) {
+          _contextsCache.entries[existingIndex] = parsed
         } else {
-          _meetingsCache.speakerMap.delete(meetingFile)
-        }
-        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-        if (fmMatch) {
-          _meetingsCache.hasFrontmatter.add(meetingFile)
-          const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
-          if (titleMatch) {
-            _meetingsCache.titleMap.set(meetingFile, titleMatch[1].trim())
-          } else {
-            _meetingsCache.titleMap.delete(meetingFile)
-          }
-        } else {
-          _meetingsCache.hasFrontmatter.delete(meetingFile)
-          _meetingsCache.titleMap.delete(meetingFile)
-        }
-        if (wasNew) {
-          _meetingsCache.meetings.push(meetingFile)
-          _meetingsCache.meetingsSet.add(meetingFile)
-          _meetingsCache.files.push(meetingFile)
-          const slug = meetingFile.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-          _meetingsCache.slugMap.set(meetingFile, slug)
-          for (const seg of slug.split('-')) {
-            const arr = _meetingsCache.segmentIndex.get(seg)
-            if (arr) arr.push(meetingFile)
-            else _meetingsCache.segmentIndex.set(seg, [meetingFile])
-          }
+          _contextsCache.entries.push(parsed)
+          _contextsCache.entriesSet.add(contextFile)
         }
 
-        const newSpeakers = _meetingsCache.speakerMap.get(meetingFile) || []
-        const speakersChanged = wasNew
-          || oldSpeakers.length !== newSpeakers.length
-          || oldSpeakers.some((s, i) => s !== newSpeakers[i])
-        if (speakersChanged) {
-          for (const speaker of oldSpeakers) {
-            for (const key of [speaker.toLowerCase(), speaker.split(' ')[0].toLowerCase()]) {
-              const s = _meetingsCache.speakerIndex.get(key)
-              if (s) { s.delete(meetingFile); if (s.size === 0) _meetingsCache.speakerIndex.delete(key) }
-            }
+        _contextsCache.titleMap.set(contextFile, parsed.title)
+
+        for (const slug of priorPeople) {
+          const arr = _contextsCache.byPersonSlug.get(slug)
+          if (!arr) continue
+          const next = arr.filter(f => f !== contextFile)
+          if (next.length > 0) _contextsCache.byPersonSlug.set(slug, next)
+          else _contextsCache.byPersonSlug.delete(slug)
+        }
+        for (const slug of parsed.people) {
+          const arr = _contextsCache.byPersonSlug.get(slug)
+          if (arr) {
+            if (!arr.includes(contextFile)) arr.push(contextFile)
+          } else {
+            _contextsCache.byPersonSlug.set(slug, [contextFile])
           }
-          for (const speaker of newSpeakers) {
-            for (const key of [speaker.toLowerCase(), speaker.split(' ')[0].toLowerCase()]) {
-              const s = _meetingsCache.speakerIndex.get(key)
-              if (s) s.add(meetingFile)
-              else _meetingsCache.speakerIndex.set(key, new Set([meetingFile]))
-            }
-          }
-          invalidatePeopleCache()
         }
       } catch {
-        invalidateMeetingsCache()
-        invalidatePeopleCache()
+        if (priorEntry) {
+          _contextsCache.entries = _contextsCache.entries.filter(e => e.filename !== contextFile)
+          _contextsCache.entriesSet.delete(contextFile)
+          _contextsCache.titleMap.delete(contextFile)
+          for (const slug of priorPeople) {
+            const arr = _contextsCache.byPersonSlug.get(slug)
+            if (!arr) continue
+            const next = arr.filter(f => f !== contextFile)
+            if (next.length > 0) _contextsCache.byPersonSlug.set(slug, next)
+            else _contextsCache.byPersonSlug.delete(slug)
+          }
+        }
       }
-    } else if (!_meetingsCache) {
-      // Cache not built yet — nothing to patch, it'll be built on next access
+      invalidatePeopleCache()
+      _invalidateReportsForContext(contextFile)
+    } else if (!_contextsCache) {
     } else {
-      invalidateMeetingsCache()
+      _contextsCache = null
       invalidatePeopleCache()
     }
-    _invalidateReportsForMeeting(meetingFile, oldSpeakers)
     invalidateSearchIndex()
+    _teamOverviewCache = null
+    _teamActionItemsCache = null
   } else if (p.startsWith('reports/')) {
     const reportName = p.split('/')[1]
     if (reportName) {
@@ -702,7 +688,7 @@ export function deriveReportTitle(relativePath: string): string {
 
 interface SearchIndexEntry {
   filename: string
-  directory: 'meetings' | 'reports' | 'people' | 'notes'
+  directory: 'contexts' | 'reports' | 'people' | 'notes'
   content: string
   lowered: string
 }
@@ -718,11 +704,11 @@ function getSearchIndex(): SearchIndexEntry[] {
 
   const entries: SearchIndexEntry[] = []
 
-  const meetingsCache = getMeetingsCache()
-  for (const f of meetingsCache.meetings) {
-    const title = meetingsCache.titleMap.get(f) || f.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')
-    const content = `${f} ${title}`
-    entries.push({ filename: f, directory: 'meetings', content, lowered: content.toLowerCase() })
+  const contextsCache = getContextsCache()
+  for (const entry of contextsCache.entries) {
+    const title = entry.title || entry.filename.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')
+    const content = `${entry.filename} ${title} ${entry.summary}`
+    entries.push({ filename: entry.filename, directory: 'contexts', content, lowered: content.toLowerCase() })
   }
 
   const reports = getReports()
@@ -755,14 +741,14 @@ export function searchContent(query: string): { filename: string; directory: str
 
     const snippet = extractSnippet(entry.content, idx, q.length)
 
-    if (entry.directory === 'meetings') {
+    if (entry.directory === 'contexts') {
       const name = entry.filename.replace(/\.(md|txt)$/i, '')
       const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
-      const meetingsCache = getMeetingsCache()
-      const title = meetingsCache.titleMap.get(entry.filename) || formatMeetingTitle(name.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/-/g, ' ') || name)
+      const contextsCache = getContextsCache()
+      const title = contextsCache.titleMap.get(entry.filename) || formatMeetingTitle(name.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/-/g, ' ') || name)
       results.push({
         filename: entry.filename,
-        directory: 'meetings',
+        directory: 'contexts',
         title,
         snippet,
         date
@@ -820,31 +806,14 @@ function invalidateReportCache(): void {
   invalidateReportsCache()
 }
 
-function _invalidateReportsForMeeting(meetingFile: string, priorSpeakers?: string[]): void {
+function _invalidateReportsForContext(contextFile: string): void {
   if (_reportDataCache.size === 0) return
 
-  const mSlug = _meetingsCache?.slugMap.get(meetingFile) ?? meetingFile.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-  const currentSpeakers = _meetingsCache?.speakerMap.get(meetingFile) || []
-  const speakers = priorSpeakers
-    ? [...new Set([...priorSpeakers, ...currentSpeakers])]
-    : currentSpeakers
-
-  const reportNames = _reportsCache || [..._reportDataCache.keys()]
+  const entry = _contextsCache?.entries.find(e => e.filename === contextFile)
+  const slugs = entry?.people || []
   let anyDeleted = false
-  for (const name of reportNames) {
-    if (filenameMatchesPerson(mSlug, name)) {
-      _reportDataCache.delete(name)
-      anyDeleted = true
-      continue
-    }
-    if (speakers.length > 0) {
-      const cached = _reportDataCache.get(name)
-      const displayName = cached?.profile?.displayName || name.replace(/-/g, ' ')
-      if (speakerMatchesPerson(speakers, displayName, [])) {
-        _reportDataCache.delete(name)
-        anyDeleted = true
-      }
-    }
+  for (const slug of slugs) {
+    if (_reportDataCache.delete(slug)) anyDeleted = true
   }
 
   if (anyDeleted) {
@@ -874,7 +843,6 @@ export function getReportData(name: string): Report {
   let jobExpectationsRaw = ''
   try { jobExpectationsRaw = getFileContent(`reports/${name}/job-expectations.md`) } catch {}
 
-  // Match meetings via filename segments + speaker/attendee frontmatter (rich matching)
   const personMeetings = getPersonMeetings(name).map(m => m.filename).sort()
 
   // Parse check-ins
@@ -907,8 +875,8 @@ export function getReportData(name: string): Report {
   const recentSummaries = personMeetings.sort().slice(-5)
   for (const sf of recentSummaries) {
     try {
-      const content = getFileContent(`meetings/${sf}`)
-      actionItems.push(...parseActionItems(content, `meetings/${sf}`))
+      const content = getFileContent(`contexts/${sf}`)
+      actionItems.push(...parseActionItems(content, `contexts/${sf}`))
     } catch { /* skip */ }
   }
 
@@ -928,27 +896,29 @@ export function getReportData(name: string): Report {
     }
   })
 
-  const contextFiles = listFiles(`reports/${name}/context`).filter(f => f.endsWith('.md')).sort()
-  const contextNotes: ContextNote[] = contextFiles.map((f) => {
-    const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
-    const date = dateMatch?.[1] || ''
-    try {
-      const raw = getFileContent(`reports/${name}/context/${f}`)
-      const frontmatterMatch = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
-      if (frontmatterMatch) {
-        const fm = frontmatterMatch[1]
-        const body = frontmatterMatch[2].trim()
-        const source = (fm.match(/^source:\s*(.+)$/m)?.[1]?.trim() || 'other') as ContextNote['source']
-        const summary = fm.match(/^summary:\s*(.+)$/m)?.[1]?.trim() || ''
-        const tagsLine = fm.match(/^tags:\s*(.+)$/m)?.[1]?.trim() || ''
-        const tags = tagsLine ? tagsLine.split(',').map(t => t.trim()).filter(Boolean) : []
-        return { date, source, summary, tags, content: body, filename: f }
+  const contextsCache = getContextsCache()
+  let personContextFiles = contextsCache.byPersonSlug.get(name) || []
+  if (personContextFiles.length === 0) {
+    for (const [personSlug, personFiles] of contextsCache.byPersonSlug) {
+      if (personSlug.startsWith(name + '-') || personSlug === name) {
+        personContextFiles = personFiles
+        break
       }
-      return { date, source: 'other' as const, summary: '', tags: [], content: raw.trim(), filename: f }
-    } catch {
-      return { date, source: 'other' as const, summary: '', tags: [], content: '', filename: f }
     }
-  })
+  }
+  const contextNotes: ContextNote[] = personContextFiles.map((f) => {
+    const entry = contextsCache.entries.find(e => e.filename === f)
+    if (!entry) return null
+    return {
+      date: entry.date,
+      source: (entry.source || 'other') as ContextNote['source'],
+      summary: entry.summary,
+      tags: entry.tags,
+      people: entry.people,
+      content: '',
+      filename: f
+    }
+  }).filter((n): n is ContextNote => n !== null)
 
   const result = { name, profile, checkIns, summaries, transcripts, actionItems, feedback, reviews, preps, contextNotes, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
   _reportDataCache.set(name, result)
@@ -1003,101 +973,99 @@ export function getTeamOverview(): TeamOverview {
   return result
 }
 
-// ── Meetings cache ──
-// Cache meeting file lists and speaker map to avoid re-scanning 300+ files on every call.
-// Invalidated on commit (which means we wrote new data).
+interface ContextsCacheEntry {
+  filename: string
+  date: string
+  source: string
+  title: string
+  summary: string
+  tags: string[]
+  people: string[]
+  speakers: string[]
+  hasFrontmatter: boolean
+}
 
-let _meetingsCache: { files: string[]; meetings: string[]; meetingsSet: Set<string>; speakerMap: Map<string, string[]>; titleMap: Map<string, string>; hasFrontmatter: Set<string>; slugMap: Map<string, string>; segmentIndex: Map<string, string[]>; speakerIndex: Map<string, Set<string>> } | null = null
+let _contextsCache: {
+  entries: ContextsCacheEntry[]
+  entriesSet: Set<string>
+  byPersonSlug: Map<string, string[]>
+  titleMap: Map<string, string>
+} | null = null
 
-function invalidateMeetingsCache(): void { _meetingsCache = null }
+function parseYamlList(frontmatter: string, key: 'people' | 'tags'): string[] {
+  const match = frontmatter.match(new RegExp(`${key}:\\s*\\n((?:\\s+-\\s+.+\\n?)*)`))
+  if (!match) return []
+  return match[1]
+    .split('\n')
+    .map(l => l.replace(/^\s*-\s*/, '').trim())
+    .filter(Boolean)
+}
 
-function getMeetingsCache() {
-  if (_meetingsCache) return _meetingsCache
-  const files = listFiles('meetings').sort()
-  const meetings = files.filter(f => f.endsWith('.md'))
+function parseContextsCacheEntry(filename: string, content: string): ContextsCacheEntry {
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  const frontmatter = fmMatch?.[1] || ''
+  const name = filename.replace('.md', '')
+  const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
+  const fallbackDate = dateMatch?.[1] || name
+  const fallbackTitle = formatMeetingTitle((dateMatch?.[2] || name).replace(/-/g, ' ').trim() || name)
 
-  const speakerMap = new Map<string, string[]>()
+  return {
+    filename,
+    date: frontmatter.match(/^date:\s*(.+)$/m)?.[1]?.trim() || fallbackDate,
+    source: frontmatter.match(/^source:\s*(.+)$/m)?.[1]?.trim() || 'other',
+    title: frontmatter.match(/^title:\s*(.+)$/m)?.[1]?.trim() || fallbackTitle,
+    summary: frontmatter.match(/^summary:\s*(.+)$/m)?.[1]?.trim() || '',
+    tags: parseYamlList(frontmatter, 'tags'),
+    people: parseYamlList(frontmatter, 'people'),
+    speakers: parseSpeakers(content),
+    hasFrontmatter: Boolean(fmMatch)
+  }
+}
+
+function getContextsCache() {
+  if (_contextsCache) return _contextsCache
+
+  const files = listFiles('contexts').sort()
+  const mdFiles = files.filter(f => f.endsWith('.md'))
+  const entries: ContextsCacheEntry[] = []
   const titleMap = new Map<string, string>()
-  const hasFrontmatter = new Set<string>()
-  for (const mf of meetings) {
+  const byPersonSlug = new Map<string, string[]>()
+
+  for (const f of mdFiles) {
     try {
-      const content = readFileHead(safePath(`meetings/${mf}`), 2048)
-      const speakers = parseSpeakers(content)
-      if (speakers.length > 0) {
-        speakerMap.set(mf, speakers)
-      }
-      const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-      if (fmMatch) {
-        hasFrontmatter.add(mf)
-        const titleMatch = fmMatch[1].match(/^title:\s*(.+)/m)
-        if (titleMatch) titleMap.set(mf, titleMatch[1].trim())
+      const content = readFileHead(safePath(`contexts/${f}`), 2048)
+      const entry = parseContextsCacheEntry(f, content)
+      entries.push(entry)
+      titleMap.set(f, entry.title)
+      for (const slug of entry.people) {
+        const arr = byPersonSlug.get(slug)
+        if (arr) arr.push(f)
+        else byPersonSlug.set(slug, [f])
       }
     } catch { /* skip */ }
   }
 
-  // Precompute slug map and segment index for O(1) person-to-meeting lookups
-  const slugMap = new Map<string, string>()
-  const segmentIndex = new Map<string, string[]>()
-  for (const mf of meetings) {
-    const slug = mf.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '')
-    slugMap.set(mf, slug)
-    for (const seg of slug.split('-')) {
-      const arr = segmentIndex.get(seg)
-      if (arr) arr.push(mf)
-      else segmentIndex.set(seg, [mf])
-    }
+  _contextsCache = {
+    entries,
+    entriesSet: new Set(entries.map(e => e.filename)),
+    byPersonSlug,
+    titleMap
   }
-
-  // Inverted speaker index: normalized name → set of meeting filenames
-  const speakerIndex = new Map<string, Set<string>>()
-  for (const [mf, speakers] of speakerMap) {
-    for (const speaker of speakers) {
-      const fullKey = speaker.toLowerCase()
-      const firstKey = speaker.split(' ')[0].toLowerCase()
-      for (const key of [fullKey, firstKey]) {
-        const s = speakerIndex.get(key)
-        if (s) s.add(mf)
-        else speakerIndex.set(key, new Set([mf]))
-      }
-    }
-  }
-
-  _meetingsCache = { files, meetings, meetingsSet: new Set(meetings), speakerMap, titleMap, hasFrontmatter, slugMap, segmentIndex, speakerIndex }
-  return _meetingsCache
+  return _contextsCache
 }
 
 // ── Meetings ──
 
 export function listMeetings(): MeetingEntry[] {
-  const cache = getMeetingsCache()
-  return cache.meetings
-    .map((f) => {
-      const name = f.replace('.md', '')
-      const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
-      const filenameTitle = formatMeetingTitle(dateMatch?.[2]?.replace(/-/g, ' ') || name)
-      const title = cache.titleMap.get(f) || filenameTitle
-      const processed = cache.hasFrontmatter.has(f)
-      return { date: dateMatch?.[1] || name, title, filename: f, processed }
-    })
-    .sort((a, b) => b.date.localeCompare(a.date))
-}
-
-export function listRawTranscripts(): RawTranscriptEntry[] {
-  const files = listFiles('transcripts/raw')
-    .filter((f) => f.endsWith('.txt') || f.endsWith('.md'))
-    .sort()
-
-  return files
-    .map((f) => {
-      const name = f.replace(/\.(txt|md)$/i, '')
-      const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
-      const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
-      return {
-        date: dateMatch?.[1] || name,
-        title: filenameTitle,
-        filename: f
-      }
-    })
+  const cache = getContextsCache()
+  return cache.entries
+    .filter(e => e.source === 'meeting' || e.speakers.length > 0)
+    .map(e => ({
+      date: e.date,
+      title: e.title || formatMeetingTitle(e.filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace('.md', '').replace(/-/g, ' ')),
+      filename: e.filename,
+      processed: e.hasFrontmatter
+    }))
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
@@ -1111,7 +1079,7 @@ export function yamlEscapeValue(value: string): string {
 
 /** Save a title override into a meeting file's YAML frontmatter */
 export async function saveMeetingTitle(meetingFilename: string, title: string): Promise<void> {
-  const meetingPath = `meetings/${meetingFilename}`
+  const meetingPath = `contexts/${meetingFilename}`
   const safeTitle = yamlEscapeValue(title)
 
   try {
@@ -1135,7 +1103,7 @@ export async function saveMeetingTitle(meetingFilename: string, title: string): 
 }
 
 export async function saveMeetingSpeakers(meetingFilename: string, speakerNames: string[]): Promise<void> {
-  const meetingPath = `meetings/${meetingFilename}`
+  const meetingPath = `contexts/${meetingFilename}`
   const speakersYaml = speakerNames.map(n => `  - ${yamlEscapeValue(n)}`).join('\n')
 
   try {
@@ -1210,80 +1178,7 @@ export function parseSpeakers(content: string): string[] {
   return []
 }
 
-/** Check if a meeting filename (slug part) matches a person */
-export function filenameMatchesPerson(meetingSlug: string, personSlug: string): boolean {
-  const personFirst = personSlug.split('-')[0]
-  return meetingSlug === personSlug ||
-    meetingSlug.startsWith(personSlug + '-') ||
-    meetingSlug.endsWith('-' + personSlug) ||
-    meetingSlug.split('-').includes(personFirst)
-}
-
-function findMeetingsByFilename(personSlug: string, cache: NonNullable<typeof _meetingsCache>): Set<string> {
-  const personFirst = personSlug.split('-')[0]
-  const candidates = cache.segmentIndex.get(personFirst)
-  if (!candidates) return new Set()
-
-  const matched = new Set<string>()
-  for (const mf of candidates) {
-    const mSlug = cache.slugMap.get(mf)!
-    if (filenameMatchesPerson(mSlug, personSlug)) {
-      matched.add(mf)
-    }
-  }
-  return matched
-}
-
-function findMeetingsBySpeaker(personName: string, aliases: string[], exclude: Set<string>, cache: NonNullable<typeof _meetingsCache>): Set<string> {
-  const allNames = [personName, ...aliases]
-  const lookupKeys = new Set<string>()
-  for (const n of allNames) {
-    lookupKeys.add(n.toLowerCase())
-    lookupKeys.add(n.split(' ')[0].toLowerCase())
-  }
-
-  const candidates = new Set<string>()
-  for (const key of lookupKeys) {
-    const meetings = cache.speakerIndex.get(key)
-    if (meetings) {
-      for (const mf of meetings) {
-        if (!exclude.has(mf) && cache.meetingsSet.has(mf)) {
-          candidates.add(mf)
-        }
-      }
-    }
-  }
-  return candidates
-}
-
-/** Check if any speaker name matches a person */
-export function speakerMatchesPerson(speakers: string[], personName: string, aliases: string[]): boolean {
-  const allNames = [personName, ...aliases]
-  const allFirstNames = new Set(allNames.map(n => n.split(' ')[0].toLowerCase()))
-  const allFullNames = new Set(allNames.map(n => n.toLowerCase()))
-
-  for (const speaker of speakers) {
-    const sLower = speaker.toLowerCase()
-    const sFirst = speaker.split(' ')[0].toLowerCase()
-    if (allFullNames.has(sLower)) return true
-    if (allFirstNames.has(sFirst) || allFirstNames.has(sLower)) return true
-  }
-  return false
-}
-
 // ── People ──
-
-export interface PersonEntry {
-  name: string
-  slug: string
-  aliases: string[]
-  meetingCount: number
-  lastSeen: string
-  role: string
-  github: string
-  location: string
-  relationship: string
-}
 
 let _peopleCache: PersonEntry[] | null = null
 function invalidatePeopleCache(): void { _peopleCache = null }
@@ -1294,7 +1189,7 @@ export function listPeople(): PersonEntry[] {
   const files = listFiles('people')
   const mdFiles = files.filter((f) => f.endsWith('.md') && f !== '.gitkeep')
 
-  const cache = getMeetingsCache()
+  const contextsCache = getContextsCache()
 
   const people: PersonEntry[] = []
   for (const f of mdFiles) {
@@ -1314,15 +1209,12 @@ export function listPeople(): PersonEntry[] {
       const aliases: string[] = fm.aliases ? fm.aliases.split(',').map(a => a.trim()).filter(Boolean) : []
       const personName = fm.name || slug.replace(/-/g, ' ')
 
-      const filenameMatched = findMeetingsByFilename(slug, cache)
-      const speakerMatched = findMeetingsBySpeaker(personName, aliases, filenameMatched, cache)
-
-      const allMatched = [...filenameMatched, ...speakerMatched]
-      const dates = allMatched.map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter(Boolean).sort()
+      const contextFiles = contextsCache.byPersonSlug.get(slug) || []
+      const dates = contextFiles.map(f => f.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter((d): d is string => Boolean(d)).sort()
 
       people.push({
         name: personName, slug, aliases,
-        meetingCount: allMatched.length,
+        meetingCount: contextFiles.length,
         lastSeen: dates.length > 0 ? dates[dates.length - 1]! : '',
         role: fm.role || '', github: fm.github || '',
         location: fm.location || '', relationship: fm.relationship || ''
@@ -1349,15 +1241,20 @@ export function listPeople(): PersonEntry[] {
         } else if (!existingSlugs.has(reportName)) {
           const personName = displayName
 
-          const filenameMatched = findMeetingsByFilename(reportName, cache)
-          const speakerMatched = findMeetingsBySpeaker(personName, [], filenameMatched, cache)
-
-          const allMatched = [...filenameMatched, ...speakerMatched]
-          const dates = allMatched.map(m => m.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter(Boolean).sort()
+          let contextFiles = contextsCache.byPersonSlug.get(reportName) || []
+          if (contextFiles.length === 0) {
+            for (const [pSlug, pFiles] of contextsCache.byPersonSlug) {
+              if (pSlug.startsWith(reportName + '-') || pSlug === reportName) {
+                contextFiles = pFiles
+                break
+              }
+            }
+          }
+          const dates = contextFiles.map(f => f.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]).filter((d): d is string => Boolean(d)).sort()
 
           people.push({
             name: personName, slug: reportName, aliases: [],
-            meetingCount: allMatched.length,
+            meetingCount: contextFiles.length,
             lastSeen: dates.length > 0 ? dates[dates.length - 1]! : '',
             role: profile.role, github: profile.github,
             location: profile.location, relationship: 'Direct Report'
@@ -1373,33 +1270,29 @@ export function listPeople(): PersonEntry[] {
 }
 
 export function getPersonMeetings(slug: string): { date: string; title: string; filename: string }[] {
-  const cache = getMeetingsCache()
+  const cache = getContextsCache()
+  let files = cache.byPersonSlug.get(slug) || []
 
-  let personName = slug.replace(/-/g, ' ')
-  let aliases: string[] = []
-  try {
-    const content = getFileContent(`people/${slug}.md`)
-    const nameMatch = content.match(/name:\s*(.+)/)
-    if (nameMatch) personName = nameMatch[1].trim()
-    const aliasMatch = content.match(/aliases:\s*(.+)/)
-    if (aliasMatch) aliases = aliasMatch[1].split(',').map(a => a.trim()).filter(Boolean)
-  } catch {
-    try {
-      const profile = getReportProfile(slug)
-      personName = profile.displayName || profile.name
-    } catch { /* use slug-derived name */ }
+  if (files.length === 0) {
+    for (const [personSlug, personFiles] of cache.byPersonSlug) {
+      if (personSlug.startsWith(slug + '-') || personSlug === slug) {
+        files = personFiles
+        break
+      }
+    }
   }
 
-  const filenameMatched = findMeetingsByFilename(slug, cache)
-  const speakerMatched = findMeetingsBySpeaker(personName, aliases, filenameMatched, cache)
-
-  const allMatched = [...filenameMatched, ...speakerMatched]
-  return allMatched
+  return files
     .map(f => {
+      const entry = cache.entries.find(e => e.filename === f)
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
       const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name
-      return { date: dateMatch?.[1] || name, title: cache.titleMap.get(f) || filenameTitle, filename: f }
+      return {
+        date: entry?.date || dateMatch?.[1] || name,
+        title: entry?.title || cache.titleMap.get(f) || filenameTitle,
+        filename: f
+      }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
 }
@@ -1499,12 +1392,10 @@ export function getTeamActionItems(): TeamActionItem[] {
 
 export function getTodayBootstrap(): {
   meetings: MeetingEntry[]
-  rawTranscripts: RawTranscriptEntry[]
   teamActionItems: TeamActionItem[]
 } {
   return {
     meetings: listMeetings(),
-    rawTranscripts: listRawTranscripts(),
     teamActionItems: getTeamActionItems()
   }
 }
@@ -1513,7 +1404,7 @@ export function clearAllCaches(): void {
   _resolvedRepoPath = null
   _resolvedRepoPathSource = null
   _realpathCache.clear()
-  invalidateMeetingsCache()
+  _contextsCache = null
   invalidateReportCache()
   invalidatePeopleCache()
   invalidateSearchIndex()
@@ -1530,12 +1421,9 @@ export async function preWarmCaches(onProgress?: (message: string) => void): Pro
     }
     console.log('[Cache] Pre-warming...')
     const t0 = Date.now()
-    onProgress?.('Scanning meeting files...')
+    onProgress?.('Scanning context files...')
     await yield_()
-    getMeetingsCache()
-    onProgress?.('Scanning raw transcripts...')
-    await yield_()
-    listRawTranscripts()
+    getContextsCache()
     // Warm each report individually with yields between them to avoid blocking the event loop
     const reportNames = getReports()
     for (let i = 0; i < reportNames.length; i++) {

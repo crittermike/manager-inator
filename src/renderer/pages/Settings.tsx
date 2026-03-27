@@ -19,8 +19,10 @@ import {
   MessageSquare,
   Github,
   Eye,
-  EyeOff
+  EyeOff,
+  ScrollText
 } from 'lucide-react'
+import { PROMPT_TEMPLATES } from '../../shared/prompts'
 
 export function Settings() {
   const { user, logout } = useAuth()
@@ -54,6 +56,7 @@ export function Settings() {
   const [showOrgToken, setShowOrgToken] = useState(false)
   const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
   const [repoPathError, setRepoPathError] = useState('')
+  const [activePromptTab, setActivePromptTab] = useState(PROMPT_TEMPLATES[0].id)
 
   const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
@@ -310,6 +313,47 @@ export function Settings() {
           />
           <p className="text-xs text-zinc-600">
             These instructions are included in every AI prompt (check-ins, reviews, prep, chat, etc.).
+          </p>
+        </div>
+      </section>
+
+      {/* AI Prompts (view-only) */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+          AI Prompts
+        </h2>
+        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <ScrollText className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+            <span className="text-sm font-medium text-zinc-300">
+              What the AI sees for each action
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PROMPT_TEMPLATES.map(pt => (
+              <button
+                key={pt.id}
+                onClick={() => setActivePromptTab(pt.id)}
+                className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+                  activePromptTab === pt.id
+                    ? 'bg-brand/15 text-brand-light border-brand/30'
+                    : 'bg-surface-raised text-zinc-500 border-border hover:text-zinc-300 hover:border-zinc-600'
+                }`}
+              >
+                {pt.label}
+              </button>
+            ))}
+          </div>
+          {PROMPT_TEMPLATES.filter(pt => pt.id === activePromptTab).map(pt => (
+            <div key={pt.id} className="space-y-2">
+              <p className="text-xs text-zinc-500">{pt.description}</p>
+              <pre className="w-full bg-surface-raised border border-border rounded-lg px-4 py-3 text-[11px] text-zinc-400 font-mono whitespace-pre-wrap overflow-y-auto max-h-[400px] leading-relaxed">
+                {pt.template}
+              </pre>
+            </div>
+          ))}
+          <p className="text-xs text-zinc-600">
+            Read-only. Values in {'{braces}'} are filled in at runtime with your data.
           </p>
         </div>
       </section>

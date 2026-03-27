@@ -27,7 +27,7 @@ describe('buildMessages', () => {
   })
 
   it('always includes the system prompt as first message', () => {
-    const result = buildMessages('summarize-transcript', { reportName: 'Nic', date: '2026-03-11', transcript: 'test' })
+    const result = buildMessages('generate-checkin', { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' })
     expect(result[0].role).toBe('system')
     expect(result[0].content).toContain('Manager-inator')
   })
@@ -42,62 +42,10 @@ describe('buildMessages', () => {
       repoName: ''
     })
 
-    const result = buildMessages('summarize-transcript', { reportName: 'Nic', date: '2026-03-11', transcript: 'test' })
+    const result = buildMessages('generate-checkin', { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' })
     const customMsg = result.find(m => m.content.includes('Always be concise'))
     expect(customMsg).toBeDefined()
     expect(customMsg!.role).toBe('system')
-  })
-
-  it('builds summarize-transcript messages', () => {
-    const result = buildMessages('summarize-transcript', {
-      reportName: 'Nic',
-      date: '2026-03-11',
-      transcript: 'Mike: Hi Nic\nNic: Hi Mike'
-    })
-    const userMsg = result.find(m => m.role === 'user')
-    expect(userMsg).toBeDefined()
-    expect(userMsg!.content).toContain('Summarize this 1:1 transcript')
-    expect(userMsg!.content).toContain('Nic')
-    expect(userMsg!.content).toContain('Hi Mike')
-  })
-
-  it('builds summarize-meeting messages', () => {
-    const result = buildMessages('summarize-meeting', {
-      meetingTitle: 'Team sync',
-      date: '2026-03-11',
-      reportNames: 'Nic, Jennifer',
-      transcript: 'Meeting transcript'
-    })
-    const userMsg = result.find(m => m.role === 'user')!
-    expect(userMsg.content).toContain('Summarize this meeting transcript')
-    expect(userMsg.content).toContain('Nic, Jennifer')
-    expect(userMsg.content).toContain('Team sync')
-  })
-
-  it('builds extract-action-items messages', () => {
-    const result = buildMessages('extract-action-items', {
-      reportName: 'Nic',
-      transcript: 'Action stuff'
-    })
-    const userMsg = result.find(m => m.role === 'user')!
-    expect(userMsg.content).toContain('Extract action items')
-    expect(userMsg.content).toContain('checkbox')
-  })
-
-  it('builds extract-feedback messages', () => {
-    const result = buildMessages('extract-feedback', {
-      reportNames: 'Nic, Tara',
-      transcript: 'Feedback content'
-    })
-    const userMsg = result.find(m => m.role === 'user')!
-    expect(userMsg.content).toContain('extract any feedback')
-    expect(userMsg.content).toContain('Nic, Tara')
-  })
-
-  it('builds extract-impact messages', () => {
-    const result = buildMessages('extract-impact', { transcript: 'Impact stuff' })
-    const userMsg = result.find(m => m.role === 'user')!
-    expect(userMsg.content).toContain('evidence of MY impact')
   })
 
   it('builds generate-checkin messages', () => {
@@ -175,11 +123,46 @@ describe('buildMessages', () => {
     expect(userMsg.content).toContain('"foo"')
   })
 
-  it('system prompt includes name corrections', () => {
+  it('system prompt includes writing rules', () => {
     const result = buildMessages('chat', { message: 'hi', history: [] })
     const systemContent = result[0].content
-    expect(systemContent).toContain('Nick')
-    expect(systemContent).toContain('Nic')
-    expect(systemContent).toContain('they/them')
+    expect(systemContent).toContain('WRITING RULES')
+    expect(systemContent).toContain('em dashes')
+  })
+
+  it('builds classify-content messages with detailed_summary and source hint', () => {
+    const result = buildMessages('classify-content', {
+      reportNames: 'Nic, Steve',
+      content: 'Test meeting content here',
+      sourceHint: 'meeting'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('Nic, Steve')
+    expect(userMsg.content).toContain('Test meeting content here')
+    expect(userMsg.content).toContain('detailed_summary')
+    expect(userMsg.content).toContain('The user indicated this is from: meeting')
+    expect(userMsg.content).not.toContain('meeting-transcript')
+  })
+
+  it('builds classify-content messages without source hint when omitted', () => {
+    const result = buildMessages('classify-content', {
+      reportNames: 'Nic',
+      content: 'Some slack dump'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('Nic')
+    expect(userMsg.content).toContain('Some slack dump')
+    expect(userMsg.content).not.toContain('The user indicated this is from:')
+  })
+
+  it('builds summarize-team-activity messages', () => {
+    const result = buildMessages('summarize-team-activity', {
+      dateLabel: '2026-03-26',
+      activityData: 'Nic opened PR #42: Fix auth bug'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('team PR/activity scan')
+    expect(userMsg.content).toContain('2026-03-26')
+    expect(userMsg.content).toContain('Nic opened PR #42: Fix auth bug')
   })
 })

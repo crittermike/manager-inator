@@ -25,7 +25,6 @@ import {
   getReportData,
   getReportProfile,
   listMeetings,
-  listRawTranscripts,
   listPeople,
   getPersonMeetings,
   findPersonByName,
@@ -206,27 +205,6 @@ describe('github.ts integration tests', () => {
     })
   })
 
-  describe('listRawTranscripts', () => {
-    it('returns files from transcripts/raw/', () => {
-      const transcripts = listRawTranscripts()
-      expect(transcripts.length).toBe(2)
-    })
-
-    it('includes both .txt and .md files', () => {
-      const transcripts = listRawTranscripts()
-      const filenames = transcripts.map(t => t.filename)
-      expect(filenames).toContain('2026-03-15-alice-1-1.txt')
-      expect(filenames).toContain('2026-03-15-retro.md')
-    })
-
-    it('sorts by date descending', () => {
-      const transcripts = listRawTranscripts()
-      for (let i = 1; i < transcripts.length; i++) {
-        expect(transcripts[i - 1].date >= transcripts[i].date).toBe(true)
-      }
-    })
-  })
-
   describe('listPeople', () => {
     it('returns all people from people/ directory', () => {
       const people = listPeople()
@@ -271,7 +249,7 @@ describe('github.ts integration tests', () => {
     it('finds meetings by title', () => {
       const results = searchContent('alice 1:1')
       expect(results.length).toBeGreaterThanOrEqual(1)
-      const meetingResult = results.find(r => r.directory === 'meetings')
+      const meetingResult = results.find(r => r.directory === 'contexts')
       expect(meetingResult).toBeDefined()
     })
 
@@ -514,11 +492,11 @@ describe('github.ts integration tests', () => {
   })
 
   describe('edge cases', () => {
-    it('handles missing meetings directory gracefully', () => {
+    it('handles missing contexts directory gracefully', () => {
       const minFixture = createMinimalFixtureRepo()
       const { rmSync } = require('fs')
       const { join } = require('path')
-      rmSync(join(minFixture.dir, 'meetings'), { recursive: true, force: true })
+      rmSync(join(minFixture.dir, 'contexts'), { recursive: true, force: true })
       setRepoPath(minFixture.dir)
       clearAllCaches()
 
@@ -543,22 +521,6 @@ describe('github.ts integration tests', () => {
       expect(people.length).toBeGreaterThanOrEqual(1)
       expect(people[0].name).toBe('Alice')
       expect(people[0].relationship).toBe('Direct Report')
-
-      setRepoPath(fixture.dir)
-      clearAllCaches()
-      minFixture.cleanup()
-    })
-
-    it('handles missing transcripts/raw directory gracefully', () => {
-      const minFixture = createMinimalFixtureRepo()
-      const { rmSync } = require('fs')
-      const { join } = require('path')
-      rmSync(join(minFixture.dir, 'transcripts'), { recursive: true, force: true })
-      setRepoPath(minFixture.dir)
-      clearAllCaches()
-
-      const transcripts = listRawTranscripts()
-      expect(transcripts).toEqual([])
 
       setRepoPath(fixture.dir)
       clearAllCaches()

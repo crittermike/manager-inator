@@ -46,7 +46,7 @@ export interface ActionItem {
   owner: string
   due?: string
   completed: boolean
-  sourceFile?: string // path to the file containing this item (e.g. meetings/2026-03-11-nic-1-1.md)
+  sourceFile?: string // path to the file containing this item (e.g. contexts/2026-03-11-nic-1-1.md)
   sourceLine?: string // the exact line text (kept for display/debug)
   sourceLineNumber?: number // 0-based line index in sourceFile for precise toggle
 }
@@ -99,9 +99,10 @@ export interface CustomPractice {
 // ── Captured context note ──
 export interface ContextNote {
   date: string // YYYY-MM-DD
-  source: 'slack' | 'github' | 'email' | 'other'
+  source: 'slack' | 'github' | 'email' | 'meeting' | 'other'
   summary: string
   tags: string[]
+  people: string[] // person slugs (e.g. ['nic-daantos', 'steve-grant'])
   content: string // raw pasted content
   filename: string // e.g. "2026-03-26-slack-thread.md"
 }
@@ -199,12 +200,6 @@ export interface MeetingEntry {
   filename: string
 }
 
-export interface RawTranscriptEntry {
-  date: string
-  title: string
-  filename: string
-}
-
 // ── GitHub Activity (org-level PR/issue tracking) ──
 export interface GitHubActivityItem {
   id: number
@@ -278,7 +273,6 @@ export interface IpcApi {
   commitFile: (path: string, content: string, message: string) => Promise<void>
   deleteFile: (path: string) => Promise<void>
   listMeetings: () => Promise<MeetingEntry[]>
-  listRawTranscripts: () => Promise<RawTranscriptEntry[]>
   listPeople: () => Promise<PersonEntry[]>
   getPersonMeetings: (slug: string) => Promise<MeetingRef[]>
   findPersonByName: (name: string) => Promise<string | null>
@@ -288,19 +282,16 @@ export interface IpcApi {
   saveMeetingSpeakers: (filename: string, speakers: string[]) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
   getTeamActionItems: () => Promise<TeamActionItem[]>
-  getTodayBootstrap: () => Promise<{ meetings: MeetingEntry[]; rawTranscripts: RawTranscriptEntry[]; teamActionItems: TeamActionItem[] }>
+  getTodayBootstrap: () => Promise<{ meetings: MeetingEntry[]; teamActionItems: TeamActionItem[] }>
   clearCaches: () => Promise<void>
   getPrewarmStatus: () => Promise<boolean>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
-  searchContent: (query: string) => Promise<{ filename: string; directory: 'meetings' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
-  backfillSummaries: (filenames: string[]) => Promise<{ filename: string; success: boolean; error?: string }[]>
-  onBackfillProgress: (cb: (data: { filename: string; status: string; error?: string }) => void) => () => void
+  searchContent: (query: string) => Promise<{ filename: string; directory: 'contexts' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
   onLoadingProgress: (cb: (data: { message: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void
   onAiFilesChanged: (cb: (data: { requestId: string; files: string[] }) => void) => () => void
-  cancelBackfill: () => Promise<void>
 
   // AI
   aiGenerate: (

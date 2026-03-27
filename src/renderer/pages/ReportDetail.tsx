@@ -41,16 +41,17 @@ import {
 
 // ── Types ──
 
-type StreamFilter = 'all' | '1:1' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
+type StreamFilter = 'all' | 'context' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
 
 interface StreamEntry {
   id: string
-  type: '1:1' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
+  type: 'context' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
   date: string
   title: string
   preview: string
   data: unknown
   pinned?: boolean
+  source?: string
 }
 
 // ── Helpers ──
@@ -202,7 +203,7 @@ export function ReportDetail() {
     reset()
 
     const recentSummaryDates = report.summaries.slice(-5)
-    const summaryPaths = recentSummaryDates.map(s => `meetings/${s.date}-${name}-1-1.md`)
+    const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
     const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
     const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
     if (!mountedRef.current) return
@@ -220,10 +221,10 @@ export function ReportDetail() {
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
 
-      const otherPaths = otherWithSummaries.map(m => `meetings/${m.filename}`)
+      const otherPaths = otherWithSummaries.map(m => `contexts/${m.filename}`)
       const otherMap = await window.api.getFilesContentBulk(otherPaths)
       const mentionResults = otherWithSummaries.map(m => {
-        const content = otherMap[`meetings/${m.filename}`]
+        const content = otherMap[`contexts/${m.filename}`]
         if (content && namePattern.test(content)) {
           return `### ${m.title} (${m.date})\n${content}`
         }
@@ -282,10 +283,10 @@ export function ReportDetail() {
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
     const recentSummaries = report.summaries.slice(-8)
-    const checkInPaths = recentSummaries.map(s => `meetings/${s.date}-${name}-1-1.md`)
+    const checkInPaths = recentSummaries.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
     const checkInMap = await window.api.getFilesContentBulk(checkInPaths)
     const summariesText = recentSummaries.map(s => {
-      const content = checkInMap[`meetings/${s.date}-${name}-1-1.md`]
+      const content = checkInMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
       return content ? `### ${s.date}\n${content}` : ''
     }).filter(Boolean).join('\n\n---\n\n')
 
@@ -330,10 +331,10 @@ export function ReportDetail() {
     const periodLabel = isH2 ? `${year} H2 (Jul–Dec)` : `${year} H1 (Jan–Jun)`
 
     const recentSummaries = report.summaries.slice(-20)
-    const reviewPaths = recentSummaries.map(s => `meetings/${s.date}-${name}-1-1.md`)
+    const reviewPaths = recentSummaries.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
     const reviewMap = await window.api.getFilesContentBulk(reviewPaths)
     const summariesText = recentSummaries.map(s => {
-      const content = reviewMap[`meetings/${s.date}-${name}-1-1.md`]
+      const content = reviewMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
       return content ? `### ${s.date}\n${content}` : ''
     }).filter(Boolean).join('\n\n---\n\n')
     if (!mountedRef.current) return
@@ -688,13 +689,33 @@ export function ReportDetail() {
       const summary = summaryByFilename.get(t.filename || t.date)
       entries.push({
         id: `meeting-${t.filename || t.date}`,
-        type: '1:1',
+        type: 'context',
         date: t.date,
         title: `1:1 meeting — ${formatDate(t.date)}`,
         preview: summary
           ? (summary.keyTopics.length > 0 ? summary.keyTopics.join(', ') : 'Meeting summarized')
           : 'Transcript available (not yet summarized)',
         data: { transcript: t, summary }
+      })
+    }
+
+    for (const ctx of report.contextNotes) {
+      const sourceLabels: Record<string, string> = {
+        slack: 'Slack',
+        github: 'GitHub',
+        email: 'Email',
+        meeting: 'Meeting',
+        other: 'Note'
+      }
+      const sourceLabel = sourceLabels[ctx.source] || ctx.source
+      entries.push({
+        id: `context-${ctx.filename}`,
+        type: 'context',
+        date: ctx.date,
+        title: ctx.summary || `${sourceLabel} — ${formatDate(ctx.date)}`,
+        preview: ctx.tags.length > 0 ? ctx.tags.join(', ') : sourceLabel,
+        data: ctx,
+        source: ctx.source
       })
     }
 
@@ -824,7 +845,7 @@ export function ReportDetail() {
 
   const filterCounts: Record<StreamFilter, number> = {
     all: streamEntries.length,
-    '1:1': streamEntries.filter(e => e.type === '1:1').length,
+    context: streamEntries.filter(e => e.type === 'context').length,
     feedback: streamEntries.filter(e => e.type === 'feedback').length,
     action: report.actionItems.filter(a => !a.completed).length,
     checkin: streamEntries.filter(e => e.type === 'checkin').length,
@@ -834,7 +855,7 @@ export function ReportDetail() {
 
   const filters: { id: StreamFilter; label: string; icon: typeof FileText }[] = [
     { id: 'all', label: 'All', icon: Filter },
-    { id: '1:1', label: '1:1s', icon: MessageSquare },
+    { id: 'context', label: 'Context', icon: MessageSquare },
     { id: 'prep', label: 'Prep', icon: ClipboardList },
     { id: 'feedback', label: 'Feedback', icon: Star },
     { id: 'action', label: 'Actions', icon: CheckSquare },
@@ -1628,7 +1649,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
   isToggling
 }: StreamEntryCardProps) {
   const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
-    '1:1': { bg: 'bg-blue-500/10', text: 'text-blue-400', label: '1:1' },
+    context: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Context' },
     feedback: { bg: 'bg-amber-500/10', text: 'text-amber-400', label: 'Feedback' },
     action: { bg: 'bg-purple-500/10', text: 'text-purple-400', label: 'Actions' },
     checkin: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', label: 'Check-in' },
@@ -1636,7 +1657,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
     prep: { bg: 'bg-sky-500/10', text: 'text-sky-400', label: 'Prep' }
   }
 
-  const style = typeStyles[entry.type] || typeStyles['1:1']
+  const style = typeStyles[entry.type] || typeStyles['context']
   const handleToggle = useCallback(() => onToggle(entry.id), [onToggle, entry.id])
 
   return (
@@ -1669,7 +1690,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
       {expanded && (
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
-            {entry.type === '1:1' && <MeetingDetail entry={entry} name={name} onViewContent={onViewContent} />}
+            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
@@ -1684,42 +1705,74 @@ const StreamEntryCard = memo(function StreamEntryCard({
 
 // ── Detail sub-components ──
 
-function MeetingDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
-  const data = entry.data as { transcript: { date: string; filename?: string }; summary?: { keyTopics: string[]; content: string } }
-  const meetingFile = data.transcript.filename || `${data.transcript.date}-${name}-1-1.md`
-  const transcriptFile = meetingFile.replace(/\.md$/, '.txt')
+function ContextDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (path: string, title: string) => void }) {
+  const raw = entry.data as Record<string, unknown>
 
+  if (raw.transcript) {
+    const data = raw as { transcript: { date: string; filename?: string }; summary?: { keyTopics: string[]; content: string } }
+    const meetingFile = data.transcript.filename || `${data.transcript.date}-${name}-1-1.md`
+    const transcriptFile = meetingFile.replace(/\.md$/, '.txt')
+    return (
+      <div className="space-y-2">
+        {data.summary && data.summary.keyTopics.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {data.summary.keyTopics.map((topic, i) => (
+              <span key={i} className="px-2 py-0.5 bg-surface-raised rounded text-[11px] text-zinc-400 border border-border">
+                {topic}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => onViewContent(
+              `contexts/${meetingFile}`,
+              `Summary — ${formatDate(data.transcript.date)}`
+            )}
+            className="text-xs text-brand-light hover:text-brand transition-colors"
+          >
+            View summary →
+          </button>
+          <button
+            onClick={() => onViewContent(
+              `transcripts/processed/${transcriptFile}`,
+              `Transcript — ${formatDate(data.transcript.date)}`
+            )}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            View transcript →
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const ctx = raw as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string }
   return (
     <div className="space-y-2">
-      {data.summary && data.summary.keyTopics.length > 0 && (
+      {entry.source && (
+        <span className="inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-700/50 text-zinc-400">
+          {entry.source}
+        </span>
+      )}
+      {ctx.tags && ctx.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {data.summary.keyTopics.map((topic, i) => (
+          {ctx.tags.map((tag, i) => (
             <span key={i} className="px-2 py-0.5 bg-surface-raised rounded text-[11px] text-zinc-400 border border-border">
-              {topic}
+              {tag}
             </span>
           ))}
         </div>
       )}
-      <div className="flex gap-2">
-        <button
-          onClick={() => onViewContent(
-            `meetings/${meetingFile}`,
-            `Summary — ${formatDate(data.transcript.date)}`
-          )}
-          className="text-xs text-brand-light hover:text-brand transition-colors"
-        >
-          View summary →
-        </button>
-        <button
-          onClick={() => onViewContent(
-            `transcripts/processed/${transcriptFile}`,
-            `Transcript — ${formatDate(data.transcript.date)}`
-          )}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          View transcript →
-        </button>
-      </div>
+      <button
+        onClick={() => onViewContent(
+          `contexts/${ctx.filename}`,
+          ctx.summary || `Context — ${formatDate(ctx.date)}`
+        )}
+        className="text-xs text-brand-light hover:text-brand transition-colors"
+      >
+        View full context →
+      </button>
     </div>
   )
 }

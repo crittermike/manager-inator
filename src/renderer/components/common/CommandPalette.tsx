@@ -5,7 +5,6 @@ import type { PersonEntry } from '../../../shared/types'
 import {
   LayoutDashboard,
   BookOpen,
-  FileText,
   Settings,
   Search,
   User
@@ -40,7 +39,6 @@ export function CommandPalette() {
     { id: 'today', label: 'Today', path: '/', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'playbook', label: 'Playbook', path: '/playbook', icon: <BookOpen className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'search', label: 'Search', path: '/search', icon: <Search className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-    { id: 'transcript', label: 'Process transcript', path: '/transcript', icon: <FileText className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'settings', label: 'Settings', path: '/settings', icon: <Settings className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
   ]
 

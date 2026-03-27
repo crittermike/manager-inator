@@ -80,7 +80,7 @@ export function InlinePrep({
 
     const openActions = data.actionItems.filter(a => !a.completed)
     const recentSummaryDates = data.summaries.slice(-5)
-    const summaryPaths = recentSummaryDates.map(s => `meetings/${s.date}-${reportName}-1-1.md`)
+    const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${reportName}-1-1.md`}`)
     const summaryFileMap = await window.api.getFilesContentBulk(summaryPaths)
     const summariesText = summaryPaths
       .map(p => summaryFileMap[p])
@@ -102,11 +102,11 @@ export function InlinePrep({
       const otherMeetings = allMeetings
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
-      const paths = otherMeetings.map(m => `meetings/${m.filename}`)
+      const paths = otherMeetings.map(m => `contexts/${m.filename}`)
       const fileMap = await window.api.getFilesContentBulk(paths)
       const mentions: string[] = []
       for (const m of otherMeetings) {
-        const content = fileMap[`meetings/${m.filename}`]
+        const content = fileMap[`contexts/${m.filename}`]
         if (content && namePattern.test(content)) {
           mentions.push(`### ${m.title} (${m.date})\n${content}`)
           if (mentions.length >= 5) break

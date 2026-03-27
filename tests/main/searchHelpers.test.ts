@@ -5,8 +5,6 @@ import {
   deriveMeetingTitleFromContent,
   deriveReportTitle,
   yamlEscapeValue,
-  filenameMatchesPerson,
-  speakerMatchesPerson,
   formatMeetingTitle
 } from '../../src/main/github'
 
@@ -139,57 +137,5 @@ describe('yamlEscapeValue', () => {
 
   it('wraps values starting with quotes', () => {
     expect(yamlEscapeValue('"quoted value"')).toMatch(/^"/)
-  })
-})
-
-describe('filenameMatchesPerson', () => {
-  it('matches exact slug', () => {
-    expect(filenameMatchesPerson('nic-daantos', 'nic-daantos')).toBe(true)
-  })
-
-  it('matches slug as prefix', () => {
-    expect(filenameMatchesPerson('nic-daantos-1-1', 'nic-daantos')).toBe(true)
-  })
-
-  it('matches slug as suffix', () => {
-    expect(filenameMatchesPerson('1-1-nic-daantos', 'nic-daantos')).toBe(true)
-  })
-
-  it('matches by first name segment', () => {
-    expect(filenameMatchesPerson('nic-1-1', 'nic-daantos')).toBe(true)
-  })
-
-  it('does not match unrelated slugs', () => {
-    expect(filenameMatchesPerson('team-standup', 'nic-daantos')).toBe(false)
-  })
-})
-
-describe('speakerMatchesPerson', () => {
-  it('matches by full name', () => {
-    expect(speakerMatchesPerson(['Nic Daantos'], 'Nic Daantos', [])).toBe(true)
-  })
-
-  it('matches by first name', () => {
-    expect(speakerMatchesPerson(['Nic'], 'Nic Daantos', [])).toBe(true)
-  })
-
-  it('matches by alias', () => {
-    expect(speakerMatchesPerson(['Nick'], 'Nic Daantos', ['Nick'])).toBe(true)
-  })
-
-  it('is case-insensitive', () => {
-    expect(speakerMatchesPerson(['NIC DAANTOS'], 'Nic Daantos', [])).toBe(true)
-  })
-
-  it('does not match unrelated speakers', () => {
-    expect(speakerMatchesPerson(['Jennifer Smith'], 'Nic Daantos', [])).toBe(false)
-  })
-
-  it('matches when person appears among multiple speakers', () => {
-    expect(speakerMatchesPerson(
-      ['Mike Crittenden', 'Nic Daantos', 'Tara Jones'],
-      'Nic Daantos',
-      []
-    )).toBe(true)
   })
 })
