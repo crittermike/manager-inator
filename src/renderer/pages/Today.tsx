@@ -1170,7 +1170,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface rounded-xl border border-border overflow-hidden border-l-[3px] ${config.border} transition-all`}>
+          <div key={section} className={`bg-surface rounded-xl border border-border overflow-visible border-l-[3px] ${config.border} transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
