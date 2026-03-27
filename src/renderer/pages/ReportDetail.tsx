@@ -3,7 +3,6 @@ import { useReportData, useFileContent, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
-import { parseMeetingDays } from '../utils/meetingDay'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -38,8 +37,7 @@ import {
   AlertCircle,
   Plane,
   ClipboardList,
-  Trash2,
-  Mail
+  Trash2
 } from 'lucide-react'
 
 // ── Types ──
@@ -58,29 +56,6 @@ interface StreamEntry {
 }
 
 // ── Helpers ──
-
-function daysAgo(dateStr: string): number {
-  return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function nextMeetingDate(meetingDay: string | undefined): string | null {
-  if (!meetingDay) return null
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const days = parseMeetingDays(meetingDay)
-  const now = new Date()
-  const todayIdx = now.getDay()
-  let minDays = Infinity
-  for (const d of days) {
-    const targetIdx = dayNames.indexOf(d)
-    if (targetIdx < 0) continue
-    const daysUntil = (targetIdx - todayIdx + 7) % 7 || 7
-    if (daysUntil < minDays) minDays = daysUntil
-  }
-  if (minDays === Infinity) return null
-  const next = new Date(now)
-  next.setDate(now.getDate() + minDays)
-  return next.toISOString().split('T')[0]
-}
 
 // ── Main Component ──
 
@@ -117,8 +92,8 @@ export function ReportDetail() {
   const [editingJobExpectations, setEditingJobExpectations] = useState(false)
   const [jobExpectationsDraft, setJobExpectationsDraft] = useState('')
   const [savingJobExpectations, setSavingJobExpectations] = useState(false)
-  const [jobExpCollapsed, setJobExpCollapsed] = useState(true)
-  const [aboutCollapsed, setAboutCollapsed] = useState(true)
+  const [detailsTab, setDetailsTab] = useState<'about' | 'expectations'>('about')
+  const [detailsCollapsed, setDetailsCollapsed] = useState(true)
 
   // Action item toggling
   const [togglingItems, setTogglingItems] = useState<Set<string>>(new Set())
@@ -938,11 +913,6 @@ export function ReportDetail() {
     )
   }
 
-  const lastTranscript = report.transcripts.length > 0 ? report.transcripts[report.transcripts.length - 1] : null
-  const daysSince1on1 = lastTranscript ? daysAgo(lastTranscript.date) : null
-  const openActionCount = report.actionItems.filter(a => !a.completed).length
-  const daysSinceFeedback = sortedFeedback.length > 0 ? daysAgo(sortedFeedback[0].date) : null
-  const nextMeeting = nextMeetingDate(report.profile.meetingDay)
   const aboutText = report.profile.about ? report.profile.about.replace(/<!--[\s\S]*?-->/g, '').trim() : ''
   const ptoExpiry = name ? ptoReports[name] : undefined
   const isOnPto = !!ptoExpiry && new Date(ptoExpiry) > new Date()
@@ -998,15 +968,47 @@ export function ReportDetail() {
               <Pencil className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
-          {report.profile.meetingDay && (
-            <div className="flex items-center gap-1 mt-1 text-sm text-zinc-500">
-              <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-              {report.profile.meetingDay.includes('/')
-                ? report.profile.meetingDay.split('/').map(d => d.trim() + 's').join(' & ')
-                : report.profile.meetingDay + 's'
-              }
-            </div>
-          )}
+          {/* Identity facts inline */}
+          <div className="flex items-center gap-3 mt-1.5 text-sm text-zinc-500 flex-wrap">
+            {report.profile.role && (
+              <span className="flex items-center gap-1">
+                <Briefcase className="w-3 h-3 text-zinc-600" aria-hidden="true" />
+                {report.profile.role}
+              </span>
+            )}
+            {report.profile.team && (
+              <span className="flex items-center gap-1">
+                {report.profile.team}
+              </span>
+            )}
+            {report.profile.location && (
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-zinc-600" aria-hidden="true" />
+                {report.profile.location}
+              </span>
+            )}
+            {report.profile.github && (
+              <span className="flex items-center gap-1">
+                <Github className="w-3 h-3 text-zinc-600" aria-hidden="true" />
+                @{report.profile.github}
+              </span>
+            )}
+            {report.profile.meetingDay && (
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-zinc-600" aria-hidden="true" />
+                {report.profile.meetingDay.includes('/')
+                  ? report.profile.meetingDay.split('/').map(d => d.trim() + 's').join(' & ')
+                  : report.profile.meetingDay + 's'
+                }
+              </span>
+            )}
+            {report.profile.timezone && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3 text-zinc-600" aria-hidden="true" />
+                {report.profile.timezone}
+              </span>
+            )}
+          </div>
           {isOnPto && ptoExpiry && (
             <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20">
               <Plane className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1027,186 +1029,99 @@ export function ReportDetail() {
         </button>
       </div>
 
-      {/* ── Key Facts Bar ── */}
-      <div className="space-y-3">
-        {/* Identity facts */}
-        {editingProfile ? (
-          <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-zinc-300">Edit Profile</span>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setEditingProfile(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveProfile}
-                  disabled={savingProfile}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-                >
-                  <Save className="w-3 h-3" aria-hidden="true" />
-                  {savingProfile ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Role</label>
-                <input
-                  type="text"
-                  value={profileFields.role}
-                  onChange={e => setProfileFields({ ...profileFields, role: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Team</label>
-                <input
-                  type="text"
-                  value={profileFields.team}
-                  onChange={e => setProfileFields({ ...profileFields, team: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Meeting Days</label>
-                <div className="flex gap-1.5">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => {
-                    const selected = profileFields.meetingDay
-                      .split('/')
-                      .map(d => d.trim().toLowerCase())
-                      .includes(day.toLowerCase())
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => {
-                          const current = profileFields.meetingDay
-                            .split('/')
-                            .map(d => d.trim())
-                            .filter(Boolean)
-                          const updated = selected
-                            ? current.filter(d => d.toLowerCase() !== day.toLowerCase())
-                            : [...current, day]
-                          setProfileFields({ ...profileFields, meetingDay: updated.join('/') })
-                        }}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          selected
-                            ? 'bg-brand/20 text-brand-light border border-brand/30'
-                            : 'bg-surface-raised text-zinc-500 border border-border hover:text-zinc-300 hover:border-zinc-600'
-                        }`}
-                      >
-                        {day.slice(0, 3)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">GitHub</label>
-                <input
-                  type="text"
-                  value={profileFields.github}
-                  onChange={e => setProfileFields({ ...profileFields, github: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">Location</label>
-                <input
-                  type="text"
-                  value={profileFields.location}
-                  onChange={e => setProfileFields({ ...profileFields, location: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
-                />
-              </div>
+      {/* ── Edit Profile (expands below header) ── */}
+      {editingProfile && (
+        <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in space-y-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-zinc-300">Edit Profile</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setEditingProfile(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+              >
+                <Save className="w-3 h-3" aria-hidden="true" />
+                {savingProfile ? 'Saving…' : 'Save'}
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="flex items-center gap-4 text-sm text-zinc-400 flex-wrap bg-surface rounded-xl border border-border px-4 py-3">
-            {report.profile.role && (
-              <span className="flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-                {report.profile.role}
-              </span>
-            )}
-            {report.profile.team && (
-              <span className="flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-                {report.profile.team}
-              </span>
-            )}
-            {report.profile.github && (
-              <span className="flex items-center gap-1.5">
-                <Github className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-                @{report.profile.github}
-              </span>
-            )}
-            {report.profile.location && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-                {report.profile.location}
-              </span>
-            )}
-            {report.profile.timezone && (
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
-                {report.profile.timezone}
-              </span>
-            )}
-            {!report.profile.role && !report.profile.team && !report.profile.github && !report.profile.location && !report.profile.timezone && (
-              <span className="text-zinc-600">No profile details set</span>
-            )}
-          </div>
-        )}
-
-        {/* Metric facts */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last 1:1</div>
-            {lastTranscript ? (
-              <>
-                <div className="text-sm font-medium text-zinc-200">{formatDate(lastTranscript.date)}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{daysSince1on1} day{daysSince1on1 !== 1 ? 's' : ''} ago</div>
-              </>
-            ) : (
-              <div className="text-sm text-zinc-500">None yet</div>
-            )}
-          </div>
-
-          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Next 1:1</div>
-            {nextMeeting ? (
-              <div className="text-sm font-medium text-zinc-200">{formatDate(nextMeeting)}</div>
-            ) : (
-              <div className="text-sm text-zinc-500">Not scheduled yet</div>
-            )}
-          </div>
-
-          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Open actions</div>
-            {openActionCount === 0 ? (
-              <div className="text-sm text-zinc-500">All clear 🎯</div>
-            ) : (
-              <div className="text-sm font-medium text-zinc-200">{openActionCount}</div>
-            )}
-            {report.actionItems.filter(a => a.completed).length > 0 && (
-              <div className="text-xs text-zinc-500 mt-0.5">{report.actionItems.filter(a => a.completed).length} completed</div>
-            )}
-          </div>
-
-          <div className="bg-surface rounded-xl border border-border p-4 hover:border-zinc-600 transition-colors">
-            <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium mb-1.5">Last feedback</div>
-            {daysSinceFeedback !== null ? (
-              <>
-                <div className="text-sm font-medium text-zinc-200">{daysSinceFeedback} day{daysSinceFeedback !== 1 ? 's' : ''} ago</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{report.feedback.length} total</div>
-              </>
-            ) : (
-              <div className="text-sm text-zinc-500">None yet</div>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Role</label>
+              <input
+                type="text"
+                value={profileFields.role}
+                onChange={e => setProfileFields({ ...profileFields, role: e.target.value })}
+                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Team</label>
+              <input
+                type="text"
+                value={profileFields.team}
+                onChange={e => setProfileFields({ ...profileFields, team: e.target.value })}
+                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Meeting Days</label>
+              <div className="flex gap-1.5">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => {
+                  const selected = profileFields.meetingDay
+                    .split('/')
+                    .map(d => d.trim().toLowerCase())
+                    .includes(day.toLowerCase())
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const current = profileFields.meetingDay
+                          .split('/')
+                          .map(d => d.trim())
+                          .filter(Boolean)
+                        const updated = selected
+                          ? current.filter(d => d.toLowerCase() !== day.toLowerCase())
+                          : [...current, day]
+                        setProfileFields({ ...profileFields, meetingDay: updated.join('/') })
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        selected
+                          ? 'bg-brand/20 text-brand-light border border-brand/30'
+                          : 'bg-surface-raised text-zinc-500 border border-border hover:text-zinc-300 hover:border-zinc-600'
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">GitHub</label>
+              <input
+                type="text"
+                value={profileFields.github}
+                onChange={e => setProfileFields({ ...profileFields, github: e.target.value })}
+                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Location</label>
+              <input
+                type="text"
+                value={profileFields.location}
+                onChange={e => setProfileFields({ ...profileFields, location: e.target.value })}
+                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Quick Actions ── */}
       <div className="flex gap-2 flex-wrap">
@@ -1240,30 +1155,6 @@ export function ReportDetail() {
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
           Add feedback
-        </button>
-        <button
-          onClick={() => {
-            const displayName = report.profile.displayName
-            const msg = `Draft a short, professional email to ${displayName}'s skip-level manager about ${displayName}'s recent performance. Include specific recent examples from their 1:1s and feedback.`
-            navigator.clipboard.writeText(msg)
-            toast.success('Email prompt copied — paste it in the AI chat', 'Copied')
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg border border-border transition-all active:scale-[0.97]"
-        >
-          <Mail className="w-3.5 h-3.5" />
-          Draft email
-        </button>
-        <button
-          onClick={() => {
-            const displayName = report.profile.displayName
-            const msg = `Give me a 3-bullet TL;DR of what's been going on with ${displayName} recently. What should I know before my next conversation with them?`
-            navigator.clipboard.writeText(msg)
-            toast.success('Summary prompt copied — paste it in the AI chat', 'Copied')
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg border border-border transition-all active:scale-[0.97]"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          TL;DR
         </button>
       </div>
 
@@ -1454,148 +1345,125 @@ export function ReportDetail() {
         </div>
       )}
 
-      {/* ── About section (collapsible) ── */}
-      {editingAbout ? (
-        <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-zinc-300">About</h3>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setEditingAbout(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveAbout}
-                disabled={savingAbout}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-              >
-                <Save className="w-3 h-3" aria-hidden="true" />
-                {savingAbout ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+      {/* ── Details (About + Job Expectations) ── */}
+      <div className="bg-surface rounded-xl border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-4 pt-3 pb-0">
+          <div className="flex gap-1">
+            <button
+              onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                detailsTab === 'about' && !detailsCollapsed
+                  ? 'bg-surface-raised text-zinc-200 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              About
+            </button>
+            <button
+              onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                detailsTab === 'expectations' && !detailsCollapsed
+                  ? 'bg-surface-raised text-zinc-200 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Expectations
+            </button>
           </div>
-          <textarea
-            value={aboutDraft}
-            onChange={e => setAboutDraft(e.target.value)}
-            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
-            placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
-            className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-            autoFocus
-          />
-        </div>
-      ) : aboutText ? (
-        <div className="bg-surface rounded-xl border border-border overflow-hidden">
-          <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={!aboutCollapsed}
-            onClick={() => setAboutCollapsed(!aboutCollapsed)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAboutCollapsed(!aboutCollapsed) } }}
-            className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors cursor-pointer"
-          >
-            <h3 className="text-sm font-medium text-zinc-300">About</h3>
-            <div className="flex items-center gap-2">
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={e => { e.stopPropagation(); handleEditAbout() }}
-                onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); handleEditAbout() } }}
-                className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                aria-label="Edit about section"
-              >
-                <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-              </span>
-              {aboutCollapsed ? <ChevronRight className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
-            </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => detailsTab === 'about' ? handleEditAbout() : handleEditJobExpectations()}
+              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+              aria-label={`Edit ${detailsTab === 'about' ? 'about' : 'job expectations'}`}
+            >
+              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => setDetailsCollapsed(!detailsCollapsed)}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+              aria-expanded={!detailsCollapsed}
+              aria-label="Toggle details"
+            >
+              {detailsCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
           </div>
-          {!aboutCollapsed && (
-            <div className="px-4 pb-4 prose-dark text-sm">
-              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
-            </div>
-          )}
         </div>
-      ) : (
-        <button
-          onClick={handleEditAbout}
-          className="w-full bg-surface rounded-xl border border-border/50 border-dashed p-4 text-left hover:border-brand/30 hover:bg-surface-raised/30 transition-all group"
-        >
-          <h3 className="text-sm font-medium text-zinc-500 group-hover:text-zinc-400 mb-1">About</h3>
-          <p className="text-xs text-zinc-600 group-hover:text-zinc-500">
-            Add notes about career goals, working style, or communication preferences.
-          </p>
-        </button>
-      )}
 
-      {/* ── Job expectations (collapsible) ── */}
-      {editingJobExpectations ? (
-        <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-zinc-300">Job expectations</h3>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setEditingJobExpectations(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveJobExpectations}
-                disabled={savingJobExpectations}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-              >
-                <Save className="w-3 h-3" aria-hidden="true" />
-                {savingJobExpectations ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+        {!detailsCollapsed && (
+          <div className="px-4 pb-4 pt-2 animate-fade-in">
+            {editingAbout && detailsTab === 'about' ? (
+              <div className="space-y-2">
+                <textarea
+                  value={aboutDraft}
+                  onChange={e => setAboutDraft(e.target.value)}
+                  onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
+                  placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
+                  className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setEditingAbout(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveAbout}
+                    disabled={savingAbout}
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+                  >
+                    <Save className="w-3 h-3" aria-hidden="true" />
+                    {savingAbout ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : editingJobExpectations && detailsTab === 'expectations' ? (
+              <div className="space-y-2">
+                <textarea
+                  value={jobExpectationsDraft}
+                  onChange={e => setJobExpectationsDraft(e.target.value)}
+                  onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
+                  placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
+                  className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+                  autoFocus
+                />
+                <p className="text-xs text-zinc-600">Used as AI context for reviews and check-ins.</p>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setEditingJobExpectations(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveJobExpectations}
+                    disabled={savingJobExpectations}
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+                  >
+                    <Save className="w-3 h-3" aria-hidden="true" />
+                    {savingJobExpectations ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : detailsTab === 'about' ? (
+              aboutText ? (
+                <div className="prose-dark text-sm">
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-600">
+                  No about info yet. Click the pencil to add career goals, working style, or communication preferences.
+                </p>
+              )
+            ) : (
+              report.jobExpectations ? (
+                <div className="prose-dark text-sm">
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-600">
+                  No expectations set yet. Click the pencil to add role expectations and performance criteria.
+                </p>
+              )
+            )}
           </div>
-          <textarea
-            value={jobExpectationsDraft}
-            onChange={e => setJobExpectationsDraft(e.target.value)}
-            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
-            placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
-            className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-            autoFocus
-          />
-          <p className="text-xs text-zinc-600 mt-1.5">Used as AI context for reviews and check-ins.</p>
-        </div>
-      ) : report.jobExpectations ? (
-        <div className="bg-surface rounded-xl border border-border overflow-hidden">
-          <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={!jobExpCollapsed}
-            onClick={() => setJobExpCollapsed(!jobExpCollapsed)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setJobExpCollapsed(!jobExpCollapsed) } }}
-            className="w-full flex items-center justify-between p-4 text-left group hover:bg-surface-raised/30 transition-colors cursor-pointer"
-          >
-            <h3 className="text-sm font-medium text-zinc-300">Job expectations</h3>
-            <div className="flex items-center gap-2">
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={e => { e.stopPropagation(); handleEditJobExpectations() }}
-                onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); handleEditJobExpectations() } }}
-                className="p-1 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                aria-label="Edit job expectations"
-              >
-                <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-              </span>
-              {jobExpCollapsed ? <ChevronRight className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
-            </div>
-          </div>
-          {!jobExpCollapsed && (
-            <div className="px-4 pb-4 prose-dark text-sm">
-              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
-            </div>
-          )}
-        </div>
-      ) : (
-        <button
-          onClick={handleEditJobExpectations}
-          className="w-full bg-surface rounded-xl border border-border/50 border-dashed p-4 text-left hover:border-brand/30 hover:bg-surface-raised/30 transition-all group"
-        >
-          <h3 className="text-sm font-medium text-zinc-500 group-hover:text-zinc-400 mb-1">Job expectations</h3>
-          <p className="text-xs text-zinc-600 group-hover:text-zinc-500">
-            Add role expectations, competencies, and performance criteria. Used as AI context.
-          </p>
-        </button>
-      )}
+        )}
+      </div>
 
       {/* ── Filter bar ── */}
       <div className="flex gap-1.5 flex-wrap">
