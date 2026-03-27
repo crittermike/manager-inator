@@ -361,30 +361,35 @@ function computeTimelineItems(
     const sprintStart = new Date(cadence.sprintStartDate)
     const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
     const elapsed = now.getTime() - sprintStart.getTime()
-    const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
-    const daysInSprint = cadence.sprintLengthWeeks * 7
 
-    if (currentSprintDay <= 1) {
-      items.push({
-        id: `sprint-start-${format(now, 'yyyy-MM-dd')}`,
-        section: doneIds.has(`sprint-start-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
-        title: 'New sprint — set the sprint goal',
-        subtitle: 'What does success look like for this sprint?',
-        actionLabel: 'Set goal',
-        actionType: 'prompt',
-        promptType: 'sprint-goal'
-      })
-    }
+    // Only apply sprint logic if we've reached the first sprint start date.
+    // Negative elapsed means the start date is in the future — modulo math breaks.
+    if (elapsed >= 0) {
+      const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
+      const daysInSprint = cadence.sprintLengthWeeks * 7
 
-    if (currentSprintDay >= daysInSprint - 2) {
-      items.push({
-        id: `sprint-end-${format(now, 'yyyy-MM-dd')}`,
-        section: doneIds.has(`sprint-end-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
-        title: 'Sprint ending — time for a retro',
-        subtitle: 'Run a retro or check in with the team on how the sprint went',
-        actionLabel: 'Reflect',
-        actionType: 'dismiss'
-      })
+      if (currentSprintDay <= 1) {
+        items.push({
+          id: `sprint-start-${format(now, 'yyyy-MM-dd')}`,
+          section: doneIds.has(`sprint-start-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
+          title: 'New sprint — set the sprint goal',
+          subtitle: 'What does success look like for this sprint?',
+          actionLabel: 'Set goal',
+          actionType: 'prompt',
+          promptType: 'sprint-goal'
+        })
+      }
+
+      if (currentSprintDay >= daysInSprint - 2) {
+        items.push({
+          id: `sprint-end-${format(now, 'yyyy-MM-dd')}`,
+          section: doneIds.has(`sprint-end-${format(now, 'yyyy-MM-dd')}`) ? 'done' : 'this-week',
+          title: 'Sprint ending — time for a retro',
+          subtitle: 'Run a retro or check in with the team on how the sprint went',
+          actionLabel: 'Reflect',
+          actionType: 'dismiss'
+        })
+      }
     }
   }
 
@@ -499,6 +504,7 @@ function computeTimelineItems(
           const sprintStart = new Date(cadence.sprintStartDate)
           const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
           const elapsed = now.getTime() - sprintStart.getTime()
+          if (elapsed < 0) return false
           const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
           return currentSprintDay <= 1
         }
@@ -627,33 +633,36 @@ function computeTimelineItems(
       const sprintStart = new Date(cadence.sprintStartDate)
       const sprintMs = cadence.sprintLengthWeeks * 7 * 24 * 60 * 60 * 1000
       const elapsed = futureDate.getTime() - sprintStart.getTime()
-      const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
-      const daysInSprint = cadence.sprintLengthWeeks * 7
 
-      if (currentSprintDay === 0) {
-        const id = `coming-up-sprint-start-${format(futureDate, 'yyyy-MM-dd')}`
-        if (!doneIds.has(id)) {
-          items.push({
-            id,
-            section: 'coming-up',
-            title: 'New sprint starts',
-            subtitle: futureDateLabel,
-            practiceLink: '/playbook?practice=sprint-start',
-            actionType: 'info'
-          })
+      if (elapsed >= 0) {
+        const currentSprintDay = Math.floor((elapsed % sprintMs) / (1000 * 60 * 60 * 24))
+        const daysInSprint = cadence.sprintLengthWeeks * 7
+
+        if (currentSprintDay === 0) {
+          const id = `coming-up-sprint-start-${format(futureDate, 'yyyy-MM-dd')}`
+          if (!doneIds.has(id)) {
+            items.push({
+              id,
+              section: 'coming-up',
+              title: 'New sprint starts',
+              subtitle: futureDateLabel,
+              practiceLink: '/playbook?practice=sprint-start',
+              actionType: 'info'
+            })
+          }
         }
-      }
-      if (currentSprintDay === daysInSprint - 1) {
-        const id = `coming-up-sprint-end-${format(futureDate, 'yyyy-MM-dd')}`
-        if (!doneIds.has(id)) {
-          items.push({
-            id,
-            section: 'coming-up',
-            title: 'Sprint ends',
-            subtitle: futureDateLabel,
-            practiceLink: '/playbook?practice=sprint-end',
-            actionType: 'info'
-          })
+        if (currentSprintDay === daysInSprint - 1) {
+          const id = `coming-up-sprint-end-${format(futureDate, 'yyyy-MM-dd')}`
+          if (!doneIds.has(id)) {
+            items.push({
+              id,
+              section: 'coming-up',
+              title: 'Sprint ends',
+              subtitle: futureDateLabel,
+              practiceLink: '/playbook?practice=sprint-end',
+              actionType: 'info'
+            })
+          }
         }
       }
     }
@@ -877,14 +886,18 @@ export function Today() {
     if (!hasActivity && data.every(m => !m.error)) return
 
     // Serialize activity data for the AI prompt
+    const now = new Date()
     const activityText = data.map(member => {
-      if (member.error) return `${member.displayName} (@${member.githubUsername}): Error fetching activity`
-      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername}): No activity in last 24h`
+      const ptoExpiry = ptoReports[member.reportName]
+      const onPto = ptoExpiry && new Date(ptoExpiry) > now
+      const ptoLabel = onPto ? ` [ON PTO until ${new Date(ptoExpiry + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}]` : ''
+      if (member.error) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: Error fetching activity`
+      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: No activity in last 24h`
       const items = member.items.map(item => {
         const age = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24))
         return `  - [${item.type.toUpperCase()}] ${item.title} (${item.repo}, ${item.state}, ${age}d old, ${item.comments} comments) ${item.url}`
       }).join('\n')
-      return `${member.displayName} (@${member.githubUsername}):\n${items}`
+      return `${member.displayName} (@${member.githubUsername})${ptoLabel}:\n${items}`
     }).join('\n\n')
 
     const dateLabel = format(new Date(), 'EEEE, MMM d')
@@ -901,7 +914,7 @@ export function Today() {
     } catch (err) {
       console.error('[Activity Summary] AI generation failed:', err)
     }
-  }, [activityAI])
+  }, [activityAI, ptoReports])
 
   useEffect(() => {
     if (teamActivity.length > 0 && !activitySummary && !activityAI.streaming) {
