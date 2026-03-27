@@ -188,7 +188,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
       updateSession(activeId, s => ({
         ...s,
-        messages: [...s.messages, { role: 'assistant', content: response }],
+        messages: [...s.messages, { role: 'assistant', content: response.trim() }],
         updatedAt: new Date().toISOString()
       }))
     } catch {
@@ -446,10 +446,10 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <div className="w-6 h-6 rounded-md bg-brand/15 flex items-center justify-center shrink-0 mt-0.5">
               <Bot className="w-3.5 h-3.5 text-brand" aria-hidden="true" />
             </div>
-            <div className={`rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer ${streamedText ? 'max-w-[85%]' : 'w-fit'}`}>
-              {streamedText ? (
+            <div className={`rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer ${streamedText.trimStart() ? 'max-w-[85%]' : 'w-fit'}`}>
+              {streamedText.trimStart() ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
-                  <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText}</div>
+                  <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText.trimStart()}</div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-1 py-0.5">
