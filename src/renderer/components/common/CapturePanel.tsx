@@ -5,6 +5,10 @@ import { useTeamOverview } from '../../hooks/useData'
 import { format } from 'date-fns'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
 import { ConfirmDialog } from './ConfirmDialog'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+
+const REMARK_PLUGINS = [remarkGfm]
 import {
   ClipboardPaste, X, ChevronDown, ChevronUp,
   Loader2, Check, AlertCircle, Sparkles,
@@ -435,7 +439,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
         {state === 'saved' && result && (
           <div className="space-y-3">
             <div className="bg-surface border border-border rounded-lg p-3 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand/10 text-brand-light border border-brand/20">
                   {result.source}
                 </span>
@@ -499,8 +503,8 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               <div className="space-y-1.5">
                 <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Impact logged</span>
                 {result.impact.map((item, i) => (
-                  <div key={i} className="text-xs text-zinc-400">
-                    {item.text}
+                  <div key={i} className="text-xs text-zinc-400 prose-dark prose-sm">
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{item.text}</ReactMarkdown>
                   </div>
                 ))}
               </div>
@@ -509,7 +513,9 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             {result.key_context && (
               <div className="space-y-1">
                 <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Key context</span>
-                <p className="text-xs text-zinc-400">{result.key_context}</p>
+                <div className="text-xs text-zinc-400 prose-dark prose-sm">
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{result.key_context}</ReactMarkdown>
+                </div>
               </div>
             )}
 
