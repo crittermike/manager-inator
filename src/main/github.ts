@@ -912,6 +912,7 @@ export function getReportData(name: string): Report {
     return {
       date: entry.date,
       source: (entry.source || 'other') as ContextNote['source'],
+      title: entry.title,
       summary: entry.summary,
       tags: entry.tags,
       people: entry.people,

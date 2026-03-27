@@ -100,6 +100,7 @@ export interface CustomPractice {
 export interface ContextNote {
   date: string // YYYY-MM-DD
   source: 'slack' | 'github' | 'email' | 'meeting' | 'other'
+  title: string // display title (from YAML frontmatter or derived from filename)
   summary: string
   tags: string[]
   people: string[] // person slugs (e.g. ['nic-daantos', 'steve-grant'])

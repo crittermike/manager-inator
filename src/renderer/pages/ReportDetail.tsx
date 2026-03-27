@@ -758,9 +758,7 @@ export function ReportDetail() {
         other: 'Note'
       }
       const sourceLabel = sourceLabels[ctx.source] || ctx.source
-      const title = ctx.source === 'meeting'
-        ? `1:1 with ${report.profile.displayName}`
-        : ctx.summary || `${sourceLabel} — ${formatDate(ctx.date)}`
+      const title = ctx.title || ctx.summary || `${sourceLabel} — ${formatDate(ctx.date)}`
       entries.push({
         id: `context-${ctx.filename}`,
         type: 'context',
@@ -1355,13 +1353,32 @@ export function ReportDetail() {
       )}
 
       {/* ── Details (About + Job Expectations) ── */}
+      {detailsCollapsed ? (
+        <div className="flex items-center gap-3 px-1">
+          <button
+            onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+          >
+            <ChevronRight className="w-3 h-3" />
+            About
+          </button>
+          <span className="text-zinc-700">·</span>
+          <button
+            onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+          >
+            <ChevronRight className="w-3 h-3" />
+            Expectations
+          </button>
+        </div>
+      ) : (
       <div className="bg-surface rounded-xl border border-border overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-3 pb-0">
           <div className="flex gap-1">
             <button
               onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
               className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                detailsTab === 'about' && !detailsCollapsed
+                detailsTab === 'about'
                   ? 'bg-surface-raised text-zinc-200 font-medium'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
@@ -1371,7 +1388,7 @@ export function ReportDetail() {
             <button
               onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
               className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                detailsTab === 'expectations' && !detailsCollapsed
+                detailsTab === 'expectations'
                   ? 'bg-surface-raised text-zinc-200 font-medium'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
@@ -1388,91 +1405,90 @@ export function ReportDetail() {
               <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
             <button
-              onClick={() => setDetailsCollapsed(!detailsCollapsed)}
+              onClick={() => setDetailsCollapsed(true)}
               className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-              aria-expanded={!detailsCollapsed}
-              aria-label="Toggle details"
+              aria-expanded={true}
+              aria-label="Collapse details"
             >
-              {detailsCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <ChevronDown className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {!detailsCollapsed && (
-          <div className="px-4 pb-4 pt-2 animate-fade-in">
-            {editingAbout && detailsTab === 'about' ? (
-              <div className="space-y-2">
-                <textarea
-                  value={aboutDraft}
-                  onChange={e => setAboutDraft(e.target.value)}
-                  onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
-                  placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
-                  className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-                  autoFocus
-                />
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => setEditingAbout(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveAbout}
-                    disabled={savingAbout}
-                    className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-                  >
-                    <Save className="w-3 h-3" aria-hidden="true" />
-                    {savingAbout ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
+        <div className="px-4 pb-4 pt-2 animate-fade-in">
+          {editingAbout && detailsTab === 'about' ? (
+            <div className="space-y-2">
+              <textarea
+                value={aboutDraft}
+                onChange={e => setAboutDraft(e.target.value)}
+                onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
+                placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
+                className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setEditingAbout(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveAbout}
+                  disabled={savingAbout}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" aria-hidden="true" />
+                  {savingAbout ? 'Saving…' : 'Save'}
+                </button>
               </div>
-            ) : editingJobExpectations && detailsTab === 'expectations' ? (
-              <div className="space-y-2">
-                <textarea
-                  value={jobExpectationsDraft}
-                  onChange={e => setJobExpectationsDraft(e.target.value)}
-                  onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
-                  placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
-                  className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-                  autoFocus
-                />
-                <p className="text-xs text-zinc-600">Used as AI context for reviews and check-ins.</p>
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => setEditingJobExpectations(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveJobExpectations}
-                    disabled={savingJobExpectations}
-                    className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-                  >
-                    <Save className="w-3 h-3" aria-hidden="true" />
-                    {savingJobExpectations ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
+            </div>
+          ) : editingJobExpectations && detailsTab === 'expectations' ? (
+            <div className="space-y-2">
+              <textarea
+                value={jobExpectationsDraft}
+                onChange={e => setJobExpectationsDraft(e.target.value)}
+                onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
+                placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
+                className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+                autoFocus
+              />
+              <p className="text-xs text-zinc-600">Used as AI context for reviews and check-ins.</p>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setEditingJobExpectations(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveJobExpectations}
+                  disabled={savingJobExpectations}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" aria-hidden="true" />
+                  {savingJobExpectations ? 'Saving…' : 'Save'}
+                </button>
               </div>
-            ) : detailsTab === 'about' ? (
-              aboutText ? (
-                <div className="prose-dark text-sm">
-                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="text-xs text-zinc-600">
-                  No about info yet. Click the pencil to add career goals, working style, or communication preferences.
-                </p>
-              )
+            </div>
+          ) : detailsTab === 'about' ? (
+            aboutText ? (
+              <div className="prose-dark text-sm">
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
+              </div>
             ) : (
-              report.jobExpectations ? (
-                <div className="prose-dark text-sm">
-                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="text-xs text-zinc-600">
-                  No expectations set yet. Click the pencil to add role expectations and performance criteria.
-                </p>
-              )
-            )}
-          </div>
-        )}
+              <p className="text-xs text-zinc-600">
+                No about info yet. Click the pencil to add career goals, working style, or communication preferences.
+              </p>
+            )
+          ) : (
+            report.jobExpectations ? (
+              <div className="prose-dark text-sm">
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-600">
+                No expectations set yet. Click the pencil to add role expectations and performance criteria.
+              </p>
+            )
+          )}
+        </div>
       </div>
+      )}
 
       {/* ── Filter bar ── */}
       <div className="flex gap-1.5 flex-wrap">
@@ -1771,7 +1787,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
       {expanded && (
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
-            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onViewContent={onViewContent} onEdit={onEditContent} onDelete={onDeleteContent} />}
+            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
@@ -1834,29 +1850,37 @@ const StreamEntryCard = memo(function StreamEntryCard({
 function ContextDetail({ 
   entry, 
   name, 
-  onViewContent, 
   onEdit, 
   onDelete 
 }: { 
   entry: StreamEntry; 
   name: string; 
-  onViewContent: (id: string, path: string, title: string) => void;
   onEdit: (id: string, path: string) => void;
   onDelete: (path: string) => void;
 }) {
-  const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string }
+  const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string; title: string }
   const tags = ctx.tags || []
   const contextPath = `contexts/${ctx.filename}`
+  const [activeTab, setActiveTab] = useState<'processed' | 'raw'>('processed')
 
-  useEffect(() => {
-    onViewContent(entry.id, contextPath, ctx.summary || `Context — ${formatDate(ctx.date)}`)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const { content: fileContent, loading: fileLoading } = useFileContent(contextPath)
+
+  const { processed, raw } = useMemo(() => {
+    if (!fileContent) return { processed: '', raw: '' }
+    const cleaned = cleanSummaryContent(fileContent)
+    const rawMarker = /\n## Raw content\n/i
+    const match = cleaned.match(rawMarker)
+    if (match && match.index != null) {
+      return {
+        processed: cleaned.slice(0, match.index).trim(),
+        raw: cleaned.slice(match.index + match[0].length).trim()
+      }
+    }
+    return { processed: cleaned, raw: '' }
+  }, [fileContent])
 
   return (
     <div className="space-y-2">
-      {ctx.summary && (
-        <p className="text-sm text-zinc-300 leading-relaxed">{ctx.summary}</p>
-      )}
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {tags.map((tag, i) => (
@@ -1874,6 +1898,44 @@ function ContextDetail({
           <Trash2 className="w-3 h-3" /> Delete
         </button>
       </div>
+
+      {fileLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : fileContent ? (
+        <div className="space-y-2">
+          {raw && (
+            <div className="flex gap-1">
+              <button
+                onClick={() => setActiveTab('processed')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  activeTab === 'processed'
+                    ? 'bg-surface-raised text-zinc-200 font-medium'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Processed
+              </button>
+              <button
+                onClick={() => setActiveTab('raw')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  activeTab === 'raw'
+                    ? 'bg-surface-raised text-zinc-200 font-medium'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Raw
+              </button>
+            </div>
+          )}
+          <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+              {activeTab === 'processed' || !raw ? processed : raw}
+            </ReactMarkdown>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
