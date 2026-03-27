@@ -6,3 +6,4 @@ out/
 .sisyphus/
 test-results/
 test-compile.tsx
+coverage/
