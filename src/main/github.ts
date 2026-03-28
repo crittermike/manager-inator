@@ -600,8 +600,8 @@ export function parseFeedbackLog(content: string): FeedbackEntry[] {
       type = rawType as FeedbackEntry['type']
     }
 
-    const sourceMatch = block.match(/\*\*Source\*\*:\s*(.+)/i)
-    const contextMatch = block.match(/\*\*Context\*\*:\s*(.+)/i)
+    const sourceMatch = block.match(/\*\*Source:?\*\*:?\s*(.+)/i)
+    const contextMatch = block.match(/\*\*Context:?\*\*:?\s*(.+)/i)
     const quoteMatch = block.match(/>\s*(.+(?:\n>\s*.+)*)/m)
     
     let feedbackContent: string
@@ -613,8 +613,8 @@ export function parseFeedbackLog(content: string): FeedbackEntry[] {
       const contentLines = lines.filter(l => 
         !l.match(/^\[?\d{4}-\d{2}-\d{2}\]?/) &&
         !l.match(/^\*\*Type:\*\*/i) &&
-        !l.match(/^\*\*Source\*\*:/i) &&
-        !l.match(/^\*\*Context\*\*:/i) &&
+        !l.match(/^\*\*Source:?\*\*:?/i) &&
+        !l.match(/^\*\*Context:?\*\*:?/i) &&
         !l.match(/^---\s*$/) &&
         l.trim()
       )
@@ -629,6 +629,44 @@ export function parseFeedbackLog(content: string): FeedbackEntry[] {
     })
   }
   return entries
+}
+
+export function serializeFeedbackLog(entries: FeedbackEntry[]): string {
+  if (entries.length === 0) return ''
+  return entries.map(e => {
+    let block = `### ${e.date}\n**Type:** ${e.type}\n`
+    if (e.source) block += `**Source:** ${e.source}\n`
+    if (e.context) block += `**Context:** ${e.context}\n`
+    block += `\n${e.content.trim()}\n`
+    return block
+  }).join('\n---\n\n')
+}
+
+export function updateFeedbackEntry(
+  reportName: string,
+  entryIndex: number,
+  newContent: string,
+  newType: FeedbackEntry['type']
+): void {
+  const feedbackLogPath = `reports/${reportName}/feedback/log.md`
+  const raw = getFileContent(feedbackLogPath)
+  const entries = parseFeedbackLog(raw)
+  if (entryIndex < 0 || entryIndex >= entries.length) {
+    throw new Error(`Feedback entry index ${entryIndex} out of range (${entries.length} entries)`)
+  }
+  entries[entryIndex] = { ...entries[entryIndex], content: newContent.trim(), type: newType }
+  commitFile(feedbackLogPath, serializeFeedbackLog(entries), `Update feedback for ${reportName}`)
+}
+
+export function deleteFeedbackEntry(reportName: string, entryIndex: number): void {
+  const feedbackLogPath = `reports/${reportName}/feedback/log.md`
+  const raw = getFileContent(feedbackLogPath)
+  const entries = parseFeedbackLog(raw)
+  if (entryIndex < 0 || entryIndex >= entries.length) {
+    throw new Error(`Feedback entry index ${entryIndex} out of range (${entries.length} entries)`)
+  }
+  entries.splice(entryIndex, 1)
+  commitFile(feedbackLogPath, serializeFeedbackLog(entries), `Delete feedback for ${reportName}`)
 }
 
 export function extractSnippet(content: string, matchIndex: number, matchLength: number): string {

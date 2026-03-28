@@ -228,6 +228,7 @@ export function ReportDetail() {
       toast.success('Changes saved successfully')
       refresh()
       setIsEditingContent(false)
+      setViewingContent(null)
     } catch (err) {
       toast.error('Failed to save changes')
     }
@@ -695,19 +696,10 @@ export function ReportDetail() {
     }
   }, [name, report, feedbackDraft, feedbackType, toast, refresh])
 
-  const handleUpdateFeedback = useCallback(async (original: FeedbackEntry, newContent: string, newType: FeedbackEntry['type']) => {
+  const handleUpdateFeedback = useCallback(async (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => {
     if (!name) return
     try {
-      const feedbackLogPath = `reports/${name}/feedback/log.md`
-      const existing = await window.api.getFileContent(feedbackLogPath)
-      const oldEntry = `### ${original.date}\n**Type:** ${original.type}\n\n${original.content.trim()}\n`
-      const newEntry = `### ${original.date}\n**Type:** ${newType}\n\n${newContent.trim()}\n`
-      const updated = existing.replace(oldEntry, newEntry)
-      if (updated === existing) {
-        toast.error('Could not locate feedback entry to update')
-        return
-      }
-      await window.api.commitFile(feedbackLogPath, updated, `Update feedback for ${name}`)
+      await window.api.updateFeedbackEntry(name, entryIndex, newContent, newType)
       toast.success('Feedback updated')
       refresh()
     } catch {
@@ -715,18 +707,10 @@ export function ReportDetail() {
     }
   }, [name, toast, refresh])
 
-  const handleDeleteFeedback = useCallback(async (f: FeedbackEntry) => {
+  const handleDeleteFeedback = useCallback(async (entryIndex: number) => {
     if (!name) return
     try {
-      const feedbackLogPath = `reports/${name}/feedback/log.md`
-      const existing = await window.api.getFileContent(feedbackLogPath)
-      const entryPattern = `### ${f.date}\n**Type:** ${f.type}\n\n${f.content.trim()}\n`
-      let updated = existing.replace(entryPattern, '')
-      updated = updated.replace(/\n---\n\n\n---\n/g, '\n---\n')
-      updated = updated.replace(/^\n*---\n\n/g, '')
-      updated = updated.replace(/\n---\n\n$/g, '')
-      updated = updated.trim() + '\n'
-      await window.api.commitFile(feedbackLogPath, updated, `Delete feedback for ${name}`)
+      await window.api.deleteFeedbackEntry(name, entryIndex)
       toast.success('Feedback deleted')
       refresh()
     } catch {
@@ -848,8 +832,8 @@ export function ReportDetail() {
         type: 'feedback',
         date: f.date,
         title: `${f.type === 'positive' ? '👍' : f.type === 'constructive' ? '🔧' : f.type === 'observation' ? '💡' : '💬'} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}`,
-        preview: f.content.length > 120 ? f.content.slice(0, 120) + '…' : f.content,
-        data: f
+        preview: (() => { const plain = f.content.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1'); return plain.length > 120 ? plain.slice(0, 120) + '…' : plain })(),
+        data: { ...f, _index: i }
       })
     }
 
@@ -1783,8 +1767,8 @@ interface StreamEntryCardProps {
   onDeleteContent: (path: string) => void
   onSaveContent: (path: string, content: string) => Promise<void>
   onCancelEdit: () => void
-  onUpdateFeedback: (original: FeedbackEntry, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
-  onDeleteFeedback: (f: FeedbackEntry) => Promise<void>
+  onUpdateFeedback: (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
+  onDeleteFeedback: (entryIndex: number) => Promise<void>
 }
 
 const StreamEntryCard = memo(function StreamEntryCard({
@@ -1904,7 +1888,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
       {expanded && (
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
-            {entry.type === 'context' && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} activeTab={contextTab} onTabChange={setContextTab} />}
+            {entry.type === 'context' && !(isViewing && isEditing) && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} activeTab={contextTab} onTabChange={setContextTab} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
@@ -1913,10 +1897,11 @@ const StreamEntryCard = memo(function StreamEntryCard({
           </div>
 
           {isViewing && viewingPath && (
-            <div className="mt-4 pt-4 border-t border-zinc-800/50 animate-fade-in">
+            <div className={`animate-fade-in ${!(isEditing && entry.type === 'context') ? 'mt-4 pt-4 border-t border-zinc-800/50' : ''}`}>
+              {!(isEditing && entry.type === 'context') && (
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-zinc-300">
-                  {isEditing ? `Editing: ${viewingTitle}` : viewingTitle}
+                  {viewingTitle}
                 </span>
                 <button
                   onClick={isEditing ? onCancelEdit : onCloseContent}
@@ -1926,6 +1911,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
                   <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
+              )}
               
               {fileLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -2028,10 +2014,10 @@ function ContextDetail({
 
 function FeedbackDetail({ entry, onUpdate, onDelete }: { 
   entry: StreamEntry; 
-  onUpdate: (original: FeedbackEntry, newContent: string, newType: FeedbackEntry['type']) => Promise<void>;
-  onDelete: (f: FeedbackEntry) => Promise<void>;
+  onUpdate: (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>;
+  onDelete: (entryIndex: number) => Promise<void>;
 }) {
-  const f = entry.data as FeedbackEntry
+  const f = entry.data as FeedbackEntry & { _index: number }
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(f.content)
   const [draftType, setDraftType] = useState<FeedbackEntry['type']>(f.type)
@@ -2041,14 +2027,14 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
   const handleSave = useCallback(async () => {
     if (!draft.trim()) return
     setSaving(true)
-    await onUpdate(f, draft, draftType)
+    await onUpdate(f._index, draft, draftType)
     setSaving(false)
     setEditing(false)
-  }, [f, draft, draftType, onUpdate])
+  }, [f._index, draft, draftType, onUpdate])
 
   const handleDelete = useCallback(async () => {
-    await onDelete(f)
-  }, [f, onDelete])
+    await onDelete(f._index)
+  }, [f._index, onDelete])
 
   if (editing) {
     return (
@@ -2094,7 +2080,7 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm text-zinc-300 leading-relaxed">{f.content}</p>
+      <div className="prose-dark text-sm leading-relaxed"><ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <p className="text-zinc-300 my-1">{children}</p> }}>{f.content}</ReactMarkdown></div>
       <div className="flex items-center gap-3 text-xs text-zinc-500">
         <span>{formatDate(f.date)}</span>
         {f.source && <span>from {f.source}</span>}

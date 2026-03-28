@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld('api', {
   getRecentTeamContext: (days: number) => ipcRenderer.invoke('github:recent-team-context', days),
   getMonthlyActivity: (reportName: string, year: number, month: number) =>
     ipcRenderer.invoke('github:monthly-activity', reportName, year, month),
+  updateFeedbackEntry: (reportName: string, entryIndex: number, newContent: string, newType: string) =>
+    ipcRenderer.invoke('github:update-feedback', reportName, entryIndex, newContent, newType),
+  deleteFeedbackEntry: (reportName: string, entryIndex: number) =>
+    ipcRenderer.invoke('github:delete-feedback', reportName, entryIndex),
   onLoadingProgress: (cb: (data: { message: string }) => void) => {
     const handler = (_event: unknown, data: { message: string }) => cb(data)
     ipcRenderer.on('app:loading-progress', handler)

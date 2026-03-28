@@ -306,6 +306,8 @@ export interface IpcApi {
   getTeamActivity: () => Promise<TeamMemberActivity[]>
   getRecentTeamContext: (days: number) => Promise<Record<string, { date: string; source: string; title: string; summary: string }[]>>
   getMonthlyActivity: (reportName: string, year: number, month: number) => Promise<MonthlyActivityStats | null>
+  updateFeedbackEntry: (reportName: string, entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
+  deleteFeedbackEntry: (reportName: string, entryIndex: number) => Promise<void>
   searchContent: (query: string) => Promise<{ filename: string; directory: 'contexts' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
   onLoadingProgress: (cb: (data: { message: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
