@@ -226,6 +226,21 @@ export interface TeamMemberActivity {
   error: string | null
 }
 
+export interface MonthlyActivityStats {
+  prsMerged: { title: string; url: string; repo: string; mergedAt: string }[]
+  prsReviewed: { title: string; url: string; repo: string }[]
+  issuesCreated: { title: string; url: string; repo: string; state: string }[]
+  issuesClosed: { title: string; url: string; repo: string }[]
+  discussionsCreated: { title: string; url: string; repo: string }[]
+  counts: {
+    prsMerged: number
+    prsReviewed: number
+    issuesCreated: number
+    issuesClosed: number
+    discussionsCreated: number
+  }
+}
+
 // ── Person entry (from listPeople) ──
 export interface PersonEntry {
   name: string
@@ -289,6 +304,8 @@ export interface IpcApi {
   clearCaches: () => Promise<void>
   getPrewarmStatus: () => Promise<boolean>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
+  getRecentTeamContext: (days: number) => Promise<Record<string, { date: string; source: string; title: string; summary: string }[]>>
+  getMonthlyActivity: (reportName: string, year: number, month: number) => Promise<MonthlyActivityStats | null>
   searchContent: (query: string) => Promise<{ filename: string; directory: 'contexts' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
   onLoadingProgress: (cb: (data: { message: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void

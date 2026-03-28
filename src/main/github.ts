@@ -1493,6 +1493,30 @@ export function getTodayBootstrap(): {
   }
 }
 
+export function getRecentTeamContext(days: number): Record<string, { date: string; source: string; title: string; summary: string }[]> {
+  const cache = getContextsCache()
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+
+  const result: Record<string, { date: string; source: string; title: string; summary: string }[]> = {}
+
+  for (const entry of cache.entries) {
+    if (entry.date < cutoffStr) continue
+    for (const slug of entry.people) {
+      if (!result[slug]) result[slug] = []
+      result[slug].push({
+        date: entry.date,
+        source: entry.source,
+        title: entry.title,
+        summary: entry.summary
+      })
+    }
+  }
+
+  return result
+}
+
 export function clearAllCaches(): void {
   _resolvedRepoPath = null
   _resolvedRepoPathSource = null

@@ -290,7 +290,8 @@ ${context.summaries ? `Recent 1:1 summaries:\n${context.summaries}` : 'No recent
 ${context.checkInHistory ? `\nPrevious check-ins:\n${context.checkInHistory}` : ''}
 ${context.feedback ? `\nFeedback log:\n${context.feedback}` : ''}
 ${context.actionItems ? `\nAction items:\n${context.actionItems}` : ''}
-${context.contextNotes ? `\nCaptured context (Slack threads, GitHub discussions, emails, etc.):\n${context.contextNotes}` : ''}`
+${context.contextNotes ? `\nCaptured context (Slack threads, GitHub discussions, emails, etc.):\n${context.contextNotes}` : ''}
+${context.githubActivity ? `\nGitHub activity this month (include links in the check-in where relevant):\n${context.githubActivity}` : ''}`
       })
       break
 
@@ -503,6 +504,8 @@ Write it as a quick-read briefing I can scan in 30 seconds. Cover each person wh
 
 If someone is marked [ON PTO], note that they're on PTO. Low or no activity from someone on PTO is expected and not a concern — don't suggest checking in with them or flag their inactivity. If they DO have activity while on PTO, mention it briefly but don't make a big deal of it.
 
+IMPORTANT: I've included recent context notes below (meetings, Slack threads, emails, etc. from the past week). Use this to avoid flagging things I already know about. If a PR or issue was discussed in a recent meeting or Slack thread, don't tell me to "check in" on it or flag it as needing attention — I'm already aware. Focus your attention flags on things that are NOT covered by the recent context.
+
 Use markdown. Use a bold name for each person (e.g. **Chanakya**). Use markdown links for PR/issue references (e.g. [PR title](url)). Keep descriptions short and conversational.
 
 End with a **TL;DR** paragraph highlighting the 2-3 most important things I should pay attention to.
@@ -512,7 +515,10 @@ If someone has no activity and is NOT on PTO, mention them briefly ("quiet day" 
 Do NOT use headings (#). Just bold names and body text. Keep the whole thing concise.
 
 TEAM ACTIVITY DATA:
-${context.activityData}`
+${context.activityData}${context.recentContext ? `
+
+RECENT CONTEXT (meetings, Slack, email, etc. from the past week — I already know about these):
+${context.recentContext}` : ''}`
       })
       break
 

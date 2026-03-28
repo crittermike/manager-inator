@@ -885,14 +885,18 @@ export function Today() {
     const hasActivity = data.some(m => m.items.length > 0)
     if (!hasActivity && data.every(m => !m.error)) return
 
-    // Serialize activity data for the AI prompt
+    let recentContext: Record<string, { date: string; source: string; title: string; summary: string }[]> = {}
+    try {
+      recentContext = await window.api.getRecentTeamContext(7)
+    } catch { /* context unavailable is non-fatal */ }
+
     const now = new Date()
     const activityText = data.map(member => {
       const ptoExpiry = ptoReports[member.reportName]
       const onPto = ptoExpiry && new Date(ptoExpiry) > now
       const ptoLabel = onPto ? ` [ON PTO until ${new Date(ptoExpiry + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}]` : ''
       if (member.error) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: Error fetching activity`
-      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: No activity in last 24h`
+      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: No activity in last ${new Date().getDay() === 1 ? '72h' : '24h'}`
       const items = member.items.map(item => {
         const age = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24))
         return `  - [${item.type.toUpperCase()}] ${item.title} (${item.repo}, ${item.state}, ${age}d old, ${item.comments} comments) ${item.url}`
@@ -900,11 +904,22 @@ export function Today() {
       return `${member.displayName} (@${member.githubUsername})${ptoLabel}:\n${items}`
     }).join('\n\n')
 
+    let contextText = ''
+    const contextEntries = Object.entries(recentContext)
+    if (contextEntries.length > 0) {
+      const sections = contextEntries.map(([slug, notes]) => {
+        const noteLines = notes.map(n => `  - ${n.date} (${n.source}): ${n.title}${n.summary ? ` — ${n.summary}` : ''}`).join('\n')
+        return `${slug}:\n${noteLines}`
+      }).join('\n\n')
+      contextText = sections
+    }
+
     const dateLabel = format(new Date(), 'EEEE, MMM d')
 
     try {
       const result = await activityAI.generate('summarize-team-activity', {
         activityData: activityText,
+        recentContext: contextText || undefined,
         dateLabel
       })
       setActivitySummary(result)

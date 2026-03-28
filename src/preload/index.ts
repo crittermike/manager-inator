@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('api', {
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
   getPrewarmStatus: () => ipcRenderer.invoke('github:prewarm-status'),
   getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
+  getRecentTeamContext: (days: number) => ipcRenderer.invoke('github:recent-team-context', days),
+  getMonthlyActivity: (reportName: string, year: number, month: number) =>
+    ipcRenderer.invoke('github:monthly-activity', reportName, year, month),
   onLoadingProgress: (cb: (data: { message: string }) => void) => {
     const handler = (_event: unknown, data: { message: string }) => cb(data)
     ipcRenderer.on('app:loading-progress', handler)

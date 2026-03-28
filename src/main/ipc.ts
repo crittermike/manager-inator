@@ -29,11 +29,12 @@ import {
   cancelPendingCommits,
   preWarmCaches,
   isPrewarmComplete,
-  safeSend
+  safeSend,
+  getRecentTeamContext
 } from './github'
 import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
 import { aiGenerate, aiCancel } from './copilot'
-import { getTeamActivity } from './github-activity'
+import { getTeamActivity, getMonthlyActivityForPerson } from './github-activity'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -113,6 +114,10 @@ export function setupIpcHandlers(): void {
   safeHandle('github:clear-caches', () => clearAllCaches())
   safeHandle('github:prewarm-status', () => isPrewarmComplete())
   safeHandle('github:team-activity', () => getTeamActivity())
+  safeHandle('github:recent-team-context', (_e, days) => getRecentTeamContext(days as number))
+  safeHandle('github:monthly-activity', (_e, reportName, year, month) =>
+    getMonthlyActivityForPerson(reportName as string, year as number, month as number)
+  )
 
   // ── AI with streaming ──
   safeHandle('ai:generate', async (event, action, context, requestId) => {

@@ -10,7 +10,7 @@ vi.mock('../../src/main/github', () => ({
   getReportProfile: vi.fn()
 }))
 
-import { getTeamActivity, clearActivityCache } from '../../src/main/github-activity'
+import { getTeamActivity, clearActivityCache, getActivityLookbackHours } from '../../src/main/github-activity'
 import { getGithubOrgToken, getGithubOrgName } from '../../src/main/store'
 import { getReports, getReportProfile } from '../../src/main/github'
 
@@ -682,5 +682,75 @@ describe('getTeamActivity', () => {
     )
     expect(graphqlCalls.length).toBeGreaterThan(0)
     expect(graphqlCalls[0][1].headers['Authorization']).toBe('Bearer ghp_secret_token')
+  })
+
+  it('looks back 72h on Mondays (3 days instead of 1)', async () => {
+    const monday = new Date('2026-03-30T12:00:00Z') // Monday
+    vi.useFakeTimers({ now: monday })
+
+    mockedGetToken.mockReturnValue('ghp_test123')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    mockFetchResponder(
+      [emptySearchResponse, emptySearchResponse, emptySearchResponse, emptySearchResponse],
+      [emptyGraphQLResponse, emptyGraphQLResponse]
+    )
+
+    await getTeamActivity()
+
+    const restCalls = mockFetch.mock.calls.filter(
+      (c: any[]) => typeof c[0] === 'string' && c[0].includes('/search/issues')
+    )
+    const firstUrl = decodeURIComponent(restCalls[0][0] as string)
+    // Monday March 30 minus 3 days = Friday March 27
+    expect(firstUrl).toContain('updated:>=2026-03-27')
+
+    vi.useRealTimers()
+  })
+
+  it('looks back 24h on non-Monday days', async () => {
+    const wednesday = new Date('2026-03-25T12:00:00Z') // Wednesday
+    vi.useFakeTimers({ now: wednesday })
+
+    clearActivityCache()
+
+    mockedGetToken.mockReturnValue('ghp_test123')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    mockFetchResponder(
+      [emptySearchResponse, emptySearchResponse, emptySearchResponse, emptySearchResponse],
+      [emptyGraphQLResponse, emptyGraphQLResponse]
+    )
+
+    await getTeamActivity()
+
+    const restCalls = mockFetch.mock.calls.filter(
+      (c: any[]) => typeof c[0] === 'string' && c[0].includes('/search/issues')
+    )
+    const firstUrl = decodeURIComponent(restCalls[0][0] as string)
+    // Wednesday March 25 minus 1 day = Tuesday March 24
+    expect(firstUrl).toContain('updated:>=2026-03-24')
+
+    vi.useRealTimers()
+  })
+})
+
+describe('getActivityLookbackHours', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns 72 on Monday', () => {
+    vi.useFakeTimers({ now: new Date('2026-03-30T12:00:00Z') }) // Monday
+    expect(getActivityLookbackHours()).toBe(72)
+  })
+
+  it('returns 24 on other days', () => {
+    vi.useFakeTimers({ now: new Date('2026-03-25T12:00:00Z') }) // Wednesday
+    expect(getActivityLookbackHours()).toBe(24)
   })
 })

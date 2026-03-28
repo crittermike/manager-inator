@@ -1,6 +1,6 @@
 import { getGithubOrgToken, getGithubOrgName } from './store'
 import { getReports, getReportProfile } from './github'
-import type { GitHubActivityItem, TeamMemberActivity } from '../shared/types'
+import type { GitHubActivityItem, TeamMemberActivity, MonthlyActivityStats } from '../shared/types'
 
 const CACHE_TTL_MS = 15 * 60 * 1000
 const MAX_CONCURRENT = 3
@@ -68,9 +68,12 @@ async function fetchUserActivity(
   org: string,
   token: string
 ): Promise<GitHubActivityItem[]> {
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  const since = yesterday.toISOString().split('T')[0]
+  const now = new Date()
+  // On Monday, look back 72h to capture Friday's activity
+  const lookbackDays = now.getDay() === 1 ? 3 : 1
+  const since = new Date(now)
+  since.setDate(since.getDate() - lookbackDays)
+  const sinceStr = since.toISOString().split('T')[0]
 
   const headers = {
     'Authorization': `Bearer ${token}`,
@@ -78,18 +81,18 @@ async function fetchUserActivity(
     'X-GitHub-Api-Version': '2022-11-28'
   }
 
-  console.log(`[GitHub Activity] Fetching: org=${org}, user=${username}, since=${since}`)
+  console.log(`[GitHub Activity] Fetching: org=${org}, user=${username}, since=${sinceStr}, lookback=${lookbackDays}d`)
 
-  const authorQuery = `org:${org} author:${username} updated:>=${since}`
-  const commenterQuery = `org:${org} commenter:${username} updated:>=${since}`
+  const authorQuery = `org:${org} author:${username} updated:>=${sinceStr}`
+  const commenterQuery = `org:${org} commenter:${username} updated:>=${sinceStr}`
 
   const [issueItems, prItems, commentedIssues, commentedPRs, authoredDiscussions, commentedDiscussions] = await Promise.all([
     fetchSearchPage(`${authorQuery} is:issue`, headers),
     fetchSearchPage(`${authorQuery} is:pull-request`, headers),
     fetchSearchPage(`${commenterQuery} is:issue`, headers),
     fetchSearchPage(`${commenterQuery} is:pull-request`, headers),
-    fetchDiscussions(`org:${org} author:${username} updated:>=${since}`, headers),
-    fetchDiscussions(`org:${org} commenter:${username} updated:>=${since}`, headers)
+    fetchDiscussions(`org:${org} author:${username} updated:>=${sinceStr}`, headers),
+    fetchDiscussions(`org:${org} commenter:${username} updated:>=${sinceStr}`, headers)
   ])
 
   // Deduplicate by id — author results take precedence over commenter results
@@ -340,4 +343,96 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
 
 export function clearActivityCache(): void {
   _cache = null
+}
+
+export function getActivityLookbackHours(): number {
+  return new Date().getDay() === 1 ? 72 : 24
+}
+
+function monthDateRange(year: number, month: number): { start: string; end: string } {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return { start, end }
+}
+
+async function fetchMonthlyActivity(
+  username: string,
+  org: string,
+  token: string,
+  year: number,
+  month: number
+): Promise<MonthlyActivityStats> {
+  const { start, end } = monthDateRange(year, month)
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+
+  console.log(`[GitHub Activity] Monthly fetch: org=${org}, user=${username}, ${start}..${end}`)
+
+  const [mergedPRs, reviewedPRs, createdIssues, closedIssues, discussions] = await Promise.all([
+    fetchSearchPage(`org:${org} author:${username} is:pr is:merged merged:${start}..${end}`, headers),
+    fetchSearchPage(`org:${org} reviewed-by:${username} is:pr updated:${start}..${end}`, headers),
+    fetchSearchPage(`org:${org} author:${username} is:issue created:${start}..${end}`, headers),
+    fetchSearchPage(`org:${org} author:${username} is:issue is:closed closed:${start}..${end}`, headers),
+    fetchDiscussions(`org:${org} author:${username} created:${start}..${end}`, headers)
+  ])
+
+  const reviewedFiltered = reviewedPRs.filter(pr => !mergedPRs.some(m => m.id === pr.id))
+
+  return {
+    prsMerged: mergedPRs.map(pr => ({
+      title: pr.title,
+      url: pr.url,
+      repo: pr.repo,
+      mergedAt: pr.updatedAt
+    })),
+    prsReviewed: reviewedFiltered.map(pr => ({
+      title: pr.title,
+      url: pr.url,
+      repo: pr.repo
+    })),
+    issuesCreated: createdIssues.map(i => ({
+      title: i.title,
+      url: i.url,
+      repo: i.repo,
+      state: i.state
+    })),
+    issuesClosed: closedIssues.map(i => ({
+      title: i.title,
+      url: i.url,
+      repo: i.repo
+    })),
+    discussionsCreated: discussions.map(d => ({
+      title: d.title,
+      url: d.url,
+      repo: d.repo
+    })),
+    counts: {
+      prsMerged: mergedPRs.length,
+      prsReviewed: reviewedFiltered.length,
+      issuesCreated: createdIssues.length,
+      issuesClosed: closedIssues.length,
+      discussionsCreated: discussions.length
+    }
+  }
+}
+
+export async function getMonthlyActivityForPerson(
+  reportName: string,
+  year: number,
+  month: number
+): Promise<MonthlyActivityStats | null> {
+  const token = getGithubOrgToken()
+  if (!token) return null
+
+  const orgName = getGithubOrgName()
+  if (!orgName) return null
+
+  const profile = getReportProfile(reportName)
+  if (!profile.github) return null
+
+  return fetchMonthlyActivity(profile.github, orgName, token, year, month)
 }

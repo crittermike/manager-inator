@@ -342,6 +342,31 @@ export function ReportDetail() {
       ? recentCheckIns.map(c => `### ${c.date}\n${c.content || c.accomplishments.join('\n') || '(no content)'}`).join('\n\n---\n\n')
       : undefined
 
+    let githubActivityText: string | undefined
+    try {
+      const stats = await window.api.getMonthlyActivity(name, now.getFullYear(), now.getMonth() + 1)
+      if (stats && (stats.counts.prsMerged > 0 || stats.counts.prsReviewed > 0 || stats.counts.issuesCreated > 0 || stats.counts.issuesClosed > 0 || stats.counts.discussionsCreated > 0)) {
+        const sections: string[] = []
+        sections.push(`Summary: ${stats.counts.prsMerged} PRs merged, ${stats.counts.prsReviewed} PRs reviewed, ${stats.counts.issuesCreated} issues created, ${stats.counts.issuesClosed} issues closed, ${stats.counts.discussionsCreated} discussions created`)
+        if (stats.prsMerged.length > 0) {
+          sections.push('PRs merged:\n' + stats.prsMerged.map(pr => `- [${pr.title}](${pr.url}) (${pr.repo})`).join('\n'))
+        }
+        if (stats.prsReviewed.length > 0) {
+          sections.push('PRs reviewed:\n' + stats.prsReviewed.map(pr => `- [${pr.title}](${pr.url}) (${pr.repo})`).join('\n'))
+        }
+        if (stats.discussionsCreated.length > 0) {
+          sections.push('Discussions created:\n' + stats.discussionsCreated.map(d => `- [${d.title}](${d.url}) (${d.repo})`).join('\n'))
+        }
+        if (stats.issuesCreated.length > 0) {
+          sections.push('Issues created:\n' + stats.issuesCreated.map(i => `- [${i.title}](${i.url}) (${i.repo}, ${i.state})`).join('\n'))
+        }
+        if (stats.issuesClosed.length > 0) {
+          sections.push('Issues closed:\n' + stats.issuesClosed.map(i => `- [${i.title}](${i.url}) (${i.repo})`).join('\n'))
+        }
+        githubActivityText = sections.join('\n\n')
+      }
+    } catch { /* monthly activity unavailable is non-fatal */ }
+
     try {
       await generate('generate-checkin', {
         reportName: report.profile.displayName,
@@ -356,7 +381,8 @@ export function ReportDetail() {
         actionItems: report.actionItems.filter(a => !a.completed).slice(0, 20).map(a => `- ${a.text}`).join('\n'),
         contextNotes: report.contextNotes.length > 0
           ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
-          : undefined
+          : undefined,
+        githubActivity: githubActivityText
       })
     } catch {
       if (!mountedRef.current) return
