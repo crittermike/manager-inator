@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld('api', {
   getRecentTeamContext: (days: number) => ipcRenderer.invoke('github:recent-team-context', days),
   getMonthlyActivity: (reportName: string, year: number, month: number) =>
     ipcRenderer.invoke('github:monthly-activity', reportName, year, month),
+  fetchActivityForPerson: (reportName: string, startDate: string, endDate: string) =>
+    ipcRenderer.invoke('github:fetch-person-activity', reportName, startDate, endDate),
+  saveActivitySnapshot: (reportName: string, startDate: string, endDate: string) =>
+    ipcRenderer.invoke('github:save-activity-snapshot', reportName, startDate, endDate),
   updateFeedbackEntry: (reportName: string, entryIndex: number, newContent: string, newType: string) =>
     ipcRenderer.invoke('github:update-feedback', reportName, entryIndex, newContent, newType),
   deleteFeedbackEntry: (reportName: string, entryIndex: number) =>

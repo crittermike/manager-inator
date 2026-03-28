@@ -183,7 +183,8 @@ Context:
 {summaries}
 {actionItems}
 {feedback}
-{crossMeetingMentions}`,
+{crossMeetingMentions}
+{githubActivity}`,
   },
   {
     id: 'summarize-team-activity',

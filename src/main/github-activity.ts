@@ -1,6 +1,6 @@
 import { getGithubOrgToken, getGithubOrgName } from './store'
-import { getReports, getReportProfile } from './github'
-import type { GitHubActivityItem, TeamMemberActivity, MonthlyActivityStats } from '../shared/types'
+import { getReports, getReportProfile, commitFile } from './github'
+import type { GitHubActivityItem, TeamMemberActivity, MonthlyActivityStats, ActivityComment, PersonActivityResult } from '../shared/types'
 
 const CACHE_TTL_MS = 15 * 60 * 1000
 const MAX_CONCURRENT = 3
@@ -435,4 +435,274 @@ export async function getMonthlyActivityForPerson(
   if (!profile.github) return null
 
   return fetchMonthlyActivity(profile.github, orgName, token, year, month)
+}
+
+// ── Content Fetching (PR reviews, issue comments) ──
+
+interface ReviewApiItem {
+  user: { login: string } | null
+  body: string
+  submitted_at: string
+  state: string
+}
+
+interface CommentApiItem {
+  user: { login: string } | null
+  body: string
+  created_at: string
+}
+
+export function extractIssueNumber(url: string): { owner: string; repo: string; number: number } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/(pull|issues)\/(\d+)/)
+  if (!match) return null
+  return { owner: match[1], repo: match[2], number: parseInt(match[4], 10) }
+}
+
+async function fetchPRReviews(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  headers: Record<string, string>
+): Promise<ActivityComment[]> {
+  const url = `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=30`
+  try {
+    const response = await fetch(url, { headers })
+    if (!response.ok) return []
+    const data = (await response.json()) as ReviewApiItem[]
+    return data
+      .filter(r => r.body && r.body.trim().length > 0)
+      .map(r => ({
+        author: r.user?.login || 'unknown',
+        body: r.body.slice(0, 1000),
+        createdAt: r.submitted_at,
+        reviewState: r.state
+      }))
+  } catch {
+    return []
+  }
+}
+
+async function fetchIssueComments(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  headers: Record<string, string>
+): Promise<ActivityComment[]> {
+  const url = `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments?per_page=20&sort=created&direction=desc`
+  try {
+    const response = await fetch(url, { headers })
+    if (!response.ok) return []
+    const data = (await response.json()) as CommentApiItem[]
+    return data.map(c => ({
+      author: c.user?.login || 'unknown',
+      body: c.body.slice(0, 1000),
+      createdAt: c.created_at
+    }))
+  } catch {
+    return []
+  }
+}
+
+const MAX_CONTENT_ITEMS = 15
+
+export async function enrichItemsWithContent(
+  items: GitHubActivityItem[],
+  headers: Record<string, string>
+): Promise<GitHubActivityItem[]> {
+  const sorted = [...items].sort((a, b) => b.comments - a.comments)
+  const toEnrich = sorted.slice(0, MAX_CONTENT_ITEMS)
+  const rest = sorted.slice(MAX_CONTENT_ITEMS)
+
+  const enriched = await Promise.all(toEnrich.map(async (item) => {
+    const parsed = extractIssueNumber(item.url)
+    if (!parsed) return item
+
+    if (item.type === 'pr') {
+      const [reviews, comments] = await Promise.all([
+        fetchPRReviews(parsed.owner, parsed.repo, parsed.number, headers),
+        fetchIssueComments(parsed.owner, parsed.repo, parsed.number, headers)
+      ])
+      return { ...item, reviewComments: reviews, issueComments: comments }
+    } else if (item.type === 'issue') {
+      const comments = await fetchIssueComments(parsed.owner, parsed.repo, parsed.number, headers)
+      return { ...item, issueComments: comments }
+    }
+    return item
+  }))
+
+  return [...enriched, ...rest]
+}
+
+// ── Per-person activity fetch with date range ──
+
+async function fetchUserActivityForDateRange(
+  username: string,
+  org: string,
+  token: string,
+  startDate: string,
+  endDate: string
+): Promise<GitHubActivityItem[]> {
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+
+  console.log(`[GitHub Activity] Fetching range: org=${org}, user=${username}, ${startDate}..${endDate}`)
+
+  const dateRange = `${startDate}..${endDate}`
+  const authorQuery = `org:${org} author:${username} updated:${dateRange}`
+  const commenterQuery = `org:${org} commenter:${username} updated:${dateRange}`
+
+  const [issueItems, prItems, commentedIssues, commentedPRs, authoredDiscussions, commentedDiscussions] = await Promise.all([
+    fetchSearchPage(`${authorQuery} is:issue`, headers),
+    fetchSearchPage(`${authorQuery} is:pull-request`, headers),
+    fetchSearchPage(`${commenterQuery} is:issue`, headers),
+    fetchSearchPage(`${commenterQuery} is:pull-request`, headers),
+    fetchDiscussions(`org:${org} author:${username} updated:>=${startDate}`, headers),
+    fetchDiscussions(`org:${org} commenter:${username} updated:>=${startDate}`, headers)
+  ])
+
+  const seen = new Map<number, GitHubActivityItem>()
+  for (const item of [...issueItems, ...prItems]) {
+    seen.set(item.id, item)
+  }
+  for (const item of [...commentedIssues, ...commentedPRs, ...authoredDiscussions, ...commentedDiscussions]) {
+    if (!seen.has(item.id)) {
+      seen.set(item.id, item)
+    }
+  }
+
+  const allItems = Array.from(seen.values())
+  return enrichItemsWithContent(allItems, headers)
+}
+
+export async function fetchActivityForPerson(
+  reportName: string,
+  startDate: string,
+  endDate: string
+): Promise<PersonActivityResult | null> {
+  const token = getGithubOrgToken()
+  if (!token) return null
+
+  const orgName = getGithubOrgName()
+  if (!orgName) return null
+
+  const profile = getReportProfile(reportName)
+  if (!profile.github) return null
+
+  const items = await fetchUserActivityForDateRange(profile.github, orgName, token, startDate, endDate)
+
+  return {
+    reportName,
+    displayName: profile.displayName,
+    githubUsername: profile.github,
+    items,
+    startDate,
+    endDate,
+    fetchedAt: new Date().toISOString()
+  }
+}
+
+// ── Activity Snapshot (save as context note) ──
+
+export function formatActivityAsMarkdown(result: PersonActivityResult): string {
+  const { displayName, githubUsername, items, startDate, endDate } = result
+
+  const prItems = items.filter(i => i.type === 'pr')
+  const issueItems = items.filter(i => i.type === 'issue')
+  const discussionItems = items.filter(i => i.type === 'discussion')
+
+  const lines: string[] = []
+  lines.push(`# GitHub activity: ${displayName} (@${githubUsername})`)
+  lines.push(`_${startDate} to ${endDate}_\n`)
+
+  lines.push(`**Summary**: ${prItems.length} PRs, ${issueItems.length} issues, ${discussionItems.length} discussions\n`)
+
+  if (prItems.length > 0) {
+    lines.push('## Pull requests')
+    for (const pr of prItems) {
+      const stateEmoji = pr.state === 'merged' ? '🟣' : pr.state === 'open' ? '🟢' : '⚫'
+      lines.push(`- ${stateEmoji} [${pr.title}](${pr.url}) (${pr.repo}, ${pr.state})`)
+      if (pr.reviewComments && pr.reviewComments.length > 0) {
+        lines.push('  - Reviews:')
+        for (const review of pr.reviewComments.slice(0, 5)) {
+          const stateTag = review.reviewState ? ` [${review.reviewState}]` : ''
+          const bodyPreview = review.body.split('\n')[0].slice(0, 200)
+          lines.push(`    - @${review.author}${stateTag}: ${bodyPreview}`)
+        }
+      }
+      if (pr.issueComments && pr.issueComments.length > 0) {
+        lines.push(`  - ${pr.issueComments.length} comments`)
+        for (const c of pr.issueComments.slice(0, 3)) {
+          const bodyPreview = c.body.split('\n')[0].slice(0, 200)
+          lines.push(`    - @${c.author}: ${bodyPreview}`)
+        }
+      }
+    }
+    lines.push('')
+  }
+
+  if (issueItems.length > 0) {
+    lines.push('## Issues')
+    for (const issue of issueItems) {
+      const stateEmoji = issue.state === 'open' ? '🟢' : '⚫'
+      lines.push(`- ${stateEmoji} [${issue.title}](${issue.url}) (${issue.repo}, ${issue.state})`)
+      if (issue.issueComments && issue.issueComments.length > 0) {
+        for (const c of issue.issueComments.slice(0, 3)) {
+          const bodyPreview = c.body.split('\n')[0].slice(0, 200)
+          lines.push(`  - @${c.author}: ${bodyPreview}`)
+        }
+      }
+    }
+    lines.push('')
+  }
+
+  if (discussionItems.length > 0) {
+    lines.push('## Discussions')
+    for (const d of discussionItems) {
+      lines.push(`- [${d.title}](${d.url}) (${d.repo}, ${d.state})`)
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}
+
+export async function saveActivitySnapshot(
+  reportName: string,
+  startDate: string,
+  endDate: string
+): Promise<string> {
+  const result = await fetchActivityForPerson(reportName, startDate, endDate)
+  if (!result) throw new Error('Could not fetch activity (missing token, org, or GitHub username)')
+
+  const profile = getReportProfile(reportName)
+  const slug = reportName.toLowerCase().replace(/\s+/g, '-')
+  const filename = `${startDate}-github-activity-${slug}.md`
+
+  const frontmatter = [
+    '---',
+    `date: ${startDate}`,
+    'source: github',
+    `title: "GitHub activity: ${profile.displayName} (${startDate} to ${endDate})"`,
+    `people:`,
+    `  - ${slug}`,
+    'tags:',
+    '  - github-activity',
+    '  - activity-snapshot',
+    '---',
+    ''
+  ].join('\n')
+
+  const body = formatActivityAsMarkdown(result)
+  const content = frontmatter + body
+
+  await commitFile(
+    `contexts/${filename}`,
+    content,
+    `Save GitHub activity snapshot for ${profile.displayName} (${startDate} to ${endDate})`
+  )
+
+  return filename
 }

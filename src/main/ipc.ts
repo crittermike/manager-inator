@@ -36,7 +36,7 @@ import {
 } from './github'
 import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
 import { aiGenerate, aiCancel } from './copilot'
-import { getTeamActivity, getMonthlyActivityForPerson } from './github-activity'
+import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -119,6 +119,12 @@ export function setupIpcHandlers(): void {
   safeHandle('github:recent-team-context', (_e, days) => getRecentTeamContext(days as number))
   safeHandle('github:monthly-activity', (_e, reportName, year, month) =>
     getMonthlyActivityForPerson(reportName as string, year as number, month as number)
+  )
+  safeHandle('github:fetch-person-activity', (_e, reportName, startDate, endDate) =>
+    fetchActivityForPerson(reportName as string, startDate as string, endDate as string)
+  )
+  safeHandle('github:save-activity-snapshot', (_e, reportName, startDate, endDate) =>
+    saveActivitySnapshot(reportName as string, startDate as string, endDate as string)
   )
   safeHandle('github:update-feedback', (_e, reportName, entryIndex, newContent, newType) =>
     updateFeedbackEntry(reportName as string, entryIndex as number, newContent as string, newType as 'positive' | 'constructive' | 'mixed' | 'observation')

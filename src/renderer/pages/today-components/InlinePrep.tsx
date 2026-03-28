@@ -116,6 +116,42 @@ export function InlinePrep({
     } catch { /* non-critical */ }
     if (!mountedRef.current) return
 
+    let githubActivityText: string | undefined
+    try {
+      const now = new Date()
+      const weekAgo = new Date(now)
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      const endDate = now.toISOString().split('T')[0]
+      const startDate = weekAgo.toISOString().split('T')[0]
+      const activityResult = await window.api.fetchActivityForPerson(reportName, startDate, endDate)
+      if (activityResult && activityResult.items.length > 0) {
+        const sections: string[] = []
+        const prs = activityResult.items.filter(i => i.type === 'pr')
+        const issues = activityResult.items.filter(i => i.type === 'issue')
+        const discussions = activityResult.items.filter(i => i.type === 'discussion')
+        sections.push(`Summary: ${prs.length} PRs, ${issues.length} issues, ${discussions.length} discussions in the past week`)
+        for (const pr of prs.slice(0, 10)) {
+          let line = `- [${pr.state}] ${pr.title} (${pr.repo})`
+          if (pr.reviewComments?.length) {
+            line += `\n  Reviews: ${pr.reviewComments.slice(0, 3).map(r => `@${r.author} [${r.reviewState || 'comment'}]: ${r.body.split('\n')[0].slice(0, 150)}`).join('; ')}`
+          }
+          sections.push(line)
+        }
+        for (const issue of issues.slice(0, 5)) {
+          let line = `- [${issue.state}] ${issue.title} (${issue.repo})`
+          if (issue.issueComments?.length) {
+            line += `\n  Recent comments: ${issue.issueComments.slice(0, 2).map(c => `@${c.author}: ${c.body.split('\n')[0].slice(0, 150)}`).join('; ')}`
+          }
+          sections.push(line)
+        }
+        for (const d of discussions.slice(0, 3)) {
+          sections.push(`- [discussion] ${d.title} (${d.repo})`)
+        }
+        githubActivityText = sections.join('\n')
+      }
+    } catch { /* non-critical */ }
+    if (!mountedRef.current) return
+
     try {
       const result = await generate('prep-one-on-one', {
         reportName: displayName,
@@ -124,7 +160,8 @@ export function InlinePrep({
         summaries: summariesText || 'No recent summaries available.',
         actionItems: openActionsText || 'No open action items.',
         feedback: feedbackText || undefined,
-        crossMeetingMentions: crossMentions || undefined
+        crossMeetingMentions: crossMentions || undefined,
+        githubActivity: githubActivityText
       })
       if (mountedRef.current) {
         const finalContent = result || fullTextRef.current

@@ -7,17 +7,19 @@ vi.mock('../../src/main/store', () => ({
 
 vi.mock('../../src/main/github', () => ({
   getReports: vi.fn(),
-  getReportProfile: vi.fn()
+  getReportProfile: vi.fn(),
+  commitFile: vi.fn()
 }))
 
-import { getTeamActivity, clearActivityCache, getActivityLookbackHours } from '../../src/main/github-activity'
+import { getTeamActivity, clearActivityCache, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot } from '../../src/main/github-activity'
 import { getGithubOrgToken, getGithubOrgName } from '../../src/main/store'
-import { getReports, getReportProfile } from '../../src/main/github'
+import { getReports, getReportProfile, commitFile } from '../../src/main/github'
 
 const mockedGetToken = vi.mocked(getGithubOrgToken)
 const mockedGetOrgName = vi.mocked(getGithubOrgName)
 const mockedGetReports = vi.mocked(getReports)
 const mockedGetProfile = vi.mocked(getReportProfile)
+const mockedCommitFile = vi.mocked(commitFile)
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
@@ -752,5 +754,313 @@ describe('getActivityLookbackHours', () => {
   it('returns 24 on other days', () => {
     vi.useFakeTimers({ now: new Date('2026-03-25T12:00:00Z') }) // Wednesday
     expect(getActivityLookbackHours()).toBe(24)
+  })
+})
+
+describe('extractIssueNumber', () => {
+  it('parses PR URLs', () => {
+    const result = extractIssueNumber('https://github.com/myorg/myrepo/pull/42')
+    expect(result).toEqual({ owner: 'myorg', repo: 'myrepo', number: 42 })
+  })
+
+  it('parses issue URLs', () => {
+    const result = extractIssueNumber('https://github.com/acme/widgets/issues/123')
+    expect(result).toEqual({ owner: 'acme', repo: 'widgets', number: 123 })
+  })
+
+  it('returns null for non-matching URLs', () => {
+    expect(extractIssueNumber('https://github.com/myorg/myrepo')).toBeNull()
+    expect(extractIssueNumber('https://example.com/pull/1')).toBeNull()
+    expect(extractIssueNumber('')).toBeNull()
+  })
+
+  it('parses URLs with extra path segments', () => {
+    const result = extractIssueNumber('https://github.com/org/repo/pull/99/files')
+    expect(result).toEqual({ owner: 'org', repo: 'repo', number: 99 })
+  })
+})
+
+describe('enrichItemsWithContent', () => {
+  const headers = { Authorization: 'Bearer test', Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
+
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('fetches reviews and comments for PR items', async () => {
+    const items = [{
+      id: 1,
+      title: 'Fix bug',
+      url: 'https://github.com/myorg/myrepo/pull/10',
+      state: 'open' as const,
+      type: 'pr' as const,
+      repo: 'myorg/myrepo',
+      comments: 3,
+      labels: [],
+      createdAt: '2026-03-20T10:00:00Z',
+      updatedAt: '2026-03-22T10:00:00Z'
+    }]
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ([
+          { user: { login: 'reviewer1' }, body: 'LGTM', submitted_at: '2026-03-21T10:00:00Z', state: 'APPROVED' }
+        ])
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ([
+          { user: { login: 'commenter1' }, body: 'Nice work', created_at: '2026-03-21T11:00:00Z' }
+        ])
+      })
+
+    const result = await enrichItemsWithContent(items, headers)
+    expect(result).toHaveLength(1)
+    expect(result[0].reviewComments).toHaveLength(1)
+    expect(result[0].reviewComments![0].author).toBe('reviewer1')
+    expect(result[0].reviewComments![0].reviewState).toBe('APPROVED')
+    expect(result[0].issueComments).toHaveLength(1)
+    expect(result[0].issueComments![0].author).toBe('commenter1')
+  })
+
+  it('fetches only comments for issue items', async () => {
+    const items = [{
+      id: 2,
+      title: 'Bug report',
+      url: 'https://github.com/myorg/myrepo/issues/20',
+      state: 'open' as const,
+      type: 'issue' as const,
+      repo: 'myorg/myrepo',
+      comments: 1,
+      labels: [],
+      createdAt: '2026-03-20T10:00:00Z',
+      updatedAt: '2026-03-22T10:00:00Z'
+    }]
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ([
+        { user: { login: 'alice' }, body: 'Can reproduce', created_at: '2026-03-21T10:00:00Z' }
+      ])
+    })
+
+    const result = await enrichItemsWithContent(items, headers)
+    expect(result).toHaveLength(1)
+    expect(result[0].issueComments).toHaveLength(1)
+    expect(result[0].issueComments![0].body).toBe('Can reproduce')
+    expect(result[0].reviewComments).toBeUndefined()
+  })
+
+  it('skips items with non-GitHub URLs', async () => {
+    const items = [{
+      id: 3,
+      title: 'Something',
+      url: 'https://not-github.com/foo',
+      state: 'open' as const,
+      type: 'pr' as const,
+      repo: 'other/repo',
+      comments: 0,
+      labels: [],
+      createdAt: '2026-03-20T10:00:00Z',
+      updatedAt: '2026-03-22T10:00:00Z'
+    }]
+
+    const result = await enrichItemsWithContent(items, headers)
+    expect(result).toHaveLength(1)
+    expect(result[0].reviewComments).toBeUndefined()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('limits enrichment to MAX_CONTENT_ITEMS (15), sorted by comment count', async () => {
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      id: i + 100,
+      title: `Item ${i}`,
+      url: `https://github.com/myorg/myrepo/issues/${i + 100}`,
+      state: 'open' as const,
+      type: 'issue' as const,
+      repo: 'myorg/myrepo',
+      comments: 20 - i,
+      labels: [],
+      createdAt: '2026-03-20T10:00:00Z',
+      updatedAt: '2026-03-22T10:00:00Z'
+    }))
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ([])
+    })
+
+    await enrichItemsWithContent(items, headers)
+    expect(mockFetch).toHaveBeenCalledTimes(15)
+  })
+})
+
+describe('formatActivityAsMarkdown', () => {
+  it('formats a complete activity result', () => {
+    const result = {
+      reportName: 'alice',
+      displayName: 'Alice Smith',
+      githubUsername: 'alice-gh',
+      startDate: '2026-03-15',
+      endDate: '2026-03-22',
+      fetchedAt: '2026-03-22T12:00:00Z',
+      items: [
+        {
+          id: 1, title: 'Add auth', url: 'https://github.com/org/repo/pull/1',
+          state: 'merged' as const, type: 'pr' as const, repo: 'org/repo',
+          comments: 2, labels: [], createdAt: '2026-03-16T10:00:00Z', updatedAt: '2026-03-17T10:00:00Z',
+          reviewComments: [
+            { author: 'bob', body: 'Looks good to me', createdAt: '2026-03-17T10:00:00Z', reviewState: 'APPROVED' }
+          ]
+        },
+        {
+          id: 2, title: 'Fix login bug', url: 'https://github.com/org/repo/issues/5',
+          state: 'closed' as const, type: 'issue' as const, repo: 'org/repo',
+          comments: 1, labels: [], createdAt: '2026-03-15T10:00:00Z', updatedAt: '2026-03-18T10:00:00Z',
+          issueComments: [
+            { author: 'alice-gh', body: 'Fixed in #1', createdAt: '2026-03-18T10:00:00Z' }
+          ]
+        },
+        {
+          id: 3, title: 'RFC: new API', url: 'https://github.com/org/repo/discussions/10',
+          state: 'open' as const, type: 'discussion' as const, repo: 'org/repo',
+          comments: 0, labels: [], createdAt: '2026-03-20T10:00:00Z', updatedAt: '2026-03-21T10:00:00Z'
+        }
+      ]
+    }
+
+    const md = formatActivityAsMarkdown(result)
+    expect(md).toContain('# GitHub activity: Alice Smith (@alice-gh)')
+    expect(md).toContain('_2026-03-15 to 2026-03-22_')
+    expect(md).toContain('**Summary**: 1 PRs, 1 issues, 1 discussions')
+    expect(md).toContain('## Pull requests')
+    expect(md).toContain('🟣')
+    expect(md).toContain('Add auth')
+    expect(md).toContain('@bob')
+    expect(md).toContain('APPROVED')
+    expect(md).toContain('## Issues')
+    expect(md).toContain('Fixed in #1')
+    expect(md).toContain('## Discussions')
+    expect(md).toContain('RFC: new API')
+  })
+
+  it('omits empty sections', () => {
+    const result = {
+      reportName: 'bob',
+      displayName: 'Bob Jones',
+      githubUsername: 'bob-gh',
+      startDate: '2026-03-15',
+      endDate: '2026-03-22',
+      fetchedAt: '2026-03-22T12:00:00Z',
+      items: [
+        {
+          id: 1, title: 'My PR', url: 'https://github.com/org/repo/pull/1',
+          state: 'open' as const, type: 'pr' as const, repo: 'org/repo',
+          comments: 0, labels: [], createdAt: '2026-03-16T10:00:00Z', updatedAt: '2026-03-17T10:00:00Z'
+        }
+      ]
+    }
+
+    const md = formatActivityAsMarkdown(result)
+    expect(md).toContain('## Pull requests')
+    expect(md).not.toContain('## Issues')
+    expect(md).not.toContain('## Discussions')
+  })
+})
+
+describe('fetchActivityForPerson', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('returns null when no token', async () => {
+    mockedGetToken.mockReturnValue(null as unknown as string)
+    const result = await fetchActivityForPerson('alice', '2026-03-15', '2026-03-22')
+    expect(result).toBeNull()
+  })
+
+  it('returns null when no org', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue(null as unknown as string)
+    const result = await fetchActivityForPerson('alice', '2026-03-15', '2026-03-22')
+    expect(result).toBeNull()
+  })
+
+  it('returns null when person has no github username', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetProfile.mockReturnValue({ ...makeProfile('alice', ''), github: '' })
+
+    const result = await fetchActivityForPerson('alice', '2026-03-15', '2026-03-22')
+    expect(result).toBeNull()
+  })
+
+  it('returns structured result with items on success', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const prResponse = makeSearchResponse([
+      { title: 'Add auth', html_url: 'https://github.com/myorg/repo/pull/1', pull_request: { merged_at: '2026-03-17T10:00:00Z' } }
+    ])
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/search/issues')) return prResponse
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      if (typeof url === 'string' && (url.includes('/reviews') || url.includes('/comments'))) {
+        return { ok: true, json: async () => ([]) }
+      }
+      return emptySearchResponse
+    })
+
+    const result = await fetchActivityForPerson('alice', '2026-03-15', '2026-03-22')
+    expect(result).not.toBeNull()
+    expect(result!.reportName).toBe('alice')
+    expect(result!.displayName).toBe('Alice')
+    expect(result!.githubUsername).toBe('alice-gh')
+    expect(result!.startDate).toBe('2026-03-15')
+    expect(result!.endDate).toBe('2026-03-22')
+    expect(result!.fetchedAt).toBeTruthy()
+  })
+})
+
+describe('saveActivitySnapshot', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+    mockedCommitFile.mockReset()
+  })
+
+  it('throws when activity cannot be fetched', async () => {
+    mockedGetToken.mockReturnValue(null as unknown as string)
+    await expect(saveActivitySnapshot('alice', '2026-03-15', '2026-03-22'))
+      .rejects.toThrow('Could not fetch activity')
+  })
+
+  it('saves snapshot with correct path and frontmatter', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/search/issues')) return emptySearchResponse
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      return { ok: true, json: async () => ([]) }
+    })
+
+    mockedCommitFile.mockResolvedValue(undefined as never)
+
+    const filename = await saveActivitySnapshot('alice', '2026-03-15', '2026-03-22')
+    expect(filename).toBe('2026-03-15-github-activity-alice.md')
+
+    expect(mockedCommitFile).toHaveBeenCalledTimes(1)
+    const [path, content, message] = mockedCommitFile.mock.calls[0]
+    expect(path).toBe('contexts/2026-03-15-github-activity-alice.md')
+    expect(content).toContain('source: github')
+    expect(content).toContain('github-activity')
+    expect(content).toContain('activity-snapshot')
+    expect(content).toContain('Alice')
+    expect(message).toContain('Alice')
+    expect(message).toContain('2026-03-15')
   })
 })

@@ -202,6 +202,14 @@ export interface MeetingEntry {
 }
 
 // ── GitHub Activity (org-level PR/issue tracking) ──
+export interface ActivityComment {
+  author: string
+  body: string
+  createdAt: string
+  /** For PR reviews: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' */
+  reviewState?: string
+}
+
 export interface GitHubActivityItem {
   id: number
   type: 'pr' | 'issue' | 'discussion'
@@ -215,6 +223,22 @@ export interface GitHubActivityItem {
   comments: number
   /** Labels applied to the item */
   labels: string[]
+  /** PR review comments (only populated when content is fetched) */
+  reviewComments?: ActivityComment[]
+  /** Issue/PR comments (only populated when content is fetched) */
+  issueComments?: ActivityComment[]
+  /** AI-generated content summary (set after analysis) */
+  contentSummary?: string
+}
+
+export interface PersonActivityResult {
+  reportName: string
+  displayName: string
+  githubUsername: string
+  items: GitHubActivityItem[]
+  startDate: string
+  endDate: string
+  fetchedAt: string
 }
 
 export interface TeamMemberActivity {
@@ -306,6 +330,8 @@ export interface IpcApi {
   getTeamActivity: () => Promise<TeamMemberActivity[]>
   getRecentTeamContext: (days: number) => Promise<Record<string, { date: string; source: string; title: string; summary: string }[]>>
   getMonthlyActivity: (reportName: string, year: number, month: number) => Promise<MonthlyActivityStats | null>
+  fetchActivityForPerson: (reportName: string, startDate: string, endDate: string) => Promise<PersonActivityResult | null>
+  saveActivitySnapshot: (reportName: string, startDate: string, endDate: string) => Promise<string>
   updateFeedbackEntry: (reportName: string, entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
   deleteFeedbackEntry: (reportName: string, entryIndex: number) => Promise<void>
   searchContent: (query: string) => Promise<{ filename: string; directory: 'contexts' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>

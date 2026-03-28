@@ -368,7 +368,9 @@ ${context.actionItems ? `Open action items:\n${context.actionItems}` : 'No open 
 
 ${context.feedback ? `Recent feedback:\n${context.feedback}` : ''}
 
-${context.crossMeetingMentions ? `Mentions of ${context.reportName} in other recent meetings (not their 1:1s). Use these to surface cross-team topics or things others said about them:\n${context.crossMeetingMentions}` : ''}`
+${context.crossMeetingMentions ? `Mentions of ${context.reportName} in other recent meetings (not their 1:1s). Use these to surface cross-team topics or things others said about them:\n${context.crossMeetingMentions}` : ''}
+
+${context.githubActivity ? `Recent GitHub activity (PRs, issues, code reviews, discussions). Use this to ask informed questions about their work, acknowledge contributions, or surface things worth discussing:\n${context.githubActivity}` : ''}`
       })
       break
 
@@ -519,6 +521,32 @@ ${context.activityData}${context.recentContext ? `
 
 RECENT CONTEXT (meetings, Slack, email, etc. from the past week — I already know about these):
 ${context.recentContext}` : ''}`
+      })
+      break
+
+    case 'summarize-person-activity':
+      messages.push({
+        role: 'user',
+        content: `Analyze the GitHub activity for ${context.displayName} (@${context.githubUsername}) from ${context.startDate} to ${context.endDate}.
+
+Write a concise but substantive activity analysis. This will be used for 1:1 prep, performance check-ins, and reviews. Focus on WHAT the work tells you about this person, not just listing items.
+
+Structure:
+
+**Work themes**: What areas/projects are they focused on? Are they spread thin or deep in one area?
+
+**Code review quality**: Based on the review comments included, how thorough are their reviews? Do they give substantive feedback or just approvals? Are they reviewing across the team or only their own PRs?
+
+**Collaboration signals**: Are they commenting on others' issues? Starting discussions? How engaged are they in the broader team/org?
+
+**Things worth discussing**: Anything that stands out as a good 1:1 topic. Stale PRs, big contributions worth acknowledging, patterns to explore.
+
+**Quick stats**: PRs: X authored, Y reviewed. Issues: X created, Y commented. Discussions: X.
+
+Keep it under 400 words. Casual tone, direct observations. No filler. If the data is thin, say so.
+
+Activity data:
+${context.activityData}`
       })
       break
 

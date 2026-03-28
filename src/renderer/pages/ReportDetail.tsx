@@ -8,7 +8,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
-import type { ActionItem, FeedbackEntry, PrepEntry } from '../../shared/types'
+import type { ActionItem, FeedbackEntry, PrepEntry, PersonActivityResult } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import {
@@ -38,7 +38,9 @@ import {
   Plane,
   ClipboardList,
   Trash2,
-  MoreHorizontal
+  MoreHorizontal,
+  GitPullRequest,
+  Loader2
 } from 'lucide-react'
 
 // ── Types ──
@@ -97,6 +99,17 @@ export function ReportDetail() {
   const [detailsCollapsed, setDetailsCollapsed] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
+
+  const [showActivity, setShowActivity] = useState(false)
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [activityData, setActivityData] = useState<PersonActivityResult | null>(null)
+  const [activityRange, setActivityRange] = useState(() => {
+    const now = new Date()
+    const weekAgo = new Date(now)
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    return { start: weekAgo.toISOString().split('T')[0], end: now.toISOString().split('T')[0] }
+  })
+  const [savingSnapshot, setSavingSnapshot] = useState(false)
 
   // Action item toggling
   const [togglingItems, setTogglingItems] = useState<Set<string>>(new Set())
@@ -282,6 +295,42 @@ export function ReportDetail() {
     } catch { /* non-critical */ }
     if (!mountedRef.current) return
 
+    let githubActivityText: string | undefined
+    try {
+      const now = new Date()
+      const weekAgo = new Date(now)
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      const endDate = now.toISOString().split('T')[0]
+      const startDate = weekAgo.toISOString().split('T')[0]
+      const activityResult = await window.api.fetchActivityForPerson(name, startDate, endDate)
+      if (activityResult && activityResult.items.length > 0) {
+        const sections: string[] = []
+        const prs = activityResult.items.filter(i => i.type === 'pr')
+        const issues = activityResult.items.filter(i => i.type === 'issue')
+        const discussions = activityResult.items.filter(i => i.type === 'discussion')
+        sections.push(`Summary: ${prs.length} PRs, ${issues.length} issues, ${discussions.length} discussions in the past week`)
+        for (const pr of prs.slice(0, 10)) {
+          let line = `- [${pr.state}] ${pr.title} (${pr.repo})`
+          if (pr.reviewComments?.length) {
+            line += `\n  Reviews: ${pr.reviewComments.slice(0, 3).map(r => `@${r.author} [${r.reviewState || 'comment'}]: ${r.body.split('\n')[0].slice(0, 150)}`).join('; ')}`
+          }
+          sections.push(line)
+        }
+        for (const issue of issues.slice(0, 5)) {
+          let line = `- [${issue.state}] ${issue.title} (${issue.repo})`
+          if (issue.issueComments?.length) {
+            line += `\n  Recent comments: ${issue.issueComments.slice(0, 2).map(c => `@${c.author}: ${c.body.split('\n')[0].slice(0, 150)}`).join('; ')}`
+          }
+          sections.push(line)
+        }
+        for (const d of discussions.slice(0, 3)) {
+          sections.push(`- [discussion] ${d.title} (${d.repo})`)
+        }
+        githubActivityText = sections.join('\n')
+      }
+    } catch { /* GitHub activity fetch is non-critical */ }
+    if (!mountedRef.current) return
+
     let result = ''
     try {
       result = await generate('prep-one-on-one', {
@@ -291,7 +340,8 @@ export function ReportDetail() {
         summaries: summariesText || 'No recent summaries available.',
         actionItems: openActions || 'No open action items.',
         feedback: report.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n'),
-        crossMeetingMentions: crossMentions || undefined
+        crossMeetingMentions: crossMentions || undefined,
+        githubActivity: githubActivityText
       })
     } catch (e) {
       console.error('Prep generation failed:', e)
@@ -425,6 +475,40 @@ export function ReportDetail() {
       `- [${a.completed ? 'x' : ' '}] ${a.text}`
     ).join('\n')
 
+    let githubActivityText: string | undefined
+    try {
+      const halfStart = isH2 ? `${year}-07-01` : `${year}-01-01`
+      const halfEnd = isH2 ? `${year}-12-31` : `${year}-06-30`
+      const activityResult = await window.api.fetchActivityForPerson(name, halfStart, halfEnd)
+      if (activityResult && activityResult.items.length > 0) {
+        const prs = activityResult.items.filter(i => i.type === 'pr')
+        const issues = activityResult.items.filter(i => i.type === 'issue')
+        const discussions = activityResult.items.filter(i => i.type === 'discussion')
+        const sections: string[] = []
+        sections.push(`Period: ${halfStart} to ${halfEnd}`)
+        sections.push(`Total: ${prs.length} PRs, ${issues.length} issues, ${discussions.length} discussions`)
+        const merged = prs.filter(p => p.state === 'merged')
+        const reviewed = prs.filter(p => p.reviewComments?.length)
+        if (merged.length > 0) {
+          sections.push('PRs merged:\n' + merged.slice(0, 15).map(pr => `- ${pr.title} (${pr.repo})`).join('\n'))
+        }
+        if (reviewed.length > 0) {
+          sections.push('Code reviews with substantive feedback:\n' + reviewed.slice(0, 10).map(pr => {
+            const reviews = pr.reviewComments!.slice(0, 2)
+            return `- ${pr.title}: ${reviews.map(r => `@${r.author} [${r.reviewState}]: ${r.body.split('\n')[0].slice(0, 100)}`).join('; ')}`
+          }).join('\n'))
+        }
+        if (issues.length > 0) {
+          sections.push('Issues:\n' + issues.slice(0, 10).map(i => `- [${i.state}] ${i.title} (${i.repo})`).join('\n'))
+        }
+        if (discussions.length > 0) {
+          sections.push('Discussions:\n' + discussions.slice(0, 5).map(d => `- ${d.title} (${d.repo})`).join('\n'))
+        }
+        githubActivityText = sections.join('\n\n')
+      }
+    } catch { /* non-critical */ }
+    if (!mountedRef.current) return
+
     let result = ''
     try {
       result = await generate('generate-review', {
@@ -443,7 +527,8 @@ export function ReportDetail() {
         actionItems: allActions || undefined,
         contextNotes: report.contextNotes.length > 0
           ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
-          : undefined
+          : undefined,
+        githubActivity: githubActivityText
       })
     } catch (e) {
       console.error('Review generation failed:', e)
@@ -664,6 +749,90 @@ export function ReportDetail() {
       setSavingJobExpectations(false)
     }
   }, [name, report, jobExpectationsDraft, toast, refresh])
+
+  // ── GitHub Activity handlers ──
+
+  const handleFetchActivity = useCallback(async () => {
+    if (!name) return
+    setActivityLoading(true)
+    try {
+      const result = await window.api.fetchActivityForPerson(name, activityRange.start, activityRange.end)
+      setActivityData(result)
+      if (!result || result.items.length === 0) {
+        toast.info('No GitHub activity found for that date range')
+      }
+    } catch (e) {
+      console.error('Failed to fetch activity:', e)
+      toast.error('Failed to fetch GitHub activity')
+    } finally {
+      setActivityLoading(false)
+    }
+  }, [name, activityRange, toast])
+
+  const handleSaveSnapshot = useCallback(async () => {
+    if (!name || !activityData) return
+    setSavingSnapshot(true)
+    try {
+      await window.api.saveActivitySnapshot(name, activityRange.start, activityRange.end)
+      toast.success('Activity snapshot saved to context notes')
+      refresh()
+    } catch (e) {
+      console.error('Failed to save snapshot:', e)
+      toast.error('Failed to save activity snapshot')
+    } finally {
+      setSavingSnapshot(false)
+    }
+  }, [name, activityData, activityRange, toast, refresh])
+
+  const handleSummarizeActivity = useCallback(async () => {
+    if (!activityData || !report) return
+    setShowAI(true)
+    setAiMode('checkin')
+    setAiContent(null)
+    setPrepContent(null)
+
+    const sections: string[] = []
+    const prs = activityData.items.filter(i => i.type === 'pr')
+    const issues = activityData.items.filter(i => i.type === 'issue')
+    const discussions = activityData.items.filter(i => i.type === 'discussion')
+    sections.push(`Summary: ${prs.length} PRs, ${issues.length} issues, ${discussions.length} discussions`)
+    for (const pr of prs) {
+      let line = `- [${pr.state}] ${pr.title} (${pr.repo})`
+      if (pr.reviewComments?.length) {
+        line += `\n  Reviews: ${pr.reviewComments.slice(0, 5).map(r => `@${r.author} [${r.reviewState || 'comment'}]: ${r.body.split('\n')[0].slice(0, 200)}`).join('\n  ')}`
+      }
+      if (pr.issueComments?.length) {
+        line += `\n  Comments: ${pr.issueComments.slice(0, 3).map(c => `@${c.author}: ${c.body.split('\n')[0].slice(0, 200)}`).join('\n  ')}`
+      }
+      sections.push(line)
+    }
+    for (const issue of issues) {
+      let line = `- [${issue.state}] ${issue.title} (${issue.repo})`
+      if (issue.issueComments?.length) {
+        line += `\n  Comments: ${issue.issueComments.slice(0, 3).map(c => `@${c.author}: ${c.body.split('\n')[0].slice(0, 200)}`).join('\n  ')}`
+      }
+      sections.push(line)
+    }
+    for (const d of discussions) {
+      sections.push(`- [discussion] ${d.title} (${d.repo})`)
+    }
+
+    try {
+      const result = await generate('summarize-person-activity', {
+        displayName: report.profile.displayName,
+        githubUsername: report.profile.github || '',
+        startDate: activityRange.start,
+        endDate: activityRange.end,
+        activityData: sections.join('\n')
+      })
+      if (mountedRef.current) {
+        setAiContent(result || fullTextRef.current || '')
+      }
+    } catch (e) {
+      console.error('Activity summary failed:', e)
+      toast.error('Failed to generate activity summary')
+    }
+  }, [activityData, report, activityRange, generate, fullTextRef, toast])
 
   // ── Feedback handler ──
 
@@ -1103,6 +1272,13 @@ export function ReportDetail() {
                 <BookOpen className="w-4 h-4" aria-hidden="true" />
                 Generate review
               </button>
+              <button
+                onClick={() => { setShowActivity(!showActivity); setActionsOpen(false) }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors"
+              >
+                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                GitHub Activity
+              </button>
               <div className="border-t border-border my-1" />
               <button
                 onClick={() => { setAddingFeedback(true); setActionsOpen(false) }}
@@ -1403,6 +1579,233 @@ export function ReportDetail() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── GitHub Activity Panel ── */}
+      {showActivity && (
+        <div className="bg-surface rounded-xl border border-border overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-200">GitHub Activity</span>
+              {activityData && (
+                <span className="text-xs text-zinc-500">
+                  {activityData.items.length} items
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setShowActivity(false)}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+              aria-label="Close activity panel"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-4">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="flex-1 min-w-[140px]">
+                <label className="block text-xs text-zinc-500 mb-1">From</label>
+                <input
+                  type="date"
+                  value={activityRange.start}
+                  onChange={e => setActivityRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand/40"
+                />
+              </div>
+              <div className="flex-1 min-w-[140px]">
+                <label className="block text-xs text-zinc-500 mb-1">To</label>
+                <input
+                  type="date"
+                  value={activityRange.end}
+                  onChange={e => setActivityRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="w-full bg-surface-raised border border-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand/40"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                {[
+                  { label: 'Week', days: 7 },
+                  { label: 'Month', days: 30 },
+                  { label: 'Quarter', days: 90 }
+                ].map(preset => (
+                  <button
+                    key={preset.label}
+                    onClick={() => {
+                      const end = new Date()
+                      const start = new Date(end)
+                      start.setDate(start.getDate() - preset.days)
+                      setActivityRange({
+                        start: start.toISOString().split('T')[0],
+                        end: end.toISOString().split('T')[0]
+                      })
+                    }}
+                    className="px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-zinc-700 rounded-lg transition-colors"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleFetchActivity}
+                disabled={activityLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+              >
+                {activityLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <GitPullRequest className="w-3.5 h-3.5" aria-hidden="true" />
+                )}
+                {activityLoading ? 'Fetching…' : 'Fetch'}
+              </button>
+            </div>
+
+            {activityData && activityData.items.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <span>{activityData.items.filter(i => i.type === 'pr').length} PRs</span>
+                  <span>·</span>
+                  <span>{activityData.items.filter(i => i.type === 'issue').length} issues</span>
+                  <span>·</span>
+                  <span>{activityData.items.filter(i => i.type === 'discussion').length} discussions</span>
+                </div>
+
+                {(() => {
+                  const groups: { label: string; type: string; emoji: string }[] = [
+                    { label: 'Pull Requests', type: 'pr', emoji: '🔀' },
+                    { label: 'Issues', type: 'issue', emoji: '📋' },
+                    { label: 'Discussions', type: 'discussion', emoji: '💬' }
+                  ]
+                  return groups.map(group => {
+                    const items = activityData.items.filter(i => i.type === group.type)
+                    if (items.length === 0) return null
+                    return (
+                      <div key={group.type}>
+                        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
+                          {group.emoji} {group.label} ({items.length})
+                        </h4>
+                        <div className="space-y-1.5">
+                          {items.map(item => {
+                            const stateColor = item.state === 'merged' ? 'text-purple-400'
+                              : item.state === 'open' ? 'text-green-400'
+                              : item.state === 'closed' ? 'text-zinc-500'
+                              : 'text-zinc-400'
+                            const itemId = `activity-${item.id}`
+                            const isExpanded = expandedItems.has(itemId)
+                            const hasDetails = (item.reviewComments && item.reviewComments.length > 0) ||
+                                             (item.issueComments && item.issueComments.length > 0)
+                            return (
+                              <div key={item.id} className="rounded-lg bg-surface-raised border border-border/50">
+                                <button
+                                  onClick={() => hasDetails && toggleExpanded(itemId)}
+                                  className={`w-full flex items-start gap-2 px-3 py-2 text-left ${hasDetails ? 'cursor-pointer hover:bg-zinc-800/50' : 'cursor-default'}`}
+                                >
+                                  <span className={`text-xs mt-0.5 ${stateColor}`}>●</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <a
+                                        href={item.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        className="text-sm text-zinc-200 hover:text-brand-light transition-colors truncate"
+                                      >
+                                        {item.title}
+                                      </a>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-500">
+                                      <span>{item.repo}</span>
+                                      <span>·</span>
+                                      <span className={stateColor}>{item.state}</span>
+                                      {item.comments > 0 && (
+                                        <>
+                                          <span>·</span>
+                                          <span>{item.comments} comments</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {hasDetails && (
+                                    isExpanded
+                                      ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500 mt-1 shrink-0" />
+                                      : <ChevronRight className="w-3.5 h-3.5 text-zinc-500 mt-1 shrink-0" />
+                                  )}
+                                </button>
+                                {isExpanded && hasDetails && (
+                                  <div className="px-3 pb-2 pt-0 ml-5 space-y-1.5 border-t border-border/30">
+                                    {item.reviewComments && item.reviewComments.length > 0 && (
+                                      <div className="mt-2">
+                                        <span className="text-xs text-zinc-500 font-medium">Reviews:</span>
+                                        {item.reviewComments.map((r, ri) => (
+                                          <div key={ri} className="mt-1 text-xs text-zinc-400 pl-2 border-l-2 border-purple-500/30">
+                                            <span className="text-zinc-300">@{r.author}</span>
+                                            {r.reviewState && (
+                                              <span className={`ml-1 px-1 py-0.5 rounded text-[10px] ${
+                                                r.reviewState === 'APPROVED' ? 'bg-green-500/10 text-green-400' :
+                                                r.reviewState === 'CHANGES_REQUESTED' ? 'bg-red-500/10 text-red-400' :
+                                                'bg-zinc-500/10 text-zinc-400'
+                                              }`}>{r.reviewState}</span>
+                                            )}
+                                            {r.body && <p className="mt-0.5 text-zinc-500 leading-relaxed">{r.body.split('\n')[0].slice(0, 300)}</p>}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {item.issueComments && item.issueComments.length > 0 && (
+                                      <div className="mt-2">
+                                        <span className="text-xs text-zinc-500 font-medium">Comments:</span>
+                                        {item.issueComments.map((c, ci) => (
+                                          <div key={ci} className="mt-1 text-xs text-zinc-400 pl-2 border-l-2 border-blue-500/30">
+                                            <span className="text-zinc-300">@{c.author}</span>
+                                            <p className="mt-0.5 text-zinc-500 leading-relaxed">{c.body.split('\n')[0].slice(0, 300)}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
+
+                <div className="flex gap-2 pt-2 border-t border-border">
+                  <button
+                    onClick={handleSaveSnapshot}
+                    disabled={savingSnapshot}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-surface-raised text-zinc-300 hover:text-zinc-100 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Save className="w-3 h-3" aria-hidden="true" />
+                    {savingSnapshot ? 'Saving…' : 'Save Snapshot'}
+                  </button>
+                  <button
+                    onClick={handleSummarizeActivity}
+                    disabled={streaming || aiLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3 h-3" aria-hidden="true" />
+                    AI Summary
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activityData && activityData.items.length === 0 && !activityLoading && (
+              <div className="text-center py-6 text-sm text-zinc-500">
+                No GitHub activity found for this date range.
+                {!report.profile.github && (
+                  <p className="mt-1 text-xs text-zinc-600">
+                    Tip: Add a GitHub username to this person's profile.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
