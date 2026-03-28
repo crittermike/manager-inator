@@ -287,6 +287,11 @@ export async function getTeamActivity(): Promise<TeamMemberActivity[]> {
 
 async function refreshCache(token: string, orgName: string): Promise<TeamMemberActivity[]> {
   const reportNames = getReports()
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
 
   const tasks = reportNames.map(name => async (): Promise<TeamMemberActivity> => {
     try {
@@ -302,7 +307,8 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
         }
       }
 
-      const items = await fetchUserActivity(ghUsername, orgName, token)
+      const rawItems = await fetchUserActivity(ghUsername, orgName, token)
+      const items = await enrichItemsWithContent(rawItems, headers, MAX_TEAM_CONTENT_ITEMS)
       return {
         reportName: name,
         displayName: profile.displayName,
@@ -504,14 +510,16 @@ async function fetchIssueComments(
 }
 
 const MAX_CONTENT_ITEMS = 15
+const MAX_TEAM_CONTENT_ITEMS = 3
 
 export async function enrichItemsWithContent(
   items: GitHubActivityItem[],
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  limit = MAX_CONTENT_ITEMS
 ): Promise<GitHubActivityItem[]> {
   const sorted = [...items].sort((a, b) => b.comments - a.comments)
-  const toEnrich = sorted.slice(0, MAX_CONTENT_ITEMS)
-  const rest = sorted.slice(MAX_CONTENT_ITEMS)
+  const toEnrich = sorted.slice(0, limit)
+  const rest = sorted.slice(limit)
 
   const enriched = await Promise.all(toEnrich.map(async (item) => {
     const parsed = extractIssueNumber(item.url)

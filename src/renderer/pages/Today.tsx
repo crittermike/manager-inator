@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity, GitHubActivityItem } from '../../shared/types'
 import { matchesMeetingDay } from '../utils/meetingDay'
 import { formatRelativeDate } from '../utils/formatDate'
 
@@ -26,6 +26,7 @@ import {
   Sparkles,
   GitPullRequest,
   CircleDot,
+  MessageSquare,
   Undo2
 } from 'lucide-react'
 import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
@@ -146,6 +147,109 @@ function getDailyMotivation(): string {
   // Deterministic per day so it doesn't change on re-renders
   const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24))
   return motivationalSubtitles[daysSinceEpoch % motivationalSubtitles.length]
+}
+
+/**
+ * Analyzes team GitHub activity and generates timeline suggestions.
+ * Detects patterns worth recognizing (heavy reviewing, stale PRs, high collab)
+ * and creates dismissible feedback/check-in suggestions.
+ */
+function computeActivitySuggestions(
+  teamActivity: TeamMemberActivity[],
+  doneIds: Set<string>,
+  ptoReports: Record<string, string>
+): TimelineItem[] {
+  const items: TimelineItem[] = []
+  const now = new Date()
+
+  for (const member of teamActivity) {
+    if (member.error || member.items.length === 0) continue
+    const ptoExpiry = ptoReports[member.reportName]
+    if (ptoExpiry && new Date(ptoExpiry) > now) continue
+
+    const prs = member.items.filter(i => i.type === 'pr')
+    const issues = member.items.filter(i => i.type === 'issue')
+
+    // 1. Heavy PR reviewer — lots of comments on others' PRs
+    const totalReviewComments = prs.reduce((sum, pr) => sum + (pr.reviewComments?.length ?? 0), 0)
+    if (totalReviewComments >= 5) {
+      const id = `activity-feedback-reviewer-${member.reportName}`
+      items.push({
+        id,
+        section: doneIds.has(id) ? 'done' : 'this-week',
+        title: `${member.displayName} left ${totalReviewComments} review comments today`,
+        subtitle: 'Solid code review effort — consider recognizing it',
+        reportName: member.reportName,
+        actionLabel: 'Give feedback',
+        actionType: 'feedback'
+      })
+    }
+
+    // 2. Stale open PR — open for 5+ days with no recent comments
+    const stalePrs = prs.filter(pr => {
+      if (pr.state !== 'open') return false
+      const ageMs = now.getTime() - new Date(pr.createdAt).getTime()
+      const ageDays = ageMs / (1000 * 60 * 60 * 24)
+      return ageDays >= 5 && pr.comments === 0
+    })
+    if (stalePrs.length > 0) {
+      const id = `activity-stale-pr-${member.reportName}`
+      const prTitles = stalePrs.map(p => p.title).slice(0, 2).join(', ')
+      items.push({
+        id,
+        section: doneIds.has(id) ? 'done' : 'this-week',
+        title: `${member.displayName} has ${stalePrs.length} PR${stalePrs.length > 1 ? 's' : ''} waiting for review`,
+        subtitle: prTitles,
+        reportName: member.reportName,
+        route: `/report/${member.reportName}`,
+        actionLabel: 'Check in',
+        actionType: 'navigate'
+      })
+    }
+
+    // 3. Shipping machine — 3+ merged PRs
+    const mergedPrs = prs.filter(pr => pr.state === 'merged')
+    if (mergedPrs.length >= 3) {
+      const id = `activity-feedback-shipping-${member.reportName}`
+      items.push({
+        id,
+        section: doneIds.has(id) ? 'done' : 'this-week',
+        title: `${member.displayName} merged ${mergedPrs.length} PRs recently`,
+        subtitle: 'On a roll — acknowledge the momentum',
+        reportName: member.reportName,
+        actionLabel: 'Give feedback',
+        actionType: 'feedback'
+      })
+    }
+
+    // 4. Cross-team collaboration — active on issues with lots of comments
+    const highCollabIssues = issues.filter(i => i.comments >= 5)
+    if (highCollabIssues.length >= 2) {
+      const id = `activity-feedback-collab-${member.reportName}`
+      items.push({
+        id,
+        section: doneIds.has(id) ? 'done' : 'this-week',
+        title: `${member.displayName} is driving ${highCollabIssues.length} active discussions`,
+        subtitle: 'High collaboration signal — great for visibility',
+        reportName: member.reportName,
+        actionLabel: 'Give feedback',
+        actionType: 'feedback'
+      })
+    }
+  }
+
+  return items
+}
+
+function formatActivityCounts(items: GitHubActivityItem[]): string {
+  const prs = items.filter(i => i.type === 'pr').length
+  const issues = items.filter(i => i.type === 'issue').length
+  const discussions = items.filter(i => i.type === 'discussion').length
+  const parts: string[] = []
+  if (prs > 0) parts.push(`${prs} PR${prs !== 1 ? 's' : ''}`)
+  if (issues > 0) parts.push(`${issues} issue${issues !== 1 ? 's' : ''}`)
+  if (discussions > 0) parts.push(`${discussions} disc${discussions !== 1 ? 's' : ''}`)
+  return parts.join(' · ') || 'No activity'
 }
 
 function computeTimelineItems(
@@ -780,6 +884,7 @@ export function Today() {
   const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
   const [activityExpanded, setActivityExpanded] = useState(true)
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({})
+  const [expandedActivityItems, setExpandedActivityItems] = useState<Record<string, boolean>>({})
 
   const [activitySummary, setActivitySummary] = useState<string>(() => {
     try {
@@ -937,6 +1042,19 @@ export function Today() {
     }
   }, [teamActivity, activitySummary, activityAI.streaming, generateActivitySummary])
 
+  useEffect(() => {
+    if (teamActivity.length === 0) return
+    const todayKey = format(new Date(), 'yyyy-MM-dd')
+    const storageKey = `activity-snapshots-saved-${todayKey}`
+    if (localStorage.getItem(storageKey)) return
+    localStorage.setItem(storageKey, 'true')
+
+    const membersWithActivity = teamActivity.filter(m => m.items.length > 0 && !m.error)
+    for (const member of membersWithActivity) {
+      window.api.saveActivitySnapshot(member.reportName, todayKey, todayKey).catch(() => {})
+    }
+  }, [teamActivity])
+
   const reports = overview?.reports ?? []
   const reportByName = useMemo(() => new Map(reports.map(r => [r.name, r])), [reports])
 
@@ -952,7 +1070,9 @@ export function Today() {
 
   const items = useMemo(() => {
     const raw = computeTimelineItems(reports, meetings, cadence, doneIds, filteredTeamActions, customPractices)
-    return raw.filter(item => {
+    const activitySuggestions = computeActivitySuggestions(teamActivity, doneIds, ptoReports)
+    const all = [...raw, ...activitySuggestions]
+    return all.filter(item => {
       const practiceId = getPracticeIdForItem(item.id)
       if (!practiceId) return true
       if (disabledPractices.includes(practiceId)) return false
@@ -975,7 +1095,7 @@ export function Today() {
       }
       return item
     })
-  }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap])
+  }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap, teamActivity])
 
   const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'coming-up', 'done']
 
@@ -1348,7 +1468,7 @@ export function Today() {
                               <span className="text-xs text-zinc-500">No activity in last 24h</span>
                             ) : (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
-                                {member.items.length} items
+                                {formatActivityCounts(member.items)}
                               </span>
                             )}
                             
@@ -1362,38 +1482,102 @@ export function Today() {
 
                         {isMemberExpanded && !isEmpty && !member.error && (
                           <div className="bg-surface-raised/20 border-t border-border/30 animate-slide-down">
-                            {member.items.map(item => (
-                              <div 
-                                key={item.id}
-                                className="flex items-start gap-3 px-5 py-3 border-b border-border/30 last:border-b-0 hover:bg-surface-raised/40 cursor-pointer"
-                                onClick={() => window.open(item.url, '_blank')}
-                              >
-                                <div className="mt-0.5 shrink-0">
-                                  {item.type === 'pr' ? (
-                                    <GitPullRequest className="w-4 h-4 text-purple-400" />
-                                  ) : (
-                                    <CircleDot className="w-4 h-4 text-zinc-400" />
+                            {member.items.map(item => {
+                              const hasComments = (item.reviewComments && item.reviewComments.length > 0) || (item.issueComments && item.issueComments.length > 0)
+                              const isExpanded = expandedActivityItems[`${member.reportName}-${item.id}`]
+
+                              return (
+                                <div key={item.id}>
+                                  <div 
+                                    className="flex items-start gap-3 px-5 py-3 border-b border-border/30 last:border-b-0 hover:bg-surface-raised/40 cursor-pointer"
+                                    onClick={(e) => {
+                                      if (hasComments) {
+                                        e.stopPropagation()
+                                        setExpandedActivityItems(prev => ({
+                                          ...prev,
+                                          [`${member.reportName}-${item.id}`]: !prev[`${member.reportName}-${item.id}`]
+                                        }))
+                                      } else {
+                                        window.open(item.url, '_blank')
+                                      }
+                                    }}
+                                  >
+                                    <div className="mt-0.5 shrink-0">
+                                      {item.type === 'pr' ? (
+                                        <GitPullRequest className="w-4 h-4 text-purple-400" />
+                                      ) : item.type === 'discussion' ? (
+                                        <MessageSquare className="w-4 h-4 text-blue-400" />
+                                      ) : (
+                                        <CircleDot className="w-4 h-4 text-zinc-400" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm text-zinc-200 truncate group-hover:text-brand-light transition-colors">
+                                        {item.title}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+                                        <span className="truncate">{item.repo}</span>
+                                        <span>·</span>
+                                        <span>{formatRelativeDate(new Date(item.updatedAt)).toLowerCase()}</span>
+                                        <span>·</span>
+                                        <span className={
+                                          item.state === 'open' ? 'text-emerald-400' :
+                                          item.state === 'merged' ? 'text-purple-400' : 'text-zinc-400'
+                                        }>
+                                          {item.state.charAt(0).toUpperCase() + item.state.slice(1)}
+                                        </span>
+                                        {hasComments && (
+                                          <>
+                                            <span>·</span>
+                                            <span className="text-brand-light">{item.comments} comment{item.comments !== 1 ? 's' : ''}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                                      {hasComments && (
+                                        isExpanded
+                                          ? <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />
+                                          : <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
+                                      )}
+                                      <button
+                                        className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                                        title="Open on GitHub"
+                                        onClick={(e) => { e.stopPropagation(); window.open(item.url, '_blank') }}
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && hasComments && (
+                                    <div className="bg-zinc-900/40 border-b border-border/30 px-5 py-2.5 space-y-2 animate-slide-down">
+                                      {item.reviewComments?.map((review, i) => (
+                                        <div key={`review-${i}`} className="flex items-start gap-2 text-xs">
+                                          <span className="font-medium text-zinc-400 shrink-0">@{review.author}</span>
+                                          {review.reviewState && (
+                                            <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${
+                                              review.reviewState === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-400' :
+                                              review.reviewState === 'CHANGES_REQUESTED' ? 'bg-amber-500/15 text-amber-400' :
+                                              'bg-zinc-500/15 text-zinc-400'
+                                            }`}>
+                                              {review.reviewState.replace('_', ' ')}
+                                            </span>
+                                          )}
+                                          <span className="text-zinc-500 line-clamp-2">{review.body.split('\n')[0]}</span>
+                                        </div>
+                                      ))}
+                                      {item.issueComments?.map((comment, i) => (
+                                        <div key={`comment-${i}`} className="flex items-start gap-2 text-xs">
+                                          <span className="font-medium text-zinc-400 shrink-0">@{comment.author}</span>
+                                          <span className="text-zinc-500 line-clamp-2">{comment.body.split('\n')[0]}</span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm text-zinc-200 truncate group-hover:text-brand-light transition-colors">
-                                    {item.title}
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
-                                    <span className="truncate">{item.repo}</span>
-                                    <span>·</span>
-                                    <span>{formatRelativeDate(new Date(item.updatedAt)).toLowerCase()}</span>
-                                    <span>·</span>
-                                    <span className={
-                                      item.state === 'open' ? 'text-emerald-400' :
-                                      item.state === 'merged' ? 'text-purple-400' : 'text-zinc-400'
-                                    }>
-                                      {item.state.charAt(0).toUpperCase() + item.state.slice(1)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
                       </div>

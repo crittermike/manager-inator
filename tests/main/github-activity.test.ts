@@ -186,7 +186,7 @@ describe('getTeamActivity', () => {
 
     expect(result[1].reportName).toBe('bob')
     expect(result[1].items).toHaveLength(1)
-    expect(mockFetch).toHaveBeenCalledTimes(12)
+    expect(mockFetch).toHaveBeenCalledTimes(14) // 6 per person × 2 + 1 enrichment each
   })
 
   it('returns error message for reports without GitHub username', async () => {
@@ -369,7 +369,7 @@ describe('getTeamActivity', () => {
 
     const result1 = await getTeamActivity()
     expect(result1[0].items[0].title).toBe('Cached item')
-    expect(mockFetch).toHaveBeenCalledTimes(6)
+    expect(mockFetch).toHaveBeenCalledTimes(7) // 6 search/GQL + 1 enrichment
 
     const result2 = await getTeamActivity()
     expect(result2[0].items[0].title).toBe('Cached item')
@@ -387,7 +387,7 @@ describe('getTeamActivity', () => {
     )
 
     await getTeamActivity()
-    expect(mockFetch).toHaveBeenCalledTimes(6)
+    expect(mockFetch).toHaveBeenCalledTimes(7) // 6 search/GQL + 1 enrichment
 
     clearActivityCache()
     mockFetch.mockClear()
@@ -399,7 +399,7 @@ describe('getTeamActivity', () => {
 
     const result = await getTeamActivity()
     expect(result[0].items[0].title).toBe('Fresh data 2')
-    expect(mockFetch).toHaveBeenCalledTimes(6)
+    expect(mockFetch).toHaveBeenCalledTimes(7) // 6 search/GQL + 1 enrichment
   })
 
   it('handles mixed success and failure across reports', async () => {
@@ -893,6 +893,54 @@ describe('enrichItemsWithContent', () => {
 
     await enrichItemsWithContent(items, headers)
     expect(mockFetch).toHaveBeenCalledTimes(15)
+  })
+
+  it('respects custom limit parameter', async () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 200,
+      title: `Item ${i}`,
+      url: `https://github.com/myorg/myrepo/issues/${i + 200}`,
+      state: 'open' as const,
+      type: 'issue' as const,
+      repo: 'myorg/myrepo',
+      comments: 10 - i,
+      labels: [],
+      createdAt: '2026-03-20T10:00:00Z',
+      updatedAt: '2026-03-22T10:00:00Z'
+    }))
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ([])
+    })
+
+    await enrichItemsWithContent(items, headers, 3)
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('returns all items even when only some are enriched', async () => {
+    const items = Array.from({ length: 5 }, (_, i) => ({
+      id: i + 300,
+      title: `Item ${i}`,
+      url: `https://github.com/myorg/myrepo/issues/${i + 300}`,
+      state: 'open' as const,
+      type: 'issue' as const,
+      repo: 'myorg/myrepo',
+      comments: 5 - i,
+      labels: [],
+      createdAt: '2026-03-20T10:00:00Z',
+      updatedAt: '2026-03-22T10:00:00Z'
+    }))
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ([{ user: { login: 'tester' }, body: 'Test comment', created_at: '2026-03-21T10:00:00Z' }])
+    })
+
+    const result = await enrichItemsWithContent(items, headers, 2)
+    expect(result).toHaveLength(5)
+    const enrichedCount = result.filter(r => r.issueComments && r.issueComments.length > 0).length
+    expect(enrichedCount).toBe(2)
   })
 })
 
