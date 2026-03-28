@@ -215,4 +215,29 @@ describe('buildMessages', () => {
     expect(userMsg.content).toContain('Nic merged 5 PRs')
     expect(userMsg.content).toContain('Team of 3 engineers')
   })
+
+  it('builds sprint-goal messages with team context and activity', () => {
+    const result = buildMessages('sprint-goal', {
+      teamContext: 'Nic: on-track, Steve: needs attention',
+      actionItems: '- [ ] Nic: finish auth migration',
+      githubActivity: 'Nic: 2 open PRs on auth module, Steve: 1 stale PR'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('sprint')
+    expect(userMsg.content).toContain('Key deliverables')
+    expect(userMsg.content).toContain('Risks to watch')
+    expect(userMsg.content).toContain('Nic: on-track')
+    expect(userMsg.content).toContain('finish auth migration')
+    expect(userMsg.content).toContain('2 open PRs on auth module')
+  })
+
+  it('builds sprint-goal messages without optional context', () => {
+    const result = buildMessages('sprint-goal', {})
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('sprint')
+    expect(userMsg.content).toContain('Key deliverables')
+    expect(userMsg.content).not.toContain('Team overview')
+    expect(userMsg.content).not.toContain('Open action items')
+    expect(userMsg.content).not.toContain('Current team GitHub activity')
+  })
 })

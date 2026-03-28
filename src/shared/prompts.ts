@@ -315,6 +315,29 @@ Recent data:
 {actionItems}`,
   },
   {
+    id: 'sprint-goal',
+    label: 'Sprint goal',
+    description: 'AI-generated sprint goal based on team activity, open items, and current GitHub work.',
+    template: `Help me define the goal for this sprint as an engineering manager.
+
+I need a clear, focused sprint goal that captures what success looks like. Consider what the team is actively working on, what's blocked, and what needs to ship. The goal should be concrete enough that at sprint end we can say "yes we hit it" or "no we didn't."
+
+Format:
+**Sprint goal**: [One sentence capturing the primary objective]
+
+**Key deliverables**:
+- [Specific, measurable deliverable with owner if obvious]
+- [2-4 items max — be ruthless about focus]
+
+**Risks to watch**:
+- [Things that could derail the sprint based on current activity]
+
+Context:
+{teamContext}
+{actionItems}
+{githubActivity}`,
+  },
+  {
     id: 'prompt-fill-weekly-priorities',
     label: 'Suggest weekly priorities',
     description: 'AI-generated suggestion for weekly priorities based on open items, upcoming meetings, team activity, and GitHub data.',

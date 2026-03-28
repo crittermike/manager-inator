@@ -179,11 +179,38 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
     const contextHint = getContextHint()
 
+    let activityContext = ''
+    if (location.pathname.startsWith('/report/')) {
+      const reportName = location.pathname.replace('/report/', '')
+      try {
+        const now = new Date()
+        const weekAgo = new Date(now)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        const startDate = weekAgo.toISOString().split('T')[0]
+        const endDate = now.toISOString().split('T')[0]
+        const activity = await window.api.fetchActivityForPerson(reportName, startDate, endDate)
+        if (activity && activity.items.length > 0) {
+          const lines: string[] = [`Recent GitHub activity for ${activity.displayName} (past 7 days):`]
+          for (const item of activity.items.slice(0, 10)) {
+            const stateEmoji = item.state === 'merged' ? '🟣' : item.state === 'open' ? '🟢' : item.state === 'closed' ? '🔴' : '⚪'
+            lines.push(`${stateEmoji} ${item.type.toUpperCase()}: ${item.title} (${item.state})`)
+            if (item.reviewComments?.length) {
+              lines.push(`  └ ${item.reviewComments.length} review comment(s): "${item.reviewComments[0].body.slice(0, 100)}"`)
+            }
+            if (item.issueComments?.length) {
+              lines.push(`  └ ${item.issueComments.length} comment(s): "${item.issueComments[0].body.slice(0, 100)}"`)
+            }
+          }
+          activityContext = lines.join('\n')
+        }
+      } catch { /* non-fatal */ }
+    }
+
     try {
       const response = await generate('chat', {
         message: text,
         history: messages.map(m => ({ role: m.role, content: m.content })),
-        ...(contextHint ? { pageContext: contextHint } : {})
+        ...(contextHint ? { pageContext: contextHint + (activityContext ? '\n\n' + activityContext : '') } : activityContext ? { pageContext: activityContext } : {})
       })
 
       updateSession(activeId, s => ({

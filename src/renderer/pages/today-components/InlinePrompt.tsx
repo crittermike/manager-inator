@@ -135,7 +135,9 @@ export function InlinePrompt({
       const teamContext = formatTeamContext(reports)
       const actionItemsText = formatActionItems(teamActions)
 
-      const action = promptType === 'weekly-reflection' ? 'weekly-reflection' : 'prompt-fill-weekly-priorities'
+      const action = promptType === 'weekly-reflection' ? 'weekly-reflection'
+        : promptType === 'sprint-goal' ? 'sprint-goal'
+        : 'prompt-fill-weekly-priorities'
       const context: Record<string, unknown> = {
         promptType,
         teamContext: teamContext || undefined,

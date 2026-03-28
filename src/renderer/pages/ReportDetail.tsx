@@ -419,6 +419,31 @@ export function ReportDetail() {
     } catch { /* monthly activity unavailable is non-fatal */ }
 
     try {
+      const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`
+      const enriched = await window.api.fetchActivityForPerson(name, startDate, endDate)
+      if (enriched && enriched.items.length > 0) {
+        const contentPreviews: string[] = []
+        for (const item of enriched.items) {
+          if (item.reviewComments?.length) {
+            for (const rc of item.reviewComments.slice(0, 3)) {
+              contentPreviews.push(`- Review on "${item.title}": ${rc.reviewState ? `[${rc.reviewState}] ` : ''}${rc.body.slice(0, 200)}`)
+            }
+          }
+          if (item.issueComments?.length) {
+            for (const ic of item.issueComments.slice(0, 3)) {
+              contentPreviews.push(`- Comment on "${item.title}": ${ic.body.slice(0, 200)}`)
+            }
+          }
+        }
+        if (contentPreviews.length > 0) {
+          const enrichedSection = '\n\nCode review & comment content (for assessing quality and engagement):\n' + contentPreviews.slice(0, 20).join('\n')
+          githubActivityText = (githubActivityText || '') + enrichedSection
+        }
+      }
+    } catch { /* content enrichment unavailable is non-fatal */ }
+
+    try {
       await generate('generate-checkin', {
         reportName: report.profile.displayName,
         displayName: report.profile.displayName,

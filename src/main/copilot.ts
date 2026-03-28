@@ -596,6 +596,32 @@ ${context.githubActivity ? `Team GitHub activity this week (what shipped, what's
       })
       break
 
+    case 'sprint-goal':
+      messages.push({
+        role: 'user',
+        content: `Help me define the goal for this sprint as an engineering manager.
+
+I need a clear, focused sprint goal that captures what success looks like. Consider what the team is actively working on, what's blocked, and what needs to ship. The goal should be concrete enough that at sprint end we can say "yes we hit it" or "no we didn't."
+
+Format:
+**Sprint goal**: [One sentence capturing the primary objective]
+
+**Key deliverables**:
+- [Specific, measurable deliverable with owner if obvious]
+- [2-4 items max — be ruthless about focus]
+
+**Risks to watch**:
+- [Things that could derail the sprint based on current activity]
+
+Keep it short. One sprint goal, not five. If multiple things matter, pick the one that matters most and list the rest as deliverables.
+
+Context:
+${context.teamContext ? `Team overview:\n${context.teamContext}\n` : ''}
+${context.actionItems ? `Open action items:\n${context.actionItems}\n` : ''}
+${context.githubActivity ? `Current team GitHub activity (what's in-flight, what's been shipping, what's stale):\n${context.githubActivity}` : ''}`
+      })
+      break
+
     default:
       messages.push({
         role: 'user',
