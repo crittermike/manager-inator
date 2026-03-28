@@ -7,7 +7,8 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity, GitHubActivityItem } from '../../shared/types'
+import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
+import { computeActivitySuggestions, formatActivityCounts } from '../utils/activitySuggestions'
 import { matchesMeetingDay } from '../utils/meetingDay'
 import { formatRelativeDate } from '../utils/formatDate'
 
@@ -147,109 +148,6 @@ function getDailyMotivation(): string {
   // Deterministic per day so it doesn't change on re-renders
   const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24))
   return motivationalSubtitles[daysSinceEpoch % motivationalSubtitles.length]
-}
-
-/**
- * Analyzes team GitHub activity and generates timeline suggestions.
- * Detects patterns worth recognizing (heavy reviewing, stale PRs, high collab)
- * and creates dismissible feedback/check-in suggestions.
- */
-function computeActivitySuggestions(
-  teamActivity: TeamMemberActivity[],
-  doneIds: Set<string>,
-  ptoReports: Record<string, string>
-): TimelineItem[] {
-  const items: TimelineItem[] = []
-  const now = new Date()
-
-  for (const member of teamActivity) {
-    if (member.error || member.items.length === 0) continue
-    const ptoExpiry = ptoReports[member.reportName]
-    if (ptoExpiry && new Date(ptoExpiry) > now) continue
-
-    const prs = member.items.filter(i => i.type === 'pr')
-    const issues = member.items.filter(i => i.type === 'issue')
-
-    // 1. Heavy PR reviewer — lots of comments on others' PRs
-    const totalReviewComments = prs.reduce((sum, pr) => sum + (pr.reviewComments?.length ?? 0), 0)
-    if (totalReviewComments >= 5) {
-      const id = `activity-feedback-reviewer-${member.reportName}`
-      items.push({
-        id,
-        section: doneIds.has(id) ? 'done' : 'this-week',
-        title: `${member.displayName} left ${totalReviewComments} review comments today`,
-        subtitle: 'Solid code review effort — consider recognizing it',
-        reportName: member.reportName,
-        actionLabel: 'Give feedback',
-        actionType: 'feedback'
-      })
-    }
-
-    // 2. Stale open PR — open for 5+ days with no recent comments
-    const stalePrs = prs.filter(pr => {
-      if (pr.state !== 'open') return false
-      const ageMs = now.getTime() - new Date(pr.createdAt).getTime()
-      const ageDays = ageMs / (1000 * 60 * 60 * 24)
-      return ageDays >= 5 && pr.comments === 0
-    })
-    if (stalePrs.length > 0) {
-      const id = `activity-stale-pr-${member.reportName}`
-      const prTitles = stalePrs.map(p => p.title).slice(0, 2).join(', ')
-      items.push({
-        id,
-        section: doneIds.has(id) ? 'done' : 'this-week',
-        title: `${member.displayName} has ${stalePrs.length} PR${stalePrs.length > 1 ? 's' : ''} waiting for review`,
-        subtitle: prTitles,
-        reportName: member.reportName,
-        route: `/report/${member.reportName}`,
-        actionLabel: 'Check in',
-        actionType: 'navigate'
-      })
-    }
-
-    // 3. Shipping machine — 3+ merged PRs
-    const mergedPrs = prs.filter(pr => pr.state === 'merged')
-    if (mergedPrs.length >= 3) {
-      const id = `activity-feedback-shipping-${member.reportName}`
-      items.push({
-        id,
-        section: doneIds.has(id) ? 'done' : 'this-week',
-        title: `${member.displayName} merged ${mergedPrs.length} PRs recently`,
-        subtitle: 'On a roll — acknowledge the momentum',
-        reportName: member.reportName,
-        actionLabel: 'Give feedback',
-        actionType: 'feedback'
-      })
-    }
-
-    // 4. Cross-team collaboration — active on issues with lots of comments
-    const highCollabIssues = issues.filter(i => i.comments >= 5)
-    if (highCollabIssues.length >= 2) {
-      const id = `activity-feedback-collab-${member.reportName}`
-      items.push({
-        id,
-        section: doneIds.has(id) ? 'done' : 'this-week',
-        title: `${member.displayName} is driving ${highCollabIssues.length} active discussions`,
-        subtitle: 'High collaboration signal — great for visibility',
-        reportName: member.reportName,
-        actionLabel: 'Give feedback',
-        actionType: 'feedback'
-      })
-    }
-  }
-
-  return items
-}
-
-function formatActivityCounts(items: GitHubActivityItem[]): string {
-  const prs = items.filter(i => i.type === 'pr').length
-  const issues = items.filter(i => i.type === 'issue').length
-  const discussions = items.filter(i => i.type === 'discussion').length
-  const parts: string[] = []
-  if (prs > 0) parts.push(`${prs} PR${prs !== 1 ? 's' : ''}`)
-  if (issues > 0) parts.push(`${issues} issue${issues !== 1 ? 's' : ''}`)
-  if (discussions > 0) parts.push(`${discussions} disc${discussions !== 1 ? 's' : ''}`)
-  return parts.join(' · ') || 'No activity'
 }
 
 function computeTimelineItems(
