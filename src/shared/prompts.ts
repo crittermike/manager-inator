@@ -52,6 +52,13 @@ Required JSON shape:
       "owner": "Name"
     }
   ],
+  "resolved_action_items": [
+    {
+      "original_text": "exact text of the resolved action item from the EXISTING OPEN ITEMS list",
+      "owner": "Name",
+      "reason": "brief explanation of how/why this was resolved based on the content"
+    }
+  ],
   "impact": [
     {
       "text": "YYYY-MM-DD — Short title: Description of the manager's impact"
@@ -70,8 +77,11 @@ Rules:
 - "detailed_summary" is a thorough, structured markdown summary that captures the substance of the content. Write it so someone reading it months later can understand what happened without reading the raw content. Include specific names, decisions, and outcomes.
 - "key_context" should capture strategic information useful for future performance reviews or check-ins
 - "impact" should capture evidence of MY impact as the manager
+- "resolved_action_items" should identify any items from the EXISTING OPEN ITEMS list that this content indicates have been completed, addressed, or are no longer relevant. Only include items where the content provides clear evidence. Use the EXACT original_text from the open items list.
 
 {sourceHint}
+
+{openActionItems}
 
 CONTENT:
 {content}`,

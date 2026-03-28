@@ -26,6 +26,7 @@ interface ClassifiedResult {
   people_mentioned: string[]
   feedback: { person: string; type: 'positive' | 'constructive' | 'mixed'; content: string }[]
   action_items: { text: string; owner: string }[]
+  resolved_action_items: { original_text: string; owner: string; reason: string }[]
   impact: { text: string }[]
   key_context: string
 }
@@ -62,6 +63,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   const [savedFilepath, setSavedFilepath] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [resolvedConfirmed, setResolvedConfirmed] = useState<Record<number, boolean>>({})
 
   const mountedRef = useRef(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -102,15 +104,35 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     setState('processing')
     setSaveError(null)
     setResult(null)
+    setResolvedConfirmed({})
     reset()
 
     const reportNames = reports.map(r => r.displayName).join(', ')
+    const reportSlugs = reports.map(r => r.name)
+
+    let openActionItemsText = ''
+    try {
+      const openItems = await window.api.getOpenActionItemsForPeople(reportSlugs)
+      if (openItems.length > 0) {
+        const lines: string[] = []
+        for (const { slug, items } of openItems) {
+          const displayName = reports.find(r => r.name === slug)?.displayName || slug
+          for (const item of items) {
+            lines.push(`- ${item.owner}: ${item.text}`)
+          }
+        }
+        if (lines.length > 0) {
+          openActionItemsText = lines.join('\n')
+        }
+      }
+    } catch { }
 
     try {
       const response = await generate('classify-content', {
         content: content.trim(),
         reportNames,
         sourceHint: sourceHint || undefined,
+        openActionItems: openActionItemsText || undefined,
       })
 
       if (!mountedRef.current) return
@@ -119,6 +141,9 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
       try {
         const jsonStr = response.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
         parsed = JSON.parse(jsonStr)
+        if (!parsed.resolved_action_items) {
+          parsed.resolved_action_items = []
+        }
       } catch {
         setSaveError('AI returned invalid JSON. Try again.')
         setState('error')
@@ -126,7 +151,10 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
       }
 
       setResult(parsed)
-      await autoSave(parsed)
+      const confirmMap: Record<number, boolean> = {}
+      parsed.resolved_action_items.forEach((_, i) => { confirmMap[i] = true })
+      setResolvedConfirmed(confirmMap)
+      await autoSave(parsed, confirmMap)
     } catch (e) {
       if (!mountedRef.current) return
       setSaveError((e as Error).message || 'AI processing failed')
@@ -146,7 +174,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, state, handleProcess])
 
-  const autoSave = useCallback(async (classified: ClassifiedResult) => {
+  const autoSave = useCallback(async (classified: ClassifiedResult, confirmedResolved?: Record<number, boolean>) => {
     const today = format(new Date(), 'yyyy-MM-dd')
     const sourceSlug = classified.source || 'capture'
     const summarySlug = slugify(classified.summary.split(' ').slice(0, 5).join(' ') || 'captured-content')
@@ -244,6 +272,22 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
         )
       }
 
+      if (classified.resolved_action_items && classified.resolved_action_items.length > 0 && confirmedResolved) {
+        const resolvePromises: Promise<void>[] = []
+        for (let i = 0; i < classified.resolved_action_items.length; i++) {
+          if (!confirmedResolved[i]) continue
+          const resolved = classified.resolved_action_items[i]
+          for (const slug of peopleSlugs) {
+            resolvePromises.push(
+              window.api.resolveAndToggleActionItem(slug, resolved.original_text)
+                .then(() => {})
+                .catch(() => {})
+            )
+          }
+        }
+        await Promise.all(resolvePromises)
+      }
+
       if (mountedRef.current) {
         setState('saved')
         toast.success('Content captured and saved')
@@ -265,6 +309,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     setSaveError(null)
     setSavedFilepath(null)
     setEditContent('')
+    setResolvedConfirmed({})
     reset()
     setTimeout(() => textareaRef.current?.focus(), 100)
   }, [reset])
@@ -496,6 +541,36 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                   <div key={i} className="text-xs text-zinc-400">
                     <span className="text-zinc-300 font-medium">{item.owner}:</span> {item.text}
                   </div>
+                ))}
+              </div>
+            )}
+
+            {result.resolved_action_items && result.resolved_action_items.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-medium text-emerald-500/80 uppercase tracking-wider flex items-center gap-1">
+                  <Check className="w-2.5 h-2.5" />
+                  Resolved action items
+                </span>
+                <p className="text-[10px] text-zinc-600">
+                  These existing items appear to be resolved based on this content. Uncheck any you want to keep open.
+                </p>
+                {result.resolved_action_items.map((item, i) => (
+                  <label key={i} className="flex items-start gap-2 py-1 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={resolvedConfirmed[i] ?? true}
+                      onChange={() => {
+                        setResolvedConfirmed(prev => ({ ...prev, [i]: !prev[i] }))
+                      }}
+                      className="mt-0.5 accent-emerald-500 w-3.5 h-3.5 shrink-0"
+                    />
+                    <div className="text-xs">
+                      <div className={`${resolvedConfirmed[i] !== false ? 'text-emerald-400/80 line-through' : 'text-zinc-300'}`}>
+                        <span className="font-medium">{item.owner}:</span> {item.original_text}
+                      </div>
+                      <div className="text-zinc-600 text-[10px] mt-0.5">{item.reason}</div>
+                    </div>
+                  </label>
                 ))}
               </div>
             )}

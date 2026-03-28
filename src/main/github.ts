@@ -1361,6 +1361,91 @@ export async function toggleActionItem(sourceFile: string, lineNumber: number): 
   }
 }
 
+// ── Resolve action item from prep text ──
+
+export function resolveActionItemByText(
+  reportName: string,
+  prepText: string
+): { sourceFile: string; lineNumber: number } | null {
+  const normalizedPrep = prepText
+    .replace(/^\*\*.*?\*\*:?\s*/, '')
+    .replace(/^[^:]+:\s*/, '')
+    .trim()
+    .toLowerCase()
+
+  if (!normalizedPrep) return null
+
+  const contextsCache = getContextsCache()
+  let personContextFiles = contextsCache.byPersonSlug.get(reportName) || []
+  if (personContextFiles.length === 0) {
+    for (const [personSlug, personFiles] of contextsCache.byPersonSlug) {
+      if (personSlug.startsWith(reportName + '-') || personSlug === reportName) {
+        personContextFiles = personFiles
+        break
+      }
+    }
+  }
+
+  const sorted = [...personContextFiles].sort().reverse()
+  for (const filename of sorted) {
+    try {
+      const content = getFileContent(`contexts/${filename}`)
+      const lines = content.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const match = line.match(/^- \[ \]\s+(.+)/)
+        if (!match) continue
+
+        const contextText = match[1]
+          .replace(/^\*\*.*?\*\*:?\s*/, '')
+          .trim()
+          .toLowerCase()
+
+        if (contextText === normalizedPrep) {
+          return { sourceFile: `contexts/${filename}`, lineNumber: i }
+        }
+
+        if (contextText.length > 10 && normalizedPrep.length > 10) {
+          if (contextText.includes(normalizedPrep) || normalizedPrep.includes(contextText)) {
+            return { sourceFile: `contexts/${filename}`, lineNumber: i }
+          }
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  return null
+}
+
+export async function resolveAndToggleActionItem(
+  reportName: string,
+  prepText: string
+): Promise<boolean> {
+  const match = resolveActionItemByText(reportName, prepText)
+  if (!match) return false
+
+  await toggleActionItem(match.sourceFile, match.lineNumber)
+  return true
+}
+
+// ── Get open action items for specific people (for AI context) ──
+
+export function getOpenActionItemsForPeople(
+  slugs: string[]
+): { slug: string; items: ActionItem[] }[] {
+  const results: { slug: string; items: ActionItem[] }[] = []
+  for (const slug of slugs) {
+    try {
+      const data = getReportData(slug)
+      const openItems = data.actionItems.filter(a => !a.completed)
+      if (openItems.length > 0) {
+        results.push({ slug, items: openItems })
+      }
+    } catch { /* skip */ }
+  }
+  return results
+}
+
 // ── Settings options (from settings.md) ──
 
 export function getSettingsOptions(): { roles: string[]; relationships: string[] } {

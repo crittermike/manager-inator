@@ -20,6 +20,8 @@ import {
   saveMeetingTitle,
   saveMeetingSpeakers,
   toggleActionItem,
+  resolveAndToggleActionItem,
+  getOpenActionItemsForPeople,
   getTeamActionItems,
   getTodayBootstrap,
   searchContent,
@@ -103,6 +105,8 @@ export function setupIpcHandlers(): void {
   safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
   safeHandle('github:save-meeting-speakers', (_e, filename, speakers) => saveMeetingSpeakers(filename as string, speakers as string[]))
   safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
+  safeHandle('github:resolve-toggle-action-item', (_e, reportName, prepText) => resolveAndToggleActionItem(reportName as string, prepText as string))
+  safeHandle('github:open-action-items-for-people', (_e, slugs) => getOpenActionItemsForPeople(slugs as string[]))
   safeHandle('github:team-action-items', () => getTeamActionItems())
   safeHandle('github:today-bootstrap', () => getTodayBootstrap())
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))

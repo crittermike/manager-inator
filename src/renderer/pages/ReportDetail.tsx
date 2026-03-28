@@ -492,14 +492,19 @@ export function ReportDetail() {
       if (!prev) return prev
       const lines = prev.split('\n')
       const line = lines[lineIndex]
-      if (line.includes('- [ ] ')) {
+      const wasUnchecked = line.includes('- [ ] ')
+      if (wasUnchecked) {
         lines[lineIndex] = line.replace('- [ ] ', '- [x] ')
+        if (name) {
+          const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
+          window.api.resolveAndToggleActionItem(name, checkboxText).catch(() => {})
+        }
       } else if (line.includes('- [x] ')) {
         lines[lineIndex] = line.replace('- [x] ', '- [ ] ')
       }
       return lines.join('\n')
     })
-  }, [])
+  }, [name])
 
   // ── Edit handlers ──
 
@@ -2181,7 +2186,8 @@ function PrepDetail({ entry, name, onEdit, onDelete }: { entry: StreamEntry; nam
   const handleCheckboxToggle = useCallback(async (lineIndex: number) => {
     const lines = content.split('\n')
     const line = lines[lineIndex]
-    if (line.includes('- [ ] ')) {
+    const wasUnchecked = line.includes('- [ ] ')
+    if (wasUnchecked) {
       lines[lineIndex] = line.replace('- [ ] ', '- [x] ')
     } else if (line.includes('- [x] ')) {
       lines[lineIndex] = line.replace('- [x] ', '- [ ] ')
@@ -2192,6 +2198,10 @@ function PrepDetail({ entry, name, onEdit, onDelete }: { entry: StreamEntry; nam
     setContent(updated)
     try {
       await window.api.commitFile(prepPath, updated, `Toggle prep checkbox for ${name}`)
+      if (wasUnchecked) {
+        const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
+        window.api.resolveAndToggleActionItem(name, checkboxText).catch(() => {})
+      }
     } catch { }
   }, [content, prepPath, name])
 

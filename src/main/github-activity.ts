@@ -32,6 +32,27 @@ interface SearchResponse {
   items: SearchIssueItem[]
 }
 
+interface GraphQLDiscussionNode {
+  id: string
+  title: string
+  url: string
+  createdAt: string
+  updatedAt: string
+  closed: boolean
+  comments: { totalCount: number }
+  labels: { nodes: { name: string }[] } | null
+  repository: { nameWithOwner: string }
+}
+
+interface GraphQLSearchResponse {
+  data: {
+    search: {
+      nodes: GraphQLDiscussionNode[]
+    }
+  }
+  errors?: { message: string }[]
+}
+
 function repoFromUrl(repositoryUrl: string): string {
   const match = repositoryUrl.match(/repos\/(.+)$/)
   return match ? match[1] : repositoryUrl
@@ -57,15 +78,32 @@ async function fetchUserActivity(
     'X-GitHub-Api-Version': '2022-11-28'
   }
 
-  const baseQuery = `org:${org} author:${username} updated:>=${since}`
   console.log(`[GitHub Activity] Fetching: org=${org}, user=${username}, since=${since}`)
 
-  const [issueItems, prItems] = await Promise.all([
-    fetchSearchPage(`${baseQuery} is:issue`, headers),
-    fetchSearchPage(`${baseQuery} is:pull-request`, headers)
+  const authorQuery = `org:${org} author:${username} updated:>=${since}`
+  const commenterQuery = `org:${org} commenter:${username} updated:>=${since}`
+
+  const [issueItems, prItems, commentedIssues, commentedPRs, authoredDiscussions, commentedDiscussions] = await Promise.all([
+    fetchSearchPage(`${authorQuery} is:issue`, headers),
+    fetchSearchPage(`${authorQuery} is:pull-request`, headers),
+    fetchSearchPage(`${commenterQuery} is:issue`, headers),
+    fetchSearchPage(`${commenterQuery} is:pull-request`, headers),
+    fetchDiscussions(`org:${org} author:${username} updated:>=${since}`, headers),
+    fetchDiscussions(`org:${org} commenter:${username} updated:>=${since}`, headers)
   ])
 
-  return [...issueItems, ...prItems]
+  // Deduplicate by id — author results take precedence over commenter results
+  const seen = new Map<number, GitHubActivityItem>()
+  for (const item of [...issueItems, ...prItems]) {
+    seen.set(item.id, item)
+  }
+  for (const item of [...commentedIssues, ...commentedPRs, ...authoredDiscussions, ...commentedDiscussions]) {
+    if (!seen.has(item.id)) {
+      seen.set(item.id, item)
+    }
+  }
+
+  return Array.from(seen.values())
 }
 
 async function fetchSearchPage(
@@ -116,6 +154,93 @@ async function fetchSearchPage(
     comments: item.comments,
     labels: item.labels.map(l => l.name)
   }))
+}
+
+async function fetchDiscussions(
+  query: string,
+  headers: Record<string, string>
+): Promise<GitHubActivityItem[]> {
+  const graphqlQuery = {
+    query: `query($q: String!) {
+      search(type: DISCUSSION, query: $q, first: 50) {
+        nodes {
+          ... on Discussion {
+            id
+            title
+            url
+            createdAt
+            updatedAt
+            closed
+            comments(first: 0) { totalCount }
+            labels(first: 10) { nodes { name } }
+            repository { nameWithOwner }
+          }
+        }
+      }
+    }`,
+    variables: { q: query }
+  }
+
+  const response = await fetch(`${GITHUB_API}/graphql`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(graphqlQuery)
+  })
+
+  if (!response.ok) {
+    if (response.status === 403) {
+      const ssoHeader = response.headers.get('X-GitHub-SSO')
+      if (ssoHeader) {
+        throw new Error('SSO authorization required — visit your org\'s SSO page to authorize this token')
+      }
+      const remaining = response.headers.get('X-RateLimit-Remaining')
+      if (remaining === '0') {
+        const resetAt = response.headers.get('X-RateLimit-Reset')
+        const resetDate = resetAt ? new Date(Number(resetAt) * 1000) : null
+        throw new Error(
+          `Rate limited${resetDate ? ` — resets at ${resetDate.toLocaleTimeString()}` : ''}`
+        )
+      }
+      throw new Error('GitHub API returned 403')
+    }
+    let detail = response.statusText
+    try {
+      const body = await response.json()
+      detail = body.message || JSON.stringify(body)
+    } catch { /* ignore parse errors */ }
+    throw new Error(`GitHub API returned ${response.status}: ${detail}`)
+  }
+
+  const result = (await response.json()) as GraphQLSearchResponse
+
+  if (result.errors?.length) {
+    throw new Error(`GraphQL error: ${result.errors[0].message}`)
+  }
+
+  return (result.data?.search?.nodes || [])
+    .filter((n): n is GraphQLDiscussionNode => n != null && 'title' in n)
+    .map((node): GitHubActivityItem => ({
+      id: typeof node.id === 'string' ? hashStringId(node.id) : Number(node.id),
+      type: 'discussion',
+      title: node.title,
+      url: node.url,
+      repo: node.repository.nameWithOwner,
+      state: node.closed ? 'closed' : 'open',
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+      comments: node.comments.totalCount,
+      labels: node.labels?.nodes.map(l => l.name) || []
+    }))
+}
+
+function hashStringId(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash |= 0
+  }
+  return Math.abs(hash)
 }
 
 async function runWithConcurrency<T>(

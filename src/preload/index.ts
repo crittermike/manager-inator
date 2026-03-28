@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('github:save-meeting-speakers', filename, speakers),
   toggleActionItem: (sourceFile: string, lineNumber: number) =>
     ipcRenderer.invoke('github:toggle-action-item', sourceFile, lineNumber),
+  resolveAndToggleActionItem: (reportName: string, prepText: string) =>
+    ipcRenderer.invoke('github:resolve-toggle-action-item', reportName, prepText),
+  getOpenActionItemsForPeople: (slugs: string[]) =>
+    ipcRenderer.invoke('github:open-action-items-for-people', slugs),
   getTeamActionItems: () => ipcRenderer.invoke('github:team-action-items'),
   getTodayBootstrap: () => ipcRenderer.invoke('github:today-bootstrap'),
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),

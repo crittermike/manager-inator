@@ -204,7 +204,7 @@ export interface MeetingEntry {
 // ── GitHub Activity (org-level PR/issue tracking) ──
 export interface GitHubActivityItem {
   id: number
-  type: 'pr' | 'issue'
+  type: 'pr' | 'issue' | 'discussion'
   title: string
   url: string
   repo: string              // e.g. "org/repo-name"
@@ -282,6 +282,8 @@ export interface IpcApi {
   saveMeetingTitle: (filename: string, title: string) => Promise<void>
   saveMeetingSpeakers: (filename: string, speakers: string[]) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
+  resolveAndToggleActionItem: (reportName: string, prepText: string) => Promise<boolean>
+  getOpenActionItemsForPeople: (slugs: string[]) => Promise<{ slug: string; items: ActionItem[] }[]>
   getTeamActionItems: () => Promise<TeamActionItem[]>
   getTodayBootstrap: () => Promise<{ meetings: MeetingEntry[]; teamActionItems: TeamActionItem[] }>
   clearCaches: () => Promise<void>
