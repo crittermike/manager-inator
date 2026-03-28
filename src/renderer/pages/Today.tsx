@@ -1356,6 +1356,9 @@ export function Today() {
                     onSnooze={handleSnoozeAction}
                     onFeedbackDone={handleFeedbackDone}
                     onPromptDone={handlePromptDone}
+                    teamActivity={teamActivity}
+                    reports={reports}
+                    teamActions={filteredTeamActions}
                   />
                   </div>
                 ))}
@@ -1631,6 +1634,9 @@ interface TimelineRowProps {
   onSnooze: (actionKey: string, untilDate: string) => void
   onFeedbackDone: (itemId: string) => void
   onPromptDone: (itemId: string) => void
+  teamActivity: TeamMemberActivity[]
+  reports: ReportStatus[]
+  teamActions: TeamActionItem[]
 }
 
 const TimelineRow = memo(function TimelineRow({
@@ -1646,7 +1652,10 @@ const TimelineRow = memo(function TimelineRow({
   handleActionToggle,
   onSnooze,
   onFeedbackDone,
-  onPromptDone
+  onPromptDone,
+  teamActivity,
+  reports,
+  teamActions
 }: TimelineRowProps) {
   const handleRowClick = useCallback(() => {
     if (item.actionType === 'navigate' && item.route) {
@@ -1786,6 +1795,9 @@ const TimelineRow = memo(function TimelineRow({
             promptType={item.promptType}
             onDone={() => onPromptDone(item.id)}
             onCancel={onCancelExpand}
+            teamActivity={teamActivity}
+            reports={reports}
+            teamActions={teamActions}
           />
         </div>
       )}

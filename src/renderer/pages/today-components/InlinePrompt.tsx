@@ -3,6 +3,7 @@ import { useToast } from '../../components/common/Toast'
 import { useAI } from '../../hooks/useAI'
 import { format } from 'date-fns'
 import type { PromptType } from './types'
+import type { TeamMemberActivity, TeamActionItem, ReportStatus } from '../../../shared/types'
 import { Save, Sparkles, Loader2, Target } from 'lucide-react'
 
 function getWeekNumber() {
@@ -17,6 +18,48 @@ function getWeekNumber() {
 function getWeeklyPath(type: 'priorities' | 'reflection') {
   const { year, weekNum } = getWeekNumber()
   return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-${type}.md`
+}
+
+function formatTeamActivityForPrompt(teamActivity: TeamMemberActivity[]): string {
+  const sections: string[] = []
+  for (const member of teamActivity) {
+    if (member.error || member.items.length === 0) continue
+    const prs = member.items.filter(i => i.type === 'pr')
+    const issues = member.items.filter(i => i.type === 'issue')
+    const discussions = member.items.filter(i => i.type === 'discussion')
+    const lines = [`**${member.displayName}** (@${member.githubUsername}): ${prs.length} PRs, ${issues.length} issues, ${discussions.length} discussions`]
+    const merged = prs.filter(p => p.state === 'merged')
+    if (merged.length > 0) lines.push('  Merged: ' + merged.slice(0, 5).map(p => p.title).join(', '))
+    const openPRs = prs.filter(p => p.state === 'open')
+    if (openPRs.length > 0) lines.push('  Open PRs: ' + openPRs.slice(0, 5).map(p => p.title).join(', '))
+    const withReviews = prs.filter(p => p.reviewComments?.length)
+    if (withReviews.length > 0) {
+      lines.push('  Code reviews: ' + withReviews.slice(0, 3).map(p => {
+        const rc = p.reviewComments![0]
+        return `${p.title} (${rc.reviewState}: "${rc.body.slice(0, 80)}")`
+      }).join('; '))
+    }
+    sections.push(lines.join('\n'))
+  }
+  return sections.length > 0 ? sections.join('\n\n') : ''
+}
+
+function formatTeamContext(reports: ReportStatus[]): string {
+  if (reports.length === 0) return ''
+  return reports.map(r => {
+    const parts = [`${r.displayName}: ${r.status}`]
+    if (r.lastOneOnOne) parts.push(`last 1:1 ${r.lastOneOnOne}`)
+    if (r.openActionItems > 0) parts.push(`${r.openActionItems} open actions`)
+    if (r.meetingDay) parts.push(`meets ${r.meetingDay}`)
+    return parts.join(', ')
+  }).join('\n')
+}
+
+function formatActionItems(actions: TeamActionItem[]): string {
+  if (actions.length === 0) return ''
+  return actions.slice(0, 20).map(a =>
+    `- [${a.completed ? 'x' : ' '}] ${a.displayName}: ${a.text}`
+  ).join('\n')
 }
 
 const promptConfig: Record<PromptType, { placeholder: string; savePath: () => string; commitMsg: () => string }> = {
@@ -40,11 +83,17 @@ const promptConfig: Record<PromptType, { placeholder: string; savePath: () => st
 export function InlinePrompt({
   promptType,
   onDone,
-  onCancel
+  onCancel,
+  teamActivity = [],
+  reports = [],
+  teamActions = []
 }: {
   promptType: PromptType
   onDone: () => void
   onCancel: () => void
+  teamActivity?: TeamMemberActivity[]
+  reports?: ReportStatus[]
+  teamActions?: TeamActionItem[]
 }) {
   const toast = useToast()
   const { streaming, generate, cancel } = useAI()
@@ -82,7 +131,23 @@ export function InlinePrompt({
   const handleSuggest = async () => {
     setSuggesting(true)
     try {
-      const result = await generate('prompt-fill-weekly-priorities', { promptType })
+      const activityText = formatTeamActivityForPrompt(teamActivity)
+      const teamContext = formatTeamContext(reports)
+      const actionItemsText = formatActionItems(teamActions)
+
+      const action = promptType === 'weekly-reflection' ? 'weekly-reflection' : 'prompt-fill-weekly-priorities'
+      const context: Record<string, unknown> = {
+        promptType,
+        teamContext: teamContext || undefined,
+        actionItems: actionItemsText || undefined,
+        githubActivity: activityText || undefined
+      }
+
+      if (promptType === 'weekly-reflection' && weeklyGoals) {
+        context.weeklyGoals = weeklyGoals.map(g => `- ${g}`).join('\n')
+      }
+
+      const result = await generate(action, context)
       if (result) setText(result)
     } catch {
       toast.error('AI suggestion failed')

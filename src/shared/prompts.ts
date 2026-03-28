@@ -154,7 +154,8 @@ Base this review on the following data. Cite specific dates, topics, and outcome
 {summaries}
 {feedback}
 {actionItems}
-{contextNotes}`,
+{contextNotes}
+{githubActivity}`,
   },
   {
     id: 'prep-one-on-one',
@@ -316,7 +317,7 @@ Recent data:
   {
     id: 'prompt-fill-weekly-priorities',
     label: 'Suggest weekly priorities',
-    description: 'AI-generated suggestion for weekly priorities based on open items, upcoming meetings, and team context.',
+    description: 'AI-generated suggestion for weekly priorities based on open items, upcoming meetings, team activity, and GitHub data.',
     template: `Suggest my top priorities for this week as an engineering manager.
 
 Look at what's open, what's upcoming, and what needs attention. Give me 3-5 priorities, each one sentence. Order by importance.
@@ -326,7 +327,8 @@ Format as a simple numbered list. No headers, no fluff. Each item should be spec
 Context:
 {teamContext}
 {actionItems}
-{upcomingMeetings}`,
+{upcomingMeetings}
+{githubActivity}`,
   },
   {
     id: 'chat',

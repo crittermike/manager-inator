@@ -165,4 +165,54 @@ describe('buildMessages', () => {
     expect(userMsg.content).toContain('2026-03-26')
     expect(userMsg.content).toContain('Nic opened PR #42: Fix auth bug')
   })
+
+  it('generate-review includes githubActivity when provided', () => {
+    const result = buildMessages('generate-review', {
+      reportName: 'Nic',
+      period: '2026-H1',
+      displayName: 'Nic',
+      role: 'Senior Engineer',
+      githubActivity: 'Period: 2026-01-01 to 2026-06-30\nTotal: 42 PRs, 10 issues'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('42 PRs, 10 issues')
+    expect(userMsg.content).toContain('GitHub activity for the review period')
+  })
+
+  it('generate-review omits githubActivity line when not provided', () => {
+    const result = buildMessages('generate-review', {
+      reportName: 'Nic',
+      period: '2026-H1',
+      displayName: 'Nic',
+      role: 'Senior Engineer'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).not.toContain('GitHub activity for the review period')
+  })
+
+  it('builds prompt-fill-weekly-priorities messages with activity context', () => {
+    const result = buildMessages('prompt-fill-weekly-priorities', {
+      teamContext: 'Nic: on-track, last 1:1 2026-03-25',
+      actionItems: '- [ ] Nic: ship auth refactor',
+      githubActivity: 'Nic: 3 PRs merged, 2 reviews'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('top priorities for this week')
+    expect(userMsg.content).toContain('Nic: on-track')
+    expect(userMsg.content).toContain('ship auth refactor')
+    expect(userMsg.content).toContain('3 PRs merged')
+  })
+
+  it('builds weekly-reflection messages with goals and activity', () => {
+    const result = buildMessages('weekly-reflection', {
+      weeklyGoals: '- Finalize Q2 planning\n- Review Nic\'s PR',
+      teamContext: 'Team of 3 engineers',
+      githubActivity: 'Nic merged 5 PRs, Steve opened 2 issues'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    expect(userMsg.content).toContain('weekly reflection')
+    expect(userMsg.content).toContain('Finalize Q2 planning')
+    expect(userMsg.content).toContain('Nic merged 5 PRs')
+    expect(userMsg.content).toContain('Team of 3 engineers')
+  })
 })

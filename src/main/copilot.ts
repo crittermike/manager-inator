@@ -335,7 +335,8 @@ ${context.checkIns ? `Monthly check-ins from this period:\n${context.checkIns}\n
 ${context.summaries ? `1:1 meeting summaries:\n${context.summaries}\n` : 'No meeting summaries available.\n'}
 ${context.feedback ? `Feedback log:\n${context.feedback}\n` : 'No feedback logged.\n'}
 ${context.actionItems ? `Action items (completed and open):\n${context.actionItems}` : 'No action items available.'}
-${context.contextNotes ? `\nCaptured context (Slack threads, GitHub discussions, emails, etc.):\n${context.contextNotes}` : ''}`
+${context.contextNotes ? `\nCaptured context (Slack threads, GitHub discussions, emails, etc.):\n${context.contextNotes}` : ''}
+${context.githubActivity ? `\nGitHub activity for the review period (PRs, code reviews, issues, discussions). Cite specific contributions with links where relevant:\n${context.githubActivity}` : ''}`
       })
       break
 
@@ -547,6 +548,51 @@ Keep it under 400 words. Casual tone, direct observations. No filler. If the dat
 
 Activity data:
 ${context.activityData}`
+      })
+      break
+
+    case 'prompt-fill-weekly-priorities':
+      messages.push({
+        role: 'user',
+        content: `Suggest my top priorities for this week as an engineering manager.
+
+Look at what's open, what's upcoming, and what needs attention. Give me 3-5 priorities, each one sentence. Order by importance.
+
+Format as a simple numbered list. No headers, no fluff. Each item should be specific and actionable, not generic ("review PRs" is bad, "follow up on Nic's auth refactor PR that's been open 3 days" is good).
+
+Context:
+${context.teamContext ? `Team overview:\n${context.teamContext}\n` : ''}
+${context.actionItems ? `Open action items:\n${context.actionItems}\n` : ''}
+${context.upcomingMeetings ? `Upcoming meetings:\n${context.upcomingMeetings}\n` : ''}
+${context.githubActivity ? `Recent team GitHub activity (use this to suggest specific follow-ups, acknowledgments, or things worth checking in on):\n${context.githubActivity}` : ''}`
+      })
+      break
+
+    case 'weekly-reflection':
+      messages.push({
+        role: 'user',
+        content: `Help me write my weekly reflection as an engineering manager.
+
+I want to capture: what shipped, what's at risk, what I learned, and what I'd do differently. Be specific, pull from the data. Keep it short and honest.
+
+Format:
+## What shipped
+- [Specific things the team delivered this week]
+
+## What's at risk
+- [Open items, stale PRs, unresolved blockers, people who might need attention]
+
+## What I learned
+- [Observations, patterns, things that surprised me]
+
+## Next week
+- [1-2 things to carry forward or change]
+
+Context:
+${context.weeklyGoals ? `My goals for this week were:\n${context.weeklyGoals}\n` : ''}
+${context.teamContext ? `Team overview:\n${context.teamContext}\n` : ''}
+${context.actionItems ? `Open action items:\n${context.actionItems}\n` : ''}
+${context.githubActivity ? `Team GitHub activity this week (what shipped, what's in progress, code review activity):\n${context.githubActivity}` : ''}`
       })
       break
 
