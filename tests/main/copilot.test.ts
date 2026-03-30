@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { CopilotClient } from '@github/copilot-sdk'
 
 vi.mock('../../src/main/store', () => ({
   getSettings: vi.fn(() => ({
@@ -12,6 +13,7 @@ import { buildMessages, type CopilotMessage } from '../../src/main/copilot'
 import { getSettings } from '../../src/main/store'
 
 const mockedGetSettings = vi.mocked(getSettings)
+const mockedCreateSession = vi.spyOn(CopilotClient.prototype, 'createSession')
 
 describe('buildMessages', () => {
   beforeEach(() => {
@@ -24,6 +26,12 @@ describe('buildMessages', () => {
       repoOwner: '',
       repoName: ''
     })
+    mockedCreateSession.mockResolvedValue({
+      on: () => () => {},
+      sendAndWait: async () => ({ data: { content: '' } }),
+      disconnect: async () => {},
+      abort: async () => {}
+    } as unknown as Awaited<ReturnType<CopilotClient['createSession']>>)
   })
 
   it('always includes the system prompt as first message', () => {
@@ -239,5 +247,22 @@ describe('buildMessages', () => {
     expect(userMsg.content).not.toContain('Team overview')
     expect(userMsg.content).not.toContain('Open action items')
     expect(userMsg.content).not.toContain('Current team GitHub activity')
+  })
+
+  it('passes an explicit chat model override to createSession', async () => {
+    const { aiGenerate } = await import('../../src/main/copilot')
+
+    await aiGenerate(
+      'chat',
+      {
+        message: 'hi',
+        history: [],
+        model: 'gpt-5.4'
+      },
+      () => {},
+      'req-123'
+    )
+
+    expect(mockedCreateSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-5.4' }))
   })
 })

@@ -40,6 +40,7 @@ export function AppShell({ children }: AppShellProps) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [capturePanelOpen, setCapturePanelOpen] = useState(false)
   const ptoReports = settings?.ptoReports ?? {}
+  const isChatRoute = location.pathname === '/chat'
 
   const toggleCapture = useCallback(() => {
     setCapturePanelOpen(prev => !prev)
@@ -192,8 +193,8 @@ export function AppShell({ children }: AppShellProps) {
       {/* Main content */}
       <main id="main-content" className="flex-1 overflow-hidden relative">
         {/* Drag region for the rest of the title bar */}
-        <div className="drag-region h-14 shrink-0" />
-        <div className="h-[calc(100vh-3.5rem)] overflow-y-auto px-8 pb-8">
+        {!isChatRoute && <div className="drag-region h-14 shrink-0" />}
+        <div className={`${isChatRoute ? 'h-screen' : 'h-[calc(100vh-3.5rem)]'} overflow-y-auto px-8 pb-8`}>
           {children}
         </div>
 
@@ -226,18 +227,20 @@ export function AppShell({ children }: AppShellProps) {
           >
             <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
           </button>
-          <button
-            onClick={() => setAiPanelOpen(prev => !prev)}
-            className={`w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${
-              aiPanelOpen
-                ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25 rotate-0'
-                : 'bg-brand hover:bg-brand-dark shadow-brand/25'
-            }`}
-            aria-label={aiPanelOpen ? 'Close AI assistant' : 'Open AI assistant'}
-            title={aiPanelOpen ? 'Close AI assistant (Esc)' : 'Ask AI anything'}
-          >
-            <MessageSquare className={`w-5 h-5 transition-transform duration-200 ${aiPanelOpen ? 'rotate-0' : ''}`} aria-hidden="true" />
-          </button>
+          {!isChatRoute && (
+            <button
+              onClick={() => setAiPanelOpen(prev => !prev)}
+              className={`w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${
+                aiPanelOpen
+                  ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25 rotate-0'
+                  : 'bg-brand hover:bg-brand-dark shadow-brand/25'
+              }`}
+              aria-label={aiPanelOpen ? 'Close AI assistant' : 'Open AI assistant'}
+              title={aiPanelOpen ? 'Close AI assistant (Esc)' : 'Ask AI anything'}
+            >
+              <MessageSquare className={`w-5 h-5 transition-transform duration-200 ${aiPanelOpen ? 'rotate-0' : ''}`} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </main>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useAI } from '../hooks/useAI'
 import { useSettings } from '../hooks/useData'
+import { AVAILABLE_MODELS, DEFAULT_MODEL } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -27,15 +28,6 @@ interface ChatSession {
 }
 
 const STORAGE_KEY = 'manager-inator-chats'
-
-const AVAILABLE_MODELS = [
-  { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-  { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-  { id: 'gpt-4.1', label: 'GPT-4.1' },
-  { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-  { id: 'o3-mini', label: 'o3 Mini' },
-  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-]
 
 function loadSessions(): ChatSession[] {
   try {
@@ -161,8 +153,8 @@ export function Chat() {
   const modelPickerRef = useRef<HTMLDivElement>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
 
-  const selectedModel = activeSession?.model || settings?.defaultModel || 'claude-sonnet-4-5'
-  const selectedModelLabel = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || selectedModel
+  const selectedModel = activeSession?.model || settings?.defaultModel || DEFAULT_MODEL
+  const selectedModelLabel = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel
 
   useEffect(() => { saveSessions(sessions) }, [sessions])
 
@@ -257,6 +249,7 @@ export function Chat() {
       const response = await generate('chat', {
         message: text,
         history: messages.map(m => ({ role: m.role, content: m.content })),
+        model: selectedModel,
       })
 
       updateSession(activeId, s => ({
@@ -365,7 +358,7 @@ export function Chat() {
   const groupedSessions = useMemo(() => groupSessionsByDate(filteredSessions), [filteredSessions])
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] -mx-8 -mb-8">
+    <div className="flex h-screen -mx-8 -mt-14 -mb-8">
       {/* Sidebar */}
       <div className={`border-r border-border flex flex-col bg-surface/50 shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-r-0'}`}>
         <div className="p-3 space-y-2">
@@ -471,8 +464,8 @@ export function Chat() {
 
         <div className="px-3 py-2 border-t border-border">
           <div className="text-[10px] text-zinc-600 space-y-0.5">
-            <div><kbd className="font-mono bg-zinc-800/50 px-1 rounded">⌘N</kbd> New chat</div>
-            <div><kbd className="font-mono bg-zinc-800/50 px-1 rounded">⌘⇧E</kbd> Export</div>
+            <div><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">N</kbd> New chat</div>
+            <div><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">Shift</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">E</kbd> Export</div>
           </div>
         </div>
       </div>
@@ -515,7 +508,7 @@ export function Chat() {
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
                       }`}
                     >
-                      <span>{m.label}</span>
+                        <span>{m.name}</span>
                       {m.id === selectedModel && <Check className="w-3 h-3 text-brand" aria-hidden="true" />}
                     </button>
                   ))}
