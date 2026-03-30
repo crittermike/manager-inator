@@ -34,7 +34,7 @@ import {
   updateFeedbackEntry,
   deleteFeedbackEntry
 } from './github'
-import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken } from './store'
+import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken, getGithubOrgToken, getGithubOrgName } from './store'
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 
@@ -166,6 +166,55 @@ export function setupIpcHandlers(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
+  })
+
+  // ── Debug: test org token against GitHub API ──
+  safeHandle('debug:test-org-token', async () => {
+    const token = getGithubOrgToken()
+    const orgName = getGithubOrgName()
+
+    if (!token) return { ok: false, error: 'No org token stored', tokenLength: 0, orgName }
+    if (!orgName) return { ok: false, error: 'No org name stored', tokenLength: token.length, orgName: '' }
+
+    const tokenPrefix = token.slice(0, 8) + '...'
+    const tokenLength = token.length
+
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
+      })
+
+      const body = await response.json()
+      const rateRemaining = response.headers.get('X-RateLimit-Remaining')
+      const ssoHeader = response.headers.get('X-GitHub-SSO')
+      const scopes = response.headers.get('X-OAuth-Scopes')
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        tokenPrefix,
+        tokenLength,
+        orgName,
+        scopes,
+        rateRemaining,
+        ssoHeader,
+        user: response.ok ? body.login : null,
+        error: !response.ok ? (body.message || JSON.stringify(body)) : null
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        tokenPrefix,
+        tokenLength,
+        orgName
+      }
+    }
   })
 
   // ── Test-only IPC handlers for E2E setup ──

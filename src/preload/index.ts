@@ -104,5 +104,7 @@ contextBridge.exposeInMainWorld('api', {
   aiCancel: (requestId?: string) => ipcRenderer.invoke('ai:cancel', requestId),
 
   showOpenDialog: (options: { properties: string[]; title?: string }) =>
-    ipcRenderer.invoke('dialog:open', options)
+    ipcRenderer.invoke('dialog:open', options),
+
+  debugTestOrgToken: () => ipcRenderer.invoke('debug:test-org-token')
 })
