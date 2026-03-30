@@ -184,8 +184,8 @@ export function AppShell({ children }: AppShellProps) {
             </div>
           </div>
           <div className="flex items-center gap-3 text-[10px] text-zinc-600">
-            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">⌘K</kbd> Search</span>
-            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">⌘⇧V</kbd> Capture</span>
+            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">K</kbd> Search</span>
+            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">Shift</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">V</kbd> Capture</span>
           </div>
         </div>
       </aside>
@@ -193,8 +193,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Main content */}
       <main id="main-content" className="flex-1 overflow-hidden relative">
         {/* Drag region for the rest of the title bar */}
-        {!isChatRoute && <div className="drag-region h-14 shrink-0" />}
-        <div className={`${isChatRoute ? 'h-screen' : 'h-[calc(100vh-3.5rem)]'} overflow-y-auto px-8 pb-8`}>
+        <div className={`${isChatRoute ? 'h-screen' : 'h-[calc(100vh-3.5rem)] pt-14'} overflow-y-auto px-8 pb-8`}>
           {children}
         </div>
 

@@ -1209,120 +1209,6 @@ export function Today() {
         </div>
       )}
 
-      {activeSections.filter(s => s !== 'coming-up' && s !== 'done').map(section => {
-        const config = sectionConfig[section]
-        const sectionItems = itemsBySection[section]
-        const isExpanded = expandedSections.has(section)
-        const Icon = config.icon
-
-        return (
-          <div key={section} className={`bg-surface rounded-xl border border-border overflow-visible border-l-[3px] ${config.border} transition-all`}>
-            <button
-              onClick={() => toggleSection(section)}
-              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg ${config.bg}`}>
-                  <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
-                </div>
-                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
-                  {sectionItems.length}
-                </span>
-              </div>
-              {isExpanded
-                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
-                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
-              }
-            </button>
-
-            {isExpanded && (
-              <div className="border-t border-border animate-slide-down">
-                {sectionItems.map((item, idx) => (
-                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
-                  <TimelineRow
-                    item={item}
-                    isItemExpanded={expandedItem === item.id}
-                    reportByName={reportByName}
-                    navigate={navigate}
-                    onToggleExpand={handleToggleExpandedItem}
-                    onCancelExpand={handleCancelExpand}
-                    markDone={markDone}
-                    onPrepDone={handlePrepDone}
-                    onPrepCancel={handlePrepCancel}
-                    handleActionToggle={handleActionToggle}
-                    onSnooze={handleSnoozeAction}
-                    onFeedbackDone={handleFeedbackDone}
-                    onPromptDone={handlePromptDone}
-                    teamActivity={teamActivity}
-                    reports={reports}
-                    teamActions={filteredTeamActions}
-                  />
-                  </div>
-                ))}
-              </div>
-      )}
-
-      {activeSections.filter(s => s === 'coming-up' || s === 'done').map(section => {
-        const config = sectionConfig[section]
-        const sectionItems = itemsBySection[section]
-        const isExpanded = expandedSections.has(section)
-        const Icon = config.icon
-
-        return (
-          <div key={section} className={`bg-surface rounded-xl border border-border overflow-visible border-l-[3px] ${config.border} transition-all`}>
-            <button
-              onClick={() => toggleSection(section)}
-              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg ${config.bg}`}>
-                  <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
-                </div>
-                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
-                  {sectionItems.length}
-                </span>
-              </div>
-              {isExpanded
-                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
-                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
-              }
-            </button>
-
-            {isExpanded && (
-              <div className="border-t border-border animate-slide-down">
-                {sectionItems.map((item, idx) => (
-                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
-                  <TimelineRow
-                    item={item}
-                    isItemExpanded={expandedItem === item.id}
-                    reportByName={reportByName}
-                    navigate={navigate}
-                    onToggleExpand={handleToggleExpandedItem}
-                    onCancelExpand={handleCancelExpand}
-                    markDone={markDone}
-                    onPrepDone={handlePrepDone}
-                    onPrepCancel={handlePrepCancel}
-                    handleActionToggle={handleActionToggle}
-                    onSnooze={handleSnoozeAction}
-                    onFeedbackDone={handleFeedbackDone}
-                    onPromptDone={handlePromptDone}
-                    teamActivity={teamActivity}
-                    reports={reports}
-                    teamActions={filteredTeamActions}
-                  />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-        )
-      })}
-
       {hasGithubOrgToken && (
         <div className="bg-surface rounded-xl border border-border overflow-hidden border-l-[3px] border-l-purple-500/50 transition-all">
           <div
@@ -1573,6 +1459,120 @@ export function Today() {
           )}
         </div>
       )}
+
+      {activeSections.filter(s => s !== 'coming-up' && s !== 'done').map(section => {
+        const config = sectionConfig[section]
+        const sectionItems = itemsBySection[section]
+        const isExpanded = expandedSections.has(section)
+        const Icon = config.icon
+
+        return (
+          <div key={section} className={`bg-surface rounded-xl border border-border overflow-visible border-l-[3px] ${config.border} transition-all`}>
+            <button
+              onClick={() => toggleSection(section)}
+              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-1.5 rounded-lg ${config.bg}`}>
+                  <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
+                </div>
+                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
+                  {sectionItems.length}
+                </span>
+              </div>
+              {isExpanded
+                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+              }
+            </button>
+
+            {isExpanded && (
+              <div className="border-t border-border animate-slide-down">
+                {sectionItems.map((item, idx) => (
+                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
+                    <TimelineRow
+                      item={item}
+                      isItemExpanded={expandedItem === item.id}
+                      reportByName={reportByName}
+                      navigate={navigate}
+                      onToggleExpand={handleToggleExpandedItem}
+                      onCancelExpand={handleCancelExpand}
+                      markDone={markDone}
+                      onPrepDone={handlePrepDone}
+                      onPrepCancel={handlePrepCancel}
+                      handleActionToggle={handleActionToggle}
+                      onSnooze={handleSnoozeAction}
+                      onFeedbackDone={handleFeedbackDone}
+                      onPromptDone={handlePromptDone}
+                      teamActivity={teamActivity}
+                      reports={reports}
+                      teamActions={filteredTeamActions}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {activeSections.filter(s => s === 'coming-up' || s === 'done').map(section => {
+        const config = sectionConfig[section]
+        const sectionItems = itemsBySection[section]
+        const isExpanded = expandedSections.has(section)
+        const Icon = config.icon
+
+        return (
+          <div key={section} className={`bg-surface rounded-xl border border-border overflow-visible border-l-[3px] ${config.border} transition-all`}>
+            <button
+              onClick={() => toggleSection(section)}
+              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-1.5 rounded-lg ${config.bg}`}>
+                  <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
+                </div>
+                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
+                  {sectionItems.length}
+                </span>
+              </div>
+              {isExpanded
+                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+              }
+            </button>
+
+            {isExpanded && (
+              <div className="border-t border-border animate-slide-down">
+                {sectionItems.map((item, idx) => (
+                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
+                    <TimelineRow
+                      item={item}
+                      isItemExpanded={expandedItem === item.id}
+                      reportByName={reportByName}
+                      navigate={navigate}
+                      onToggleExpand={handleToggleExpandedItem}
+                      onCancelExpand={handleCancelExpand}
+                      markDone={markDone}
+                      onPrepDone={handlePrepDone}
+                      onPrepCancel={handlePrepCancel}
+                      handleActionToggle={handleActionToggle}
+                      onSnooze={handleSnoozeAction}
+                      onFeedbackDone={handleFeedbackDone}
+                      onPromptDone={handlePromptDone}
+                      teamActivity={teamActivity}
+                      reports={reports}
+                      teamActions={filteredTeamActions}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
