@@ -462,17 +462,10 @@ export function Chat() {
           ))}
         </div>
 
-        <div className="px-3 py-3 border-t border-border space-y-2">
-          <div className="h-7" />
-          <div className="flex items-center gap-3 text-[10px] text-zinc-600">
-            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">N</kbd> New chat</span>
-            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">Shift</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">E</kbd> Export</span>
-          </div>
-        </div>
       </div>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-surface/30 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -553,7 +546,7 @@ export function Chat() {
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+            <div className="max-w-3xl mx-auto px-6 py-6 pb-44 space-y-6">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex gap-3 group/msg animate-fade-up ${msg.role === 'user' ? 'justify-end' : ''}`}>
                   {msg.role === 'assistant' && (
@@ -629,9 +622,9 @@ export function Chat() {
           )}
         </div>
 
-        {/* Input area */}
-        <div className="shrink-0 px-6 py-4 border-t border-border bg-surface/30">
-          <div className="max-w-3xl mx-auto">
+        {/* Input area — floating over messages */}
+        <div className="absolute bottom-0 left-0 right-0 px-6 pb-4 pt-8 bg-gradient-to-t from-zinc-900 via-zinc-900/95 to-transparent pointer-events-none">
+          <div className="max-w-3xl mx-auto pointer-events-auto">
             <div className="flex items-end gap-3 bg-zinc-950 rounded-2xl border border-border p-2 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
               <textarea
                 ref={inputRef}
