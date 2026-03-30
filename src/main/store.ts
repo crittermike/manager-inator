@@ -80,12 +80,15 @@ export function getToken(): string | null {
   try {
     return safeStorage.decryptString(Buffer.from(raw, 'base64'))
   } catch {
-    // Legacy plaintext token — migrate it on read
-    try {
-      const encrypted = safeStorage.encryptString(raw)
-      store.set('githubToken', encrypted.toString('base64'))
-    } catch { /* migration failed, keep as-is */ }
-    return raw
+    if (raw.startsWith('ghp_') || raw.startsWith('gho_') || raw.startsWith('github_pat_')) {
+      try {
+        const encrypted = safeStorage.encryptString(raw)
+        store.set('githubToken', encrypted.toString('base64'))
+      } catch { /* migration failed */ }
+      return raw
+    }
+    console.error('[Store] Failed to decrypt OAuth token — re-authentication may be needed')
+    return null
   }
 }
 
@@ -112,11 +115,15 @@ export function getGithubOrgToken(): string | null {
   try {
     return safeStorage.decryptString(Buffer.from(raw, 'base64'))
   } catch {
-    try {
-      const encrypted = safeStorage.encryptString(raw)
-      store.set('githubOrgToken', encrypted.toString('base64'))
-    } catch { /* migration failed */ }
-    return raw
+    if (raw.startsWith('ghp_') || raw.startsWith('github_pat_')) {
+      try {
+        const encrypted = safeStorage.encryptString(raw)
+        store.set('githubOrgToken', encrypted.toString('base64'))
+      } catch { /* migration failed */ }
+      return raw
+    }
+    console.error('[Store] Failed to decrypt org token — token may need to be re-entered in Settings')
+    return null
   }
 }
 
