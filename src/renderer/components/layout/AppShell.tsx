@@ -206,7 +206,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Main content */}
       <main id="main-content" className="flex-1 overflow-hidden relative">
         {/* Drag region for the rest of the title bar */}
-        <div className={`${isChatRoute ? 'h-screen' : 'h-[calc(100vh-3.5rem)] pt-14'} overflow-y-auto ${isChatRoute ? '' : 'px-8 pb-8'}`}>
+        <div className={`${isChatRoute ? 'h-full' : 'h-full pt-14'} overflow-y-auto ${isChatRoute ? '' : 'px-8 pb-8'}`}>
           {children}
         </div>
 
