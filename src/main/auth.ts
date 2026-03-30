@@ -76,16 +76,17 @@ export async function startAuth(): Promise<{
   verificationUri: string
 }> {
   console.log('[Auth] Starting device code flow...')
+  const body = new URLSearchParams({
+    client_id: GITHUB_CLIENT_ID,
+    scope: 'repo'
+  })
   const res = await fetch(DEVICE_CODE_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json'
     },
-    body: JSON.stringify({
-      client_id: GITHUB_CLIENT_ID,
-      scope: 'repo'
-    })
+    body
   })
 
   if (!res.ok) {
@@ -134,18 +135,19 @@ export async function pollAuth(): Promise<PollResult> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15000)
+    const body = new URLSearchParams({
+      client_id: GITHUB_CLIENT_ID,
+      device_code: pendingDeviceCode.device_code,
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+    })
 
     const res = await fetch(ACCESS_TOKEN_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'application/json'
       },
-      body: JSON.stringify({
-        client_id: GITHUB_CLIENT_ID,
-        device_code: pendingDeviceCode.device_code,
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
-      }),
+      body,
       signal: controller.signal
     })
 

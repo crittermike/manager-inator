@@ -27,6 +27,9 @@ vi.mock('electron', () => ({
     fromWebContents: () => null,
     getFocusedWindow: () => null
   },
+  shell: {
+    openExternal: vi.fn(() => Promise.resolve())
+  },
   ipcMain: {
     handle: vi.fn()
   },
@@ -39,4 +42,3 @@ vi.mock('electron', () => ({
     decryptString: vi.fn((b: Buffer) => b.toString())
   }
 }))
-

@@ -17,6 +17,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const unmountedRef = useRef(false)
 
   useEffect(() => {
+    unmountedRef.current = false
     return () => {
       unmountedRef.current = true
       for (const id of timerIds.current) clearTimeout(id)
