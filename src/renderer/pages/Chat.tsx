@@ -462,10 +462,11 @@ export function Chat() {
           ))}
         </div>
 
-        <div className="px-3 py-2 border-t border-border">
-          <div className="text-[10px] text-zinc-600 space-y-0.5">
-            <div><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">N</kbd> New chat</div>
-            <div><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">Shift</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">E</kbd> Export</div>
+        <div className="px-3 py-3 border-t border-border space-y-2">
+          <div className="h-7" />
+          <div className="flex items-center gap-3 text-[10px] text-zinc-600">
+            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">N</kbd> New chat</span>
+            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">Shift</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">E</kbd> Export</span>
           </div>
         </div>
       </div>
