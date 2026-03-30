@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { Zap, GithubIcon, Copy, Check, ExternalLink } from 'lucide-react'
+import { Zap, GithubIcon, Copy, Check, ExternalLink, AlertCircle } from 'lucide-react'
 
 interface AuthScreenProps {
   onAuthenticated: () => void
@@ -11,6 +11,8 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const [step, setStep] = useState<'idle' | 'waiting' | 'error'>('idle')
   const [userCode, setUserCode] = useState('')
   const [copied, setCopied] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0)
   const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
   const unmountedRef = useRef(false)
 
@@ -31,39 +33,101 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const handleLogin = async () => {
     try {
       setStep('waiting')
+      setErrorMessage('')
+      setConsecutiveErrors(0)
       const { userCode } = await login()
       setUserCode(userCode)
 
-      // Poll with recursive setTimeout to respect backoff
-      let pollInterval = 6000 // Start at 6s (GitHub default is 5s, add buffer)
+      let pollInterval = 6000
       let timedOut = false
 
       const timeoutId = trackTimeout(() => {
         timedOut = true
-        if (!unmountedRef.current) setStep('error')
+        if (!unmountedRef.current) {
+          setErrorMessage('Connection timed out. Please try again.')
+          setStep('error')
+        }
       }, 600000)
 
       const doPoll = async () => {
         if (timedOut || unmountedRef.current) return
         try {
-          const success = await poll()
-          if (success) {
+          console.log('[AuthScreen] Polling...')
+          const result = await poll()
+          console.log('[AuthScreen] Poll result:', result)
+          if (result.success) {
             clearTimeout(timeoutId)
+            console.log('[AuthScreen] Auth succeeded! Calling onAuthenticated...')
             if (!unmountedRef.current) onAuthenticated()
             return
           }
+
+          if (result.error === 'expired') {
+            clearTimeout(timeoutId)
+            if (!unmountedRef.current) {
+              setErrorMessage('The authorization code expired. Please try again.')
+              setStep('error')
+            }
+            return
+          }
+
+          if (result.error === 'denied') {
+            clearTimeout(timeoutId)
+            if (!unmountedRef.current) {
+              setErrorMessage('Authorization was denied. Please try again and approve access.')
+              setStep('error')
+            }
+            return
+          }
+
+          if (result.error === 'no_pending_code') {
+            clearTimeout(timeoutId)
+            if (!unmountedRef.current) {
+              setErrorMessage('Something went wrong. Please try connecting again.')
+              setStep('error')
+            }
+            return
+          }
+
+          if (result.retryAfter) {
+            pollInterval = result.retryAfter * 1000
+          }
+
+          if (result.error && result.error !== 'authorization_pending') {
+            setConsecutiveErrors(prev => {
+              const next = prev + 1
+              if (next >= 5) {
+                clearTimeout(timeoutId)
+                setErrorMessage(`Connection error: ${result.error}. Please check your network and try again.`)
+                setStep('error')
+              }
+              return next
+            })
+          } else {
+            setConsecutiveErrors(0)
+          }
         } catch {
-          // Keep polling
+          setConsecutiveErrors(prev => {
+            const next = prev + 1
+            if (next >= 5 && !unmountedRef.current) {
+              clearTimeout(timeoutId)
+              setErrorMessage('Unable to connect to GitHub. Please check your internet connection.')
+              setStep('error')
+            }
+            return next
+          })
         }
         if (unmountedRef.current) return
-        // Increase interval slightly each time to avoid slow_down
         pollInterval = Math.min(pollInterval + 1000, 15000)
         trackTimeout(doPoll, pollInterval)
       }
 
       trackTimeout(doPoll, pollInterval)
-    } catch {
-      if (!unmountedRef.current) setStep('error')
+    } catch (err) {
+      if (!unmountedRef.current) {
+        setErrorMessage((err as Error).message || 'Failed to start authentication. Please try again.')
+        setStep('error')
+      }
     }
   }
 
@@ -145,11 +209,14 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
         {step === 'error' && (
           <div className="space-y-4">
-            <p className="text-sm text-danger text-center">
-              Authentication failed or timed out. Please try again.
-            </p>
+            <div className="flex items-start gap-3 p-3 bg-danger/10 border border-danger/20 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-sm text-danger">
+                {errorMessage || 'Authentication failed or timed out. Please try again.'}
+              </p>
+            </div>
             <button
-              onClick={() => setStep('idle')}
+              onClick={() => { setStep('idle'); setErrorMessage(''); setConsecutiveErrors(0) }}
               className="w-full px-4 py-3 bg-surface-raised text-zinc-200 rounded-xl font-medium text-sm hover:bg-surface-overlay transition-colors no-drag"
             >
               Try again

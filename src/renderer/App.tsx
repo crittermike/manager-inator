@@ -17,6 +17,7 @@ const MeetingDetail = lazy(() => import('./pages/MeetingDetail').then(m => ({ de
 const MyProfile = lazy(() => import('./pages/MyProfile').then(m => ({ default: m.MyProfile })))
 const Today = lazy(() => import('./pages/Today').then(m => ({ default: m.Today })))
 const SearchPage = lazy(() => import('./pages/Search').then(m => ({ default: m.SearchPage })))
+const Chat = lazy(() => import('./pages/Chat').then(m => ({ default: m.Chat })))
 
 function Layout() {
   return (
@@ -94,6 +95,7 @@ export default function App() {
       children: [
         { path: '/', element: <Today /> },
         { path: '/playbook', element: <Playbook /> },
+        { path: '/chat', element: <Chat /> },
         { path: '/report/:name', element: <ReportDetail /> },
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <ImpactLog /> },

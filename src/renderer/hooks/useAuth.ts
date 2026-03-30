@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 
+interface PollResult {
+  success: boolean
+  error?: string
+  retryAfter?: number
+}
+
 export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false)
   const [user, setUser] = useState<string | null>(null)
@@ -13,7 +19,9 @@ export function useAuth() {
       return
     }
     try {
+      console.log('[useAuth] checkAuth calling getAuthStatus...')
       const { authenticated, user } = await window.api.getAuthStatus()
+      console.log('[useAuth] getAuthStatus returned:', { authenticated, user })
       setAuthenticated(authenticated)
       setUser(user || null)
     } catch (e) {
@@ -29,12 +37,16 @@ export function useAuth() {
     return { userCode, verificationUri }
   }, [])
 
-  const poll = useCallback(async () => {
-    const success = await window.api.pollAuth()
-    if (success) {
+  const poll = useCallback(async (): Promise<PollResult> => {
+    console.log('[useAuth] poll() calling pollAuth...')
+    const result: PollResult = await window.api.pollAuth()
+    console.log('[useAuth] pollAuth returned:', result)
+    if (result.success) {
+      console.log('[useAuth] Poll succeeded! Calling checkAuth...')
       await checkAuth()
+      console.log('[useAuth] checkAuth completed after successful poll')
     }
-    return success
+    return result
   }, [checkAuth])
 
   const logout = useCallback(async () => {
