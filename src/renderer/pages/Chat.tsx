@@ -7,7 +7,8 @@ const REMARK_PLUGINS = [remarkGfm]
 import {
   Send, Bot, StopCircle, User, FolderOpen,
   Trash2, Plus, MessageSquare, Copy, Check,
-  Search, Pencil, Download, ChevronDown, Sparkles, X
+  Search, Pencil, Download, ChevronDown, Sparkles, X,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 
@@ -83,7 +84,7 @@ function formatSessionDate(dateStr: string): string {
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' })
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
@@ -150,6 +151,7 @@ export function Chat() {
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const { streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef } = useAI()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -365,7 +367,7 @@ export function Chat() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] -mx-8 -mb-8">
       {/* Sidebar */}
-      <div className="w-72 border-r border-border flex flex-col bg-surface/50 shrink-0">
+      <div className={`border-r border-border flex flex-col bg-surface/50 shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-r-0'}`}>
         <div className="p-3 space-y-2">
           <button
             onClick={handleNewChat}
@@ -480,6 +482,14 @@ export function Chat() {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-surface/30 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setSidebarOpen(prev => !prev)}
+              className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-lg transition-colors"
+              aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen ? <PanelLeftClose className="w-4 h-4" aria-hidden="true" /> : <PanelLeftOpen className="w-4 h-4" aria-hidden="true" />}
+            </button>
             <Bot className="w-5 h-5 text-brand shrink-0" aria-hidden="true" />
             <h1 className="text-sm font-medium text-zinc-200 truncate">{activeSession?.title || 'New chat'}</h1>
           </div>
@@ -598,8 +608,8 @@ export function Chat() {
                   </div>
                   <div className={`rounded-2xl px-4 py-3 bg-surface border border-brand/20 animate-shimmer ${streamedText.trimStart() ? 'max-w-[80%]' : 'w-fit'}`}>
                     {streamedText.trimStart() ? (
-                      <div className="prose-dark text-sm [&_p]:text-sm [&_li]:text-sm">
-                        <div className="text-sm whitespace-pre-wrap text-zinc-300">{streamedText.trimStart()}</div>
+                      <div className="prose-dark text-sm [&_p]:text-sm [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm">
+                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{streamedText.trimStart()}</ReactMarkdown>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-1.5 py-0.5">
