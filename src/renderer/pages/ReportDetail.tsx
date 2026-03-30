@@ -66,7 +66,7 @@ export function ReportDetail() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { report, loading, error, load, refresh } = useReportData(name)
+  const { report, setReport, loading, error, load, refresh } = useReportData(name)
   const { streaming, streamedText, generate, cancel, reset, fullTextRef } = useAI()
   const toast = useToast()
   const mountedRef = useRef(true)
@@ -160,7 +160,7 @@ export function ReportDetail() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [actionsOpen])
 
-  const { settings: _rdSettings } = useSettings()
+  const { settings: _rdSettings, refreshSettings } = useSettings()
 
   useEffect(() => {
     if (!_rdSettings) return
@@ -914,13 +914,28 @@ export function ReportDetail() {
 
   // ── Action item toggle ──
 
+  const optimisticToggleAction = useCallback((sourceFile: string, sourceLineNumber: number) => {
+    setReport(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        actionItems: prev.actionItems.map(item =>
+          item.sourceFile === sourceFile && item.sourceLineNumber === sourceLineNumber
+            ? { ...item, completed: !item.completed }
+            : item
+        )
+      }
+    })
+  }, [setReport])
+
   const handleToggleAction = useCallback(async (a: ActionItem) => {
     if (!a.sourceFile || a.sourceLineNumber == null) return
     const toggleKey = `${a.sourceFile}:${a.sourceLineNumber}`
     const wasCompleted = a.completed
     
-    // Optimistic update
+    // Optimistic UI update
     setTogglingItems(prev => new Set(prev).add(toggleKey))
+    optimisticToggleAction(a.sourceFile, a.sourceLineNumber)
     
     try {
       await window.api.toggleActionItem(a.sourceFile, a.sourceLineNumber)
@@ -931,22 +946,22 @@ export function ReportDetail() {
           onClick: async () => {
             try {
               await window.api.toggleActionItem(a.sourceFile!, a.sourceLineNumber!)
-              refresh()
+              optimisticToggleAction(a.sourceFile!, a.sourceLineNumber!)
             } catch {
               toast.error('Failed to undo')
             }
           }
         })
       }
-      
-      refresh()
     } catch (e) {
       console.error('Failed to toggle action item:', e)
+      // Revert optimistic update on failure
+      optimisticToggleAction(a.sourceFile, a.sourceLineNumber)
       toast.error('Failed to update action item')
     } finally {
       setTogglingItems(prev => { const s = new Set(prev); s.delete(toggleKey); return s })
     }
-  }, [refresh, toast])
+  }, [optimisticToggleAction, toast])
 
   const handleTogglePto = useCallback(async () => {
     if (!name || !report) return
@@ -959,6 +974,7 @@ export function ReportDetail() {
       try {
         await window.api.saveSettings({ ptoReports: next })
         setPtoReports(next)
+        refreshSettings()
         toast.success(`${report.profile.displayName} marked back from PTO`)
       } catch {
         toast.error('Failed to update PTO status')
@@ -967,7 +983,7 @@ export function ReportDetail() {
     }
 
     setShowPtoModal(true)
-  }, [name, report, ptoReports, toast])
+  }, [name, report, ptoReports, toast, refreshSettings])
 
   const handleSavePto = useCallback(async () => {
     if (!name || !report) return
@@ -984,12 +1000,13 @@ export function ReportDetail() {
     try {
       await window.api.saveSettings({ ptoReports: next })
       setPtoReports(next)
+      refreshSettings()
       toast.success(`${report.profile.displayName} marked on PTO until ${parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
       setShowPtoModal(false)
     } catch {
       toast.error('Failed to update PTO status')
     }
-  }, [name, report, ptoReports, toast, ptoInput])
+  }, [name, report, ptoReports, toast, ptoInput, refreshSettings])
 
   // ── Build activity stream ──
 

@@ -570,6 +570,14 @@ describe('getTeamActivity', () => {
     expect(ids.filter(id => id === 42)).toHaveLength(1)
     expect(ids).toContain(99)
     expect(result[0].items).toHaveLength(2)
+
+    // Item 42 came from author query first, so should have role 'author'
+    const item42 = result[0].items.find(i => i.id === 42)
+    expect(item42!.role).toBe('author')
+
+    // Item 99 came only from commenter query, so should have role 'commenter'
+    const item99 = result[0].items.find(i => i.id === 99)
+    expect(item99!.role).toBe('commenter')
   })
 
   it('deduplicates discussion items between author and commenter queries', async () => {
@@ -593,6 +601,11 @@ describe('getTeamActivity', () => {
     const titles = discussions.map(d => d.title)
     expect(titles).toContain('Shared Discussion')
     expect(titles).toContain('Commented Discussion')
+
+    const shared = discussions.find(d => d.title === 'Shared Discussion')
+    expect(shared!.role).toBe('author')
+    const commented = discussions.find(d => d.title === 'Commented Discussion')
+    expect(commented!.role).toBe('commenter')
   })
 
   it('maps closed discussion state correctly', async () => {
@@ -981,13 +994,16 @@ describe('formatActivityAsMarkdown', () => {
     const md = formatActivityAsMarkdown(result)
     expect(md).toContain('# GitHub activity: Alice Smith (@alice-gh)')
     expect(md).toContain('_2026-03-15 to 2026-03-22_')
-    expect(md).toContain('**Summary**: 1 PRs, 1 issues, 1 discussions')
-    expect(md).toContain('## Pull requests')
+    expect(md).toContain('1 PRs authored')
+    expect(md).toContain('0 PRs reviewed/commented')
+    expect(md).toContain('1 issues authored')
+    expect(md).toContain('1 discussions')
+    expect(md).toContain('## Pull requests (authored)')
     expect(md).toContain('🟣')
     expect(md).toContain('Add auth')
     expect(md).toContain('@bob')
     expect(md).toContain('APPROVED')
-    expect(md).toContain('## Issues')
+    expect(md).toContain('## Issues (authored)')
     expect(md).toContain('Fixed in #1')
     expect(md).toContain('## Discussions')
     expect(md).toContain('RFC: new API')
@@ -1011,7 +1027,7 @@ describe('formatActivityAsMarkdown', () => {
     }
 
     const md = formatActivityAsMarkdown(result)
-    expect(md).toContain('## Pull requests')
+    expect(md).toContain('## Pull requests (authored)')
     expect(md).not.toContain('## Issues')
     expect(md).not.toContain('## Discussions')
   })

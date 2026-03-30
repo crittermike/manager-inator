@@ -95,14 +95,13 @@ async function fetchUserActivity(
     fetchDiscussions(`org:${org} commenter:${username} updated:>=${sinceStr}`, headers)
   ])
 
-  // Deduplicate by id — author results take precedence over commenter results
   const seen = new Map<number, GitHubActivityItem>()
-  for (const item of [...issueItems, ...prItems]) {
-    seen.set(item.id, item)
+  for (const item of [...issueItems, ...prItems, ...authoredDiscussions]) {
+    seen.set(item.id, { ...item, role: 'author' })
   }
-  for (const item of [...commentedIssues, ...commentedPRs, ...authoredDiscussions, ...commentedDiscussions]) {
+  for (const item of [...commentedIssues, ...commentedPRs, ...commentedDiscussions]) {
     if (!seen.has(item.id)) {
-      seen.set(item.id, item)
+      seen.set(item.id, { ...item, role: 'commenter' })
     }
   }
 
@@ -572,12 +571,12 @@ async function fetchUserActivityForDateRange(
   ])
 
   const seen = new Map<number, GitHubActivityItem>()
-  for (const item of [...issueItems, ...prItems]) {
-    seen.set(item.id, item)
+  for (const item of [...issueItems, ...prItems, ...authoredDiscussions]) {
+    seen.set(item.id, { ...item, role: 'author' })
   }
-  for (const item of [...commentedIssues, ...commentedPRs, ...authoredDiscussions, ...commentedDiscussions]) {
+  for (const item of [...commentedIssues, ...commentedPRs, ...commentedDiscussions]) {
     if (!seen.has(item.id)) {
-      seen.set(item.id, item)
+      seen.set(item.id, { ...item, role: 'commenter' })
     }
   }
 
@@ -621,15 +620,20 @@ export function formatActivityAsMarkdown(result: PersonActivityResult): string {
   const issueItems = items.filter(i => i.type === 'issue')
   const discussionItems = items.filter(i => i.type === 'discussion')
 
+  const authoredPRs = prItems.filter(i => i.role !== 'commenter')
+  const reviewedPRs = prItems.filter(i => i.role === 'commenter')
+  const authoredIssues = issueItems.filter(i => i.role !== 'commenter')
+  const reviewedIssues = issueItems.filter(i => i.role === 'commenter')
+
   const lines: string[] = []
   lines.push(`# GitHub activity: ${displayName} (@${githubUsername})`)
   lines.push(`_${startDate} to ${endDate}_\n`)
 
-  lines.push(`**Summary**: ${prItems.length} PRs, ${issueItems.length} issues, ${discussionItems.length} discussions\n`)
+  lines.push(`**Summary**: ${authoredPRs.length} PRs authored, ${reviewedPRs.length} PRs reviewed/commented, ${authoredIssues.length} issues authored, ${reviewedIssues.length} issues commented, ${discussionItems.length} discussions\n`)
 
-  if (prItems.length > 0) {
-    lines.push('## Pull requests')
-    for (const pr of prItems) {
+  if (authoredPRs.length > 0) {
+    lines.push('## Pull requests (authored)')
+    for (const pr of authoredPRs) {
       const stateEmoji = pr.state === 'merged' ? '🟣' : pr.state === 'open' ? '🟢' : '⚫'
       lines.push(`- ${stateEmoji} [${pr.title}](${pr.url}) (${pr.repo}, ${pr.state})`)
       if (pr.reviewComments && pr.reviewComments.length > 0) {
@@ -651,9 +655,48 @@ export function formatActivityAsMarkdown(result: PersonActivityResult): string {
     lines.push('')
   }
 
-  if (issueItems.length > 0) {
-    lines.push('## Issues')
-    for (const issue of issueItems) {
+  if (reviewedPRs.length > 0) {
+    lines.push('## Pull requests (reviewed/commented)')
+    for (const pr of reviewedPRs) {
+      const stateEmoji = pr.state === 'merged' ? '🟣' : pr.state === 'open' ? '🟢' : '⚫'
+      lines.push(`- ${stateEmoji} [${pr.title}](${pr.url}) (${pr.repo}, ${pr.state})`)
+      if (pr.reviewComments && pr.reviewComments.length > 0) {
+        lines.push('  - Reviews:')
+        for (const review of pr.reviewComments.slice(0, 5)) {
+          const stateTag = review.reviewState ? ` [${review.reviewState}]` : ''
+          const bodyPreview = review.body.split('\n')[0].slice(0, 200)
+          lines.push(`    - @${review.author}${stateTag}: ${bodyPreview}`)
+        }
+      }
+      if (pr.issueComments && pr.issueComments.length > 0) {
+        lines.push(`  - ${pr.issueComments.length} comments`)
+        for (const c of pr.issueComments.slice(0, 3)) {
+          const bodyPreview = c.body.split('\n')[0].slice(0, 200)
+          lines.push(`    - @${c.author}: ${bodyPreview}`)
+        }
+      }
+    }
+    lines.push('')
+  }
+
+  if (authoredIssues.length > 0) {
+    lines.push('## Issues (authored)')
+    for (const issue of authoredIssues) {
+      const stateEmoji = issue.state === 'open' ? '🟢' : '⚫'
+      lines.push(`- ${stateEmoji} [${issue.title}](${issue.url}) (${issue.repo}, ${issue.state})`)
+      if (issue.issueComments && issue.issueComments.length > 0) {
+        for (const c of issue.issueComments.slice(0, 3)) {
+          const bodyPreview = c.body.split('\n')[0].slice(0, 200)
+          lines.push(`  - @${c.author}: ${bodyPreview}`)
+        }
+      }
+    }
+    lines.push('')
+  }
+
+  if (reviewedIssues.length > 0) {
+    lines.push('## Issues (commented)')
+    for (const issue of reviewedIssues) {
       const stateEmoji = issue.state === 'open' ? '🟢' : '⚫'
       lines.push(`- ${stateEmoji} [${issue.title}](${issue.url}) (${issue.repo}, ${issue.state})`)
       if (issue.issueComments && issue.issueComments.length > 0) {

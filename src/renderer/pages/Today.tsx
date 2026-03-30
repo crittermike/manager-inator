@@ -8,7 +8,7 @@ const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate } from 'date-fns'
 import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
-import { computeActivitySuggestions, formatActivityCounts } from '../utils/activitySuggestions'
+import { formatActivityCounts } from '../utils/activitySuggestions'
 import { matchesMeetingDay } from '../utils/meetingDay'
 import { formatRelativeDate } from '../utils/formatDate'
 
@@ -899,10 +899,11 @@ export function Today() {
       const onPto = ptoExpiry && new Date(ptoExpiry) > now
       const ptoLabel = onPto ? ` [ON PTO until ${new Date(ptoExpiry + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}]` : ''
       if (member.error) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: Error fetching activity`
-      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: No activity in last ${new Date().getDay() === 1 ? '72h' : '24h'}`
+      if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: No recent activity`
       const items = member.items.map(item => {
         const age = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-        return `  - [${item.type.toUpperCase()}] ${item.title} (${item.repo}, ${item.state}, ${age}d old, ${item.comments} comments) ${item.url}`
+        const roleLabel = item.role === 'commenter' ? 'reviewed' : 'authored'
+        return `  - [${item.type.toUpperCase()}] ${item.title} (${item.repo}, ${item.state}, ${roleLabel}, ${age}d old, ${item.comments} comments) ${item.url}`
       }).join('\n')
       return `${member.displayName} (@${member.githubUsername})${ptoLabel}:\n${items}`
     }).join('\n\n')
@@ -968,8 +969,7 @@ export function Today() {
 
   const items = useMemo(() => {
     const raw = computeTimelineItems(reports, meetings, cadence, doneIds, filteredTeamActions, customPractices)
-    const activitySuggestions = computeActivitySuggestions(teamActivity, doneIds, ptoReports)
-    const all = [...raw, ...activitySuggestions]
+    const all = raw
     return all.filter(item => {
       const practiceId = getPracticeIdForItem(item.id)
       if (!practiceId) return true
@@ -1209,7 +1209,61 @@ export function Today() {
         </div>
       )}
 
-      {activeSections.map(section => {
+      {activeSections.filter(s => s !== 'coming-up' && s !== 'done').map(section => {
+        const config = sectionConfig[section]
+        const sectionItems = itemsBySection[section]
+        const isExpanded = expandedSections.has(section)
+        const Icon = config.icon
+
+        return (
+          <div key={section} className={`bg-surface rounded-xl border border-border overflow-visible border-l-[3px] ${config.border} transition-all`}>
+            <button
+              onClick={() => toggleSection(section)}
+              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-surface-raised/30 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-1.5 rounded-lg ${config.bg}`}>
+                  <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
+                </div>
+                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
+                  {sectionItems.length}
+                </span>
+              </div>
+              {isExpanded
+                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+              }
+            </button>
+
+            {isExpanded && (
+              <div className="border-t border-border animate-slide-down">
+                {sectionItems.map((item, idx) => (
+                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
+                  <TimelineRow
+                    item={item}
+                    isItemExpanded={expandedItem === item.id}
+                    reportByName={reportByName}
+                    navigate={navigate}
+                    onToggleExpand={handleToggleExpandedItem}
+                    onCancelExpand={handleCancelExpand}
+                    markDone={markDone}
+                    onPrepDone={handlePrepDone}
+                    onPrepCancel={handlePrepCancel}
+                    handleActionToggle={handleActionToggle}
+                    onSnooze={handleSnoozeAction}
+                    onFeedbackDone={handleFeedbackDone}
+                    onPromptDone={handlePromptDone}
+                    teamActivity={teamActivity}
+                    reports={reports}
+                    teamActions={filteredTeamActions}
+                  />
+                  </div>
+                ))}
+              </div>
+      )}
+
+      {activeSections.filter(s => s === 'coming-up' || s === 'done').map(section => {
         const config = sectionConfig[section]
         const sectionItems = itemsBySection[section]
         const isExpanded = expandedSections.has(section)
@@ -1265,6 +1319,9 @@ export function Today() {
           </div>
         )
       })}
+    </div>
+        )
+      })}
 
       {hasGithubOrgToken && (
         <div className="bg-surface rounded-xl border border-border overflow-hidden border-l-[3px] border-l-purple-500/50 transition-all">
@@ -1276,7 +1333,7 @@ export function Today() {
               <div className="p-1.5 rounded-lg bg-purple-500/10">
                 <GitPullRequest className="w-4 h-4 text-purple-400" aria-hidden="true" />
               </div>
-              <span className="text-sm font-semibold text-zinc-200">Team Activity (24h)</span>
+              <span className="text-sm font-semibold text-zinc-200">Team Activity</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center bg-surface-raised rounded-lg p-0.5 text-xs">
@@ -1331,7 +1388,7 @@ export function Today() {
                 </div>
               ) : teamActivity.length === 0 || teamActivity.every(m => m.items.length === 0 && !m.error) ? (
                 <div className="px-5 py-8 text-center text-sm text-zinc-500">
-                  No GitHub activity detected in the last 24 hours
+                  No GitHub activity detected recently
                 </div>
               ) : (
                 <div className="divide-y divide-border/30">
@@ -1366,7 +1423,7 @@ export function Today() {
                             {member.error ? (
                               <span className="text-xs font-medium text-warning px-2 py-1 bg-warning/10 rounded-md truncate max-w-[300px]">{member.error}</span>
                             ) : isEmpty ? (
-                              <span className="text-xs text-zinc-500">No activity in last 24h</span>
+                              <span className="text-xs text-zinc-500">No recent activity</span>
                             ) : (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
                                 {formatActivityCounts(member.items)}
@@ -1426,6 +1483,10 @@ export function Today() {
                                           item.state === 'merged' ? 'text-purple-400' : 'text-zinc-400'
                                         }>
                                           {item.state.charAt(0).toUpperCase() + item.state.slice(1)}
+                                        </span>
+                                        <span>·</span>
+                                        <span className={item.role === 'commenter' ? 'text-amber-400' : 'text-blue-400'}>
+                                          {item.role === 'commenter' ? 'Reviewer' : 'Author'}
                                         </span>
                                         {hasComments && (
                                           <>

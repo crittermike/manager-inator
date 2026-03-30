@@ -124,7 +124,7 @@ export function useReportData(name: string | undefined) {
     return unsub
   }, [load])
 
-  return { report, loading, error, load, refresh }
+  return { report, setReport, loading, error, load, refresh }
 }
 
 export function useFileContent(path: string | null) {

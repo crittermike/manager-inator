@@ -223,6 +223,8 @@ export interface GitHubActivityItem {
   comments: number
   /** Labels applied to the item */
   labels: string[]
+  /** How the person relates to this item */
+  role?: 'author' | 'commenter'
   /** PR review comments (only populated when content is fetched) */
   reviewComments?: ActivityComment[]
   /** Issue/PR comments (only populated when content is fetched) */

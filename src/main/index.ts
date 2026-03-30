@@ -9,6 +9,8 @@ if (process.env['ELECTRON_USER_DATA']) {
   app.setPath('userData', process.env['ELECTRON_USER_DATA'])
 }
 
+app.setName('Manager-inator')
+
 let mainWindow: BrowserWindow | null = null
 
 const ALLOWED_SCHEMES = ['https:', 'http:', 'mailto:']
@@ -31,9 +33,11 @@ function createWindow(): void {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
+    title: 'Manager-inator',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#09090b',
+    icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,

@@ -69,7 +69,7 @@ export function SearchPage() {
   useEffect(() => {
     const meetingParam = searchParams.get('meeting')
     if (meetingParam) {
-      navigate(`/meeting/${encodeURIComponent(meetingParam)}`)
+      navigate(`/meeting/${encodeURIComponent(meetingParam)}?dir=contexts`)
     }
   }, [searchParams, navigate])
 
@@ -80,6 +80,21 @@ export function SearchPage() {
       setQuery(qParam)
     }
   }, [searchParams])
+
+  const recentItems = useMemo(() => {
+    if (query.trim()) return []
+    return [...meetings]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 30)
+      .map(m => ({
+        type: 'meeting' as const,
+        title: m.title,
+        subtitle: m.date,
+        route: '',
+        date: m.date,
+        filename: m.filename
+      }))
+  }, [query, meetings])
 
   const results = useMemo(() => {
     if (!query.trim()) return []
@@ -194,7 +209,7 @@ export function SearchPage() {
 
   const handleResultClick = (r: SearchResult) => {
     if (r.type === 'meeting' && r.filename) {
-      navigate(`/meeting/${encodeURIComponent(r.filename)}`)
+      navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=contexts`)
     } else if (r.type === 'content' && r.directory === 'contexts' && r.filename) {
       navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=contexts`)
     } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
@@ -208,7 +223,8 @@ export function SearchPage() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!query.trim() || filteredResults.length === 0) {
+    const activeItems = query.trim() ? filteredResults : recentItems
+    if (activeItems.length === 0) {
       if (e.key === 'Escape') {
         e.preventDefault()
         setQuery('')
@@ -218,14 +234,14 @@ export function SearchPage() {
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setSelectedIndex(prev => (prev < filteredResults.length - 1 ? prev + 1 : 0))
+      setSelectedIndex(prev => (prev < activeItems.length - 1 ? prev + 1 : 0))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setSelectedIndex(prev => (prev > 0 ? prev - 1 : filteredResults.length - 1))
+      setSelectedIndex(prev => (prev > 0 ? prev - 1 : activeItems.length - 1))
     } else if (e.key === 'Enter') {
-      if (selectedIndex >= 0 && selectedIndex < filteredResults.length) {
+      if (selectedIndex >= 0 && selectedIndex < activeItems.length) {
         e.preventDefault()
-        handleResultClick(filteredResults[selectedIndex])
+        handleResultClick(activeItems[selectedIndex])
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
@@ -329,7 +345,36 @@ export function SearchPage() {
         </div>
       )}
 
-      {!query.trim() && (
+      {!query.trim() && recentItems.length > 0 && (
+        <div className="animate-fade-in">
+          <div className="px-1 mb-3">
+            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent meetings</h2>
+          </div>
+          <div ref={resultsContainerRef} className="space-y-1">
+            {recentItems.map((r, i) => (
+              <button
+                key={r.filename || i}
+                data-search-result={i}
+                onClick={() => handleResultClick(r)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border border-transparent"
+              >
+                <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
+                  <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
+                </div>
+                <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
+                  meeting
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!query.trim() && recentItems.length === 0 && (
         <div className="text-center py-16 animate-fade-in">
           <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
             <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />

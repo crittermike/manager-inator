@@ -1,5 +1,6 @@
 {
   "name": "manager-inator",
+  "productName": "Manager-inator",
   "version": "1.0.0",
   "main": "out/main/index.mjs",
   "scripts": {
