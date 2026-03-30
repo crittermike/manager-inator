@@ -8,7 +8,9 @@ import {
   BookOpen,
   Search,
   UserCircle,
-  ClipboardPaste
+  ClipboardPaste,
+  Keyboard,
+  X
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
@@ -39,6 +41,7 @@ export function AppShell({ children }: AppShellProps) {
   const reports = overview?.reports ?? []
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [capturePanelOpen, setCapturePanelOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const ptoReports = settings?.ptoReports ?? {}
   const isChatRoute = location.pathname === '/chat'
 
@@ -60,6 +63,12 @@ export function AppShell({ children }: AppShellProps) {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'v') {
         e.preventDefault()
         toggleCapture()
+      }
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey && !isInput) {
+        e.preventDefault()
+        setShortcutsOpen(prev => !prev)
       }
     }
     document.addEventListener('keydown', handleShortcut)
@@ -155,10 +164,18 @@ export function AppShell({ children }: AppShellProps) {
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-3 border-t border-border space-y-2">
+        <div className="px-3 py-3 border-t border-border">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShortcutsOpen(true)}
+                className="p-1.5 rounded-lg transition-colors no-drag text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised"
+                aria-label="Keyboard shortcuts"
+                title="Keyboard shortcuts (?)"
+              >
+                <Keyboard className="w-4 h-4" aria-hidden="true" />
+              </button>
               <button
                 onClick={() => navigate('/my-profile')}
                 className={`p-1.5 rounded-lg transition-colors no-drag ${
@@ -182,10 +199,6 @@ export function AppShell({ children }: AppShellProps) {
                 <Settings className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
-          </div>
-          <div className="flex items-center gap-3 text-[10px] text-zinc-600">
-            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">K</kbd> Search</span>
-            <span><kbd className="font-mono bg-zinc-800/50 px-1 rounded">Cmd</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">Shift</kbd> + <kbd className="font-mono bg-zinc-800/50 px-1 rounded">V</kbd> Capture</span>
           </div>
         </div>
       </aside>
@@ -242,6 +255,67 @@ export function AppShell({ children }: AppShellProps) {
           )}
         </div>
       </main>
+
+      {shortcutsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShortcutsOpen(false)}>
+          <div className="absolute inset-0 bg-black/50 animate-backdrop-fade" />
+          <div
+            className="relative bg-zinc-900 border border-border rounded-2xl shadow-2xl shadow-black/50 w-full max-w-sm p-6 animate-fade-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-sm font-semibold text-zinc-200">Keyboard shortcuts</h2>
+              <button
+                onClick={() => setShortcutsOpen(false)}
+                className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-surface-raised transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">General</h3>
+                <div className="space-y-1.5">
+                  {[
+                    ['⌘ K', 'Search'],
+                    ['⌘ Shift V', 'Capture'],
+                    ['⌘ Enter', 'Submit / save'],
+                    ['?', 'Show shortcuts'],
+                  ].map(([keys, label]) => (
+                    <div key={label} className="flex items-center justify-between py-1">
+                      <span className="text-sm text-zinc-400">{label}</span>
+                      <div className="flex items-center gap-1">
+                        {keys!.split(' ').map((k, i) => (
+                          <kbd key={i} className="text-[11px] font-mono bg-zinc-800 border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded min-w-[24px] text-center">{k}</kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Chat</h3>
+                <div className="space-y-1.5">
+                  {[
+                    ['⌘ N', 'New chat'],
+                    ['⌘ Shift E', 'Export chat'],
+                  ].map(([keys, label]) => (
+                    <div key={label} className="flex items-center justify-between py-1">
+                      <span className="text-sm text-zinc-400">{label}</span>
+                      <div className="flex items-center gap-1">
+                        {keys!.split(' ').map((k, i) => (
+                          <kbd key={i} className="text-[11px] font-mono bg-zinc-800 border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded min-w-[24px] text-center">{k}</kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
