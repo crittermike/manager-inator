@@ -298,7 +298,7 @@ export interface IpcApi {
   // Auth
   getAuthStatus: () => Promise<{ authenticated: boolean; user?: string }>
   startAuth: () => Promise<{ userCode: string; verificationUri: string }>
-  pollAuth: () => Promise<{ success: boolean; error?: string; retryAfter?: number }>
+  pollAuth: () => Promise<{ success: boolean; error?: string; retryAfter?: number; user?: string }>
   logout: () => Promise<void>
 
   // Settings

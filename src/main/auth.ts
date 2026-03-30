@@ -115,6 +115,7 @@ export interface PollResult {
   success: boolean
   error?: string
   retryAfter?: number
+  user?: string
 }
 
 export async function pollAuth(): Promise<PollResult> {
@@ -157,8 +158,32 @@ export async function pollAuth(): Promise<PollResult> {
       console.log('[Auth] Got access token, storing...')
       setToken(data.access_token)
       pendingDeviceCode = null
-      console.log('[Auth] Token stored, returning success')
-      return { success: true }
+      console.log('[Auth] Token stored, fetching username...')
+
+      // Fetch the username so the renderer can set state directly
+      // without making another getAuthStatus() round-trip
+      let user: string | undefined
+      try {
+        const userController = new AbortController()
+        const userTimeout = setTimeout(() => userController.abort(), 10000)
+        const userRes = await fetch('https://api.github.com/user', {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+          signal: userController.signal
+        })
+        clearTimeout(userTimeout)
+        if (userRes.ok) {
+          const userJson = await userRes.json()
+          user = userJson.login
+          console.log('[Auth] Got username:', user)
+        } else {
+          console.warn('[Auth] Could not fetch username (HTTP', userRes.status, '), proceeding anyway')
+        }
+      } catch (err) {
+        console.warn('[Auth] Username fetch failed:', (err as Error).message, '— proceeding anyway')
+      }
+
+      console.log('[Auth] Returning success, user:', user || '(unknown)')
+      return { success: true, user }
     }
 
     if (data.error === 'slow_down') {

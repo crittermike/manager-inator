@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import { Zap, GithubIcon, Copy, Check, ExternalLink, AlertCircle } from 'lucide-react'
 
 interface AuthScreenProps {
-  onAuthenticated: () => void
+  onAuthenticated: (user?: string) => void
 }
 
 export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
@@ -57,8 +57,8 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           console.log('[AuthScreen] Poll result:', result)
           if (result.success) {
             clearTimeout(timeoutId)
-            console.log('[AuthScreen] Auth succeeded! Calling onAuthenticated...')
-            if (!unmountedRef.current) onAuthenticated()
+            console.log('[AuthScreen] Auth succeeded! Calling onAuthenticated with user:', result.user)
+            if (!unmountedRef.current) onAuthenticated(result.user)
             return
           }
 

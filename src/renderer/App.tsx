@@ -83,7 +83,7 @@ function LoadingScreen({ message }: { message: string }) {
 }
 
 export default function App() {
-  const { authenticated, loading, bridgeError, refresh: refreshAuth } = useAuth()
+  const { authenticated, loading, bridgeError, forceAuthenticated } = useAuth()
   const [hasRepo, setHasRepo] = useState<boolean | null>(null)
   const [loadingMessage, setLoadingMessage] = useState('Starting up...')
   const [cachesReady, setCachesReady] = useState(false)
@@ -168,7 +168,7 @@ export default function App() {
   }
 
   if (!authenticated) {
-    return <AuthScreen onAuthenticated={refreshAuth} />
+    return <AuthScreen onAuthenticated={forceAuthenticated} />
   }
 
   if (hasRepo === null) {

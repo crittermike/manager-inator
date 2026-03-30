@@ -4,6 +4,7 @@ interface PollResult {
   success: boolean
   error?: string
   retryAfter?: number
+  user?: string
 }
 
 export function useAuth() {
@@ -42,12 +43,19 @@ export function useAuth() {
     const result: PollResult = await window.api.pollAuth()
     console.log('[useAuth] pollAuth returned:', result)
     if (result.success) {
-      console.log('[useAuth] Poll succeeded! Calling checkAuth...')
-      await checkAuth()
-      console.log('[useAuth] checkAuth completed after successful poll')
+      console.log('[useAuth] Poll succeeded, setting authenticated directly')
+      setAuthenticated(true)
+      if (result.user) setUser(result.user)
     }
     return result
-  }, [checkAuth])
+  }, [])
+
+  const forceAuthenticated = useCallback((userName?: string) => {
+    console.log('[useAuth] forceAuthenticated called, user:', userName)
+    setAuthenticated(true)
+    if (userName) setUser(userName)
+    setLoading(false)
+  }, [])
 
   const logout = useCallback(async () => {
     await window.api.logout()
@@ -55,5 +63,5 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { authenticated, user, loading, bridgeError, login, poll, logout, refresh: checkAuth }
+  return { authenticated, user, loading, bridgeError, login, poll, logout, refresh: checkAuth, forceAuthenticated }
 }
