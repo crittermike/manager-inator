@@ -358,7 +358,7 @@ export function Chat() {
   const groupedSessions = useMemo(() => groupSessionsByDate(filteredSessions), [filteredSessions])
 
   return (
-    <div className="flex h-full -mx-8 -mb-8">
+    <div className="flex h-full">
       {/* Sidebar */}
       <div className={`border-r border-border flex flex-col bg-surface/50 shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-72' : 'w-0 overflow-hidden border-r-0'}`}>
         <div className="p-3 space-y-2">
