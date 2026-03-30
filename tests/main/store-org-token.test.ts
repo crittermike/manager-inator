@@ -116,21 +116,21 @@ describe('store', () => {
 
     it('updates multiple settings at once', () => {
       saveSettings({
-        defaultModel: 'claude-opus-4-6',
+        defaultModel: 'claude-opus-4.6',
         aiCustomInstructions: 'Be brief.',
         feedbackReminderDays: 7
       })
       const settings = getSettings()
-      expect(settings.defaultModel).toBe('claude-opus-4-6')
+      expect(settings.defaultModel).toBe('claude-opus-4.6')
       expect(settings.aiCustomInstructions).toBe('Be brief.')
     })
 
     it('preserves unrelated settings when updating one', () => {
       saveSettings({ repoPath: '/original/path', defaultModel: 'gpt-4.1' })
-      saveSettings({ defaultModel: 'claude-opus-4-6' })
+      saveSettings({ defaultModel: 'claude-opus-4.6' })
       const settings = getSettings()
       expect(settings.repoPath).toBe('/original/path')
-      expect(settings.defaultModel).toBe('claude-opus-4-6')
+      expect(settings.defaultModel).toBe('claude-opus-4.6')
     })
   })
 
