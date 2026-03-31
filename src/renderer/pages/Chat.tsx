@@ -514,7 +514,7 @@ export function Chat() {
                 onClick={handleExportChat}
                 className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-lg transition-colors"
                 aria-label="Export as markdown"
-                title="Export as markdown (⌘⇧E)"
+                title="Export as markdown (Cmd+Shift+E)"
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
               </button>

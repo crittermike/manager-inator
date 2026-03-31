@@ -11,7 +11,7 @@ import {
   ClipboardPaste,
   Keyboard,
   X,
-  UserPlus
+  Plus
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
@@ -29,7 +29,7 @@ const navItems = [
   { path: '/', icon: Sun, label: 'Today', shortcut: null },
   { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: null },
   { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: null },
-  { path: '/search', icon: Search, label: 'Search', shortcut: '⌘K' }
+  { path: '/search', icon: Search, label: 'Search', shortcut: 'Cmd+K' }
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -143,7 +143,7 @@ export function AppShell({ children }: AppShellProps) {
                   aria-label="Add direct report"
                   title="Add direct report"
                 >
-                  <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                  <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               </div>
               {reports.map((r) => {
@@ -188,7 +188,7 @@ export function AppShell({ children }: AppShellProps) {
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-500 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag group"
               >
                 <div className="w-6 h-6 rounded-full flex items-center justify-center bg-zinc-800 group-hover:bg-brand/15 transition-colors">
-                  <UserPlus className="w-3.5 h-3.5 text-zinc-600 group-hover:text-brand-light transition-colors" />
+                  <Plus className="w-3.5 h-3.5 text-zinc-600 group-hover:text-brand-light transition-colors" />
                 </div>
                 <span>Add your first report</span>
               </button>
@@ -317,9 +317,9 @@ export function AppShell({ children }: AppShellProps) {
                 <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">General</h3>
                 <div className="space-y-1.5">
                   {[
-                    ['⌘ K', 'Search'],
-                    ['⌘ Shift V', 'Capture'],
-                    ['⌘ Enter', 'Submit / save'],
+                    ['Cmd K', 'Search'],
+                    ['Cmd Shift V', 'Capture'],
+                    ['Cmd Enter', 'Submit / save'],
                     ['?', 'Show shortcuts'],
                   ].map(([keys, label]) => (
                     <div key={label} className="flex items-center justify-between py-1">
@@ -337,8 +337,8 @@ export function AppShell({ children }: AppShellProps) {
                 <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Chat</h3>
                 <div className="space-y-1.5">
                   {[
-                    ['⌘ N', 'New chat'],
-                    ['⌘ Shift E', 'Export chat'],
+                    ['Cmd N', 'New chat'],
+                    ['Cmd Shift E', 'Export chat'],
                   ].map(([keys, label]) => (
                     <div key={label} className="flex items-center justify-between py-1">
                       <span className="text-sm text-zinc-400">{label}</span>

@@ -1203,7 +1203,7 @@ export function Today() {
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-zinc-200">Process a meeting transcript</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Opens the capture panel where you can paste a transcript for AI processing. You can also use <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">⌘⇧V</kbd> anytime.</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Opens the capture panel where you can paste a transcript for AI processing. You can also use <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Cmd+Shift+V</kbd> anytime.</p>
             </div>
           </button>
         </div>

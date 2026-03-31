@@ -462,7 +462,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               >
                 <Sparkles className="w-3 h-3" />
                 Capture
-                <kbd className="ml-1 text-[9px] opacity-50 font-sans">⌘↵</kbd>
+                <kbd className="ml-1 text-[9px] opacity-50 font-sans">Cmd+Enter</kbd>
               </button>
             </div>
           </>
