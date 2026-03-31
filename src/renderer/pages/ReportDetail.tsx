@@ -90,14 +90,6 @@ export function ReportDetail() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileFields, setProfileFields] = useState({ role: '', team: '', meetingDay: '', github: '', location: '' })
   const [savingProfile, setSavingProfile] = useState(false)
-  const [editingAbout, setEditingAbout] = useState(false)
-  const [aboutDraft, setAboutDraft] = useState('')
-  const [savingAbout, setSavingAbout] = useState(false)
-  const [editingJobExpectations, setEditingJobExpectations] = useState(false)
-  const [jobExpectationsDraft, setJobExpectationsDraft] = useState('')
-  const [savingJobExpectations, setSavingJobExpectations] = useState(false)
-  const [detailsTab, setDetailsTab] = useState<'about' | 'expectations'>('about')
-  const [detailsCollapsed, setDetailsCollapsed] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsRef = useRef<HTMLDivElement>(null)
 
@@ -131,9 +123,6 @@ export function ReportDetail() {
 
   // Adding feedback
   const [addingFeedback, setAddingFeedback] = useState(false)
-  const [feedbackDraft, setFeedbackDraft] = useState('')
-  const [feedbackType, setFeedbackType] = useState<'positive' | 'constructive' | 'mixed'>('positive')
-  const [savingFeedback, setSavingFeedback] = useState(false)
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [showPtoModal, setShowPtoModal] = useState(false)
   const [ptoInput, setPtoInput] = useState(() => {
@@ -713,69 +702,6 @@ export function ReportDetail() {
     }
   }, [name, report, profileFields, toast, refresh])
 
-  const handleEditAbout = useCallback(() => {
-    if (!report) return
-    setAboutDraft((report.profile.about || '').replace(/<!--[\s\S]*?-->/g, '').trim())
-    setEditingAbout(true)
-  }, [report])
-
-  const handleSaveAbout = useCallback(async () => {
-    if (!name || !report) return
-    setSavingAbout(true)
-    try {
-      const profileContent = await window.api.getFileContent(`reports/${name}/profile.md`)
-      let updated: string
-      const aboutSection = `## About\n\n${aboutDraft.trim()}`
-      if (profileContent.match(/## About\s*\n/)) {
-        updated = profileContent.replace(
-          /## About\s*\n[\s\S]*?(?=\n##|$)/,
-          aboutSection
-        )
-      } else {
-        updated = profileContent.trimEnd() + '\n\n' + aboutSection + '\n'
-      }
-      await window.api.commitFile(
-        `reports/${name}/profile.md`,
-        updated,
-        `Update about section for ${report.profile.displayName}`
-      )
-      toast.success('About section saved')
-      setEditingAbout(false)
-      refresh()
-    } catch (e) {
-      console.error('Failed to save about:', e)
-      toast.error('Failed to save about section')
-    } finally {
-      setSavingAbout(false)
-    }
-  }, [name, report, aboutDraft, toast, refresh])
-
-  const handleEditJobExpectations = useCallback(() => {
-    if (!report) return
-    setJobExpectationsDraft((report.jobExpectations || '').replace(/<!--[\s\S]*?-->/g, '').trim())
-    setEditingJobExpectations(true)
-  }, [report])
-
-  const handleSaveJobExpectations = useCallback(async () => {
-    if (!name || !report) return
-    setSavingJobExpectations(true)
-    try {
-      await window.api.commitFile(
-        `reports/${name}/job-expectations.md`,
-        jobExpectationsDraft.trim() + '\n',
-        `Update job expectations for ${report.profile.displayName}`
-      )
-      toast.success('Job expectations saved')
-      setEditingJobExpectations(false)
-      refresh()
-    } catch (e) {
-      console.error('Failed to save job expectations:', e)
-      toast.error('Failed to save job expectations')
-    } finally {
-      setSavingJobExpectations(false)
-    }
-  }, [name, report, jobExpectationsDraft, toast, refresh])
-
   // ── GitHub Activity handlers ──
 
   const handleFetchActivity = useCallback(async () => {
@@ -859,37 +785,6 @@ export function ReportDetail() {
       toast.error('Failed to generate activity summary')
     }
   }, [activityData, report, activityRange, generate, fullTextRef, toast])
-
-  // ── Feedback handler ──
-
-  const handleSaveFeedback = useCallback(async () => {
-    if (!name || !report || !feedbackDraft.trim()) return
-    setSavingFeedback(true)
-    try {
-      const today = new Date().toISOString().split('T')[0]
-      const feedbackLogPath = `reports/${name}/feedback/log.md`
-      let existing = ''
-      try {
-        existing = await window.api.getFileContent(feedbackLogPath)
-      } catch { /* file may not exist */ }
-      const entry = `### ${today}\n**Type:** ${feedbackType}\n\n${feedbackDraft.trim()}\n`
-      const updated = existing ? `${entry}\n---\n\n${existing}` : entry
-      await window.api.commitFile(
-        feedbackLogPath,
-        updated,
-        `Add ${feedbackType} feedback for ${report.profile.displayName}`
-      )
-      toast.success('Feedback saved')
-      setAddingFeedback(false)
-      setFeedbackDraft('')
-      refresh()
-    } catch (e) {
-      console.error('Failed to save feedback:', e)
-      toast.error('Failed to save feedback')
-    } finally {
-      setSavingFeedback(false)
-    }
-  }, [name, report, feedbackDraft, feedbackType, toast, refresh])
 
   const handleUpdateFeedback = useCallback(async (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => {
     if (!name) return
@@ -1440,53 +1335,13 @@ export function ReportDetail() {
 
       {/* ── Inline feedback form ── */}
       {addingFeedback && (
-        <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-zinc-300">Add feedback</span>
-            <button
-              onClick={() => { setAddingFeedback(false); setFeedbackDraft('') }}
-              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-              aria-label="Close feedback form"
-            >
-              <X className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="flex gap-2 mb-3">
-            {(['positive', 'constructive', 'mixed'] as const).map(type => (
-              <button
-                key={type}
-                onClick={() => setFeedbackType(type)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                  feedbackType === type
-                    ? type === 'positive' ? 'bg-success/10 border-success/30 text-success'
-                    : type === 'constructive' ? 'bg-warning/10 border-warning/30 text-warning'
-                    : 'bg-info/10 border-info/30 text-info'
-                    : 'border-border text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                {type === 'positive' ? '🌟' : type === 'constructive' ? '🔧' : '💬'} {type}
-              </button>
-            ))}
-          </div>
-          <textarea
-            value={feedbackDraft}
-            onChange={e => setFeedbackDraft(e.target.value)}
-            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveFeedback() } }}
-            placeholder="What happened? Be specific about the behavior and its impact..."
-            className="w-full h-24 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-            autoFocus
-          />
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={handleSaveFeedback}
-              disabled={!feedbackDraft.trim() || savingFeedback}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-            >
-              <Save className="w-3 h-3" aria-hidden="true" />
-              {savingFeedback ? 'Saving…' : 'Save feedback'}
-            </button>
-          </div>
-        </div>
+        <InlineFeedbackForm
+          name={name!}
+          report={report}
+          toast={toast}
+          refresh={refresh}
+          onClose={() => setAddingFeedback(false)}
+        />
       )}
 
       {/* ── AI Panel (unified for prep/checkin/review) ── */}
@@ -1852,143 +1707,7 @@ export function ReportDetail() {
         </div>
       )}
 
-      {/* ── Details (About + Job Expectations) ── */}
-      {detailsCollapsed ? (
-        <div className="flex items-center gap-3 px-1">
-          <button
-            onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-          >
-            <ChevronRight className="w-3 h-3" />
-            About
-          </button>
-          <span className="text-zinc-700">·</span>
-          <button
-            onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-          >
-            <ChevronRight className="w-3 h-3" />
-            Expectations
-          </button>
-        </div>
-      ) : (
-      <div className="bg-surface rounded-xl border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-4 pt-3 pb-0">
-          <div className="flex gap-1">
-            <button
-              onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                detailsTab === 'about'
-                  ? 'bg-surface-raised text-zinc-200 font-medium'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              About
-            </button>
-            <button
-              onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                detailsTab === 'expectations'
-                  ? 'bg-surface-raised text-zinc-200 font-medium'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              Expectations
-            </button>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => detailsTab === 'about' ? handleEditAbout() : handleEditJobExpectations()}
-              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-              aria-label={`Edit ${detailsTab === 'about' ? 'about' : 'job expectations'}`}
-            >
-              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
-            <button
-              onClick={() => setDetailsCollapsed(true)}
-              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-              aria-expanded={true}
-              aria-label="Collapse details"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="px-4 pb-4 pt-2 animate-fade-in">
-          {editingAbout && detailsTab === 'about' ? (
-            <div className="space-y-2">
-              <textarea
-                value={aboutDraft}
-                onChange={e => setAboutDraft(e.target.value)}
-                onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
-                placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
-                className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setEditingAbout(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveAbout}
-                  disabled={savingAbout}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-                >
-                  <Save className="w-3 h-3" aria-hidden="true" />
-                  {savingAbout ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            </div>
-          ) : editingJobExpectations && detailsTab === 'expectations' ? (
-            <div className="space-y-2">
-              <textarea
-                value={jobExpectationsDraft}
-                onChange={e => setJobExpectationsDraft(e.target.value)}
-                onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
-                placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
-                className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
-                autoFocus
-              />
-              <p className="text-xs text-zinc-600">Used as AI context for reviews and check-ins.</p>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setEditingJobExpectations(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveJobExpectations}
-                  disabled={savingJobExpectations}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
-                >
-                  <Save className="w-3 h-3" aria-hidden="true" />
-                  {savingJobExpectations ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            </div>
-          ) : detailsTab === 'about' ? (
-            aboutText ? (
-              <div className="prose-dark text-sm">
-                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-xs text-zinc-600">
-                No about info yet. Click the pencil to add career goals, working style, or communication preferences.
-              </p>
-            )
-          ) : (
-            report.jobExpectations ? (
-              <div className="prose-dark text-sm">
-                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-xs text-zinc-600">
-                No expectations set yet. Click the pencil to add role expectations and performance criteria.
-              </p>
-            )
-          )}
-        </div>
-      </div>
-      )}
+      <EditableDetailsPanel report={report} name={name!} aboutText={aboutText} toast={toast} refresh={refresh} />
 
       {/* ── Filter bar ── */}
       <div className="flex gap-1.5 flex-wrap">
@@ -2185,6 +1904,321 @@ export function ReportDetail() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+    </div>
+  )
+}
+
+// ── Editable Details Panel (About + Job Expectations) ──
+// Extracted to isolate textarea draft state from ReportDetail re-renders
+
+function EditableDetailsPanel({ report, name, aboutText, toast, refresh }: {
+  report: NonNullable<ReturnType<typeof useReportData>['report']>
+  name: string
+  aboutText: string
+  toast: ReturnType<typeof useToast>
+  refresh: () => void
+}) {
+  const [detailsTab, setDetailsTab] = useState<'about' | 'expectations'>('about')
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false)
+  const [editingAbout, setEditingAbout] = useState(false)
+  const [aboutDraft, setAboutDraft] = useState('')
+  const [savingAbout, setSavingAbout] = useState(false)
+  const [editingJobExpectations, setEditingJobExpectations] = useState(false)
+  const [jobExpectationsDraft, setJobExpectationsDraft] = useState('')
+  const [savingJobExpectations, setSavingJobExpectations] = useState(false)
+
+  const handleEditAbout = useCallback(() => {
+    setAboutDraft((report.profile.about || '').replace(/<!--[\s\S]*?-->/g, '').trim())
+    setEditingAbout(true)
+  }, [report])
+
+  const handleSaveAbout = useCallback(async () => {
+    if (!name || !report) return
+    setSavingAbout(true)
+    try {
+      const profileContent = await window.api.getFileContent(`reports/${name}/profile.md`)
+      let updated: string
+      const aboutSection = `## About\n\n${aboutDraft.trim()}`
+      if (profileContent.match(/## About\s*\n/)) {
+        updated = profileContent.replace(
+          /## About\s*\n[\s\S]*?(?=\n##|$)/,
+          aboutSection
+        )
+      } else {
+        updated = profileContent.trimEnd() + '\n\n' + aboutSection + '\n'
+      }
+      await window.api.commitFile(
+        `reports/${name}/profile.md`,
+        updated,
+        `Update about section for ${report.profile.displayName}`
+      )
+      toast.success('About section saved')
+      setEditingAbout(false)
+      refresh()
+    } catch (e) {
+      console.error('Failed to save about:', e)
+      toast.error('Failed to save about section')
+    } finally {
+      setSavingAbout(false)
+    }
+  }, [name, report, aboutDraft, toast, refresh])
+
+  const handleEditJobExpectations = useCallback(() => {
+    setJobExpectationsDraft((report.jobExpectations || '').replace(/<!--[\s\S]*?-->/g, '').trim())
+    setEditingJobExpectations(true)
+  }, [report])
+
+  const handleSaveJobExpectations = useCallback(async () => {
+    if (!name || !report) return
+    setSavingJobExpectations(true)
+    try {
+      await window.api.commitFile(
+        `reports/${name}/job-expectations.md`,
+        jobExpectationsDraft.trim() + '\n',
+        `Update job expectations for ${report.profile.displayName}`
+      )
+      toast.success('Job expectations saved')
+      setEditingJobExpectations(false)
+      refresh()
+    } catch (e) {
+      console.error('Failed to save job expectations:', e)
+      toast.error('Failed to save job expectations')
+    } finally {
+      setSavingJobExpectations(false)
+    }
+  }, [name, report, jobExpectationsDraft, toast, refresh])
+
+  if (detailsCollapsed) {
+    return (
+      <div className="flex items-center gap-3 px-1">
+        <button
+          onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+        >
+          <ChevronRight className="w-3 h-3" />
+          About
+        </button>
+        <span className="text-zinc-700">·</span>
+        <button
+          onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+        >
+          <ChevronRight className="w-3 h-3" />
+          Expectations
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-surface rounded-xl border border-border overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-3 pb-0">
+        <div className="flex gap-1">
+          <button
+            onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+              detailsTab === 'about'
+                ? 'bg-surface-raised text-zinc-200 font-medium'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            About
+          </button>
+          <button
+            onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+              detailsTab === 'expectations'
+                ? 'bg-surface-raised text-zinc-200 font-medium'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Expectations
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => detailsTab === 'about' ? handleEditAbout() : handleEditJobExpectations()}
+            className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+            aria-label={`Edit ${detailsTab === 'about' ? 'about' : 'job expectations'}`}
+          >
+            <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <button
+            onClick={() => setDetailsCollapsed(true)}
+            className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+            aria-expanded={true}
+            aria-label="Collapse details"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 pt-2 animate-fade-in">
+        {editingAbout && detailsTab === 'about' ? (
+          <div className="space-y-2">
+            <textarea
+              value={aboutDraft}
+              onChange={e => setAboutDraft(e.target.value)}
+              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveAbout() } }}
+              placeholder="Career goals, working style, communication preferences, strengths, areas for growth…"
+              className="w-full h-32 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setEditingAbout(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAbout}
+                disabled={savingAbout}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+              >
+                <Save className="w-3 h-3" aria-hidden="true" />
+                {savingAbout ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : editingJobExpectations && detailsTab === 'expectations' ? (
+          <div className="space-y-2">
+            <textarea
+              value={jobExpectationsDraft}
+              onChange={e => setJobExpectationsDraft(e.target.value)}
+              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveJobExpectations() } }}
+              placeholder="Role expectations, competencies, performance criteria, level-specific skills…"
+              className="w-full h-40 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+              autoFocus
+            />
+            <p className="text-xs text-zinc-600">Used as AI context for reviews and check-ins.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setEditingJobExpectations(false)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveJobExpectations}
+                disabled={savingJobExpectations}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+              >
+                <Save className="w-3 h-3" aria-hidden="true" />
+                {savingJobExpectations ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : detailsTab === 'about' ? (
+          aboutText ? (
+            <div className="prose-dark text-sm">
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{aboutText}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-600">
+              No about info yet. Click the pencil to add career goals, working style, or communication preferences.
+            </p>
+          )
+        ) : (
+          report.jobExpectations ? (
+            <div className="prose-dark text-sm">
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{report.jobExpectations}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-600">
+              No expectations set yet. Click the pencil to add role expectations and performance criteria.
+            </p>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Inline Feedback Form ──
+// Extracted to isolate feedbackDraft state from ReportDetail re-renders
+
+function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
+  name: string
+  report: NonNullable<ReturnType<typeof useReportData>['report']>
+  toast: ReturnType<typeof useToast>
+  refresh: () => void
+  onClose: () => void
+}) {
+  const [feedbackDraft, setFeedbackDraft] = useState('')
+  const [feedbackType, setFeedbackType] = useState<'positive' | 'constructive' | 'mixed'>('positive')
+  const [savingFeedback, setSavingFeedback] = useState(false)
+
+  const handleSaveFeedback = useCallback(async () => {
+    if (!name || !report || !feedbackDraft.trim()) return
+    setSavingFeedback(true)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const feedbackLogPath = `reports/${name}/feedback/log.md`
+      let existing = ''
+      try {
+        existing = await window.api.getFileContent(feedbackLogPath)
+      } catch { /* file may not exist */ }
+      const entry = `### ${today}\n**Type:** ${feedbackType}\n\n${feedbackDraft.trim()}\n`
+      const updated = existing ? `${entry}\n---\n\n${existing}` : entry
+      await window.api.commitFile(
+        feedbackLogPath,
+        updated,
+        `Add ${feedbackType} feedback for ${report.profile.displayName}`
+      )
+      toast.success('Feedback saved')
+      onClose()
+      refresh()
+    } catch (e) {
+      console.error('Failed to save feedback:', e)
+      toast.error('Failed to save feedback')
+    } finally {
+      setSavingFeedback(false)
+    }
+  }, [name, report, feedbackDraft, feedbackType, toast, refresh, onClose])
+
+  return (
+    <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-medium text-zinc-300">Add feedback</span>
+        <button
+          onClick={onClose}
+          className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+          aria-label="Close feedback form"
+        >
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="flex gap-2 mb-3">
+        {(['positive', 'constructive', 'mixed'] as const).map(type => (
+          <button
+            key={type}
+            onClick={() => setFeedbackType(type)}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+              feedbackType === type
+                ? type === 'positive' ? 'bg-success/10 border-success/30 text-success'
+                : type === 'constructive' ? 'bg-warning/10 border-warning/30 text-warning'
+                : 'bg-info/10 border-info/30 text-info'
+                : 'border-border text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {type === 'positive' ? '🌟' : type === 'constructive' ? '🔧' : '💬'} {type}
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={feedbackDraft}
+        onChange={e => setFeedbackDraft(e.target.value)}
+        onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveFeedback() } }}
+        placeholder="What happened? Be specific about the behavior and its impact..."
+        className="w-full h-24 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+        autoFocus
+      />
+      <div className="flex gap-2 mt-2">
+        <button
+          onClick={handleSaveFeedback}
+          disabled={!feedbackDraft.trim() || savingFeedback}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+        >
+          <Save className="w-3 h-3" aria-hidden="true" />
+          {savingFeedback ? 'Saving…' : 'Save feedback'}
+        </button>
+      </div>
     </div>
   )
 }

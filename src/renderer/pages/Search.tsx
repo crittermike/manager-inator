@@ -69,7 +69,7 @@ export function SearchPage() {
   useEffect(() => {
     const meetingParam = searchParams.get('meeting')
     if (meetingParam) {
-      navigate(`/meeting/${encodeURIComponent(meetingParam)}?dir=contexts`)
+      navigate(`/meeting/${encodeURIComponent(meetingParam)}?dir=contexts`, { replace: true })
     }
   }, [searchParams, navigate])
 
