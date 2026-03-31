@@ -859,22 +859,27 @@ export function initializeRepo(repoDir: string): void {
  * Create a new direct report in the data repo.
  * Creates reports/{slug}/profile.md with YAML frontmatter.
  */
-export async function createReport(displayName: string): Promise<string> {
+export async function createReport(
+  displayName: string,
+  fields?: { role?: string; team?: string; github?: string; meetingDay?: string; location?: string; startDate?: string }
+): Promise<string> {
   const slug = displayName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '')
   if (!slug) throw new Error('Invalid name')
 
   const existing = getReports()
   if (existing.includes(slug)) throw new Error(`Report "${slug}" already exists`)
 
+  const f = fields ?? {}
+
   const reportContent = `---
 name: ${slug}
 displayName: ${displayName}
-role: 
-team: 
-github: 
-startDate: 
-meetingDay: 
-location: 
+role: ${f.role ?? ''}
+team: ${f.team ?? ''}
+github: ${f.github ?? ''}
+startDate: ${f.startDate ?? ''}
+meetingDay: ${f.meetingDay ?? ''}
+location: ${f.location ?? ''}
 about: 
 ---
 `
@@ -883,9 +888,9 @@ about:
 name: ${displayName}
 slug: ${slug}
 aliases: 
-role: 
-github: 
-location: 
+role: ${f.role ?? ''}
+github: ${f.github ?? ''}
+location: ${f.location ?? ''}
 relationship: Direct Report
 ---
 

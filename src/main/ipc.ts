@@ -93,7 +93,7 @@ export function setupIpcHandlers(): void {
   // ── GitHub data ──
   safeHandle('github:reports', () => getReports())
   safeHandle('github:initialize-repo', (_e, repoDir) => initializeRepo(repoDir as string))
-  safeHandle('github:create-report', (_e, displayName) => createReport(displayName as string))
+  safeHandle('github:create-report', (_e, displayName, fields) => createReport(displayName as string, fields as Record<string, string> | undefined))
   safeHandle('github:profile', (_e, name) => getReportProfile(name as string))
   safeHandle('github:report-data', (_e, name) => getReportData(name as string))
   safeHandle('github:team-overview', () => getTeamOverview())

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
+import { AddReportModal } from '../components/layout/AddReportModal'
 
 const sectionConfig: Record<TimelineSection, {
   label: string
@@ -786,6 +787,7 @@ export function Today() {
   const [activityExpanded, setActivityExpanded] = useState(true)
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({})
   const [expandedActivityItems, setExpandedActivityItems] = useState<Record<string, boolean>>({})
+  const [addReportOpen, setAddReportOpen] = useState(false)
 
   const [activitySummary, setActivitySummary] = useState<string>(() => {
     try {
@@ -1093,6 +1095,11 @@ export function Today() {
     })
   }, [])
 
+  const handleReportCreated = useCallback(async (slug: string) => {
+    await refresh()
+    navigate(`/report/${slug}`)
+  }, [refresh, navigate])
+
   const totalActive = items.filter(i => i.section !== 'done' && i.section !== 'coming-up').length
   const doneCount = itemsBySection.done.length
 
@@ -1157,7 +1164,7 @@ export function Today() {
 
         <div className="space-y-3">
           <button
-            onClick={() => navigate('/people')}
+            onClick={() => setAddReportOpen(true)}
             className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-brand/20 hover:border-brand/40 hover:bg-surface-raised/70 transition-all text-left group"
           >
             <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center shrink-0 group-hover:bg-brand/20 transition-colors">
@@ -1187,7 +1194,6 @@ export function Today() {
 
           <button
             onClick={() => {
-              // Trigger Cmd+Shift+V to open the Capture Panel
               document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', metaKey: true, shiftKey: true, bubbles: true }))
             }}
             className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
@@ -1210,6 +1216,12 @@ export function Today() {
             <p>3. <span className="text-zinc-300">Stay on top of everything</span> — this page becomes your daily action plan</p>
           </div>
         </div>
+
+        <AddReportModal
+          open={addReportOpen}
+          onClose={() => setAddReportOpen(false)}
+          onCreated={handleReportCreated}
+        />
       </div>
     )
   }

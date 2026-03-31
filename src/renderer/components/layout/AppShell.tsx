@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
+import { AddReportModal } from './AddReportModal'
 
 const CommandPalette = lazy(() => import('../common/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const AIFloatingPanel = lazy(() => import('../common/AIFloatingPanel').then(m => ({ default: m.AIFloatingPanel })))
@@ -34,7 +35,7 @@ const navItems = [
 export function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { overview } = useTeamOverview()
+  const { overview, refresh: refreshTeam } = useTeamOverview()
   const { settings } = useSettings()
   const toast = useToast()
   const toastRef = useRef(toast)
@@ -43,12 +44,18 @@ export function AppShell({ children }: AppShellProps) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [capturePanelOpen, setCapturePanelOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [addReportOpen, setAddReportOpen] = useState(false)
   const ptoReports = settings?.ptoReports ?? {}
   const isChatRoute = location.pathname === '/chat'
 
   const toggleCapture = useCallback(() => {
     setCapturePanelOpen(prev => !prev)
   }, [])
+
+  const handleReportCreated = useCallback(async (slug: string) => {
+    await refreshTeam()
+    navigate(`/report/${slug}`)
+  }, [refreshTeam, navigate])
 
   useEffect(() => {
     const cleanup = window.api.onPushStatus((data) => {
@@ -126,10 +133,18 @@ export function AppShell({ children }: AppShellProps) {
 
           {reports.length > 0 ? (
             <>
-              <div className="pt-4 pb-2 px-3">
+              <div className="pt-4 pb-2 px-3 flex items-center justify-between">
                 <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
                   Direct reports
                 </span>
+                <button
+                  onClick={() => setAddReportOpen(true)}
+                  className="w-5 h-5 rounded flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag"
+                  aria-label="Add direct report"
+                  title="Add direct report"
+                >
+                  <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
               </div>
               {reports.map((r) => {
                 const path = `/report/${r.name}`
@@ -169,7 +184,7 @@ export function AppShell({ children }: AppShellProps) {
                 </span>
               </div>
               <button
-                onClick={() => navigate('/people')}
+                onClick={() => setAddReportOpen(true)}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-500 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag group"
               >
                 <div className="w-6 h-6 rounded-full flex items-center justify-center bg-zinc-800 group-hover:bg-brand/15 transition-colors">
@@ -273,6 +288,12 @@ export function AppShell({ children }: AppShellProps) {
           )}
         </div>
       </main>
+
+      <AddReportModal
+        open={addReportOpen}
+        onClose={() => setAddReportOpen(false)}
+        onCreated={handleReportCreated}
+      />
 
       {shortcutsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShortcutsOpen(false)}>

@@ -293,6 +293,16 @@ export interface SettingsOptions {
   relationships: string[]
 }
 
+// ── Create report optional fields ──
+export interface CreateReportFields {
+  role?: string
+  team?: string
+  github?: string
+  meetingDay?: string
+  location?: string
+  startDate?: string
+}
+
 // ── IPC channel types ──
 export interface IpcApi {
   // Auth
@@ -308,7 +318,7 @@ export interface IpcApi {
   // GitHub data
   getReports: () => Promise<string[]>
   initializeRepo: (repoDir: string) => Promise<void>
-  createReport: (displayName: string) => Promise<string>
+  createReport: (displayName: string, fields?: CreateReportFields) => Promise<string>
   getReportProfile: (name: string) => Promise<ReportProfile>
   getReportData: (name: string) => Promise<Report>
   getTeamOverview: () => Promise<TeamOverview>

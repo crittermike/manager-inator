@@ -202,6 +202,65 @@ describe('createReport', () => {
     expect(content).toContain('meetingDay: ')
     expect(content).toContain('location: ')
   })
+
+  it('populates profile fields when provided', async () => {
+    await createReport('Alice Fields', {
+      role: 'Senior Engineer',
+      team: 'Platform',
+      github: 'alicefields',
+      meetingDay: 'Tuesday',
+      location: 'San Francisco',
+      startDate: '2024-01-15'
+    })
+
+    const profilePath = join(repoDir, 'reports', 'alice-fields', 'profile.md')
+    const content = readFileSync(profilePath, 'utf-8')
+
+    expect(content).toContain('role: Senior Engineer')
+    expect(content).toContain('team: Platform')
+    expect(content).toContain('github: alicefields')
+    expect(content).toContain('meetingDay: Tuesday')
+    expect(content).toContain('location: San Francisco')
+    expect(content).toContain('startDate: 2024-01-15')
+  })
+
+  it('populates people profile fields when provided', async () => {
+    await createReport('Bob Fields', {
+      role: 'Staff Engineer',
+      github: 'bobfields',
+      location: 'New York'
+    })
+
+    const peoplePath = join(repoDir, 'people', 'bob-fields.md')
+    const content = readFileSync(peoplePath, 'utf-8')
+
+    expect(content).toContain('role: Staff Engineer')
+    expect(content).toContain('github: bobfields')
+    expect(content).toContain('location: New York')
+    expect(content).toContain('relationship: Direct Report')
+  })
+
+  it('handles partial fields without error', async () => {
+    await createReport('Partial Fields', { role: 'IC', meetingDay: 'Friday' })
+
+    const profilePath = join(repoDir, 'reports', 'partial-fields', 'profile.md')
+    const content = readFileSync(profilePath, 'utf-8')
+
+    expect(content).toContain('role: IC')
+    expect(content).toContain('meetingDay: Friday')
+    expect(content).toContain('team: \n')
+    expect(content).toContain('github: \n')
+  })
+
+  it('handles empty fields object same as no fields', async () => {
+    await createReport('Empty Fields', {})
+
+    const profilePath = join(repoDir, 'reports', 'empty-fields', 'profile.md')
+    const content = readFileSync(profilePath, 'utf-8')
+
+    expect(content).toContain('role: \n')
+    expect(content).toContain('team: \n')
+  })
 })
 
 // ── Empty repo behavior ──

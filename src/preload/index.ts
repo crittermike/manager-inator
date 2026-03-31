@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   // GitHub data
   getReports: () => ipcRenderer.invoke('github:reports'),
   initializeRepo: (repoDir: string) => ipcRenderer.invoke('github:initialize-repo', repoDir),
-  createReport: (displayName: string) => ipcRenderer.invoke('github:create-report', displayName),
+  createReport: (displayName: string, fields?: Record<string, string>) => ipcRenderer.invoke('github:create-report', displayName, fields),
   getReportProfile: (name: string) => ipcRenderer.invoke('github:profile', name),
   getReportData: (name: string) => ipcRenderer.invoke('github:report-data', name),
   getTeamOverview: () => ipcRenderer.invoke('github:team-overview'),
