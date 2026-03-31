@@ -6,7 +6,7 @@ import type { Report } from '../../../shared/types'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
-import { Sparkles, Loader2, RotateCcw, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Sparkles, Loader2, Pencil, Trash2, Check, X } from 'lucide-react'
 
 export function InlinePrep({
   reportName,
@@ -349,9 +349,9 @@ export function InlinePrep({
             </button>
             <button
               onClick={handleRegenerate}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-all active:scale-[0.97]"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <Sparkles className="w-3.5 h-3.5" />
               Regenerate
             </button>
             <button

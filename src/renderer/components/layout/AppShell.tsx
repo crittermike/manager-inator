@@ -67,13 +67,30 @@ export function AppShell({ children }: AppShellProps) {
   }, [])
 
   useEffect(() => {
+    const cleanupNav = window.api.onNavigate((route) => {
+      if (route === '?shortcuts') {
+        setShortcutsOpen(true)
+      } else {
+        navigate(route)
+      }
+    })
+    const cleanupCapture = window.api.onOpenCapture(() => {
+      setCapturePanelOpen(true)
+    })
+    return () => {
+      cleanupNav()
+      cleanupCapture()
+    }
+  }, [navigate])
+
+  useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'v') {
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'n' || e.key === 'N') && !isInput) {
         e.preventDefault()
         toggleCapture()
       }
-      const target = e.target as HTMLElement
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
       if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey && !isInput) {
         e.preventDefault()
         setShortcutsOpen(prev => !prev)
@@ -262,20 +279,20 @@ export function AppShell({ children }: AppShellProps) {
         <div className="absolute bottom-6 right-6 flex items-center gap-3 z-20">
           <button
             onClick={toggleCapture}
-            className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${
+            className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] ${
               capturePanelOpen
                 ? 'bg-brand text-white shadow-brand/25'
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
             }`}
             aria-label="Capture content"
-            title="Capture content (Cmd+Shift+V)"
+            title="Capture content (Cmd+Shift+N)"
           >
             <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
           </button>
           {!isChatRoute && (
             <button
               onClick={() => setAiPanelOpen(prev => !prev)}
-              className={`w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-95 ${
+              className={`w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] ${
                 aiPanelOpen
                   ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25 rotate-0'
                   : 'bg-brand hover:bg-brand-dark shadow-brand/25'
@@ -318,7 +335,10 @@ export function AppShell({ children }: AppShellProps) {
                 <div className="space-y-1.5">
                   {[
                     ['Cmd K', 'Search'],
-                    ['Cmd Shift V', 'Capture'],
+                    ['Cmd Shift N', 'Capture'],
+                    ['Cmd ,', 'Settings'],
+                    ['Cmd 1-4', 'Switch views'],
+                    ['Cmd Shift M', 'Show / hide app (global)'],
                     ['Cmd Enter', 'Submit / save'],
                     ['?', 'Show shortcuts'],
                   ].map(([keys, label]) => (

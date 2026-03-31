@@ -1319,6 +1319,7 @@ export function Today() {
                 }}
                 className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
                 title={showRawActivity ? 'Refresh activity' : 'Regenerate summary'}
+                aria-label={showRawActivity ? 'Refresh activity' : 'Regenerate summary'}
               >
                 <RefreshCw className={`w-4 h-4 ${(activityLoading || activityAI.streaming) ? 'animate-spin' : ''}`} />
               </button>

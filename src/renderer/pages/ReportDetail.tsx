@@ -1460,7 +1460,7 @@ export function ReportDetail() {
               </button>
               <button
                 onClick={aiMode === 'prep' ? handlePrepOneOnOne : aiMode === 'checkin' ? handleGenerateCheckIn : handleGenerateReview}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
               >
                 <Sparkles className="w-3 h-3" aria-hidden="true" />
                 Regenerate
@@ -2159,7 +2159,8 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
     if (!name || !report || !feedbackDraft.trim()) return
     setSavingFeedback(true)
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const now = new Date()
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
       const feedbackLogPath = `reports/${name}/feedback/log.md`
       let existing = ''
       try {
@@ -2219,6 +2220,12 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
         autoFocus
       />
       <div className="flex items-center gap-2 mt-2 justify-end">
+        <button
+          onClick={() => { if (streaming) cancel(); onClose() }}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+        >
+          Cancel
+        </button>
         <button
           onClick={handleRewrite}
           disabled={rewriting || streaming || !feedbackDraft.trim()}
