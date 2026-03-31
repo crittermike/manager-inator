@@ -28,7 +28,10 @@ import {
   GitPullRequest,
   CircleDot,
   MessageSquare,
-  Undo2
+  Undo2,
+  Zap,
+  UserPlus,
+  Settings
 } from 'lucide-react'
 import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
@@ -1141,14 +1144,68 @@ export function Today() {
 
   if (!overview || overview.reports.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-3">
-          <Users className="w-8 h-8 text-zinc-600 mx-auto" aria-hidden="true" />
-          <p className="text-lg font-medium text-zinc-200">No team set up yet 👋</p>
-          <p className="text-sm text-zinc-500 max-w-sm mx-auto">Add your first direct report to get started. Your daily action plan will appear here.</p>
-          <button onClick={refresh} className="text-sm text-brand-light hover:text-brand transition-colors mt-2">
-            Refresh
+      <div className="max-w-2xl mx-auto py-12 animate-fade-in">
+        <div className="text-center mb-10">
+          <div className="w-16 h-16 rounded-2xl bg-brand/15 flex items-center justify-center mx-auto mb-5">
+            <Zap className="w-8 h-8 text-brand" />
+          </div>
+          <h1 className="text-2xl font-bold text-zinc-100">Welcome to Manager-inator</h1>
+          <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto">
+            Your AI-powered management dashboard. Let's get you set up — it only takes a few minutes.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <button
+            onClick={() => navigate('/people')}
+            className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-brand/20 hover:border-brand/40 hover:bg-surface-raised/70 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center shrink-0 group-hover:bg-brand/20 transition-colors">
+              <UserPlus className="w-5 h-5 text-brand-light" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-zinc-200">Add your direct reports</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Add the people you manage — this is how the app organizes everything</p>
+            </div>
+            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-brand-light bg-brand/10 rounded-full shrink-0">
+              Start here
+            </div>
           </button>
+
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
+              <Settings className="w-5 h-5 text-zinc-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-zinc-200">Configure settings</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Set your AI model, management cadence, and optionally connect GitHub for team activity</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => navigate('/search')}
+            className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
+              <FileText className="w-5 h-5 text-zinc-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-zinc-200">Process meeting transcripts</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Paste or drag meeting transcripts to extract summaries, action items, and feedback with AI</p>
+            </div>
+          </button>
+        </div>
+
+        <div className="mt-8 p-4 bg-surface rounded-xl border border-border">
+          <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">How it works</h3>
+          <div className="space-y-2.5 text-sm text-zinc-500">
+            <p>1. <span className="text-zinc-300">Add your direct reports</span> — profiles, meeting days, and roles</p>
+            <p>2. <span className="text-zinc-300">Process transcripts</span> — AI extracts summaries, action items, and feedback</p>
+            <p>3. <span className="text-zinc-300">Stay on top of everything</span> — this page becomes your daily action plan</p>
+          </div>
         </div>
       </div>
     )

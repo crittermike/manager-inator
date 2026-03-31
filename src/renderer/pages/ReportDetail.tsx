@@ -40,7 +40,8 @@ import {
   Trash2,
   MoreHorizontal,
   GitPullRequest,
-  Loader2
+  Loader2,
+  Upload
 } from 'lucide-react'
 
 // ── Types ──
@@ -2024,10 +2025,41 @@ export function ReportDetail() {
               <Filter className="w-6 h-6 text-zinc-500" aria-hidden="true" />
             </div>
             {activeFilter === 'all' ? (
-              <>
-                <p className="text-sm font-medium text-zinc-300 mb-1">No activity yet</p>
-                <p className="text-sm text-zinc-500 max-w-sm">Once you have 1:1s and feedback, they'll show up here.</p>
-              </>
+              <div className="space-y-6 max-w-md">
+                <div>
+                  <p className="text-sm font-medium text-zinc-300 mb-1">No activity yet</p>
+                  <p className="text-sm text-zinc-500">Here's how to start building this person's history:</p>
+                </div>
+                <div className="grid gap-3 text-left">
+                  <div className="flex items-start gap-3 bg-surface rounded-lg border border-border p-3">
+                    <Upload className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-300">Process a meeting transcript</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Drop a .txt or .md transcript into the Today page inbox to generate summaries and action items.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 bg-surface rounded-lg border border-border p-3">
+                    <MessageSquare className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-300">Add feedback</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Use the "Add feedback" button above to log feedback as it happens — positive, constructive, or mixed.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 bg-surface rounded-lg border border-border p-3">
+                    <ClipboardList className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-300">Prep a 1:1</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Click "Prep 1:1" above to generate a prep doc with talking points based on recent activity.</p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate('/')}
+                  className="text-sm text-brand-light hover:text-brand transition-colors"
+                >
+                  Go to Today to process transcripts
+                </button>
+              </div>
             ) : (
               <p className="text-sm text-zinc-500">No {activeFilter} entries yet</p>
             )}

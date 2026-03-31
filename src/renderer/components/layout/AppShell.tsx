@@ -10,7 +10,8 @@ import {
   UserCircle,
   ClipboardPaste,
   Keyboard,
-  X
+  X,
+  UserPlus
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
@@ -123,7 +124,7 @@ export function AppShell({ children }: AppShellProps) {
             )
           })}
 
-          {reports.length > 0 && (
+          {reports.length > 0 ? (
             <>
               <div className="pt-4 pb-2 px-3">
                 <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
@@ -159,6 +160,23 @@ export function AppShell({ children }: AppShellProps) {
                   </button>
                 )
               })}
+            </>
+          ) : (
+            <>
+              <div className="pt-4 pb-2 px-3">
+                <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+                  Direct reports
+                </span>
+              </div>
+              <button
+                onClick={() => navigate('/people')}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-500 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag group"
+              >
+                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-zinc-800 group-hover:bg-brand/15 transition-colors">
+                  <UserPlus className="w-3.5 h-3.5 text-zinc-600 group-hover:text-brand-light transition-colors" />
+                </div>
+                <span>Add your first report</span>
+              </button>
             </>
           )}
         </nav>

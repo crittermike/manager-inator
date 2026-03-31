@@ -830,6 +830,58 @@ export function getReports(): string[] {
   return _reportsCache
 }
 
+/**
+ * Initialize a fresh data repo directory structure.
+ * Creates reports/, meetings/, transcripts/processed/, and people/ directories.
+ * Also initializes git if not already a git repo.
+ */
+export function initializeRepo(repoDir: string): void {
+  const dirs = [
+    'reports',
+    'meetings',
+    'transcripts/processed',
+    'people'
+  ]
+  for (const d of dirs) {
+    mkdirSync(join(repoDir, d), { recursive: true })
+  }
+
+  // Initialize git if not already a repo
+  const gitDir = join(repoDir, '.git')
+  if (!existsSync(gitDir)) {
+    const { execSync } = require('child_process')
+    execSync('git init', { cwd: repoDir, stdio: 'ignore' })
+  }
+}
+
+/**
+ * Create a new direct report in the data repo.
+ * Creates reports/{slug}/profile.md with YAML frontmatter.
+ */
+export async function createReport(displayName: string): Promise<string> {
+  const slug = displayName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  if (!slug) throw new Error('Invalid name')
+
+  const existing = getReports()
+  if (existing.includes(slug)) throw new Error(`Report "${slug}" already exists`)
+
+  const content = `---
+name: ${slug}
+displayName: ${displayName}
+role: 
+team: 
+github: 
+startDate: 
+meetingDay: 
+location: 
+about: 
+---
+`
+
+  await commitFile(`reports/${slug}/profile.md`, content, `Add direct report: ${displayName}`)
+  return slug
+}
+
 // ── Report data cache ──
 // Caches are only invalidated on writes (commitFile). No time-based expiry since we control all writes.
 

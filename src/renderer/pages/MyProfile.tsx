@@ -15,7 +15,10 @@ import {
   RefreshCw,
   Sparkles,
   X,
-  Edit3
+  Edit3,
+  Trophy,
+  PenLine,
+  Lightbulb
 } from 'lucide-react'
 
 export function MyProfile() {
@@ -273,9 +276,56 @@ export function MyProfile() {
           </button>
         </div>
       ) : (
-        <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
-        </div>
+        (() => {
+          const isEmpty = !content.trim() || content.includes('_No entries yet._')
+          return isEmpty ? (
+            <div className="bg-surface rounded-xl border border-border p-8 space-y-6 text-center">
+              <div className="w-14 h-14 mx-auto rounded-full bg-surface-raised flex items-center justify-center">
+                <Trophy className="w-7 h-7 text-zinc-600" aria-hidden="true" />
+              </div>
+              <div className="space-y-2 max-w-md mx-auto">
+                <h2 className="text-lg font-medium text-zinc-200">Track your impact</h2>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Your impact log is a private record of the wins, decisions, and outcomes that matter for your career. Use it during performance reviews, promotion cases, or just to reflect on what you've accomplished.
+                </p>
+              </div>
+              <div className="grid gap-3 max-w-sm mx-auto text-left">
+                <div className="flex items-start gap-3 bg-surface-raised rounded-lg p-3">
+                  <PenLine className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium text-zinc-300">Log as you go</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Click "Add entry" to quickly capture a win, decision, or outcome while it's fresh.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 bg-surface-raised rounded-lg p-3">
+                  <Sparkles className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium text-zinc-300">AI-powered summaries</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Once you have entries, click "Summarize" to get a thematic breakdown of your impact.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 bg-surface-raised rounded-lg p-3">
+                  <Lightbulb className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium text-zinc-300">Auto-captured from meetings</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">When you process meeting transcripts, impact evidence is automatically extracted and added here.</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                Add your first entry
+              </button>
+            </div>
+          ) : (
+            <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
+            </div>
+          )
+        })()
       )}
     </div>
       <ConfirmDialog

@@ -307,6 +307,8 @@ export interface IpcApi {
 
   // GitHub data
   getReports: () => Promise<string[]>
+  initializeRepo: (repoDir: string) => Promise<void>
+  createReport: (displayName: string) => Promise<string>
   getReportProfile: (name: string) => Promise<ReportProfile>
   getReportData: (name: string) => Promise<Report>
   getTeamOverview: () => Promise<TeamOverview>

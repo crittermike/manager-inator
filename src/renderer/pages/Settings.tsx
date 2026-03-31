@@ -20,7 +20,9 @@ import {
   Github,
   Eye,
   EyeOff,
-  ScrollText
+  ScrollText,
+  Lightbulb,
+  ArrowDown
 } from 'lucide-react'
 import { PROMPT_TEMPLATES } from '../../shared/prompts'
 
@@ -192,6 +194,27 @@ export function Settings() {
         </h1>
         <p className="text-sm text-zinc-500 mt-1">Tweak the knobs. Turn the dials. Make it yours.</p>
       </div>
+
+      {/* Getting started callout — shown when GitHub org is not configured */}
+      {!loading && !githubOrgName && !hasGithubOrgToken && (
+        <div className="bg-brand/5 border border-brand/20 rounded-xl p-5 space-y-3 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-brand/15 flex items-center justify-center shrink-0 mt-0.5">
+              <Lightbulb className="w-5 h-5 text-brand-light" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-zinc-200">Set up team activity tracking</h2>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Connect your GitHub organization to see your team's PR and issue activity in the Today view. You'll need your org name and a Personal Access Token with read access to your org's repos.
+              </p>
+              <div className="flex items-center gap-1.5 pt-1 text-xs text-brand-light">
+                <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Configure in the GitHub Organization section below</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Account */}
       <section className="space-y-4">
@@ -384,9 +407,14 @@ export function Settings() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-          GitHub Organization
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+            GitHub Organization
+          </h2>
+          {!githubOrgName && !hasGithubOrgToken && (
+            <span className="text-[10px] font-medium text-brand-light bg-brand/15 px-2 py-0.5 rounded-full">Not configured</span>
+          )}
+        </div>
         <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
