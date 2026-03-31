@@ -1203,7 +1203,7 @@ export function Today() {
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-zinc-200">Process a meeting transcript</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Opens the capture panel where you can paste a transcript for AI processing. You can also use <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Cmd+Shift+V</kbd> anytime.</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Opens the capture panel where you can paste a transcript for AI processing. You can also use <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Cmd+Shift+N</kbd> anytime.</p>
             </div>
           </button>
         </div>
@@ -1230,7 +1230,7 @@ export function Today() {
 
   return (
     <div
-      className="max-w-3xl mx-auto space-y-6 animate-fade-in relative"
+      className="max-w-4xl mx-auto space-y-6 animate-fade-in relative"
     >
 
       <div className="flex items-center justify-between">
@@ -1251,9 +1251,9 @@ export function Today() {
             if (hasGithubOrgToken) fetchTeamActivity()
           }}
           className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+          aria-label="Refresh"
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
-          Refresh
         </button>
       </div>
 

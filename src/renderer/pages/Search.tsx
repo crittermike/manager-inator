@@ -256,9 +256,12 @@ export function SearchPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-100">Search</h1>
+        <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
+          <SearchIcon className="w-6 h-6 text-brand" aria-hidden="true" />
+          Search
+        </h1>
         <p className="text-sm text-zinc-500 mt-1">Find meetings, people, and notes</p>
       </div>
 

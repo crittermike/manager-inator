@@ -38,7 +38,7 @@ import {
   Plane,
   ClipboardList,
   Trash2,
-  MoreHorizontal,
+  RefreshCw,
   GitPullRequest,
   Loader2,
   Upload
@@ -90,8 +90,7 @@ export function ReportDetail() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileFields, setProfileFields] = useState({ role: '', team: '', meetingDay: '', github: '', location: '' })
   const [savingProfile, setSavingProfile] = useState(false)
-  const [actionsOpen, setActionsOpen] = useState(false)
-  const actionsRef = useRef<HTMLDivElement>(null)
+
 
   const [showActivity, setShowActivity] = useState(false)
   const [activityLoading, setActivityLoading] = useState(false)
@@ -138,17 +137,6 @@ export function ReportDetail() {
     mountedRef.current = true
     return () => { mountedRef.current = false; cancel() }
   }, [cancel])
-
-  useEffect(() => {
-    if (!actionsOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
-        setActionsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [actionsOpen])
 
   const { settings: _rdSettings, refreshSettings } = useSettings()
 
@@ -1176,68 +1164,70 @@ export function ReportDetail() {
             </div>
           )}
         </div>
-        <div className="relative shrink-0" ref={actionsRef}>
-          <button
-            onClick={() => setActionsOpen(!actionsOpen)}
-            className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-lg transition-colors"
-            aria-label="Actions"
-          >
-            <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
-          </button>
-          {actionsOpen && (
-            <div className="absolute right-0 top-full mt-1 w-52 bg-surface-raised border border-border rounded-xl shadow-xl z-20 py-1 animate-fade-in">
-              <button
-                onClick={() => { handlePrepOneOnOne(); setActionsOpen(false) }}
-                disabled={streaming || aiLoading}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors disabled:opacity-40"
-              >
-                <Sparkles className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                Prep 1:1
-              </button>
-              <button
-                onClick={() => { handleGenerateCheckIn(); setActionsOpen(false) }}
-                disabled={streaming || aiLoading}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors disabled:opacity-40"
-              >
-                <FileText className="w-4 h-4" aria-hidden="true" />
-                Generate check-in
-              </button>
-              <button
-                onClick={() => { handleGenerateReview(); setActionsOpen(false) }}
-                disabled={streaming || aiLoading}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors disabled:opacity-40"
-              >
-                <BookOpen className="w-4 h-4" aria-hidden="true" />
-                Generate review
-              </button>
-              <button
-                onClick={() => { setShowActivity(!showActivity); setActionsOpen(false) }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors"
-              >
-                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                GitHub Activity
-              </button>
-              <div className="border-t border-border my-1" />
-              <button
-                onClick={() => { setAddingFeedback(true); setActionsOpen(false) }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-zinc-300 hover:bg-surface-overlay transition-colors"
-              >
-                <Plus className="w-4 h-4" aria-hidden="true" />
-                Add feedback
-              </button>
-              <div className="border-t border-border my-1" />
-              <button
-                onClick={() => { handleTogglePto(); setActionsOpen(false) }}
-                className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors ${
-                  isOnPto ? 'text-amber-300 hover:bg-amber-500/10' : 'text-zinc-300 hover:bg-surface-overlay'
-                }`}
-              >
-                <Plane className="w-4 h-4" aria-hidden="true" />
-                {isOnPto ? 'Clear PTO' : 'Mark PTO'}
-              </button>
-            </div>
-          )}
-        </div>
+      </div>
+
+      {/* ── Action buttons ── */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={refresh}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+          aria-label="Refresh report data"
+        >
+          <RefreshCw className="w-4 h-4" aria-hidden="true" />
+        </button>
+        <button
+          onClick={handlePrepOneOnOne}
+          disabled={streaming || aiLoading}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Sparkles className="w-4 h-4" aria-hidden="true" />
+          Prep 1:1
+        </button>
+        <button
+          onClick={handleGenerateCheckIn}
+          disabled={streaming || aiLoading}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Sparkles className="w-4 h-4" aria-hidden="true" />
+          Generate check-in
+        </button>
+        <button
+          onClick={handleGenerateReview}
+          disabled={streaming || aiLoading}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Sparkles className="w-4 h-4" aria-hidden="true" />
+          Generate review
+        </button>
+        <button
+          onClick={() => setShowActivity(!showActivity)}
+          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all active:scale-[0.97] ${
+            showActivity
+              ? 'bg-brand/20 text-brand-light'
+              : 'text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay'
+          }`}
+        >
+          <GitPullRequest className="w-4 h-4" aria-hidden="true" />
+          GitHub Activity
+        </button>
+        <button
+          onClick={() => setAddingFeedback(true)}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"
+        >
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          Add feedback
+        </button>
+        <button
+          onClick={handleTogglePto}
+          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all active:scale-[0.97] ${
+            isOnPto
+              ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+              : 'text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay'
+          }`}
+        >
+          <Plane className="w-4 h-4" aria-hidden="true" />
+          {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+        </button>
       </div>
 
       {editingProfile && (
@@ -1754,7 +1744,7 @@ export function ReportDetail() {
                     <Upload className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-medium text-zinc-300">Process a meeting transcript</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Use the capture panel (<kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Cmd+Shift+V</kbd>) to paste a transcript and extract summaries, action items, and feedback.</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Use the capture panel (<kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Cmd+Shift+N</kbd>) to paste a transcript and extract summaries, action items, and feedback.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 bg-surface rounded-lg border border-border p-3">

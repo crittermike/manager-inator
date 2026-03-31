@@ -189,7 +189,7 @@ export function Settings() {
     <div className={`max-w-2xl mx-auto space-y-8 animate-fade-in ${isDirty ? 'pb-24' : ''}`}>
       <div>
         <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-          <SettingsIcon className="w-6 h-6 text-zinc-400" aria-hidden="true" />
+          <SettingsIcon className="w-6 h-6 text-brand" aria-hidden="true" />
           Settings
         </h1>
         <p className="text-sm text-zinc-500 mt-1">Tweak the knobs. Turn the dials. Make it yours.</p>

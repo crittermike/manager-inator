@@ -521,9 +521,9 @@ ${editNotes}`
               <button
                 onClick={loadPeople}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+                aria-label="Refresh"
               >
                 <RefreshCw className="w-4 h-4" aria-hidden="true" />
-                Refresh
               </button>
             </div>
           </div>
