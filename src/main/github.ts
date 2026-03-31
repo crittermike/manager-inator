@@ -484,6 +484,7 @@ export function parseProfile(content: string, name: string): ReportProfile {
 
     const nameMatch = body.match(/^#\s+(.+)/m)
     const displayName =
+      fm.displayname ||
       fm.name ||
       nameMatch?.[1]?.replace(/profile/i, '').trim() ||
       name.charAt(0).toUpperCase() + name.slice(1)
@@ -859,7 +860,7 @@ export function initializeRepo(repoDir: string): void {
  * Creates reports/{slug}/profile.md with YAML frontmatter.
  */
 export async function createReport(displayName: string): Promise<string> {
-  const slug = displayName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const slug = displayName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '')
   if (!slug) throw new Error('Invalid name')
 
   const existing = getReports()
