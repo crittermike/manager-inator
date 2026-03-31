@@ -113,14 +113,14 @@ export function ConfirmDialog({
         <div className="flex items-center justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2.5 text-sm font-medium text-zinc-300 hover:text-zinc-100 bg-surface-raised hover:bg-border rounded-xl transition-colors"
+            className="px-4 py-2.5 text-sm font-medium text-zinc-300 hover:text-zinc-100 bg-surface-raised hover:bg-border rounded-lg transition-colors"
           >
             {cancelLabel}
           </button>
           <button
             ref={confirmButtonRef}
             onClick={onConfirm}
-            className={`px-4 py-2.5 text-sm font-medium text-white rounded-xl transition-colors ${
+            className={`px-4 py-2.5 text-sm font-medium text-white rounded-lg transition-all active:scale-[0.97] ${
               variant === 'danger'
                 ? 'bg-danger hover:bg-red-600'
                 : 'bg-brand hover:bg-brand-dark'

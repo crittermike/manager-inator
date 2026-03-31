@@ -269,10 +269,11 @@ export function MeetingDetail() {
                     className="flex-1 bg-surface border border-brand/50 rounded-lg px-3 py-1.5 text-xl font-bold text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand/20"
                     autoFocus
                   />
-                  <button
+                    <button
                     onClick={handleSaveTitle}
                     className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors"
                     title="Save title"
+                    aria-label="Save title"
                   >
                     <Check className="w-5 h-5" />
                   </button>
@@ -288,6 +289,7 @@ export function MeetingDetail() {
                       }}
                       className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
                       title="Edit title"
+                      aria-label="Edit title"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -417,6 +419,7 @@ export function MeetingDetail() {
                           }}
                           className="opacity-0 group-hover/speakers:opacity-100 p-1 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
                           title="Edit attendees"
+                          aria-label="Edit attendees"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>

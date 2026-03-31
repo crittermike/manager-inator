@@ -210,7 +210,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
           <button
             onClick={handleSubmit}
             disabled={saving || !name.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {saving ? 'Adding...' : 'Add report'}

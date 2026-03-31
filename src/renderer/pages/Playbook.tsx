@@ -1012,7 +1012,7 @@ export function Playbook() {
             Add your direct reports first, then come back here to see your personalized management cadence with timeline, practices, and reminders.
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
-            <a href="#/" className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors">
+            <a href="#/" className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]">
               Add people
             </a>
             <a href="#/settings" className="px-4 py-2 text-sm font-medium text-zinc-300 bg-surface-raised hover:bg-surface-overlay rounded-lg border border-border transition-colors">
