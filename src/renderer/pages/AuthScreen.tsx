@@ -162,7 +162,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
             </p>
             <button
               onClick={handleLogin}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-100 text-zinc-900 rounded-xl font-medium text-sm hover:bg-zinc-200 transition-colors no-drag"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-100 text-zinc-900 rounded-lg font-medium text-sm hover:bg-zinc-200 transition-all active:scale-[0.97] no-drag"
             >
               <GithubIcon className="w-4 h-4" aria-hidden="true" />
               Connect with GitHub

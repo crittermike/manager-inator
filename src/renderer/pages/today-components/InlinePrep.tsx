@@ -332,7 +332,7 @@ export function InlinePrep({
             </button>
             <button
               onClick={handleCancelEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-all active:scale-[0.97]"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
             >
               <X className="w-3.5 h-3.5" />
               Cancel
@@ -342,7 +342,7 @@ export function InlinePrep({
           <>
             <button
               onClick={handleStartEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-all active:scale-[0.97]"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit

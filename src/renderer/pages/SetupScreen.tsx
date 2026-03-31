@@ -182,7 +182,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
           <button
             type="submit"
             disabled={saving}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl font-medium text-sm transition-colors disabled:opacity-50 no-drag ${
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-lg font-medium text-sm transition-all active:scale-[0.97] disabled:opacity-50 no-drag ${
               isCreate
                 ? 'bg-emerald-600 hover:bg-emerald-700'
                 : 'bg-brand hover:bg-brand-dark'

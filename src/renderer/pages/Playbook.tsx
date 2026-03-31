@@ -1270,10 +1270,10 @@ export function Playbook() {
                                     <>
                                       <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setSnoozeOpenId(null); }} />
                                       <div className="absolute right-0 top-full mt-1.5 z-50 w-48 bg-surface-overlay border border-border rounded-lg shadow-xl py-1 animate-slide-down">
-                                        <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 7); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-brand/10 hover:text-brand-light transition-colors">1 week</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 14); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-brand/10 hover:text-brand-light transition-colors">2 weeks</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 30); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-brand/10 hover:text-brand-light transition-colors">1 month</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, undefined, getNextQuarterStart()); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-brand/10 hover:text-brand-light transition-colors">Until next quarter</button>
+<button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 7); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">1 week</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 14); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">2 weeks</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 30); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">1 month</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, undefined, getNextQuarterStart()); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">Until next quarter</button>
                                       </div>
                                     </>
                                   )}

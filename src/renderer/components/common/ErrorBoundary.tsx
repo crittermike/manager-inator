@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <button
               onClick={this.handleReset}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-zinc-100 hover:bg-white text-zinc-900 font-medium rounded-xl transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-zinc-100 hover:bg-white text-zinc-900 font-medium rounded-lg transition-all active:scale-[0.97]"
             >
               <RotateCw className="w-4 h-4" aria-hidden="true" />
                Try again
