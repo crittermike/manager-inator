@@ -379,18 +379,9 @@ export function SearchPage() {
           <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
             <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
           </div>
-          <h2 className="text-base font-medium text-zinc-200 mb-1">What are you looking for?</h2>
-          <p className="text-sm text-zinc-500 mb-6">Search meetings, people, feedback, notes, and more</p>
-          <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
-            {['meetings', 'people', 'feedback', 'action items', 'check-ins', 'notes'].map(tag => (
-              <span
-                key={tag}
-                className="px-3 py-1.5 text-xs text-zinc-500 bg-surface-raised/50 rounded-lg border border-border/50"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+          <h2 className="text-base font-medium text-zinc-200 mb-1">Nothing to search yet</h2>
+          <p className="text-sm text-zinc-500 mb-2">As you add people and process meeting transcripts, everything becomes searchable here.</p>
+          <p className="text-xs text-zinc-600">Meetings, people, feedback, action items, check-ins, and notes — all in one place.</p>
         </div>
       )}
     </div>

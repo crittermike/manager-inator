@@ -100,6 +100,7 @@ export default function App() {
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <ImpactLog /> },
         { path: '/settings', element: <Settings /> },
+        { path: '/people', element: <People /> },
         { path: '/people/:slug', element: <People /> },
         { path: '/meeting/:filename', element: <MeetingDetail /> },
         { path: '/my-profile', element: <MyProfile /> },

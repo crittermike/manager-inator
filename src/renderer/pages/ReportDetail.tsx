@@ -2035,7 +2035,7 @@ export function ReportDetail() {
                     <Upload className="w-4 h-4 text-brand-light mt-0.5 shrink-0" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-medium text-zinc-300">Process a meeting transcript</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Drop a .txt or .md transcript into the Today page inbox to generate summaries and action items.</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Use the capture panel (<kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">⌘⇧V</kbd>) to paste a transcript and extract summaries, action items, and feedback.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 bg-surface rounded-lg border border-border p-3">
@@ -2054,10 +2054,12 @@ export function ReportDetail() {
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => {
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', metaKey: true, shiftKey: true, bubbles: true }))
+                  }}
                   className="text-sm text-brand-light hover:text-brand transition-colors"
                 >
-                  Go to Today to process transcripts
+                  Open capture panel to process a transcript
                 </button>
               </div>
             ) : (
