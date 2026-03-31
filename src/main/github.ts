@@ -865,7 +865,7 @@ export async function createReport(displayName: string): Promise<string> {
   const existing = getReports()
   if (existing.includes(slug)) throw new Error(`Report "${slug}" already exists`)
 
-  const content = `---
+  const reportContent = `---
 name: ${slug}
 displayName: ${displayName}
 role: 
@@ -878,7 +878,26 @@ about:
 ---
 `
 
-  await commitFile(`reports/${slug}/profile.md`, content, `Add direct report: ${displayName}`)
+  const peopleContent = `---
+name: ${displayName}
+slug: ${slug}
+aliases: 
+role: 
+github: 
+location: 
+relationship: Direct Report
+---
+
+# ${displayName}
+`
+
+  await commitFile(`reports/${slug}/profile.md`, reportContent, `Add direct report: ${displayName}`)
+
+  const peoplePath = safePath(`people/${slug}.md`)
+  if (!existsSync(peoplePath)) {
+    await commitFile(`people/${slug}.md`, peopleContent, `Add person profile: ${displayName}`)
+  }
+
   return slug
 }
 

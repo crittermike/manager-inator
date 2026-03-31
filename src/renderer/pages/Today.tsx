@@ -1186,15 +1186,18 @@ export function Today() {
           </button>
 
           <button
-            onClick={() => navigate('/search')}
+            onClick={() => {
+              // Trigger Cmd+Shift+V to open the Capture Panel
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', metaKey: true, shiftKey: true, bubbles: true }))
+            }}
             className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
           >
             <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
               <FileText className="w-5 h-5 text-zinc-400" />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-zinc-200">Process meeting transcripts</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Paste or drag meeting transcripts to extract summaries, action items, and feedback with AI</p>
+              <h3 className="text-sm font-semibold text-zinc-200">Process a meeting transcript</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Opens the capture panel where you can paste a transcript for AI processing. You can also use <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">⌘⇧V</kbd> anytime.</p>
             </div>
           </button>
         </div>

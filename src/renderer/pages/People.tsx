@@ -67,6 +67,9 @@ export function People() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [newPersonName, setNewPersonName] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
+  const [showAddReportForm, setShowAddReportForm] = useState(false)
+  const [newReportName, setNewReportName] = useState('')
+  const [addingReportSaving, setAddingReportSaving] = useState(false)
   const navigate = useNavigate()
   const { slug: routeSlug } = useParams<{ slug: string }>()
   const toast = useToast()
@@ -177,6 +180,24 @@ relationship:
       toast.error('Failed to create person')
     } finally {
       setAddingSaving(false)
+    }
+  }
+
+  const handleCreateReport = async () => {
+    const trimmed = newReportName.trim()
+    if (!trimmed) return
+    setAddingReportSaving(true)
+    try {
+      const slug = await window.api.createReport(trimmed)
+      setNewReportName('')
+      setShowAddReportForm(false)
+      toast.success(`Added ${trimmed} as a direct report`)
+      await loadPeople()
+      navigate(`/report/${slug}`)
+    } catch (e) {
+      toast.error((e as Error).message || 'Failed to add report')
+    } finally {
+      setAddingReportSaving(false)
     }
   }
 
@@ -484,7 +505,14 @@ ${editNotes}`
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowAddForm(!showAddForm)}
+                onClick={() => { setShowAddReportForm(!showAddReportForm); setShowAddForm(false) }}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97]"
+              >
+                <UserPlus className="w-4 h-4" aria-hidden="true" />
+                Add direct report
+              </button>
+              <button
+                onClick={() => { setShowAddForm(!showAddForm); setShowAddReportForm(false) }}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
               >
                 <UserPlus className="w-4 h-4" aria-hidden="true" />
@@ -499,6 +527,47 @@ ${editNotes}`
               </button>
             </div>
           </div>
+
+          {showAddReportForm && (
+            <div className="p-4 bg-surface rounded-xl border border-brand/30 animate-fade-in space-y-3">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                <span className="text-sm font-medium text-zinc-200">Add a direct report</span>
+              </div>
+              <p className="text-xs text-zinc-500">This creates a full report profile that appears in your sidebar, plus a people profile for meeting matching.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newReportName}
+                  onChange={(e) => setNewReportName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateReport(); if (e.key === 'Escape') { setShowAddReportForm(false); setNewReportName('') } }}
+                  placeholder="Full name (e.g. Jane Smith)"
+                  aria-label="Direct report full name"
+                  autoFocus
+                  className="flex-1 px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+                />
+                <button
+                  onClick={handleCreateReport}
+                  disabled={!newReportName.trim() || addingReportSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark disabled:opacity-50 transition-all active:scale-[0.97]"
+                >
+                  {addingReportSaving ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  Create
+                </button>
+                <button
+                  onClick={() => { setShowAddReportForm(false); setNewReportName('') }}
+                  className="p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  aria-label="Cancel"
+                >
+                  <X className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {showAddForm && (
             <div className="flex items-center gap-2 p-4 bg-surface rounded-xl border border-brand/20 animate-fade-in">
@@ -554,15 +623,26 @@ ${editNotes}`
               </div>
               {people.length === 0 ? (
                 <>
-                  <p className="text-lg font-medium text-zinc-300 mb-2">Your network starts here 🤝</p>
-                  <p className="text-sm text-zinc-500 mb-4">Add the people you work with and we'll help you keep track of meetings, feedback, and relationships.</p>
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-colors"
-                  >
-                    <UserPlus className="w-4 h-4" aria-hidden="true" />
-                     Add your first person
-                  </button>
+                  <p className="text-lg font-medium text-zinc-300 mb-2">Your network starts here</p>
+                  <p className="text-sm text-zinc-500 mb-5 max-w-md">Start by adding your direct reports — they'll appear in your sidebar for quick access to 1:1 prep, feedback, and performance tracking.</p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowAddReportForm(true)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97]"
+                    >
+                      <UserPlus className="w-4 h-4" aria-hidden="true" />
+                      Add your first direct report
+                    </button>
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                    >
+                      or add a person
+                    </button>
+                  </div>
+                  <p className="text-xs text-zinc-600 mt-4 max-w-md">
+                    <strong className="text-zinc-500">Direct reports</strong> get full tracking (1:1s, feedback, reviews). <strong className="text-zinc-500">People</strong> are lighter — just profiles and meeting history.
+                  </p>
                 </>
               ) : (
                 <>
