@@ -118,7 +118,7 @@ export function InlineFeedback({
         <button
           onClick={handleRewrite}
           disabled={rewriting || streaming || !draft.trim()}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-brand-light hover:text-white hover:bg-brand/15 rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
           {rewriting ? 'Rewriting…' : 'AI rewrite'}
@@ -126,7 +126,7 @@ export function InlineFeedback({
         <button
           onClick={handleSave}
           disabled={saving || !draft.trim()}
-          className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving…' : 'Save feedback'}
         </button>

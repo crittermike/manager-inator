@@ -218,7 +218,7 @@ export function InlinePrompt({
         <button
           onClick={handleSuggest}
           disabled={suggesting || streaming}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm text-brand-light hover:text-white hover:bg-brand/15 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
           {suggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           {suggesting ? 'Thinking...' : 'AI suggest'}

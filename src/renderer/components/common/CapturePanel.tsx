@@ -458,7 +458,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               <button
                 onClick={handleProcess}
                 disabled={!content.trim()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Sparkles className="w-3 h-3" />
                 Capture
@@ -638,7 +638,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               <button
                 onClick={handleSaveEdit}
                 disabled={!editContent.trim()}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Save changes
               </button>

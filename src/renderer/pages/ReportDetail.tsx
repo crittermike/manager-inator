@@ -1876,7 +1876,7 @@ export function ReportDetail() {
                 <button
                   onClick={handleSavePto}
                   disabled={!ptoInput.trim()}
-                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand/90 transition-all active:scale-[0.97] disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-50"
                 >
                   Save
                 </button>
@@ -2130,9 +2130,30 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
   refresh: () => void
   onClose: () => void
 }) {
+  const { streaming, generate, cancel } = useAI()
   const [feedbackDraft, setFeedbackDraft] = useState('')
   const [feedbackType, setFeedbackType] = useState<'positive' | 'constructive' | 'mixed'>('positive')
   const [savingFeedback, setSavingFeedback] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
+
+  const typeLabels = {
+    positive: { label: 'Positive', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+    constructive: { label: 'Constructive', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+    mixed: { label: 'Mixed', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  }
+
+  const handleRewrite = useCallback(async () => {
+    if (!feedbackDraft.trim()) return
+    setRewriting(true)
+    try {
+      const result = await generate('rewrite-feedback', { feedback: feedbackDraft, feedbackType })
+      if (result) setFeedbackDraft(result)
+    } catch {
+      toast.error('AI rewrite failed')
+    } finally {
+      setRewriting(false)
+    }
+  }, [feedbackDraft, feedbackType, generate, toast])
 
   const handleSaveFeedback = useCallback(async () => {
     if (!name || !report || !feedbackDraft.trim()) return
@@ -2167,7 +2188,7 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-zinc-300">Add feedback</span>
         <button
-          onClick={onClose}
+          onClick={() => { if (streaming) cancel(); onClose() }}
           className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
           aria-label="Close feedback form"
         >
@@ -2179,15 +2200,13 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
           <button
             key={type}
             onClick={() => setFeedbackType(type)}
-            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+            className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors ${
               feedbackType === type
-                ? type === 'positive' ? 'bg-success/10 border-success/30 text-success'
-                : type === 'constructive' ? 'bg-warning/10 border-warning/30 text-warning'
-                : 'bg-info/10 border-info/30 text-info'
-                : 'border-border text-zinc-500 hover:text-zinc-300'
+                ? typeLabels[type].color
+                : 'bg-surface-raised text-zinc-500 border-border hover:text-zinc-300'
             }`}
           >
-            {type === 'positive' ? '🌟' : type === 'constructive' ? '🔧' : '💬'} {type}
+            {typeLabels[type].label}
           </button>
         ))}
       </div>
@@ -2199,14 +2218,22 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
         className="w-full h-24 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
         autoFocus
       />
-      <div className="flex gap-2 mt-2">
+      <div className="flex items-center gap-2 mt-2 justify-end">
+        <button
+          onClick={handleRewrite}
+          disabled={rewriting || streaming || !feedbackDraft.trim()}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
+          {rewriting ? 'Rewriting...' : 'AI rewrite'}
+        </button>
         <button
           onClick={handleSaveFeedback}
           disabled={!feedbackDraft.trim() || savingFeedback}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Save className="w-3 h-3" aria-hidden="true" />
-          {savingFeedback ? 'Saving…' : 'Save feedback'}
+          {savingFeedback ? 'Saving...' : 'Save feedback'}
         </button>
       </div>
     </div>
@@ -2237,7 +2264,7 @@ function InlineEditor({ initialContent, onSave }: { initialContent: string; onSa
         <button
           onClick={handleSave}
           disabled={isSaving || content === initialContent}
-          className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-light text-white text-sm rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+          className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-dark text-white text-sm rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
           {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
           Save

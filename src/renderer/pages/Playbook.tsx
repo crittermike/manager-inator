@@ -638,7 +638,7 @@ function EditBuiltInPracticeForm({
 
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-all active:scale-[0.97]">Cancel</button>
-          <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97]">Save settings</button>
+          <button onClick={handleSave} className="px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97]">Save settings</button>
         </div>
      </div>
   )
@@ -741,7 +741,7 @@ function CustomPracticeForm({
          <button 
            onClick={() => onSave(formData)} 
            disabled={!formData.name} 
-           className="px-4 py-2 text-sm font-medium text-white bg-brand/80 hover:bg-brand rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+           className="px-4 py-2 text-sm font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
          >
            Save practice
          </button>
