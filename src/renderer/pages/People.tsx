@@ -513,7 +513,7 @@ ${editNotes}`
               </button>
               <button
                 onClick={() => { setShowAddForm(!showAddForm); setShowAddReportForm(false) }}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-brand-light hover:text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
               >
                 <UserPlus className="w-4 h-4" aria-hidden="true" />
                 Add person

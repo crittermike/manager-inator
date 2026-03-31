@@ -218,7 +218,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
             </div>
             <button
               onClick={() => { setStep('idle'); setErrorMessage(''); setConsecutiveErrors(0) }}
-              className="w-full px-4 py-3 bg-surface-raised text-zinc-200 rounded-xl font-medium text-sm hover:bg-surface-overlay transition-colors no-drag"
+              className="w-full px-4 py-3 bg-surface-raised text-zinc-200 rounded-lg font-medium text-sm hover:bg-surface-overlay transition-colors no-drag"
             >
               Try again
             </button>

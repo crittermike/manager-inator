@@ -156,7 +156,7 @@ export function AppShell({ children }: AppShellProps) {
                 </span>
                 <button
                   onClick={() => setAddReportOpen(true)}
-                  className="w-5 h-5 rounded flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag"
+                  className="w-5 h-5 rounded-lg flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag"
                   aria-label="Add direct report"
                   title="Add direct report"
                 >

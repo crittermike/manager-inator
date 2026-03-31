@@ -382,7 +382,7 @@ export function Chat() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 rounded-lg transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -442,14 +442,14 @@ export function Chat() {
                     <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
                       <button
                         onClick={e => { e.stopPropagation(); setEditingSessionId(s.id); setEditingTitle(s.title) }}
-                        className="p-0.5 text-zinc-600 hover:text-zinc-300 rounded"
+                        className="p-0.5 text-zinc-600 hover:text-zinc-300 rounded-lg"
                         aria-label="Rename"
                       >
                         <Pencil className="w-3 h-3" aria-hidden="true" />
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); setDeleteSessionId(s.id) }}
-                        className="p-0.5 text-zinc-600 hover:text-danger rounded"
+                        className="p-0.5 text-zinc-600 hover:text-danger rounded-lg"
                         aria-label="Delete"
                       >
                         <Trash2 className="w-3 h-3" aria-hidden="true" />
@@ -499,7 +499,7 @@ export function Chat() {
                       className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
                         m.id === selectedModel
                           ? 'bg-brand/10 text-brand-light'
-                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-overlay'
                       }`}
                     >
                         <span>{m.name}</span>

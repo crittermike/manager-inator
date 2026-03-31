@@ -392,7 +392,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); setDeleteSessionId(s.id) }}
-                  className="p-0.5 text-zinc-600 hover:text-danger opacity-0 group-hover/hist:opacity-100 transition-opacity"
+                  className="p-0.5 text-zinc-600 hover:text-danger rounded-lg opacity-0 group-hover/hist:opacity-100 transition-opacity"
                   aria-label="Delete"
                 >
                   <Trash2 className="w-3 h-3" aria-hidden="true" />
