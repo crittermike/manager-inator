@@ -6,6 +6,7 @@ import {
   getReportProfile,
   initializeRepo,
   createReport,
+  isGitRepo,
   getReportData,
   getTeamOverview,
   getFileContent,
@@ -13,7 +14,7 @@ import {
   commitFile,
   commitAiModifiedFiles,
   deleteFile,
-  listMeetings,
+  listContexts,
   listPeople,
   getPersonMeetings,
   findPersonByName,
@@ -21,6 +22,7 @@ import {
   getSettingsOptions,
   saveMeetingTitle,
   saveMeetingSpeakers,
+  addPersonToContext,
   toggleActionItem,
   resolveAndToggleActionItem,
   getOpenActionItemsForPeople,
@@ -93,6 +95,7 @@ export function setupIpcHandlers(): void {
   // ── GitHub data ──
   safeHandle('github:reports', () => getReports())
   safeHandle('github:initialize-repo', (_e, repoDir) => initializeRepo(repoDir as string))
+  safeHandle('github:is-git-repo', (_e, path) => isGitRepo(path as string))
   safeHandle('github:create-report', (_e, displayName, fields) => createReport(displayName as string, fields as Record<string, string> | undefined))
   safeHandle('github:profile', (_e, name) => getReportProfile(name as string))
   safeHandle('github:report-data', (_e, name) => getReportData(name as string))
@@ -103,7 +106,7 @@ export function setupIpcHandlers(): void {
     commitFile(path as string, content as string, message as string)
   )
   safeHandle('github:delete-file', (_e, path) => deleteFile(path as string))
-  safeHandle('github:list-meetings', () => listMeetings())
+  safeHandle('github:list-contexts', () => listContexts())
   safeHandle('github:list-people', () => listPeople())
   safeHandle('github:person-meetings', (_e, slug) => getPersonMeetings(slug as string))
   safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
@@ -111,6 +114,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:settings-options', () => getSettingsOptions())
   safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
   safeHandle('github:save-meeting-speakers', (_e, filename, speakers) => saveMeetingSpeakers(filename as string, speakers as string[]))
+  safeHandle('github:add-person-to-context', (_e, filename, slug) => addPersonToContext(filename as string, slug as string))
   safeHandle('github:toggle-action-item', (_e, sourceFile, lineNumber) => toggleActionItem(sourceFile as string, lineNumber as number))
   safeHandle('github:resolve-toggle-action-item', (_e, reportName, prepText) => resolveAndToggleActionItem(reportName as string, prepText as string))
   safeHandle('github:open-action-items-for-people', (_e, slugs) => getOpenActionItemsForPeople(slugs as string[]))

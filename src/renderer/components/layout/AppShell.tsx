@@ -77,9 +77,16 @@ export function AppShell({ children }: AppShellProps) {
     const cleanupCapture = window.api.onOpenCapture(() => {
       setCapturePanelOpen(true)
     })
+    const cleanupTrayCapture = window.api.onTrayCapture((content: string) => {
+      setCapturePanelOpen(true)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('tray-capture-content', { detail: content }))
+      }, 100)
+    })
     return () => {
       cleanupNav()
       cleanupCapture()
+      cleanupTrayCapture()
     }
   }, [navigate])
 

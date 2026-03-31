@@ -365,7 +365,7 @@ export function Chat() {
           <button
             onClick={handleNewChat}
             disabled={streaming}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 border border-border text-zinc-300 hover:bg-surface-raised hover:text-zinc-100 rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-50"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             New chat
@@ -411,11 +411,11 @@ export function Chat() {
                   onDoubleClick={() => { setEditingSessionId(s.id); setEditingTitle(s.title) }}
                   className={`group/item flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer mb-0.5 transition-colors ${
                     s.id === activeId
-                      ? 'bg-brand/10 border border-brand/20'
+                      ? 'bg-surface-raised border border-border'
                       : 'hover:bg-surface-raised border border-transparent'
                   }`}
                 >
-                  <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${s.id === activeId ? 'text-brand-light' : 'text-zinc-600'}`} aria-hidden="true" />
+                  <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${s.id === activeId ? 'text-zinc-300' : 'text-zinc-600'}`} aria-hidden="true" />
                   <div className="flex-1 min-w-0">
                     {editingSessionId === s.id ? (
                       <input
@@ -556,7 +556,7 @@ export function Chat() {
                   )}
                   <div className={`relative max-w-[80%] rounded-2xl px-4 py-3 ${
                     msg.role === 'user'
-                      ? 'bg-brand text-white'
+                      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
                       : 'bg-surface border border-border'
                   }`}>
                     {msg.role === 'assistant' && (
@@ -593,7 +593,7 @@ export function Chat() {
                   <div className="w-8 h-8 rounded-lg bg-brand/15 flex items-center justify-center shrink-0 mt-1">
                     <Bot className="w-4.5 h-4.5 text-brand" aria-hidden="true" />
                   </div>
-                  <div className={`rounded-2xl px-4 py-3 bg-surface border border-brand/20 animate-shimmer ${streamedText.trimStart() ? 'max-w-[80%]' : 'w-fit'}`}>
+                  <div className={`rounded-2xl px-4 py-3 bg-surface border border-border animate-shimmer ${streamedText.trimStart() ? 'max-w-[80%]' : 'w-fit'}`}>
                     {streamedText.trimStart() ? (
                       <div className="prose-dark text-sm [&_p]:text-sm [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm">
                         <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{streamedText.trimStart()}</ReactMarkdown>
@@ -601,9 +601,9 @@ export function Chat() {
                     ) : (
                       <div className="flex flex-col gap-1.5 py-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-2 h-2 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-2 h-2 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                         {toolStatus && (
                           <div className="flex items-center gap-1.5 text-xs text-zinc-500">
@@ -641,7 +641,7 @@ export function Chat() {
                 <button
                   onClick={cancel}
                   aria-label="Stop generating"
-                  className="p-2.5 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
+                  className="p-2.5 text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors shrink-0"
                 >
                   <StopCircle className="w-5 h-5" aria-hidden="true" />
                 </button>
@@ -650,7 +650,7 @@ export function Chat() {
                   onClick={() => sendMessage()}
                   disabled={!input.trim()}
                   aria-label="Send message"
-                  className="p-2.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
+                  className="p-2.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-zinc-100 transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
                 >
                   <Send className="w-4 h-4" aria-hidden="true" />
                 </button>

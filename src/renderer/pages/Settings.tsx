@@ -59,8 +59,12 @@ export function Settings() {
   const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
   const [repoPathError, setRepoPathError] = useState('')
   const [activePromptTab, setActivePromptTab] = useState(PROMPT_TEMPLATES[0].id)
+  const [userNameVal, setUserNameVal] = useState('')
+  const [savedUserName, setSavedUserName] = useState('')
+  const [userGithubVal, setUserGithubVal] = useState('')
+  const [savedUserGithub, setSavedUserGithub] = useState('')
 
-  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken
+  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken || userNameVal !== savedUserName || userGithubVal !== savedUserGithub
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
   const saveRef = useRef<() => void>(() => {})
 
@@ -68,7 +72,7 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
@@ -90,6 +94,10 @@ export function Settings() {
         setCustomInstructions(ci)
         setGithubOrgName(gon)
         setHasGithubOrgToken(!!s.hasGithubOrgToken)
+        const un = s.userName || ''
+        const ug = s.userGithub || ''
+        setUserNameVal(un)
+        setUserGithubVal(ug)
         setSavedRepoPath(rp)
         setSavedModel(m)
         setSavedCheckInFreq(cif)
@@ -100,6 +108,8 @@ export function Settings() {
         setSavedSprintStartDate(ssd)
         setSavedCustomInstructions(ci)
         setSavedGithubOrgName(gon)
+        setSavedUserName(un)
+        setSavedUserGithub(ug)
         setLoading(false)
       })
       .catch(() => {
@@ -122,6 +132,8 @@ export function Settings() {
         sprintStartDate, 
         aiCustomInstructions: customInstructions, 
         githubOrgName,
+        userName: userNameVal,
+        userGithub: userGithubVal,
         ...(githubOrgToken ? { githubOrgToken } : {})
       }
       if (repoPathVal !== savedRepoPath && repoPathVal.trim()) {
@@ -131,7 +143,7 @@ export function Settings() {
           setRepoPathError('')
         } catch {
           setRepoPathError('Invalid repo path — no reports found at that location')
-          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions, githubOrgName: savedGithubOrgName })
+          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions, githubOrgName: savedGithubOrgName, userName: savedUserName, userGithub: savedUserGithub })
           setSaving(false)
           return
         }
@@ -151,6 +163,8 @@ export function Settings() {
       setSavedSprintStartDate(sprintStartDate)
       setSavedCustomInstructions(customInstructions)
       setSavedGithubOrgName(githubOrgName)
+      setSavedUserName(userNameVal)
+      setSavedUserGithub(userGithubVal)
       setGithubOrgToken('')
       setSavedGithubOrgToken('')
       setSaved(true)
@@ -255,6 +269,54 @@ export function Settings() {
         }}
         onCancel={() => setShowLogoutConfirm(false)}
       />
+
+      {/* Your Identity */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+          Your Identity
+        </h2>
+        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <User className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-300">
+                Your name
+              </span>
+            </div>
+            <input
+              type="text"
+              value={userNameVal}
+              onChange={(e) => setUserNameVal(e.target.value)}
+              placeholder="e.g. Jane Smith"
+              aria-label="Your name"
+              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand transition-colors"
+            />
+            <p className="text-xs text-zinc-600 mt-2">
+              Used to identify you in meeting transcripts and AI prompts.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Github className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-300">
+                GitHub username
+              </span>
+            </div>
+            <input
+              type="text"
+              value={userGithubVal}
+              onChange={(e) => setUserGithubVal(e.target.value)}
+              placeholder="e.g. janesmith"
+              aria-label="Your GitHub username"
+              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand transition-colors"
+            />
+            <p className="text-xs text-zinc-600 mt-2">
+              Used to match your activity in meeting action items.
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* Repository */}
       <section className="space-y-4">

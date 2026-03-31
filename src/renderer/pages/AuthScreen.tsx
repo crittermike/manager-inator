@@ -181,7 +181,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
               </code>
               <button
                 onClick={copyCode}
-                className="p-2 text-zinc-400 hover:text-zinc-200 transition-colors no-drag"
+                className="p-2 text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors no-drag"
                 aria-label="Copy code to clipboard"
                 title="Copy code"
               >

@@ -736,7 +736,7 @@ export async function saveActivitySnapshot(
     '---',
     `date: ${startDate}`,
     'source: github',
-    `title: "GitHub activity: ${profile.displayName} (${startDate} to ${endDate})"`,
+    `title: ${profile.displayName.split(' ')[0]}'s GitHub Activity${startDate === endDate ? `: ${startDate}` : ` (${startDate} to ${endDate})`}`,
     `people:`,
     `  - ${slug}`,
     'tags:',

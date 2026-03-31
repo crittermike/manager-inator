@@ -1,17 +1,20 @@
 import { useState } from 'react'
-import { Zap, ArrowRight, FolderGit2, FolderOpen, FolderPlus, ArrowLeft } from 'lucide-react'
+import { Zap, ArrowRight, FolderGit2, FolderOpen, FolderPlus, ArrowLeft, User } from 'lucide-react'
 
 interface SetupScreenProps {
   onComplete: () => void
 }
 
-type Mode = 'choose' | 'connect' | 'create'
+type Mode = 'choose' | 'connect' | 'create' | 'identity'
 
 export function SetupScreen({ onComplete }: SetupScreenProps) {
   const [mode, setMode] = useState<Mode>('choose')
   const [repoPath, setRepoPath] = useState('')
+  const [userName, setUserName] = useState('')
+  const [userGithub, setUserGithub] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [wasCreate, setWasCreate] = useState(false)
 
   const handleConnect = async (e: { preventDefault(): void }) => {
     e.preventDefault()
@@ -24,6 +27,13 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     setError('')
 
     try {
+      const isRepo = await window.api.isGitRepo(repoPath.trim())
+      if (!isRepo) {
+        setError('That folder is not a git repository. If this is a new repo, use "Start fresh" instead.')
+        setSaving(false)
+        return
+      }
+
       await window.api.saveSettings({ repoPath: repoPath.trim() })
 
       const reports = await window.api.getReports()
@@ -33,7 +43,9 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         return
       }
 
-      onComplete()
+      setSaving(false)
+      setWasCreate(false)
+      setMode('identity')
     } catch (e) {
       setError((e as Error).message)
       setSaving(false)
@@ -53,6 +65,30 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     try {
       await window.api.initializeRepo(repoPath.trim())
       await window.api.saveSettings({ repoPath: repoPath.trim() })
+      setSaving(false)
+      setWasCreate(true)
+      setMode('identity')
+    } catch (e) {
+      setError((e as Error).message)
+      setSaving(false)
+    }
+  }
+
+  const handleIdentityComplete = async (e: { preventDefault(): void }) => {
+    e.preventDefault()
+    if (!userName.trim()) {
+      setError('Your name is required')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+
+    try {
+      await window.api.saveSettings({
+        userName: userName.trim(),
+        userGithub: userGithub.trim()
+      })
       onComplete()
     } catch (e) {
       setError((e as Error).message)
@@ -108,6 +144,78 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
 
           <p className="text-xs text-zinc-600 text-center mt-8">
             Your data lives in a local Git repo — markdown files you own and control.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (mode === 'identity') {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
+        <div className="drag-region absolute top-0 left-0 right-0 h-12" />
+
+        <div className="w-full max-w-md px-8 animate-fade-in">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 rounded-2xl bg-brand/20 flex items-center justify-center mb-4">
+              <User className="w-8 h-8 text-brand" />
+            </div>
+            <h1 className="text-2xl font-bold text-zinc-100">About you</h1>
+            <p className="text-sm text-zinc-500 mt-1 text-center">
+              So the app knows who you are when processing transcripts and tracking your impact.
+            </p>
+          </div>
+
+          <form onSubmit={handleIdentityComplete} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                Your name
+              </label>
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="e.g. Jane Smith"
+                className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                GitHub username
+                <span className="text-zinc-600 font-normal ml-1">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={userGithub}
+                onChange={(e) => setUserGithub(e.target.value)}
+                placeholder="e.g. janesmith"
+                className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag"
+              />
+            </div>
+
+            {error && <p className="text-sm text-danger">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={saving || !userName.trim()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand text-white rounded-lg font-medium text-sm transition-all active:scale-[0.97] disabled:opacity-50 no-drag hover:bg-brand-dark"
+            >
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  Get started
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="text-xs text-zinc-600 text-center mt-6">
+            You can change these later in Settings.
           </p>
         </div>
       </div>
@@ -202,7 +310,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
 
         <p className="text-xs text-zinc-600 text-center mt-6">
           {isCreate
-            ? 'This will create reports/, meetings/, people/, and transcripts/ folders and initialize a git repo.'
+            ? 'This will create reports/, contexts/, people/, and transcripts/ folders and initialize a git repo.'
             : 'Your repo should have a reports/ directory with one folder per direct report.'
           }
         </p>

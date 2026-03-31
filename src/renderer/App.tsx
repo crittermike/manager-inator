@@ -10,10 +10,10 @@ import { TeamOverviewProvider, SettingsProvider } from './hooks/useData'
 
 const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
-const ImpactLog = lazy(() => import('./pages/ImpactLog').then(m => ({ default: m.ImpactLog })))
+
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const People = lazy(() => import('./pages/People').then(m => ({ default: m.People })))
-const MeetingDetail = lazy(() => import('./pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })))
+const ContextDetail = lazy(() => import('./pages/ContextDetail').then(m => ({ default: m.ContextDetail })))
 const MyProfile = lazy(() => import('./pages/MyProfile').then(m => ({ default: m.MyProfile })))
 const Today = lazy(() => import('./pages/Today').then(m => ({ default: m.Today })))
 const SearchPage = lazy(() => import('./pages/Search').then(m => ({ default: m.SearchPage })))
@@ -98,11 +98,10 @@ export default function App() {
         { path: '/chat', element: <Chat /> },
         { path: '/report/:name', element: <ReportDetail /> },
         { path: '/search', element: <SearchPage /> },
-        { path: '/impact', element: <ImpactLog /> },
+        { path: '/impact', element: <Navigate to="/my-profile" replace /> },
         { path: '/settings', element: <Settings /> },
-        { path: '/people', element: <People /> },
         { path: '/people/:slug', element: <People /> },
-        { path: '/meeting/:filename', element: <MeetingDetail /> },
+        { path: '/context/:filename', element: <ContextDetail /> },
         { path: '/my-profile', element: <MyProfile /> },
         { path: '*', element: <Navigate to="/" replace /> }
       ]

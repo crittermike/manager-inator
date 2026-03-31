@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "main": "out/main/index.mjs",
   "scripts": {
+    "postinstall": "node scripts/patch-electron-dev.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
@@ -18,6 +19,19 @@
   "author": "",
   "license": "ISC",
   "description": "AI-powered performance management desktop app for engineering managers",
+  "build": {
+    "appId": "com.manager-inator.app",
+    "productName": "Manager-inator",
+    "mac": {
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json"
+    ]
+  },
   "dependencies": {
     "@github/copilot": "^1.0.9",
     "@github/copilot-sdk": "^0.1.32",
@@ -46,6 +60,7 @@
     "happy-dom": "^20.8.4",
     "playwright": "^1.58.2",
     "postcss": "^8.5.8",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "vite": "^7",

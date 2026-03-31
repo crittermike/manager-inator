@@ -199,7 +199,7 @@ If someone is marked [ON PTO], note that they're on PTO. Low or no activity from
 
 IMPORTANT: I've included recent context notes below (meetings, Slack threads, emails, etc. from the past week). Use this to avoid flagging things I already know about. If a PR or issue was discussed in a recent meeting or Slack thread, don't tell me to "check in" on it or flag it as needing attention — I'm already aware. Focus your attention flags on things that are NOT covered by the recent context.
 
-Use markdown. Use a bold name for each person (e.g. **Chanakya**). Use markdown links for PR/issue references (e.g. [PR title](url)). Keep descriptions short and conversational.
+Use markdown. Use a bold name for each person (e.g. **Alex**). Use markdown links for PR/issue references (e.g. [PR title](url)). Keep descriptions short and conversational.
 
 End with a **TL;DR** paragraph highlighting the 2-3 most important things I should pay attention to.
 
@@ -345,7 +345,7 @@ Context:
 
 Look at what's open, what's upcoming, and what needs attention. Give me 3-5 priorities, each one sentence. Order by importance.
 
-Format as a simple numbered list. No headers, no fluff. Each item should be specific and actionable, not generic ("review PRs" is bad, "follow up on Nic's auth refactor PR that's been open 3 days" is good).
+Format as a simple numbered list. No headers, no fluff. Each item should be specific and actionable, not generic ("review PRs" is bad, "follow up on the auth refactor PR that's been open 3 days" is good).
 
 Context:
 {teamContext}
@@ -372,7 +372,7 @@ reports/{name}/              — One directory per direct report
 contexts/                    — All captured content (meetings, slack, email, etc.) with YAML frontmatter
 transcripts/processed/       — Raw meeting transcripts
 people/                      — Profiles for anyone (not just direct reports)
-mike-impact-log.md           — Manager's impact evidence log
+impact-log.md                — Manager's impact evidence log
 
 {conversationHistory}
 {message}`,

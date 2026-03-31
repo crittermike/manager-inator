@@ -25,7 +25,7 @@ import {
   createReport,
   getReports,
   listPeople,
-  listMeetings,
+  listContexts,
   getTeamOverview,
   getReportData,
   searchContent,
@@ -287,8 +287,8 @@ describe('empty repo behavior', () => {
     expect(listPeople()).toEqual([])
   })
 
-  it('listMeetings returns empty array on fresh repo', () => {
-    expect(listMeetings()).toEqual([])
+  it('listContexts returns empty array on fresh repo', () => {
+    expect(listContexts()).toEqual([])
   })
 
   it('getTeamOverview returns zero reports on fresh repo', () => {

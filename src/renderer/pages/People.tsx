@@ -369,7 +369,7 @@ ${editNotes}`
                     )}
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-xs text-zinc-600">
-                    <span>{meetings.length > 0 ? meetings.length : selected.meetingCount} meetings</span>
+                    <span>{meetings.length > 0 ? meetings.length : selected.meetingCount} contexts</span>
                     {selected.lastSeen && (
                       <span>Last seen {formatRelativeDate(new Date(selected.lastSeen)).toLowerCase()}</span>
                     )}
@@ -461,13 +461,12 @@ ${editNotes}`
                     </ReactMarkdown>
                   </div>
 
-                  {/* Meeting history */}
-                  <div>
-                    <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
-                      Meeting history ({meetings.length})
-                    </h2>
-                    {meetings.length === 0 ? (
-                      <p className="text-sm text-zinc-600">No meetings found.</p>
+                   <div>
+                     <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+                       History ({meetings.length})
+                     </h2>
+                     {meetings.length === 0 ? (
+                       <p className="text-sm text-zinc-600">No context found.</p>
                     ) : (
                       <div className="space-y-2">
                         {meetings.map((m) => (
@@ -641,7 +640,7 @@ ${editNotes}`
                     </button>
                   </div>
                   <p className="text-xs text-zinc-600 mt-4 max-w-md">
-                    <strong className="text-zinc-500">Direct reports</strong> get full tracking (1:1s, feedback, reviews). <strong className="text-zinc-500">People</strong> are lighter — just profiles and meeting history.
+                    <strong className="text-zinc-500">Direct reports</strong> get full tracking (1:1s, feedback, reviews). <strong className="text-zinc-500">People</strong> are lighter — just profiles and context history.
                   </p>
                 </>
               ) : (
@@ -686,7 +685,7 @@ ${editNotes}`
                   </div>
                   <div className="flex items-center gap-3 text-xs text-zinc-500 mt-0.5">
                     {p.role && <span>{p.role}</span>}
-                    <span>{p.meetingCount} meetings</span>
+                    <span>{p.meetingCount} contexts</span>
                     {p.lastSeen && (
                       <span>Last seen {formatRelativeDate(new Date(p.lastSeen)).toLowerCase()}</span>
                     )}

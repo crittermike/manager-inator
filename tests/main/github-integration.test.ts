@@ -12,7 +12,9 @@ vi.mock('../../src/main/store', () => ({
     repoName: '',
     githubToken: 'fake',
     defaultModel: 'gpt-4.1',
-    aiCustomInstructions: ''
+    aiCustomInstructions: '',
+    userName: 'Mike Crittenden',
+    userGithub: ''
   }),
   setToken: vi.fn(),
   getToken: () => 'fake-token',
@@ -24,7 +26,7 @@ import {
   getReports,
   getReportData,
   getReportProfile,
-  listMeetings,
+  listContexts,
   listPeople,
   getPersonMeetings,
   findPersonByName,
@@ -179,28 +181,28 @@ describe('github.ts integration tests', () => {
     })
   })
 
-  describe('listMeetings', () => {
-    it('returns all meeting files', () => {
-      const meetings = listMeetings()
-      expect(meetings.length).toBe(4)
+  describe('listContexts', () => {
+    it('returns all context files', () => {
+      const contexts = listContexts()
+      expect(contexts.length).toBe(4)
     })
 
-    it('sorts meetings by date descending', () => {
-      const meetings = listMeetings()
-      for (let i = 1; i < meetings.length; i++) {
-        expect(meetings[i - 1].date >= meetings[i].date).toBe(true)
+    it('sorts context entries by date descending', () => {
+      const contexts = listContexts()
+      for (let i = 1; i < contexts.length; i++) {
+        expect(contexts[i - 1].date >= contexts[i].date).toBe(true)
       }
     })
 
     it('extracts title from YAML frontmatter', () => {
-      const meetings = listMeetings()
-      const alice11 = meetings.find(m => m.filename === '2026-03-11-alice-1-1.md')
+      const contexts = listContexts()
+      const alice11 = contexts.find(m => m.filename === '2026-03-11-alice-1-1.md')
       expect(alice11?.title).toBe('Alice 1:1')
     })
 
     it('derives title from filename when no frontmatter', () => {
-      const meetings = listMeetings()
-      const alice04 = meetings.find(m => m.filename === '2026-03-04-alice-1-1.md')
+      const contexts = listContexts()
+      const alice04 = contexts.find(m => m.filename === '2026-03-04-alice-1-1.md')
       expect(alice04?.title).toBe('Alice 1-1')
     })
   })
@@ -336,10 +338,10 @@ describe('github.ts integration tests', () => {
       expect(second.lastUpdated).not.toBe(first.lastUpdated)
     })
 
-    it('meetings cache persists across calls', () => {
-      listMeetings()
+    it('contexts cache persists across calls', () => {
+      listContexts()
       const t0 = performance.now()
-      listMeetings()
+      listContexts()
       const elapsed = performance.now() - t0
       expect(elapsed).toBeLessThan(5)
     })
@@ -353,7 +355,7 @@ describe('github.ts integration tests', () => {
     })
 
     it('clearAllCaches invalidates all caches', () => {
-      listMeetings()
+      listContexts()
       listPeople()
       getTeamOverview()
       getReportData('alice')
@@ -500,8 +502,8 @@ describe('github.ts integration tests', () => {
       setRepoPath(minFixture.dir)
       clearAllCaches()
 
-      const meetings = listMeetings()
-      expect(meetings).toEqual([])
+      const contexts = listContexts()
+      expect(contexts).toEqual([])
 
       setRepoPath(fixture.dir)
       clearAllCaches()
@@ -534,7 +536,7 @@ describe('github.ts integration tests', () => {
       const t0 = performance.now()
       const result = getTodayBootstrap()
       const elapsed = performance.now() - t0
-      expect(result.meetings.length).toBeGreaterThan(0)
+      expect(result.contexts.length).toBeGreaterThan(0)
       expect(result.teamActionItems.length).toBeGreaterThan(0)
       expect(elapsed).toBeLessThan(500)
     })
@@ -544,7 +546,7 @@ describe('github.ts integration tests', () => {
       const t0 = performance.now()
       const result = getTodayBootstrap()
       const elapsed = performance.now() - t0
-      expect(result.meetings.length).toBeGreaterThan(0)
+      expect(result.contexts.length).toBeGreaterThan(0)
       expect(elapsed).toBeLessThan(10)
     })
 

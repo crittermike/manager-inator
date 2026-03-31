@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { getDay, format, getMonth, getDate } from 'date-fns'
-import type { ReportStatus, MeetingEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
+import type { ReportStatus, ContextEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { formatActivityCounts } from '../utils/activitySuggestions'
 import { matchesMeetingDay } from '../utils/meetingDay'
 import { formatRelativeDate } from '../utils/formatDate'
@@ -156,7 +156,7 @@ function getDailyMotivation(): string {
 
 function computeTimelineItems(
   reports: ReportStatus[],
-  meetings: MeetingEntry[],
+  contexts: ContextEntry[],
   cadence: CadenceSettings,
   doneIds: Set<string>,
   teamActions: TeamActionItem[],
@@ -552,9 +552,9 @@ function computeTimelineItems(
   // ── Daily interaction nudge ──
   if (!isWeekend && now.getHours() >= 14) {
     const todayStr = format(now, 'yyyy-MM-dd')
-    const hasTodayMeeting = meetings.some(m => m.date === todayStr)
+    const hasTodayContext = contexts.some(m => m.date === todayStr)
     const hasTodayFeedback = reports.some(r => r.lastFeedback === todayStr)
-    const hadAnyTouchpoint = hasTodayMeeting || hasTodayFeedback
+    const hadAnyTouchpoint = hasTodayContext || hasTodayFeedback
     if (!hadAnyTouchpoint) {
       items.push({
         id: `daily-interaction-${todayStr}`,
@@ -751,7 +751,7 @@ export function Today() {
   const { settings } = useSettings()
   const navigate = useNavigate()
   const toast = useToast()
-  const [meetings, setMeetings] = useState<MeetingEntry[]>([])
+  const [contexts, setContexts] = useState<ContextEntry[]>([])
   const [teamActions, setTeamActions] = useState<TeamActionItem[]>([])
   const [customPractices, setCustomPractices] = useState<CustomPractice[]>([])
   const [disabledPractices, setDisabledPractices] = useState<string[]>([])
@@ -824,8 +824,8 @@ export function Today() {
   }, [])
 
   useEffect(() => {
-    window.api.getTodayBootstrap().then(({ meetings: m, teamActionItems: ta }) => {
-      setMeetings(m)
+    window.api.getTodayBootstrap().then(({ contexts: c, teamActionItems: ta }) => {
+      setContexts(c)
       setTeamActions(ta)
     }).catch(() => {})
   }, [])
@@ -973,7 +973,7 @@ export function Today() {
   }, [teamActions, snoozedActionItems])
 
   const items = useMemo(() => {
-    const raw = computeTimelineItems(reports, meetings, cadence, doneIds, filteredTeamActions, customPractices)
+    const raw = computeTimelineItems(reports, contexts, cadence, doneIds, filteredTeamActions, customPractices)
     const all = raw
     return all.filter(item => {
       const practiceId = getPracticeIdForItem(item.id)
@@ -998,7 +998,7 @@ export function Today() {
       }
       return item
     })
-  }, [reports, meetings, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap, teamActivity])
+  }, [reports, contexts, cadence, doneIds, filteredTeamActions, customPractices, disabledPractices, snoozedPractices, ptoReports, prepExistsMap, teamActivity])
 
   const sections: TimelineSection[] = ['reflection', 'overdue', 'this-week', 'coming-up', 'done']
 
@@ -1244,8 +1244,8 @@ export function Today() {
         <button
           onClick={() => {
             refresh()
-    window.api.getTodayBootstrap().then(({ meetings: m, teamActionItems: ta }) => {
-      setMeetings(m)
+    window.api.getTodayBootstrap().then(({ contexts: c, teamActionItems: ta }) => {
+      setContexts(c)
       setTeamActions(ta)
     }).catch(() => {})
             if (hasGithubOrgToken) fetchTeamActivity()
@@ -1774,7 +1774,7 @@ const TimelineRow = memo(function TimelineRow({
                 e.stopPropagation()
                 markDone(item.id)
               }}
-              className="p-1 text-zinc-600 hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100"
+              className="p-1 text-zinc-600 hover:text-emerald-400 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
               aria-label="Mark done"
               title="Mark done"
             >

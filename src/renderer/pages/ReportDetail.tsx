@@ -255,8 +255,8 @@ export function ReportDetail() {
 
     let crossMentions = ''
     try {
-      const allMeetings = await window.api.listMeetings()
-      const otherWithSummaries = allMeetings
+      const allContexts = await window.api.listContexts()
+      const otherWithSummaries = allContexts
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
 

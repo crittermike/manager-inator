@@ -138,11 +138,11 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       const name = path.replace('/report/', '')
       return `The user is currently viewing the report page for "${name}". They can see this person's profile, recent 1:1 summaries, action items, feedback history, check-ins, and reviews. Help them with anything related to managing this person — prep for 1:1s, draft feedback, analyze patterns, or answer questions about their history.`
     }
-    if (path === '/') return 'The user is on the Today view — their daily action plan showing overdue items, upcoming 1:1 prep, and inbox items. Help them prioritize, prep for meetings, or tackle their to-do list.'
+    if (path === '/') return 'The user is on the Today view — their daily action plan showing overdue items, upcoming 1:1 prep, and inbox items. Help them prioritize, prep from context, or tackle their to-do list.'
     if (path === '/playbook') return 'The user is on the Playbook — their management cadence system with practices like weekly reflections, monthly check-ins, and skip-levels.'
-    if (path === '/search') return 'The user is on the Search page. Help them find meetings, people, or specific information.'
-    if (path === '/impact') return 'The user is viewing their Impact Log — a record of their wins and contributions as an engineering manager.'
-    if (path.startsWith('/meeting/')) return 'The user is viewing a meeting summary. Help them with follow-ups, action items, or analysis of the discussion.'
+    if (path === '/search') return 'The user is on the Search page. Help them find context, people, or specific information.'
+    if (path === '/my-profile') return 'The user is viewing their Impact Log — a record of their wins and contributions as an engineering manager.'
+    if (path.startsWith('/context/')) return 'The user is viewing a context summary. Help them with follow-ups, action items, or analysis of the discussion.'
     if (path.startsWith('/people/')) {
       const slug = path.replace('/people/', '')
       return `The user is viewing the profile for "${slug}" in their people directory.`
@@ -297,7 +297,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
         `What should I watch for with ${name}?`
       ]
     }
-    if (path === '/impact') {
+    if (path === '/my-profile') {
       return [
         'Summarize my impact this quarter',
         'What themes stand out?',
@@ -342,7 +342,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
         <div className="flex items-center gap-1">
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`p-1.5 rounded-lg transition-colors ${showHistory ? 'bg-brand/15 text-brand-light' : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'}`}
+            className={`p-1.5 rounded-lg transition-colors ${showHistory ? 'bg-surface-raised text-zinc-300 border border-border' : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised border border-transparent'}`}
             aria-label="Chat history"
             title="Chat history"
           >
@@ -381,11 +381,11 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                 tabIndex={0}
                 onClick={() => handleSwitchSession(s.id)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSwitchSession(s.id) }}
-                className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer group/hist ${
-                  s.id === activeId ? 'bg-brand/10' : 'hover:bg-surface-raised'
+                className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer group/hist border border-transparent ${
+                  s.id === activeId ? 'bg-surface-raised border-border' : 'hover:bg-surface-raised'
                 }`}
               >
-                <MessageSquare className={`w-3 h-3 shrink-0 ${s.id === activeId ? 'text-brand-light' : 'text-zinc-600'}`} aria-hidden="true" />
+                <MessageSquare className={`w-3 h-3 shrink-0 ${s.id === activeId ? 'text-zinc-300' : 'text-zinc-600'}`} aria-hidden="true" />
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs truncate ${s.id === activeId ? 'text-zinc-200 font-medium' : 'text-zinc-400'}`}>{s.title}</p>
                   <p className="text-[10px] text-zinc-600">{s.messages.length} msg{s.messages.length !== 1 ? 's' : ''}</p>
@@ -436,7 +436,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             )}
             <div className={`max-w-[85%] rounded-xl px-3 py-2 relative ${
               msg.role === 'user'
-                ? 'bg-brand text-white'
+                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
                 : 'bg-surface border border-border'
             }`}>
               {msg.role === 'assistant' && (
@@ -473,7 +473,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <div className="w-6 h-6 rounded-md bg-brand/15 flex items-center justify-center shrink-0 mt-0.5">
               <Bot className="w-3.5 h-3.5 text-brand" aria-hidden="true" />
             </div>
-            <div className={`rounded-xl px-3 py-2 bg-surface border border-brand/20 animate-shimmer ${streamedText.trimStart() ? 'max-w-[85%]' : 'w-fit'}`}>
+            <div className={`rounded-xl px-3 py-2 bg-surface border border-border animate-shimmer ${streamedText.trimStart() ? 'max-w-[85%]' : 'w-fit'}`}>
               {streamedText.trimStart() ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
                   <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText.trimStart()}</div>
@@ -481,9 +481,9 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               ) : (
                 <div className="flex flex-col gap-1 py-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                   {toolStatus && (
                     <div className="flex items-center gap-1 text-[10px] text-zinc-500 max-w-[200px]">
@@ -518,7 +518,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <button
               onClick={cancel}
               aria-label="Stop generating"
-              className="p-1.5 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
+              className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors shrink-0"
             >
               <StopCircle className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -527,7 +527,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               onClick={() => sendMessage()}
               disabled={!input.trim()}
               aria-label="Send message"
-              className="p-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
+              className="p-1.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-zinc-100 transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
             >
               <Send className="w-3.5 h-3.5" aria-hidden="true" />
             </button>

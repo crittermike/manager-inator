@@ -28,11 +28,13 @@ export interface MockMeeting {
 export function createMockDataRepo(repoPath: string, options: {
   reports?: MockReport[]
   meetings?: MockMeeting[]
+  contexts?: MockMeeting[]
   settingsFile?: string
 } = {}): void {
   // Create base directories
   const dirs = [
     'reports',
+    'contexts',
     'meetings',
     'transcripts/processed',
     'people'
@@ -67,7 +69,27 @@ Test profile for ${report.displayName}.
     }
   }
   
-  // Create meeting files
+  if (options.contexts) {
+    for (const meeting of options.contexts) {
+      const speakers = meeting.speakers || []
+      const speakerYaml = speakers.length > 0
+        ? `\nspeakers:\n${speakers.map(s => `  - ${s}`).join('\n')}`
+        : ''
+
+      const content = `---
+title: ${meeting.title}${speakerYaml}
+---
+
+${meeting.content || `# ${meeting.title}\n\nTest meeting content.`}
+`
+      writeFileSync(
+        join(repoPath, 'contexts', meeting.filename),
+        content,
+        'utf-8'
+      )
+    }
+  }
+
   if (options.meetings) {
     for (const meeting of options.meetings) {
       const speakers = meeting.speakers || []

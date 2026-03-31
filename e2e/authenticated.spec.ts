@@ -16,6 +16,7 @@ function createTestDataRepo(): string {
   mkdirSync(join(dir, 'reports', 'alice-smith', 'feedback'), { recursive: true })
   mkdirSync(join(dir, 'reports', 'alice-smith', 'reviews'), { recursive: true })
   mkdirSync(join(dir, 'reports', 'bob-jones'), { recursive: true })
+  mkdirSync(join(dir, 'contexts'), { recursive: true })
   mkdirSync(join(dir, 'meetings'), { recursive: true })
   mkdirSync(join(dir, 'transcripts', 'raw'), { recursive: true })
   mkdirSync(join(dir, 'transcripts', 'processed'), { recursive: true })
@@ -52,7 +53,7 @@ function createTestDataRepo(): string {
 | **Meeting Day** | Thursday |
 `)
 
-  writeFileSync(join(dir, 'meetings', '2026-03-17-alice-1-1.md'), `---
+  writeFileSync(join(dir, 'contexts', '2026-03-17-alice-1-1.md'), `---
 title: Alice 1:1
 speakers:
   - Mike Crittenden
@@ -69,7 +70,7 @@ speakers:
 - [x] **Mike**: Review the design doc
 `)
 
-  writeFileSync(join(dir, 'meetings', '2026-03-19-bob-1-1.md'), `---
+  writeFileSync(join(dir, 'contexts', '2026-03-19-bob-1-1.md'), `---
 title: Bob 1:1
 speakers:
   - Mike Crittenden
@@ -114,7 +115,7 @@ relationship: Direct Report
 - Peer
 `)
 
-  writeFileSync(join(dir, 'mike-impact-log.md'), `# Impact Log
+  writeFileSync(join(dir, 'impact-log.md'), `# Impact Log
 
 ## 2026-03-10 - Team process improvement
 
@@ -256,8 +257,8 @@ test.describe('Authenticated App - IPC Integration', () => {
     expect(reports).toContain('bob-jones')
   })
 
-  test('github:list-meetings returns fixture meetings', async () => {
-    const meetings = await ipcMainInvokeHandler(app, 'github:list-meetings') as any[]
+  test('github:list-contexts returns fixture context entries', async () => {
+    const meetings = await ipcMainInvokeHandler(app, 'github:list-contexts') as any[]
 
     expect(meetings.length).toBe(2)
     expect(meetings.map((m: any) => m.filename)).toContain('2026-03-17-alice-1-1.md')

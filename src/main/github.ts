@@ -3,6 +3,7 @@ import { join, dirname, resolve, relative, isAbsolute } from 'path'
 import { spawn } from 'child_process'
 import { BrowserWindow } from 'electron'
 import { getSettings } from './store'
+import { IMPACT_LOG_PATH } from '../shared/constants'
 import type {
   ReportProfile,
   Report,
@@ -16,7 +17,7 @@ import type {
   TeamOverview,
   ReportStatus,
   TeamActionItem,
-  MeetingEntry,
+  ContextEntry,
   PersonEntry
 } from '../shared/types'
 
@@ -114,6 +115,12 @@ export function getFilesContentBulk(paths: string[]): Record<string, string> {
     } catch {}
   }
   return result
+}
+
+export function isGitRepo(absolutePath: string): boolean {
+  try {
+    return existsSync(join(absolutePath, '.git'))
+  } catch { return false }
 }
 
 export function fileExists(relPath: string): boolean {
@@ -296,6 +303,7 @@ export function invalidateCachesForPath(filePath: string): void {
     }
   } else if (p.startsWith('people/')) {
     invalidatePeopleCache()
+    _contextsCache = null
     invalidateSearchIndex()
   }
 }
@@ -405,10 +413,19 @@ function schedulePush(cwd: string): void {
 
 function _executePush(cwd: string): void {
   if (_pushInFlight) {
-    // Another push running — reschedule so we don't overlap
     schedulePush(cwd)
     return
   }
+
+  // Skip push if no remote is configured (local-only repo)
+  try {
+    const { execSync } = require('child_process')
+    const remotes = execSync('git remote', { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    if (!remotes) return
+  } catch {
+    return
+  }
+
   _pushInFlight = true
   const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
   child.unref()
@@ -833,12 +850,13 @@ export function getReports(): string[] {
 
 /**
  * Initialize a fresh data repo directory structure.
- * Creates reports/, meetings/, transcripts/processed/, and people/ directories.
+ * Creates reports/, contexts/, meetings/, transcripts/processed/, and people/ directories.
  * Also initializes git if not already a git repo.
  */
 export function initializeRepo(repoDir: string): void {
   const dirs = [
     'reports',
+    'contexts',
     'meetings',
     'transcripts/processed',
     'people'
@@ -996,10 +1014,11 @@ export function getReportData(name: string): Report {
   }
 
   const personFirstName = (profile.displayName || profile.name || name).split(/\s+/)[0].toLowerCase()
+  const managerFirstName = (getSettings().userName || '').split(/\s+/)[0].toLowerCase()
   const relevantActions = actionItems.filter(a => {
     const ownerLower = a.owner.toLowerCase()
     const ownerFirst = ownerLower.split(/\s+/)[0]
-    return ownerFirst === personFirstName || ownerFirst === 'mike' || ownerLower === 'unknown'
+    return ownerFirst === personFirstName || (managerFirstName && ownerFirst === managerFirstName) || ownerLower === 'unknown'
   })
 
   const feedback = parseFeedbackLog(feedbackRaw)
@@ -1145,6 +1164,58 @@ function parseContextsCacheEntry(filename: string, content: string): ContextsCac
   }
 }
 
+// Builds name→slug lookup from people/ and reports/ without calling listPeople() (circular dependency).
+function buildNameToSlugMap(): Map<string, string> {
+  const nameToSlug = new Map<string, string>()
+
+  try {
+    const peopleFiles = listFiles('people').filter(f => f.endsWith('.md') && f !== '.gitkeep')
+    for (const f of peopleFiles) {
+      try {
+        const content = readFileHead(safePath(`people/${f}`), 1024)
+        const slug = f.replace('.md', '')
+        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+        if (fmMatch) {
+          const nameMatch = fmMatch[1].match(/^name:\s*(.+)$/m)
+          const aliasMatch = fmMatch[1].match(/^aliases:\s*(.+)$/m)
+          const personName = nameMatch?.[1]?.trim()
+          if (personName) {
+            nameToSlug.set(personName.toLowerCase(), slug)
+            const firstName = personName.split(' ')[0].toLowerCase()
+            if (firstName && !nameToSlug.has(firstName)) {
+              nameToSlug.set(firstName, slug)
+            }
+          }
+          if (aliasMatch) {
+            for (const alias of aliasMatch[1].split(',').map(a => a.trim()).filter(Boolean)) {
+              nameToSlug.set(alias.toLowerCase(), slug)
+            }
+          }
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+
+  try {
+    const reports = getReports()
+    for (const reportName of reports) {
+      try {
+        const profile = getReportProfile(reportName)
+        const displayName = profile.displayName || profile.name
+        if (displayName) {
+          nameToSlug.set(displayName.toLowerCase(), reportName)
+          const firstName = displayName.split(' ')[0].toLowerCase()
+          if (firstName && !nameToSlug.has(firstName)) {
+            nameToSlug.set(firstName, reportName)
+          }
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+
+  return nameToSlug
+}
+
 function getContextsCache() {
   if (_contextsCache) return _contextsCache
 
@@ -1168,6 +1239,23 @@ function getContextsCache() {
     } catch { /* skip */ }
   }
 
+  // Resolve speaker names to person slugs (catches people not in the people: frontmatter)
+  const nameToSlug = buildNameToSlugMap()
+  for (const entry of entries) {
+    for (const speaker of entry.speakers) {
+      const slug = nameToSlug.get(speaker.toLowerCase())
+        || nameToSlug.get(speaker.split(' ')[0].toLowerCase())
+      if (slug) {
+        const arr = byPersonSlug.get(slug)
+        if (arr) {
+          if (!arr.includes(entry.filename)) arr.push(entry.filename)
+        } else {
+          byPersonSlug.set(slug, [entry.filename])
+        }
+      }
+    }
+  }
+
   _contextsCache = {
     entries,
     entriesSet: new Set(entries.map(e => e.filename)),
@@ -1177,12 +1265,11 @@ function getContextsCache() {
   return _contextsCache
 }
 
-// ── Meetings ──
+// ── Contexts ──
 
-export function listMeetings(): MeetingEntry[] {
+export function listContexts(): ContextEntry[] {
   const cache = getContextsCache()
   return cache.entries
-    .filter(e => e.source === 'meeting' || e.speakers.length > 0)
     .map(e => ({
       date: e.date,
       title: e.title || formatMeetingTitle(e.filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace('.md', '').replace(/-/g, ' ')),
@@ -1247,6 +1334,30 @@ export async function saveMeetingSpeakers(meetingFilename: string, speakerNames:
   } catch {
     await commitFile(meetingPath, `---\nspeakers:\n${speakersYaml}\n---\n`, `Set meeting speakers: ${speakerNames.join(', ')}`)
   }
+}
+
+export async function addPersonToContext(contextFilename: string, personSlug: string): Promise<void> {
+  const contextPath = `contexts/${contextFilename}`
+  let content = getFileContent(contextPath)
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+
+  if (fmMatch) {
+    let fm = fmMatch[1]
+    const existingPeople = parseYamlList(fm, 'people')
+    if (existingPeople.includes(personSlug)) return
+
+    const newEntry = `  - ${personSlug}`
+    if (/^people:\s*$/m.test(fm) || /^people:\s*\n/m.test(fm)) {
+      fm = fm.replace(/^(people:\s*\n(?:\s+-\s+.+\n?)*)/m, `$1${newEntry}\n`)
+    } else {
+      fm = `${fm}\npeople:\n${newEntry}`
+    }
+    content = `---\n${fm}\n---` + content.slice(fmMatch[0].length)
+  } else {
+    content = `---\npeople:\n  - ${personSlug}\n---\n\n${content}`
+  }
+
+  await commitFile(contextPath, content, `Link ${personSlug} to context`)
 }
 
 // ── People helpers ──
@@ -1445,7 +1556,7 @@ export function findPersonByName(name: string): string | null {
 
 export function getImpactLog(): string {
   try {
-    return getFileContent('mike-impact-log.md')
+    return getFileContent(IMPACT_LOG_PATH)
   } catch {
     return '# Impact log\n\n_No entries yet._'
   }
@@ -1599,11 +1710,11 @@ export function getTeamActionItems(): TeamActionItem[] {
 
 
 export function getTodayBootstrap(): {
-  meetings: MeetingEntry[]
+  contexts: ContextEntry[]
   teamActionItems: TeamActionItem[]
 } {
   return {
-    meetings: listMeetings(),
+    contexts: listContexts(),
     teamActionItems: getTeamActionItems()
   }
 }

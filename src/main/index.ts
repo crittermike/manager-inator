@@ -1,8 +1,12 @@
-import { app, BrowserWindow, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, session, shell } from 'electron'
 import { join } from 'path'
 import { setupIpcHandlers } from './ipc'
 import { preWarmCaches, flushPendingCommitsAsync } from './github'
 import { stopClient } from './copilot'
+import { buildAppMenu } from './menu'
+import { createTray, destroyTray } from './tray'
+import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts'
+import { getMainWindow, setMainWindow, getIsQuitting, setIsQuitting, ensureWindowAndSend } from './windowState'
 
 // Support custom userDataDir for test isolation
 if (process.env['ELECTRON_USER_DATA']) {
@@ -10,8 +14,6 @@ if (process.env['ELECTRON_USER_DATA']) {
 }
 
 app.setName('Manager-inator')
-
-let mainWindow: BrowserWindow | null = null
 
 const ALLOWED_SCHEMES = ['https:', 'http:', 'mailto:']
 
@@ -28,7 +30,7 @@ function openExternalSafe(url: string): void {
 }
 
 function createWindow(): void {
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1000,
@@ -46,30 +48,37 @@ function createWindow(): void {
     }
   })
 
+  setMainWindow(win)
+
   // Open external links in browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     openExternalSafe(url)
     return { action: 'deny' }
   })
 
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  win.webContents.on('will-navigate', (event, url) => {
     const rendererUrl = process.env['ELECTRON_RENDERER_URL']
     if (rendererUrl && url.startsWith(rendererUrl)) return
     event.preventDefault()
     openExternalSafe(url)
   })
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  win.on('close', (e) => {
+    if (!getIsQuitting() && process.platform === 'darwin') {
+      e.preventDefault()
+      win.hide()
+      return
+    }
+    setMainWindow(null)
   })
 
   // Log renderer errors
-  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
+  win.webContents.on('did-fail-load', (_e, code, desc) => {
     console.error('Failed to load:', code, desc)
   })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.webContents.on('console-message', (_e, _level, message) => {
+    win.webContents.on('console-message', (_e, _level, message) => {
       console.log('[Renderer]', message)
     })
   }
@@ -77,12 +86,16 @@ function createWindow(): void {
   // Dev: load from vite server; Prod: load built files
   if (process.env['ELECTRON_RENDERER_URL']) {
     console.log('Loading dev URL:', process.env['ELECTRON_RENDERER_URL'])
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
+
+app.on('before-quit', () => {
+  setIsQuitting(true)
+})
 
 app.whenReady().then(() => {
   if (!process.env['ELECTRON_RENDERER_URL']) {
@@ -99,7 +112,27 @@ app.whenReady().then(() => {
   }
 
   setupIpcHandlers()
+
+  app.setAboutPanelOptions({
+    applicationName: 'Manager-inator',
+    applicationVersion: app.getVersion(),
+    copyright: 'Manager-inator',
+    iconPath: join(__dirname, '../../resources/icon.png')
+  })
+
+  buildAppMenu()
   createWindow()
+  createTray()
+  registerGlobalShortcuts()
+
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setMenu(Menu.buildFromTemplate([
+      {
+        label: 'New Capture',
+        click: () => ensureWindowAndSend('app:open-capture')
+      }
+    ]))
+  }
 
   // Pre-warm caches after window is shown so first navigation is instant
   setTimeout(() => preWarmCaches((message) => {
@@ -110,7 +143,10 @@ app.whenReady().then(() => {
   }), 500)
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.show()
+    } else if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     }
   })
@@ -122,9 +158,20 @@ app.on('window-all-closed', () => {
   }
 })
 
+const QUIT_TIMEOUT_MS = 5000
+
 app.on('will-quit', (e) => {
   e.preventDefault()
+  unregisterGlobalShortcuts()
+  destroyTray()
+
+  const forceQuit = setTimeout(() => {
+    stopClient()
+    app.exit(0)
+  }, QUIT_TIMEOUT_MS)
+
   flushPendingCommitsAsync().finally(() => {
+    clearTimeout(forceQuit)
     stopClient()
     app.exit(0)
   })

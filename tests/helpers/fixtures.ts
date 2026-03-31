@@ -265,7 +265,7 @@ Frontend engineer, joined mid-2024.
 `)
 
   // ── impact log ──
-  writeFileSync(join(dir, 'mike-impact-log.md'), `# Impact Log
+  writeFileSync(join(dir, 'impact-log.md'), `# Impact Log
 
 ## 2026-03-10 - Team Process Improvement
 

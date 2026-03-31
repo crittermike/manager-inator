@@ -192,13 +192,16 @@ export interface AppSettings {
   ptoReports: Record<string, string>
   hasGithubOrgToken: boolean
   githubOrgName: string
+  userName: string
+  userGithub: string
 }
 
-// ── Meeting entry (from listMeetings) ──
-export interface MeetingEntry {
+// ── Context entry (from listContexts) ──
+export interface ContextEntry {
   date: string
   title: string
   filename: string
+  processed: boolean
 }
 
 // ── GitHub Activity (org-level PR/issue tracking) ──
@@ -318,6 +321,7 @@ export interface IpcApi {
   // GitHub data
   getReports: () => Promise<string[]>
   initializeRepo: (repoDir: string) => Promise<void>
+  isGitRepo: (path: string) => Promise<boolean>
   createReport: (displayName: string, fields?: CreateReportFields) => Promise<string>
   getReportProfile: (name: string) => Promise<ReportProfile>
   getReportData: (name: string) => Promise<Report>
@@ -326,7 +330,7 @@ export interface IpcApi {
   getFilesContentBulk: (paths: string[]) => Promise<Record<string, string>>
   commitFile: (path: string, content: string, message: string) => Promise<void>
   deleteFile: (path: string) => Promise<void>
-  listMeetings: () => Promise<MeetingEntry[]>
+  listContexts: () => Promise<ContextEntry[]>
   listPeople: () => Promise<PersonEntry[]>
   getPersonMeetings: (slug: string) => Promise<MeetingRef[]>
   findPersonByName: (name: string) => Promise<string | null>
@@ -334,11 +338,12 @@ export interface IpcApi {
   getSettingsOptions: () => Promise<SettingsOptions>
   saveMeetingTitle: (filename: string, title: string) => Promise<void>
   saveMeetingSpeakers: (filename: string, speakers: string[]) => Promise<void>
+  addPersonToContext: (contextFilename: string, personSlug: string) => Promise<void>
   toggleActionItem: (sourceFile: string, lineNumber: number) => Promise<void>
   resolveAndToggleActionItem: (reportName: string, prepText: string) => Promise<boolean>
   getOpenActionItemsForPeople: (slugs: string[]) => Promise<{ slug: string; items: ActionItem[] }[]>
   getTeamActionItems: () => Promise<TeamActionItem[]>
-  getTodayBootstrap: () => Promise<{ meetings: MeetingEntry[]; teamActionItems: TeamActionItem[] }>
+  getTodayBootstrap: () => Promise<{ contexts: ContextEntry[]; teamActionItems: TeamActionItem[] }>
   clearCaches: () => Promise<void>
   getPrewarmStatus: () => Promise<boolean>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
@@ -366,4 +371,12 @@ export interface IpcApi {
 
   // Electron dialogs
   showOpenDialog: (options: { properties: string[]; title?: string }) => Promise<string | null>
+
+  // Native macOS integration
+  onNavigate: (cb: (route: string) => void) => () => void
+  onOpenCapture: (cb: () => void) => () => void
+  onTrayCapture: (cb: (content: string) => void) => () => void
+  trayCaptureSubmit: (content: string) => Promise<void>
+  trayCaptureClose: () => Promise<void>
+  onTrayCaptureReset: (cb: () => void) => () => void
 }

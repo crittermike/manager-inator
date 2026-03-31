@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   // GitHub data
   getReports: () => ipcRenderer.invoke('github:reports'),
   initializeRepo: (repoDir: string) => ipcRenderer.invoke('github:initialize-repo', repoDir),
+  isGitRepo: (path: string) => ipcRenderer.invoke('github:is-git-repo', path),
   createReport: (displayName: string, fields?: Record<string, string>) => ipcRenderer.invoke('github:create-report', displayName, fields),
   getReportProfile: (name: string) => ipcRenderer.invoke('github:profile', name),
   getReportData: (name: string) => ipcRenderer.invoke('github:report-data', name),
@@ -25,7 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   commitFile: (path: string, content: string, message: string) =>
     ipcRenderer.invoke('github:commit-file', path, content, message),
   deleteFile: (path: string) => ipcRenderer.invoke('github:delete-file', path),
-  listMeetings: () => ipcRenderer.invoke('github:list-meetings'),
+  listContexts: () => ipcRenderer.invoke('github:list-contexts'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),
   searchContent: (query: string) => ipcRenderer.invoke('github:search-content', query),
   getPersonMeetings: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
@@ -36,6 +37,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('github:save-meeting-title', filename, title),
   saveMeetingSpeakers: (filename: string, speakers: string[]) =>
     ipcRenderer.invoke('github:save-meeting-speakers', filename, speakers),
+  addPersonToContext: (contextFilename: string, personSlug: string) =>
+    ipcRenderer.invoke('github:add-person-to-context', contextFilename, personSlug),
   toggleActionItem: (sourceFile: string, lineNumber: number) =>
     ipcRenderer.invoke('github:toggle-action-item', sourceFile, lineNumber),
   resolveAndToggleActionItem: (reportName: string, prepText: string) =>
@@ -108,5 +111,28 @@ contextBridge.exposeInMainWorld('api', {
   showOpenDialog: (options: { properties: string[]; title?: string }) =>
     ipcRenderer.invoke('dialog:open', options),
 
-  debugTestOrgToken: () => ipcRenderer.invoke('debug:test-org-token')
+  debugTestOrgToken: () => ipcRenderer.invoke('debug:test-org-token'),
+
+  onNavigate: (cb: (route: string) => void) => {
+    const handler = (_event: unknown, route: string) => cb(route)
+    ipcRenderer.on('app:navigate', handler)
+    return () => ipcRenderer.removeListener('app:navigate', handler)
+  },
+  onOpenCapture: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('app:open-capture', handler)
+    return () => ipcRenderer.removeListener('app:open-capture', handler)
+  },
+  onTrayCapture: (cb: (content: string) => void) => {
+    const handler = (_event: unknown, content: string) => cb(content)
+    ipcRenderer.on('app:tray-capture', handler)
+    return () => ipcRenderer.removeListener('app:tray-capture', handler)
+  },
+  trayCaptureSubmit: (content: string) => ipcRenderer.invoke('tray-capture:submit', content),
+  trayCaptureClose: () => ipcRenderer.invoke('tray-capture:close'),
+  onTrayCaptureReset: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('tray-capture:reset', handler)
+    return () => ipcRenderer.removeListener('tray-capture:reset', handler)
+  }
 })

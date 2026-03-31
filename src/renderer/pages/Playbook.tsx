@@ -769,6 +769,7 @@ export function Playbook() {
   const [customPractices, setCustomPractices] = useState<Practice[]>([])
   const [editingPracticeId, setEditingPracticeId] = useState<string | null>(null)
   const [snoozeOpenId, setSnoozeOpenId] = useState<string | null>(null)
+  const [snoozePos, setSnoozePos] = useState<{ top: number; right: number } | null>(null)
   const [isAddingPractice, setIsAddingPractice] = useState(false)
   const [practiceCompletions, setPracticeCompletions] = useState<Record<string, string>>({})
   const [practiceSchedules, setPracticeSchedules] = useState<Record<string, PracticeSchedule>>({})
@@ -909,6 +910,7 @@ export function Playbook() {
     setSnoozedPractices(updated)
     window.api.saveSettings({ snoozedPractices: updated })
     setSnoozeOpenId(null)
+    setSnoozePos(null)
     const practiceName = allPractices.find(p => p.id === id)?.name || 'Practice'
     toast.success(`${practiceName} snoozed`, 'Snoozed', { label: 'Undo', onClick: () => handleUnsnooze(id) })
   }
@@ -1263,13 +1265,13 @@ export function Playbook() {
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <div className="relative inline-block">
-                                  <button onClick={(e) => { e.stopPropagation(); setSnoozeOpenId(practice.id); }} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Snooze practice">
+                                  <button onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setSnoozePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right }); setSnoozeOpenId(practice.id); }} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Snooze practice">
                                     <BellOff className="w-3.5 h-3.5" />
                                   </button>
-                                  {snoozeOpenId === practice.id && (
+                                  {snoozeOpenId === practice.id && snoozePos && (
                                     <>
-                                      <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setSnoozeOpenId(null); }} />
-                                      <div className="absolute right-0 top-full mt-1.5 z-50 w-48 bg-surface-overlay border border-border rounded-lg shadow-xl py-1 animate-slide-down">
+                                      <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setSnoozeOpenId(null); setSnoozePos(null); }} />
+                                      <div style={{ top: snoozePos.top, right: snoozePos.right }} className="fixed z-50 w-48 bg-surface-overlay border border-border rounded-lg shadow-xl py-1 animate-slide-down">
 <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 7); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">1 week</button>
                             <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 14); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">2 weeks</button>
                             <button onClick={(e) => { e.stopPropagation(); handleSnooze(practice.id, 30); }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-surface-overlay transition-colors">1 month</button>

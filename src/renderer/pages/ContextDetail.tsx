@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X, Copy, Download } from 'lucide-react'
+import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X, Copy, Download, UserPlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -8,16 +8,23 @@ import type { PersonEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import { useToast } from '../components/common/Toast'
 
-export function MeetingDetail() {
+export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { success, error: showError } = useToast()
-  const dir = searchParams.get('dir') || 'meetings'
+  const dir = searchParams.get('dir') || 'contexts'
   
   const [content, setContent] = useState<string | null>(null)
+  const [rawContent, setRawContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  const [activeTab, setActiveTab] = useState<'summary' | 'transcript'>('summary')
+  const [transcriptContent, setTranscriptContent] = useState<string | null>(null)
+  
+  const [isEditingContent, setIsEditingContent] = useState(false)
+  const [editContentValue, setEditContentValue] = useState('')
   
   const [title, setTitle] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -38,24 +45,29 @@ export function MeetingDetail() {
   const [copiedContent, setCopiedContent] = useState(false)
 
   const handleCopyContent = useCallback(async () => {
-    if (!content) return
-    await navigator.clipboard.writeText(content)
+    const textToCopy = activeTab === 'summary' ? content : transcriptContent
+    if (!textToCopy) return
+    await navigator.clipboard.writeText(textToCopy)
     setCopiedContent(true)
     success('Copied to clipboard')
     setTimeout(() => setCopiedContent(false), 2000)
-  }, [content, success])
+  }, [content, transcriptContent, activeTab, success])
 
   const handleDownloadContent = useCallback(() => {
-    if (!content) return
-    const blob = new Blob([content], { type: 'text/markdown' })
+    const textToDownload = activeTab === 'summary' ? content : transcriptContent
+    if (!textToDownload) return
+    const blob = new Blob([textToDownload], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = decodedFilename || 'meeting.md'
+    a.download = decodedFilename || (activeTab === 'summary' ? 'context.md' : 'transcript.txt')
+    if (activeTab === 'transcript') {
+      a.download = a.download.replace(/\.md$/, '.txt')
+    }
     a.click()
     URL.revokeObjectURL(url)
     success('Downloaded')
-  }, [content, decodedFilename, success])
+  }, [content, transcriptContent, activeTab, decodedFilename, success])
 
   useEffect(() => {
     window.api.listPeople().then(setPeople).catch(console.error)
@@ -99,10 +111,22 @@ export function MeetingDetail() {
         if (extractedSpeakers.length === 0) {
           const inlineMatch = rawContent.match(/\*\*Attendees:?\*\*:?\s*(.+)$/im)
           if (inlineMatch) {
-            extractedSpeakers = inlineMatch[1].split(',')
-              .map(s => s.trim())
-              .filter(Boolean)
-              .map(cleanAttendeeName)
+            const raw = inlineMatch[1]
+            const names: string[] = []
+            let current = ''
+            let depth = 0
+            for (const ch of raw) {
+              if (ch === '(') depth++
+              else if (ch === ')') depth--
+              else if (ch === ',' && depth === 0) {
+                if (current.trim()) names.push(current.trim())
+                current = ''
+                continue
+              }
+              current += ch
+            }
+            if (current.trim()) names.push(current.trim())
+            extractedSpeakers = names.map(cleanAttendeeName)
           }
         }
         
@@ -123,13 +147,26 @@ export function MeetingDetail() {
         
         setTitle(extractedTitle)
         setSpeakers(extractedSpeakers)
-        setContent(cleanSummaryContent(rawContent))
+        
+        // Split at "## Raw content" — summary above, raw transcript below
+        const rawContentHeadingMatch = rawContent.match(/\n## Raw content\s*\n/)
+        if (rawContentHeadingMatch && rawContentHeadingMatch.index !== undefined) {
+          const summaryPart = rawContent.slice(0, rawContentHeadingMatch.index)
+          const transcriptPart = rawContent.slice(rawContentHeadingMatch.index + rawContentHeadingMatch[0].length).trim()
+          setRawContent(summaryPart)
+          setContent(cleanSummaryContent(summaryPart))
+          setTranscriptContent(transcriptPart || null)
+        } else {
+          setRawContent(rawContent)
+          setContent(cleanSummaryContent(rawContent))
+          setTranscriptContent(null)
+        }
         setLoading(false)
       })
       .catch((err) => {
         if (isMounted) {
-          console.error('Failed to load meeting:', err)
-          setError('Unable to load meeting content. The file may have been moved or deleted.')
+          console.error('Failed to load context:', err)
+          setError('Unable to load context content. The file may have been moved or deleted.')
           setLoading(false)
         }
       })
@@ -193,6 +230,56 @@ export function MeetingDetail() {
     !editingSpeakersList.includes(p.name)
   )
 
+  const handleTabChange = (tab: 'summary' | 'transcript') => {
+    setActiveTab(tab)
+  }
+
+  const handleCreateSpeakerPerson = async (speakerName: string) => {
+    const trimmed = speakerName.trim()
+    if (!trimmed) return
+    const slug = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    
+    const existingSlug = await window.api.findPersonByName(trimmed)
+    if (existingSlug) {
+      const person = people.find(p => p.slug === existingSlug)
+      if (person) {
+        const isReport = person.relationship?.toLowerCase() === 'direct report'
+        navigate(isReport ? `/report/${person.slug}` : `/people/${person.slug}`)
+      }
+      return
+    }
+
+    const newContent = `---\nname: ${trimmed}\nslug: ${slug}\naliases: \nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${trimmed}\n`
+    
+    try {
+      await window.api.commitFile(`people/${slug}.md`, newContent, `Add person: ${trimmed}`)
+      await window.api.addPersonToContext(decodedFilename, slug)
+      success(`Created page for ${trimmed}`)
+      const freshPeople = await window.api.listPeople()
+      setPeople(freshPeople)
+      navigate(`/people/${slug}`)
+    } catch (err) {
+      console.error('Failed to create person:', err)
+      showError('Failed to create person page')
+    }
+  }
+
+  const handleSaveContent = async () => {
+    try {
+      const fileContent = transcriptContent
+        ? `${editContentValue}\n\n## Raw content\n\n${transcriptContent}`
+        : editContentValue
+      await window.api.commitFile(`${dir}/${decodedFilename}`, fileContent, `Update context: ${decodedFilename}`)
+      setRawContent(editContentValue)
+      setContent(cleanSummaryContent(editContentValue))
+      setIsEditingContent(false)
+      success('Context updated')
+    } catch (err) {
+      console.error('Failed to save content:', err)
+      showError('Failed to save content')
+    }
+  }
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -235,8 +322,8 @@ export function MeetingDetail() {
         </button>
         <div className="bg-surface rounded-xl border border-border p-8 text-center">
           <FileText className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-          <h2 className="text-lg font-medium text-zinc-200 mb-2">Meeting not found 📋</h2>
-          <p className="text-sm text-zinc-500">This meeting may have been moved or deleted.</p>
+          <h2 className="text-lg font-medium text-zinc-200 mb-2">Content not found 📋</h2>
+          <p className="text-sm text-zinc-500">This content may have been moved or deleted.</p>
         </div>
       </div>
     )
@@ -281,19 +368,17 @@ export function MeetingDetail() {
               ) : (
                 <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-3 group">
                   {title}
-                  {dir === 'meetings' && (
-                    <button
-                      onClick={() => {
-                        setEditTitleValue(title)
-                        setIsEditingTitle(true)
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
-                      title="Edit title"
-                      aria-label="Edit title"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setEditTitleValue(title)
+                      setIsEditingTitle(true)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
+                    title="Edit title"
+                    aria-label="Edit title"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
                 </h1>
               )}
             </div>
@@ -306,8 +391,7 @@ export function MeetingDetail() {
                 </div>
               )}
               
-              {(speakers.length > 0 || dir === 'meetings') && (
-                <div className="flex items-center gap-2 relative group/speakers">
+              <div className="flex items-center gap-2 relative group/speakers">
                   <Users className="w-4 h-4" />
                   
                   {isEditingSpeakers ? (
@@ -404,36 +488,88 @@ export function MeetingDetail() {
                               )
                             }
                             return (
-                              <span key={i} className="px-2 py-0.5 rounded-md bg-zinc-800/30 text-zinc-400">
+                              <span key={i} className="px-2 py-0.5 rounded-md bg-zinc-800/30 text-zinc-400 flex items-center gap-1">
                                 {speaker}
+                                <button
+                                  onClick={() => handleCreateSpeakerPerson(speaker)}
+                                  className="p-0.5 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded transition-colors"
+                                  title={`Create page for ${speaker}`}
+                                >
+                                  <UserPlus className="w-3 h-3" />
+                                </button>
                               </span>
                             )
                           })
                         )}
                       </div>
-                      {dir === 'meetings' && (
-                        <button
-                          onClick={() => {
-                            setEditingSpeakersList([...speakers])
-                            setIsEditingSpeakers(true)
-                          }}
-                          className="opacity-0 group-hover/speakers:opacity-100 p-1 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
-                          title="Edit attendees"
-                          aria-label="Edit attendees"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => {
+                          setEditingSpeakersList([...speakers])
+                          setIsEditingSpeakers(true)
+                        }}
+                        className="opacity-0 group-hover/speakers:opacity-100 p-1 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
+                        title="Edit attendees"
+                        aria-label="Edit attendees"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
                 </div>
-              )}
             </div>
           </div>
         </div>
         
-        <div className="px-6 py-8 prose-dark max-w-none relative group/content">
-          <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover/content:opacity-100 transition-opacity">
+        <div className="flex border-b border-border px-4">
+          <button
+            onClick={() => handleTabChange('summary')}
+            className={`text-sm px-4 py-2 -mb-px transition-colors border-b-2 ${activeTab === 'summary' ? 'text-zinc-100 border-brand' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}
+          >
+            Summary
+          </button>
+          <button
+            onClick={() => handleTabChange('transcript')}
+            className={`text-sm px-4 py-2 -mb-px transition-colors border-b-2 ${activeTab === 'transcript' ? 'text-zinc-100 border-brand' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}
+          >
+            Transcript
+          </button>
+        </div>
+        
+        <div className="px-6 py-8 relative group/content">
+          <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover/content:opacity-100 transition-opacity z-10">
+            {activeTab === 'summary' && !isEditingContent && (
+              <button
+                onClick={() => {
+                  setEditContentValue(rawContent || content || '')
+                  setIsEditingContent(true)
+                }}
+                className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
+                title="Edit summary"
+                aria-label="Edit summary"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            {activeTab === 'summary' && isEditingContent && (
+              <>
+                <button
+                  onClick={handleSaveContent}
+                  className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors"
+                  title="Save changes"
+                  aria-label="Save changes"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsEditingContent(false)}
+                  className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
+                  title="Cancel editing"
+                  aria-label="Cancel editing"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
             <button
               onClick={handleCopyContent}
               className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
@@ -445,13 +581,34 @@ export function MeetingDetail() {
             <button
               onClick={handleDownloadContent}
               className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
-              title="Download as markdown"
-              aria-label="Download as markdown"
+              title={activeTab === 'summary' ? "Download as markdown" : "Download transcript"}
+              aria-label={activeTab === 'summary' ? "Download as markdown" : "Download transcript"}
             >
               <Download className="w-4 h-4" />
             </button>
           </div>
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
+          
+          {activeTab === 'summary' ? (
+            isEditingContent ? (
+              <textarea
+                value={editContentValue}
+                onChange={e => setEditContentValue(e.target.value)}
+                className="w-full min-h-[400px] bg-surface border border-border rounded-lg p-4 text-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand/20 resize-y"
+              />
+            ) : (
+              <div className="prose-dark max-w-none">
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
+              </div>
+            )
+          ) : (
+            <pre className="font-mono text-sm text-zinc-300 whitespace-pre-wrap">
+              {transcriptContent ? (
+                transcriptContent
+              ) : (
+                <span className="text-zinc-500 italic font-sans">No raw transcript found in this file.</span>
+              )}
+            </pre>
+          )}
         </div>
       </div>
     </div>

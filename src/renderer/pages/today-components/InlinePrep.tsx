@@ -98,8 +98,8 @@ export function InlinePrep({
 
     let crossMentions = ''
     try {
-      const allMeetings = await window.api.listMeetings()
-      const otherMeetings = allMeetings
+      const allContexts = await window.api.listContexts()
+      const otherMeetings = allContexts
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
         .slice(0, 15)
       const paths = otherMeetings.map(m => `contexts/${m.filename}`)

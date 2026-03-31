@@ -112,7 +112,7 @@ All data lives in a local Git repository. The app reads from and writes to this 
 │       └── YYYY-MM-DD-slug.txt    # Original raw transcripts
 ├── people/
 │   └── firstname-lastname.md      # Profiles for anyone (not just reports)
-├── mike-impact-log.md             # Manager's impact evidence log
+├── impact-log.md                  # Manager's impact evidence log
 └── settings.md                    # Dropdown options for roles/relationships
 ```
 
@@ -125,7 +125,7 @@ All data lives in a local Git repository. The app reads from and writes to this 
 ---
 title: Nic 1-1           # Optional display title override
 speakers:
-  - Mike Crittenden
+  - Jane Smith
   - Nic Daantos
 ---
 ```

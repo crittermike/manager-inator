@@ -1,5 +1,5 @@
 /** Path to the manager's impact log file within the data repo */
-export const IMPACT_LOG_PATH = 'mike-impact-log.md'
+export const IMPACT_LOG_PATH = 'impact-log.md'
 
 /** Default AI model ID */
 export const DEFAULT_MODEL = 'gpt-4.1'

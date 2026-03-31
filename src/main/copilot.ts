@@ -398,7 +398,7 @@ transcripts/processed/       — Raw meeting transcripts
   YYYY-MM-DD-slug.txt        — Original unprocessed transcripts
 people/                      — Profiles for anyone (not just direct reports)
   firstname-lastname.md      — Person profiles with YAML frontmatter (name, role, relationship, etc.)
-mike-impact-log.md           — Manager's impact evidence log
+impact-log.md                — Manager's impact evidence log
 
 TIPS:
 - Start with ls to see what's available before reading specific files.
@@ -477,7 +477,7 @@ Rules:
 - "summary" is a short 2-3 sentence overview for metadata
 - "detailed_summary" is a thorough, structured markdown summary that captures the substance of the content. Write it so someone reading it months later can understand what happened without reading the raw content. Include specific names, decisions, and outcomes.
 - "key_context" should capture strategic information, decisions, or context that would be useful when writing future performance reviews or check-ins
-- "impact" should capture evidence of MY impact as the manager (Mike): decisions I made or influenced, people I coached or unblocked, problems I solved, process improvements I drove, cross-team coordination I facilitated, recognition I received. Format each as a bullet-point-ready string starting with a bold date and short title.
+- "impact" should capture evidence of MY impact as the manager: decisions I made or influenced, people I coached or unblocked, problems I solved, process improvements I drove, cross-team coordination I facilitated, recognition I received. Format each as a bullet-point-ready string starting with a bold date and short title.
 - "resolved_action_items" should identify any items from the EXISTING OPEN ITEMS list below that this content indicates have been completed, addressed, or are no longer relevant. Only include items where the content provides clear evidence they were resolved. Use the EXACT original_text from the open items list.
 
 ${context.sourceHint ? `The user indicated this is from: ${context.sourceHint}` : ''}
@@ -510,7 +510,7 @@ If someone is marked [ON PTO], note that they're on PTO. Low or no activity from
 
 IMPORTANT: I've included recent context notes below (meetings, Slack threads, emails, etc. from the past week). Use this to avoid flagging things I already know about. If a PR or issue was discussed in a recent meeting or Slack thread, don't tell me to "check in" on it or flag it as needing attention — I'm already aware. Focus your attention flags on things that are NOT covered by the recent context.
 
-Use markdown. Use a bold name for each person (e.g. **Chanakya**). Use markdown links for PR/issue references (e.g. [PR title](url)). Keep descriptions short and conversational.
+Use markdown. Use a bold name for each person (e.g. **Alex**). Use markdown links for PR/issue references (e.g. [PR title](url)). Keep descriptions short and conversational.
 
 End with a **TL;DR** paragraph highlighting the 2-3 most important things I should pay attention to.
 
@@ -559,7 +559,7 @@ ${context.activityData}`
 
 Look at what's open, what's upcoming, and what needs attention. Give me 3-5 priorities, each one sentence. Order by importance.
 
-Format as a simple numbered list. No headers, no fluff. Each item should be specific and actionable, not generic ("review PRs" is bad, "follow up on Nic's auth refactor PR that's been open 3 days" is good).
+Format as a simple numbered list. No headers, no fluff. Each item should be specific and actionable, not generic ("review PRs" is bad, "follow up on the auth refactor PR that's been open 3 days" is good).
 
 Context:
 ${context.teamContext ? `Team overview:\n${context.teamContext}\n` : ''}

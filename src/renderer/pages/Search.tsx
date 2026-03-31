@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
-import type { MeetingEntry, PersonEntry } from '../../shared/types'
+import type { ContextEntry, PersonEntry } from '../../shared/types'
 
 interface SearchResult {
   type: 'meeting' | 'person' | 'content'
@@ -23,7 +23,7 @@ interface ContentSearchResult {
 
 export function SearchPage() {
   const [query, setQuery] = useState('')
-  const [meetings, setMeetings] = useState<MeetingEntry[]>([])
+  const [contexts, setContexts] = useState<ContextEntry[]>([])
   const [people, setPeople] = useState<PersonEntry[]>([])
   const [contentResults, setContentResults] = useState<ContentSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -35,7 +35,7 @@ export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
-    window.api.listMeetings().then(setMeetings).catch(() => {})
+    window.api.listContexts().then(setContexts).catch(() => {})
     window.api.listPeople().then(setPeople).catch(() => {})
   }, [])
 
@@ -69,7 +69,7 @@ export function SearchPage() {
   useEffect(() => {
     const meetingParam = searchParams.get('meeting')
     if (meetingParam) {
-      navigate(`/meeting/${encodeURIComponent(meetingParam)}?dir=contexts`, { replace: true })
+      navigate(`/context/${encodeURIComponent(meetingParam)}?dir=contexts`, { replace: true })
     }
   }, [searchParams, navigate])
 
@@ -83,7 +83,7 @@ export function SearchPage() {
 
   const recentItems = useMemo(() => {
     if (query.trim()) return []
-    return [...meetings]
+    return [...contexts]
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 30)
       .map(m => ({
@@ -94,7 +94,7 @@ export function SearchPage() {
         date: m.date,
         filename: m.filename
       }))
-  }, [query, meetings])
+  }, [query, contexts])
 
   const results = useMemo(() => {
     if (!query.trim()) return []
@@ -102,7 +102,7 @@ export function SearchPage() {
     const titleItems: SearchResult[] = []
     const contentItems: SearchResult[] = []
 
-    for (const m of meetings) {
+    for (const m of contexts) {
       if (m.title.toLowerCase().includes(q) || m.filename.toLowerCase().includes(q)) {
         titleItems.push({
           type: 'meeting',
@@ -187,7 +187,7 @@ export function SearchPage() {
     })
 
     return [...titleItems, ...contentItems].slice(0, 50)
-  }, [query, meetings, people, contentResults])
+  }, [query, contexts, people, contentResults])
 
   const filteredResults = useMemo(() => {
     if (typeFilter === 'all') return results
@@ -209,11 +209,11 @@ export function SearchPage() {
 
   const handleResultClick = (r: SearchResult) => {
     if (r.type === 'meeting' && r.filename) {
-      navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=contexts`)
+      navigate(`/context/${encodeURIComponent(r.filename)}?dir=contexts`)
     } else if (r.type === 'content' && r.directory === 'contexts' && r.filename) {
-      navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=contexts`)
+      navigate(`/context/${encodeURIComponent(r.filename)}?dir=contexts`)
     } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
-      navigate(`/meeting/${encodeURIComponent(r.filename)}?dir=weekly-log`)
+      navigate(`/context/${encodeURIComponent(r.filename)}?dir=weekly-log`)
     } else if (r.route.startsWith('/search?q=')) {
       const name = new URL(r.route, 'http://x').searchParams.get('q') || r.title
       setQuery(name)
@@ -262,7 +262,7 @@ export function SearchPage() {
           <SearchIcon className="w-6 h-6 text-brand" aria-hidden="true" />
           Search
         </h1>
-        <p className="text-sm text-zinc-500 mt-1">Find meetings, people, and notes</p>
+        <p className="text-sm text-zinc-500 mt-1">Find context, people, and notes</p>
       </div>
 
       <div className="space-y-3">
@@ -273,7 +273,7 @@ export function SearchPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search meetings, people, notes..."
+            placeholder="Search context, people, notes..."
             className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 text-sm transition-all"
             autoFocus
           />
@@ -298,7 +298,7 @@ export function SearchPage() {
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
                 }`}
               >
-                {filter === 'all' ? 'All' : filter === 'meeting' ? 'Meetings' : filter === 'person' ? 'People' : 'Content'}
+                {filter === 'all' ? 'All' : filter === 'meeting' ? 'Context' : filter === 'person' ? 'People' : 'Content'}
                 {filter !== 'all' && (
                   <span className="ml-1.5 text-zinc-600">
                     {results.filter(r => r.type === filter).length}
@@ -351,7 +351,7 @@ export function SearchPage() {
       {!query.trim() && recentItems.length > 0 && (
         <div className="animate-fade-in">
           <div className="px-1 mb-3">
-            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent meetings</h2>
+            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent context</h2>
           </div>
           <div ref={resultsContainerRef} className="space-y-1">
             {recentItems.map((r, i) => (
@@ -369,7 +369,7 @@ export function SearchPage() {
                   <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
                 </div>
                 <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
-                  meeting
+                  context
                 </span>
               </button>
             ))}
@@ -383,8 +383,8 @@ export function SearchPage() {
             <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
           </div>
           <h2 className="text-base font-medium text-zinc-200 mb-1">Nothing to search yet</h2>
-          <p className="text-sm text-zinc-500 mb-2">As you add people and process meeting transcripts, everything becomes searchable here.</p>
-          <p className="text-xs text-zinc-600">Meetings, people, feedback, action items, check-ins, and notes — all in one place.</p>
+          <p className="text-sm text-zinc-500 mb-2">As you add people and process context entries, everything becomes searchable here.</p>
+          <p className="text-xs text-zinc-600">Context, people, feedback, action items, check-ins, and notes — all in one place.</p>
         </div>
       )}
     </div>

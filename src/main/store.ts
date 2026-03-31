@@ -24,6 +24,8 @@ interface StoreSchema {
   practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
   ptoReports: Record<string, string>
+  userName: string
+  userGithub: string
 }
 
 const storeDefaults: StoreSchema = {
@@ -47,7 +49,9 @@ const storeDefaults: StoreSchema = {
   practiceCompletions: {},
   practiceSchedules: {},
   snoozedActionItems: {},
-  ptoReports: {}
+  ptoReports: {},
+  userName: '',
+  userGithub: ''
 }
 
 function createStore(): Store<StoreSchema> {
@@ -159,7 +163,9 @@ export function getSettings() {
     repoName: store.get('repoName'),
     repoPath: store.get('repoPath'),
     defaultModel: store.get('defaultModel'),
-    aiCustomInstructions: store.get('aiCustomInstructions')
+    aiCustomInstructions: store.get('aiCustomInstructions'),
+    userName: store.get('userName'),
+    userGithub: store.get('userGithub')
   }
 }
 
@@ -190,7 +196,9 @@ export function getSettingsForRenderer() {
     snoozedActionItems: store.get('snoozedActionItems'),
     ptoReports: store.get('ptoReports'),
     hasGithubOrgToken: !!store.get('githubOrgToken'),
-    githubOrgName: store.get('githubOrgName')
+    githubOrgName: store.get('githubOrgName'),
+    userName: store.get('userName'),
+    userGithub: store.get('userGithub')
   }
 }
 

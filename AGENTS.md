@@ -82,6 +82,26 @@ All invalidated via `invalidateCachesForPath(path)` on any `commitFile()`.
   - `tests/main/parseSpeakers.test.ts` (17 tests) — YAML frontmatter speaker parsing
   - `tests/main/copilot.test.ts` (14 tests) — AI integration
 
+## Development Rules
+
+### Testing Requirement (MANDATORY)
+Every new feature MUST include thorough automated tests before it is considered complete. This is non-negotiable.
+
+**What "thorough" means:**
+- Test the happy path (normal usage)
+- Test edge cases (empty input, boundary conditions, error states)
+- Test user interactions (keyboard shortcuts, clicks, form submissions)
+- Test integration points (IPC listeners, event handlers, callbacks)
+- Test cleanup (unmount, event listener removal)
+
+**Test patterns:**
+- Renderer components: `// @vitest-environment happy-dom` + ReactDOM.createRoot + act() (see `tests/renderer/AuthScreen.test.tsx`)
+- Main process: Mock `../../src/main/store`, use temp directories from `tests/helpers/fixtures.ts` (see `tests/main/github-integration.test.ts`)
+- Mock `window.api` for any renderer test that calls IPC methods
+- Always run `npx vitest run <test-file>` to verify tests pass before marking complete
+
+**No feature is done without tests. No exceptions.**
+
 ## Build & Dev
 ```bash
 npm run dev          # Dev mode with hot reload
