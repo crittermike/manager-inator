@@ -1763,7 +1763,7 @@ const TimelineRow = memo(function TimelineRow({
                   e.stopPropagation()
                   onToggleExpand(item.id)
                 }}
-                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
               >
                 {item.actionLabel}
               </button>

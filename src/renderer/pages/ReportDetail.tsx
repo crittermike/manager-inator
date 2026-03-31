@@ -1674,7 +1674,7 @@ export function ReportDetail() {
                   <button
                     onClick={handleSummarizeActivity}
                     disabled={streaming || aiLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
                   >
                     <Sparkles className="w-3 h-3" aria-hidden="true" />
                     AI Summary
