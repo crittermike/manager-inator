@@ -46,7 +46,7 @@ export function SearchPage() {
   const resultsContainerRef = useRef<HTMLDivElement>(null)
   
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   useEffect(() => {
     window.api.listContexts().then(setContexts).catch(() => {})
