@@ -48,36 +48,36 @@ const sectionConfig: Record<TimelineSection, {
     icon: Sparkles,
     color: 'text-violet-400',
     bg: 'bg-violet-500/10',
-    border: 'border-l-violet-500/50'
+    border: 'border-t-violet-500/40'
   },
   overdue: {
-    label: 'Overdue',
+    label: 'Needs attention',
     icon: AlertCircle,
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
-    border: 'border-l-red-500/50'
+    color: 'text-rose-400',
+    bg: 'bg-rose-500/10',
+    border: 'border-t-rose-500/40'
   },
   'this-week': {
     label: 'This week',
     icon: ClipboardList,
     color: 'text-sky-400',
     bg: 'bg-sky-500/10',
-    border: 'border-l-sky-500/50'
+    border: 'border-t-sky-500/40'
   },
 
   done: {
     label: 'Done today',
     icon: CheckCircle2,
-    color: 'text-zinc-500',
-    bg: 'bg-zinc-500/10',
-    border: 'border-l-zinc-500/50'
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/8',
+    border: 'border-t-emerald-500/30'
   },
   'coming-up': {
     label: 'Coming up',
     icon: Eye,
     color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-l-blue-500/50'
+    bg: 'bg-blue-500/8',
+    border: 'border-t-blue-500/30'
   }
 }
 
@@ -1332,11 +1332,11 @@ export function Today() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">{getGreeting().text} {getGreeting().emoji}</h1>
-          <p className="text-sm text-zinc-500 mt-1">
+          <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">{getGreeting().text} {getGreeting().emoji}</h1>
+          <p className="text-sm text-zinc-500 mt-1.5">
             {format(new Date(), 'EEEE, MMMM d')} · {headerSummary}
           </p>
-          <p className="text-xs text-zinc-600 mt-1 italic">{getDailyMotivation()}</p>
+          <p className="text-[11px] text-zinc-600 mt-1 italic">{getDailyMotivation()}</p>
         </div>
         <button
           onClick={() => {
@@ -1347,7 +1347,7 @@ export function Today() {
     }).catch(() => {})
             if (hasGithubOrgToken) fetchTeamActivity()
           }}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+          className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] rounded-lg transition-colors"
           aria-label="Refresh"
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
@@ -1640,16 +1640,16 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className="bg-surface rounded-2xl border border-border/80 overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
+          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
-              className="flex items-center justify-between w-full px-5 py-4 bg-gradient-to-r from-white/[0.02] to-transparent hover:bg-surface-raised/20 transition-colors"
+              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl ${config.bg} ring-1 ring-white/5`}>
+                <div className={`p-1.5 rounded-lg ${config.bg}`}>
                   <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
                 </div>
-                <span className="text-sm font-semibold text-zinc-100">{config.label}</span>
+                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
                 <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
                   {sectionItems.length}
                 </span>
@@ -1661,7 +1661,7 @@ export function Today() {
             </button>
 
             {isExpanded && (
-              <div className="border-t border-border/70 animate-slide-down">
+              <div className="border-t border-border/50 animate-slide-down">
                 {sectionItems.map((item, idx) => (
                   <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
                     <TimelineRow
@@ -1697,16 +1697,16 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className="bg-surface rounded-2xl border border-border/80 overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
+          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
-              className="flex items-center justify-between w-full px-5 py-4 bg-gradient-to-r from-white/[0.02] to-transparent hover:bg-surface-raised/20 transition-colors"
+              className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl ${config.bg} ring-1 ring-white/5`}>
+                <div className={`p-1.5 rounded-lg ${config.bg}`}>
                   <Icon className={`w-4 h-4 ${config.color}`} aria-hidden="true" />
                 </div>
-                <span className="text-sm font-semibold text-zinc-100">{config.label}</span>
+                <span className="text-sm font-semibold text-zinc-200">{config.label}</span>
                 <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
                   {sectionItems.length}
                 </span>
@@ -1718,7 +1718,7 @@ export function Today() {
             </button>
 
             {isExpanded && (
-              <div className="border-t border-border/70 animate-slide-down">
+              <div className="border-t border-border/50 animate-slide-down">
                 {sectionItems.map((item, idx) => (
                   <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
                     <TimelineRow

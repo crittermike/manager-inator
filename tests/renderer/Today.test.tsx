@@ -198,9 +198,9 @@ describe('Today page polish', () => {
   it('renders strengthened Today sections and visible row actions', async () => {
     const { container, root } = await renderToday()
 
-    const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Overdue')) as HTMLButtonElement | undefined
+    const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement | undefined
     expect(overdueHeader).toBeDefined()
-    expect(overdueHeader?.className).toContain('py-4')
+    expect(overdueHeader?.className).toContain('py-3')
     expect(overdueHeader?.closest('div')?.className).toContain('rounded-2xl')
 
     expect(container.textContent).toContain('1:1 with Alice Smith is overdue')
@@ -223,7 +223,7 @@ describe('Today page polish', () => {
   it('collapses and re-expands a Today section without losing items', async () => {
     const { container, root } = await renderToday()
 
-    const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Overdue')) as HTMLButtonElement
+    const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement
     expect(container.textContent).toContain('1:1 with Alice Smith is overdue')
 
     await act(async () => {
@@ -316,7 +316,7 @@ describe('Today date-sensitive behavior', () => {
     expect(container.textContent).not.toContain('Monthly check-in with Alice Smith is overdue')
     expect(container.textContent).toContain('Monthly check-in due for Alice Smith')
 
-    const overdueSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Overdue'))
+    const overdueSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention'))
     expect(overdueSectionButton?.parentElement?.textContent).not.toContain('Monthly check-in due for Alice Smith')
 
     const thisWeekSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('This week'))
