@@ -232,51 +232,7 @@ export function invalidateCachesForPath(filePath: string): void {
   if (p.startsWith('contexts/')) {
     const contextFile = p.replace('contexts/', '')
     if (_contextsCache && contextFile.endsWith('.md')) {
-      const priorEntry = _contextsCache.entries.find(e => e.filename === contextFile)
-      const priorPeople = priorEntry?.people || []
-      try {
-        const content = readFileHead(safePath(p), 2048)
-        const parsed = parseContextsCacheEntry(contextFile, content)
-
-        const existingIndex = _contextsCache.entries.findIndex(e => e.filename === contextFile)
-        if (existingIndex >= 0) {
-          _contextsCache.entries[existingIndex] = parsed
-        } else {
-          _contextsCache.entries.push(parsed)
-          _contextsCache.entriesSet.add(contextFile)
-        }
-
-        _contextsCache.titleMap.set(contextFile, parsed.title)
-
-        for (const slug of priorPeople) {
-          const arr = _contextsCache.byPersonSlug.get(slug)
-          if (!arr) continue
-          const next = arr.filter(f => f !== contextFile)
-          if (next.length > 0) _contextsCache.byPersonSlug.set(slug, next)
-          else _contextsCache.byPersonSlug.delete(slug)
-        }
-        for (const slug of parsed.people) {
-          const arr = _contextsCache.byPersonSlug.get(slug)
-          if (arr) {
-            if (!arr.includes(contextFile)) arr.push(contextFile)
-          } else {
-            _contextsCache.byPersonSlug.set(slug, [contextFile])
-          }
-        }
-      } catch {
-        if (priorEntry) {
-          _contextsCache.entries = _contextsCache.entries.filter(e => e.filename !== contextFile)
-          _contextsCache.entriesSet.delete(contextFile)
-          _contextsCache.titleMap.delete(contextFile)
-          for (const slug of priorPeople) {
-            const arr = _contextsCache.byPersonSlug.get(slug)
-            if (!arr) continue
-            const next = arr.filter(f => f !== contextFile)
-            if (next.length > 0) _contextsCache.byPersonSlug.set(slug, next)
-            else _contextsCache.byPersonSlug.delete(slug)
-          }
-        }
-      }
+      refreshContextCacheEntry(contextFile)
       invalidatePeopleCache()
       _invalidateReportsForContext(contextFile)
     } else if (!_contextsCache) {
@@ -798,12 +754,14 @@ export function searchContent(query: string): ContentSearchResult[] {
     const idx = entry.lowered.indexOf(q)
     if (idx === -1) continue
 
-    const snippet = extractSnippet(entry.content, idx, q.length)
-
     if (entry.directory === 'contexts') {
+      refreshContextCacheEntry(entry.filename)
+      const refreshedEntry = _searchIndexCache?.find(item => item.directory === 'contexts' && item.filename === entry.filename) || entry
+      const refreshedIndex = refreshedEntry.lowered.indexOf(q)
+      const snippet = extractSnippet(refreshedEntry.content, refreshedIndex === -1 ? idx : refreshedIndex, q.length)
       const name = entry.filename.replace(/\.(md|txt)$/i, '')
       const date = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
-      const contextsCache = getContextsCache()
+      const contextsCache = getMutableContextsCache()
       const title = contextsCache.titleMap.get(entry.filename) || formatMeetingTitle(name.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace(/-/g, ' ') || name)
       results.push({
         filename: entry.filename,
@@ -811,14 +769,17 @@ export function searchContent(query: string): ContentSearchResult[] {
         title,
         snippet,
         date,
-        source: entry.source
+        source: contextsCache.entriesByFilename.get(entry.filename)?.source as ContextSource | undefined
       })
     } else if (entry.directory === 'reports') {
+      const snippet = extractSnippet(entry.content, idx, q.length)
       const date = entry.filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
       results.push({ filename: entry.filename, directory: 'reports', title: deriveReportTitle(entry.filename), snippet, date })
     } else if (entry.directory === 'people') {
+      const snippet = extractSnippet(entry.content, idx, q.length)
       results.push({ filename: entry.filename, directory: 'people', title: titleCase(entry.filename.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')), snippet })
     } else {
+      const snippet = extractSnippet(entry.content, idx, q.length)
       const name = entry.filename.replace(/\.(md|txt)$/i, '')
       const date = name.match(/^(\d{4})/)?.[1]
       const titleParts = name.replace(/^\d{4}-W\d{2}-/, '').replace(/-/g, ' ')
@@ -1052,7 +1013,8 @@ export function getReportData(name: string): Report {
     }
   }
   const contextNotes: ContextNote[] = personContextFiles.map((f) => {
-    const entry = contextsCache.entries.find(e => e.filename === f)
+    refreshContextCacheEntry(f)
+    const entry = getMutableContextsCache().entriesByFilename.get(f)
     if (!entry) return null
     return {
       date: entry.date,
@@ -1129,14 +1091,21 @@ interface ContextsCacheEntry {
   people: string[]
   speakers: string[]
   hasFrontmatter: boolean
+  mtimeMs: number
 }
 
 let _contextsCache: {
   entries: ContextsCacheEntry[]
   entriesSet: Set<string>
+  entriesByFilename: Map<string, ContextsCacheEntry>
   byPersonSlug: Map<string, string[]>
   titleMap: Map<string, string>
 } | null = null
+
+function getMutableContextsCache() {
+  if (!_contextsCache) throw new Error('Contexts cache not initialized')
+  return _contextsCache
+}
 
 function parseYamlList(frontmatter: string, key: 'people' | 'tags'): string[] {
   const match = frontmatter.match(new RegExp(`${key}:\\s*\\n((?:\\s+-\\s+.+\\n?)*)`))
@@ -1147,7 +1116,7 @@ function parseYamlList(frontmatter: string, key: 'people' | 'tags'): string[] {
     .filter(Boolean)
 }
 
-function parseContextsCacheEntry(filename: string, content: string): ContextsCacheEntry {
+function parseContextsCacheEntry(filename: string, content: string, mtimeMs: number): ContextsCacheEntry {
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   const frontmatter = fmMatch?.[1] || ''
   const name = filename.replace('.md', '')
@@ -1164,7 +1133,90 @@ function parseContextsCacheEntry(filename: string, content: string): ContextsCac
     tags: parseYamlList(frontmatter, 'tags'),
     people: parseYamlList(frontmatter, 'people'),
     speakers: parseSpeakers(content),
-    hasFrontmatter: Boolean(fmMatch)
+    hasFrontmatter: Boolean(fmMatch),
+    mtimeMs
+  }
+}
+
+function syncContextEntry(cache: ReturnType<typeof getMutableContextsCache>, contextFile: string, parsed: ContextsCacheEntry, priorEntry?: ContextsCacheEntry): void {
+  const previous = priorEntry || cache.entriesByFilename.get(contextFile)
+  const priorPeople = previous?.people || []
+  const existingIndex = cache.entries.findIndex(e => e.filename === contextFile)
+
+  if (existingIndex >= 0) cache.entries[existingIndex] = parsed
+  else {
+    cache.entries.push(parsed)
+    cache.entriesSet.add(contextFile)
+  }
+
+  cache.entriesByFilename.set(contextFile, parsed)
+  cache.titleMap.set(contextFile, parsed.title)
+
+  for (const slug of priorPeople) {
+    const arr = cache.byPersonSlug.get(slug)
+    if (!arr) continue
+    const next = arr.filter(f => f !== contextFile)
+    if (next.length > 0) cache.byPersonSlug.set(slug, next)
+    else cache.byPersonSlug.delete(slug)
+  }
+
+  for (const slug of parsed.people) {
+    const arr = cache.byPersonSlug.get(slug)
+    if (arr) {
+      if (!arr.includes(contextFile)) arr.push(contextFile)
+    } else {
+      cache.byPersonSlug.set(slug, [contextFile])
+    }
+  }
+}
+
+function removeContextEntry(cache: ReturnType<typeof getMutableContextsCache>, contextFile: string, priorEntry?: ContextsCacheEntry): void {
+  const existing = priorEntry || cache.entriesByFilename.get(contextFile)
+  if (!existing) return
+
+  cache.entries = cache.entries.filter(e => e.filename !== contextFile)
+  cache.entriesSet.delete(contextFile)
+  cache.entriesByFilename.delete(contextFile)
+  cache.titleMap.delete(contextFile)
+
+  for (const slug of existing.people) {
+    const arr = cache.byPersonSlug.get(slug)
+    if (!arr) continue
+    const next = arr.filter(f => f !== contextFile)
+    if (next.length > 0) cache.byPersonSlug.set(slug, next)
+    else cache.byPersonSlug.delete(slug)
+  }
+}
+
+function refreshContextCacheEntry(filename: string): void {
+  if (!_contextsCache || !filename.endsWith('.md')) return
+
+  const cache = getMutableContextsCache()
+  const priorEntry = cache.entriesByFilename.get(filename)
+
+  try {
+    const fullPath = safePath(`contexts/${filename}`)
+    const stat = lstatSync(fullPath)
+    if (priorEntry && priorEntry.mtimeMs === stat.mtimeMs) return
+
+    const parsed = parseContextsCacheEntry(filename, readFileHead(fullPath, 2048), stat.mtimeMs)
+    syncContextEntry(cache, filename, parsed, priorEntry)
+
+    if (_searchIndexCache) {
+      const entry = _searchIndexCache.find(item => item.directory === 'contexts' && item.filename === filename)
+      if (entry) {
+        entry.content = `${parsed.filename} ${parsed.title} ${parsed.summary}`
+        entry.lowered = entry.content.toLowerCase()
+        entry.source = parsed.source as ContextSource
+      }
+    }
+  } catch {
+    if (priorEntry) {
+      removeContextEntry(cache, filename, priorEntry)
+      if (_searchIndexCache) {
+        _searchIndexCache = _searchIndexCache.filter(item => !(item.directory === 'contexts' && item.filename === filename))
+      }
+    }
   }
 }
 
@@ -1231,8 +1283,9 @@ function getContextsCache() {
 
   for (const f of mdFiles) {
     try {
-      const content = readFileHead(safePath(`contexts/${f}`), 2048)
-      const entry = parseContextsCacheEntry(f, content)
+      const fullPath = safePath(`contexts/${f}`)
+      const content = readFileHead(fullPath, 2048)
+      const entry = parseContextsCacheEntry(f, content, lstatSync(fullPath).mtimeMs)
       entries.push(entry)
       titleMap.set(f, entry.title)
       for (const slug of entry.people) {
@@ -1263,6 +1316,7 @@ function getContextsCache() {
   _contextsCache = {
     entries,
     entriesSet: new Set(entries.map(e => e.filename)),
+    entriesByFilename: new Map(entries.map(e => [e.filename, e])),
     byPersonSlug,
     titleMap
   }

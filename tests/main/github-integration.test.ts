@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { createFixtureRepo, createMinimalFixtureRepo, type FixtureRepo } from '../helpers/fixtures'
+import { join } from 'path'
+import { writeFileSync } from 'fs'
 
 // Module-level variable captured by the vi.mock closure by reference.
 // Updating this variable changes what getSettings().repoPath returns.
@@ -268,6 +270,58 @@ describe('github.ts integration tests', () => {
       const contextResult = results.find(r => r.directory === 'contexts')
       expect(contextResult).toBeDefined()
       expect(contextResult?.source).toBeDefined()
+    })
+
+    it('refreshes cached context source after an external file edit', () => {
+      const target = join(fixture.dir, 'contexts', '2026-03-11-alice-1-1.md')
+
+      const initial = searchContent('alice 1:1')
+      expect(initial.find(r => r.filename === '2026-03-11-alice-1-1.md')?.source).toBe('meeting')
+
+      writeFileSync(target, `---
+date: 2026-03-11
+source: other
+title: Alice 1:1
+people:
+  - alice-smith
+speakers:
+  - Mike Crittenden
+  - Alice Smith
+---
+
+# Alice 1:1 - March 11
+
+## Topics
+- Platform migration status
+- Q2 planning
+`, 'utf-8')
+
+      const refreshed = searchContent('alice 1:1')
+      expect(refreshed.find(r => r.filename === '2026-03-11-alice-1-1.md')?.source).toBe('other')
+      expect(listContexts().find(r => r.filename === '2026-03-11-alice-1-1.md')?.source).toBe('other')
+
+      writeFileSync(target, `---
+date: 2026-03-11
+source: meeting
+title: Alice 1:1
+people:
+  - alice-smith
+speakers:
+  - Mike Crittenden
+  - Alice Smith
+---
+
+# Alice 1:1 - March 11
+
+## Topics
+- Platform migration status
+- Q2 planning
+
+## Action Items
+- [ ] **Alice**: Update migration docs by Friday
+- [ ] **Mike**: Schedule skip-level with Alice's team
+- [x] **Alice**: Send Q1 metrics summary
+`, 'utf-8')
     })
 
     it('finds reports by name', () => {
