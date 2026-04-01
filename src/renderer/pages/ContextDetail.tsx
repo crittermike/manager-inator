@@ -220,7 +220,6 @@ export function ContextDetail() {
   const findPerson = (speakerName: string) => {
     return people.find(p => 
       p.name.toLowerCase() === speakerName.toLowerCase() || 
-      p.name.split(' ')[0].toLowerCase() === speakerName.toLowerCase() ||
       p.aliases.some(a => a.toLowerCase() === speakerName.toLowerCase())
     )
   }
@@ -535,7 +534,7 @@ export function ContextDetail() {
           </button>
         </div>
         
-        <div className="px-6 py-8 relative group/content">
+        <div className="px-6 py-5 relative group/content">
           <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover/content:opacity-100 transition-opacity z-10">
             {activeTab === 'summary' && !isEditingContent && (
               <button

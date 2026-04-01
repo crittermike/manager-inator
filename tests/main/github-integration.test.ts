@@ -25,6 +25,7 @@ vi.mock('../../src/main/store', () => ({
 }))
 
 import {
+  createReport,
   getReports,
   getReportData,
   getReportProfile,
@@ -493,9 +494,9 @@ speakers:
       expect(findPersonByName('Bobby')).toBe('bob')
     })
 
-    it('finds person by first name', () => {
-      expect(findPersonByName('Alice')).toBe('alice')
-      expect(findPersonByName('Bob')).toBe('bob')
+    it('does not match by first name alone', () => {
+      expect(findPersonByName('Alice')).toBeNull()
+      expect(findPersonByName('Bob')).toBeNull()
     })
 
     it('returns null for unknown person', () => {
@@ -504,6 +505,16 @@ speakers:
 
     it('strips parenthetical suffixes', () => {
       expect(findPersonByName('Alice Smith (Senior Engineer)')).toBe('alice')
+    })
+
+    it('does not confuse people who share a first name', async () => {
+      await createReport('Aaron Cathcart')
+      await createReport('Aaron Waggener')
+      clearAllCaches()
+
+      expect(findPersonByName('Aaron Cathcart')).toBe('aaron-cathcart')
+      expect(findPersonByName('Aaron Waggener')).toBe('aaron-waggener')
+      expect(findPersonByName('Aaron')).toBeNull()
     })
   })
 

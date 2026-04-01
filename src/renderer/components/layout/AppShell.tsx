@@ -7,6 +7,7 @@ import {
   Zap,
   BookOpen,
   Search,
+  Users,
   UserCircle,
   ClipboardPaste,
   Keyboard,
@@ -29,7 +30,8 @@ const navItems = [
   { path: '/', icon: Sun, label: 'Today', shortcut: null },
   { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: null },
   { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: null },
-  { path: '/search', icon: Search, label: 'Search', shortcut: 'Cmd+K' }
+  { path: '/search', icon: Search, label: 'Search', shortcut: 'Cmd+K' },
+  { path: '/people', icon: Users, label: 'People', shortcut: null }
 ]
 
 export function AppShell({ children }: AppShellProps) {

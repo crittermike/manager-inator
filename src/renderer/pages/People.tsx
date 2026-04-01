@@ -127,7 +127,9 @@ export function People() {
 
     const existingSlug = await window.api.findPersonByName(trimmed)
     if (existingSlug) {
-      toast.error(`A profile for "${trimmed}" already exists`)
+      const existingPerson = people.find(p => p.slug === existingSlug)
+      const existingLabel = existingPerson?.name || existingSlug
+      toast.error(`A profile for "${existingLabel}" already exists`)
       setAddingSaving(false)
       return
     }
@@ -457,7 +459,10 @@ ${editNotes}`
                   {/* Profile content (strip frontmatter for display) */}
                   <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
-                      {profileContent.replace(/^---\n[\s\S]*?\n---\n*/m, '').trim()}
+                      {profileContent
+                        .replace(/^---\n[\s\S]*?\n---\n*/m, '')
+                        .replace(new RegExp(`^#\\s+${selected.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\n+`, 'm'), '')
+                        .trim()}
                     </ReactMarkdown>
                   </div>
 

@@ -1595,18 +1595,14 @@ export function findPersonByName(name: string): string | null {
   // Strip parenthetical suffixes like "(VP Engineering)"
   const cleanName = name.replace(/\s*\(.*?\)\s*/g, '').trim()
   const nameLower = cleanName.toLowerCase()
-  const firstName = cleanName.split(' ')[0].toLowerCase()
 
   const exact = people.find(p => p.name.toLowerCase() === nameLower)
   if (exact) return exact.slug
 
   const aliasMatch = people.find(p =>
-    p.aliases.some(a => a.toLowerCase() === nameLower || a.toLowerCase() === firstName)
+    p.aliases.some(a => a.toLowerCase() === nameLower)
   )
   if (aliasMatch) return aliasMatch.slug
-
-  const firstMatch = people.find(p => p.name.split(' ')[0].toLowerCase() === firstName)
-  if (firstMatch) return firstMatch.slug
 
   return null
 }

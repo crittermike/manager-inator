@@ -100,6 +100,7 @@ export default function App() {
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <Navigate to="/my-profile" replace /> },
         { path: '/settings', element: <Settings /> },
+        { path: '/people', element: <People /> },
         { path: '/people/:slug', element: <People /> },
         { path: '/context/:filename', element: <ContextDetail /> },
         { path: '/my-profile', element: <MyProfile /> },
