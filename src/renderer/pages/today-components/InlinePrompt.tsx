@@ -4,7 +4,7 @@ import { useAI } from '../../hooks/useAI'
 import { format } from 'date-fns'
 import type { PromptType } from './types'
 import type { TeamMemberActivity, TeamActionItem, ReportStatus } from '../../../shared/types'
-import { Save, Sparkles, Loader2, Target, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Save, Sparkles, Loader2, Target, Pencil, Trash2, Check, X, FolderOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -389,6 +389,10 @@ export function InlinePrompt({
             Close
           </button>
         </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+          <FolderOpen className="w-3 h-3" />
+          Saved to {config.savePath()}
+        </div>
       </div>
     )
   }
@@ -469,6 +473,10 @@ export function InlinePrompt({
         <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
           Cancel
         </button>
+      </div>
+      <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+        <FolderOpen className="w-3 h-3" />
+        Will save to {config.savePath()} — find it later in your weekly-log folder
       </div>
     </div>
   )

@@ -19,6 +19,7 @@ import {
   getPersonMeetings,
   findPersonByName,
   getImpactLog,
+  listWeeklyLog,
   getSettingsOptions,
   saveMeetingTitle,
   saveMeetingSpeakers,
@@ -112,6 +113,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:person-meetings', (_e, slug) => getPersonMeetings(slug as string))
   safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
   safeHandle('github:impact-log', () => getImpactLog())
+  safeHandle('github:weekly-log', () => listWeeklyLog())
   safeHandle('github:settings-options', () => getSettingsOptions())
   safeHandle('github:save-meeting-title', (_e, filename, title) => saveMeetingTitle(filename as string, title as string))
   safeHandle('github:save-meeting-speakers', (_e, filename, speakers) => saveMeetingSpeakers(filename as string, speakers as string[]))

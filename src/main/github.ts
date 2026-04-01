@@ -1827,6 +1827,81 @@ export function clearAllCaches(): void {
   invalidateSearchIndex()
 }
 
+/** List all files in weekly-log/ with parsed metadata */
+export function listWeeklyLog(): { filename: string; title: string; date: string; category: string }[] {
+  const files = listFiles('weekly-log').filter(f => f.endsWith('.md')).sort().reverse()
+  return files.map(f => {
+    const base = f.replace('.md', '')
+    let title = base
+    let date = ''
+    let category = 'note'
+
+    // Weekly: 2026-W14-priorities, 2026-W14-reflection
+    const weeklyMatch = base.match(/^(\d{4})-W(\d+)-(.+)$/)
+    if (weeklyMatch) {
+      const [, year, week, type] = weeklyMatch
+      date = `${year}-W${week}`
+      category = type === 'priorities' ? 'Weekly Priorities' : type === 'reflection' ? 'Weekly Reflection' : type
+      title = `${category} — ${year} Week ${parseInt(week)}`
+      return { filename: f, title, date, category }
+    }
+
+    // Quarterly: 2026-Q2-okr-draft, 2026-Q2-team-health, 2026-Q2-hiring-review
+    const quarterlyMatch = base.match(/^(\d{4})-(Q\d)-(.+)$/)
+    if (quarterlyMatch) {
+      const [, year, quarter, slug] = quarterlyMatch
+      date = `${year}-${quarter}`
+      const slugMap: Record<string, string> = {
+        'okr-draft': 'OKR Draft',
+        'team-health': 'Team Health Check',
+        'hiring-review': 'Hiring & Risk Review'
+      }
+      category = slugMap[slug] || slug.replace(/-/g, ' ')
+      title = `${category} — ${quarter} ${year}`
+      return { filename: f, title, date, category }
+    }
+
+    // Semi-annual: 2026-H1-personal-retro, 2026-H1-1on1-format-check
+    const semiMatch = base.match(/^(\d{4})-(H\d)-(.+)$/)
+    if (semiMatch) {
+      const [, year, half, slug] = semiMatch
+      date = `${year}-${half}`
+      const slugMap: Record<string, string> = {
+        'personal-retro': 'Personal Management Retro',
+        '1on1-format-check': '1:1 Format Check'
+      }
+      category = slugMap[slug] || slug.replace(/-/g, ' ')
+      title = `${category} — ${half} ${year}`
+      return { filename: f, title, date, category }
+    }
+
+    // Monthly: 2026-04-skip-level-prep
+    const monthlyMatch = base.match(/^(\d{4}-\d{2})-(.+)$/)
+    if (monthlyMatch) {
+      const [, month, slug] = monthlyMatch
+      date = month
+      const slugMap: Record<string, string> = {
+        'skip-level-prep': 'Skip-Level Prep'
+      }
+      category = slugMap[slug] || slug.replace(/-/g, ' ')
+      title = `${category} — ${month}`
+      return { filename: f, title, date, category }
+    }
+
+    // Sprint: sprint-goal-2026-04-01, sprint-retro-2026-04-01
+    const sprintMatch = base.match(/^(sprint-\w+)-(\d{4}-\d{2}-\d{2})$/)
+    if (sprintMatch) {
+      const [, type, dateStr] = sprintMatch
+      date = dateStr
+      category = type === 'sprint-goal' ? 'Sprint Goal' : type === 'sprint-retro' ? 'Sprint Retro' : type
+      title = `${category} — ${dateStr}`
+      return { filename: f, title, date, category }
+    }
+
+    return { filename: f, title, date: base, category }
+  })
+}
+
 /** Pre-warm all caches at startup so first navigation is instant */
 export async function preWarmCaches(onProgress?: (message: string) => void): Promise<void> {
   const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))

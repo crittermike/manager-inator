@@ -18,10 +18,16 @@ import {
   Edit3,
   Trophy,
   PenLine,
-  Lightbulb
+  Lightbulb,
+  FileText,
+  ChevronRight,
+  FolderOpen
 } from 'lucide-react'
 
+type ProfileTab = 'impact' | 'weekly-log'
+
 export function MyProfile() {
+  const [tab, setTab] = useState<ProfileTab>('impact')
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -34,6 +40,15 @@ export function MyProfile() {
   const toast = useToast()
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(editing)
   const saveRef = useRef<() => void>(() => {})
+
+  // Weekly log state
+  const [weeklyLogEntries, setWeeklyLogEntries] = useState<{ filename: string; title: string; date: string; category: string }[]>([])
+  const [weeklyLogLoading, setWeeklyLogLoading] = useState(false)
+  const [selectedEntry, setSelectedEntry] = useState<{ filename: string; title: string } | null>(null)
+  const [entryContent, setEntryContent] = useState('')
+  const [entryLoading, setEntryLoading] = useState(false)
+  const [editingEntry, setEditingEntry] = useState(false)
+  const [entryEditDraft, setEntryEditDraft] = useState('')
 
   useEffect(() => {
     return () => { cancel() }
@@ -53,7 +68,58 @@ export function MyProfile() {
     }
   }
 
+  const loadWeeklyLog = useCallback(async () => {
+    setWeeklyLogLoading(true)
+    try {
+      const entries = await window.api.listWeeklyLog()
+      setWeeklyLogEntries(entries)
+    } catch {
+      setWeeklyLogEntries([])
+    } finally {
+      setWeeklyLogLoading(false)
+    }
+  }, [])
+
+  const openEntry = useCallback(async (entry: { filename: string; title: string }) => {
+    setSelectedEntry(entry)
+    setEntryLoading(true)
+    setEditingEntry(false)
+    try {
+      const data = await window.api.getFileContent(`weekly-log/${entry.filename}`)
+      setEntryContent(data)
+    } catch {
+      setEntryContent('_Failed to load file._')
+    } finally {
+      setEntryLoading(false)
+    }
+  }, [])
+
+  const saveEntry = useCallback(async () => {
+    if (!selectedEntry || !entryEditDraft.trim()) return
+    setSaving(true)
+    try {
+      await window.api.commitFile(
+        `weekly-log/${selectedEntry.filename}`,
+        entryEditDraft,
+        `Update ${selectedEntry.title}`
+      )
+      setEntryContent(entryEditDraft)
+      setEditingEntry(false)
+      toast.success('Updated')
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }, [selectedEntry, entryEditDraft, toast])
+
   useEffect(() => { loadLog() }, [])
+
+  useEffect(() => {
+    if (tab === 'weekly-log' && weeklyLogEntries.length === 0) {
+      loadWeeklyLog()
+    }
+  }, [tab, weeklyLogEntries.length, loadWeeklyLog])
 
   const handleAddEntry = async () => {
     if (!newEntry.trim()) return
@@ -137,17 +203,45 @@ export function MyProfile() {
   return (
     <>
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-            <UserCircle className="w-6 h-6 text-brand" aria-hidden="true" />
-            My Profile
-          </h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Track your wins. Build your case. Own your narrative.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
+          <UserCircle className="w-6 h-6 text-brand" aria-hidden="true" />
+          My Profile
+        </h1>
+        <p className="text-sm text-zinc-500 mt-1">
+          Your management artifacts, reflections, and impact log.
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-border">
+        <button
+          onClick={() => setTab('impact')}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            tab === 'impact'
+              ? 'text-brand-light border-brand'
+              : 'text-zinc-500 border-transparent hover:text-zinc-300'
+          }`}
+        >
+          <Trophy className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+          Impact Log
+        </button>
+        <button
+          onClick={() => setTab('weekly-log')}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            tab === 'weekly-log'
+              ? 'text-brand-light border-brand'
+              : 'text-zinc-500 border-transparent hover:text-zinc-300'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+          Management Log
+        </button>
+      </div>
+
+      {tab === 'impact' && (
+      <>
+      <div className="flex items-center justify-end gap-2">
           <button
             onClick={loadLog}
             disabled={streaming}
@@ -178,7 +272,6 @@ export function MyProfile() {
             <Plus className="w-4 h-4" aria-hidden="true" />
             Add entry
           </button>
-        </div>
       </div>
 
       {/* AI summary panel */}
@@ -326,6 +419,125 @@ export function MyProfile() {
             </div>
           )
         })()
+      )}
+      </>
+      )}
+
+      {/* Management Log tab */}
+      {tab === 'weekly-log' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-zinc-500">
+              Your weekly priorities, reflections, OKR drafts, health checks, and other management artifacts.
+            </p>
+            <button
+              onClick={loadWeeklyLog}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+              aria-label="Refresh management log"
+            >
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          {weeklyLogLoading && (
+            <div className="flex items-center gap-3 py-8 justify-center">
+              <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-zinc-500">Loading...</span>
+            </div>
+          )}
+
+          {!weeklyLogLoading && weeklyLogEntries.length === 0 && (
+            <div className="bg-surface rounded-xl border border-border p-8 text-center space-y-3">
+              <FolderOpen className="w-8 h-8 text-zinc-600 mx-auto" />
+              <p className="text-sm text-zinc-500">No management log entries yet.</p>
+              <p className="text-xs text-zinc-600">
+                Entries are created when you complete items on the Today page — weekly priorities, reflections, OKR drafts, team health checks, and more.
+              </p>
+            </div>
+          )}
+
+          {!weeklyLogLoading && weeklyLogEntries.length > 0 && !selectedEntry && (
+            <div className="bg-surface rounded-xl border border-border overflow-hidden divide-y divide-border">
+              {weeklyLogEntries.map(entry => (
+                <button
+                  key={entry.filename}
+                  onClick={() => openEntry(entry)}
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
+                >
+                  <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-zinc-200 truncate">{entry.title}</div>
+                    <div className="text-xs text-zinc-600">{entry.category} · {entry.date}</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedEntry && (
+            <div className="space-y-3">
+              <button
+                onClick={() => { setSelectedEntry(null); setEditingEntry(false) }}
+                className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                &larr; Back to list
+              </button>
+              <h2 className="text-lg font-medium text-zinc-200">{selectedEntry.title}</h2>
+
+              {entryLoading ? (
+                <div className="flex items-center gap-3 py-8 justify-center">
+                  <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : editingEntry ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={entryEditDraft}
+                    onChange={e => setEntryEditDraft(e.target.value)}
+                    onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); saveEntry() } }}
+                    className="w-full min-h-[20rem] bg-surface-raised border border-border rounded-xl p-4 text-sm text-zinc-100 font-mono focus:outline-none focus:border-brand transition-colors resize-y"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={saveEntry}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setEditingEntry(false)}
+                      className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-surface rounded-xl border border-border p-5 prose-dark">
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{entryContent}</ReactMarkdown>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setEntryEditDraft(entryContent); setEditingEntry(true) }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Edit
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+                    <FolderOpen className="w-3 h-3" />
+                    weekly-log/{selectedEntry.filename}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
       <ConfirmDialog

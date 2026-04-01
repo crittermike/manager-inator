@@ -348,6 +348,7 @@ export interface IpcApi {
   getPersonMeetings: (slug: string) => Promise<MeetingRef[]>
   findPersonByName: (name: string) => Promise<string | null>
   getImpactLog: () => Promise<string>
+  listWeeklyLog: () => Promise<{ filename: string; title: string; date: string; category: string }[]>
   getSettingsOptions: () => Promise<SettingsOptions>
   saveMeetingTitle: (filename: string, title: string) => Promise<void>
   saveMeetingSpeakers: (filename: string, speakers: string[]) => Promise<void>

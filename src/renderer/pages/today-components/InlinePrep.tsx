@@ -53,21 +53,35 @@ export function InlinePrep({
   }, [prepPath, reportName, today])
 
   useEffect(() => {
-    Promise.all([
-      window.api.getReportData(reportName),
-      window.api.getFileContent(prepPath).catch(() => null)
-    ]).then(([data, existing]) => {
-      if (!mountedRef.current) return
-      setReportData(data)
-      if (existing) {
-        setPrepContent(existing)
-        autoSavedRef.current = true
-        setPhase('review')
-      }
-    }).catch(() => {
-      toast.error('Failed to load report data')
-      onCancel()
-    })
+    // Check for existing prep FIRST — only load report data if we need to generate
+    window.api.getFileContent(prepPath)
+      .then(existing => {
+        if (!mountedRef.current) return
+        if (existing) {
+          setPrepContent(existing)
+          autoSavedRef.current = true
+          setPhase('review')
+        } else {
+          // No existing prep — load report data so generate effect will fire
+          window.api.getReportData(reportName).then(data => {
+            if (!mountedRef.current) return
+            setReportData(data)
+          }).catch(() => {
+            toast.error('Failed to load report data')
+            onCancel()
+          })
+        }
+      })
+      .catch(() => {
+        // File doesn't exist — load report data to generate
+        window.api.getReportData(reportName).then(data => {
+          if (!mountedRef.current) return
+          setReportData(data)
+        }).catch(() => {
+          toast.error('Failed to load report data')
+          onCancel()
+        })
+      })
   }, [reportName, prepPath, onCancel, toast])
 
   const doGenerate = useCallback(async (data: Report) => {
@@ -204,13 +218,25 @@ export function InlinePrep({
     }
   }, [reportData, phase, doGenerate])
 
-  const handleRegenerate = useCallback(() => {
-    if (!reportData) return
+  const handleRegenerate = useCallback(async () => {
     setPrepContent('')
     setEditing(false)
     generatingRef.current = false
-    doGenerate(reportData)
-  }, [reportData, doGenerate])
+    if (reportData) {
+      doGenerate(reportData)
+    } else {
+      // Report data wasn't loaded (we showed existing prep) — load it now
+      try {
+        const data = await window.api.getReportData(reportName)
+        if (mountedRef.current) {
+          setReportData(data)
+          doGenerate(data)
+        }
+      } catch {
+        toast.error('Failed to load report data')
+      }
+    }
+  }, [reportData, reportName, doGenerate, toast])
 
   const handleStartEdit = useCallback(() => {
     setEditDraft(prepContent)

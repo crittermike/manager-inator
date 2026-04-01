@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   getPersonMeetings: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
   findPersonByName: (name: string) => ipcRenderer.invoke('github:find-person', name),
   getImpactLog: () => ipcRenderer.invoke('github:impact-log'),
+  listWeeklyLog: () => ipcRenderer.invoke('github:weekly-log'),
   getSettingsOptions: () => ipcRenderer.invoke('github:settings-options'),
   saveMeetingTitle: (filename: string, title: string) =>
     ipcRenderer.invoke('github:save-meeting-title', filename, title),
