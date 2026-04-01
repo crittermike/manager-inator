@@ -142,7 +142,7 @@ export function AppShell({ children }: AppShellProps) {
               <button
                 key={path}
                 onClick={() => navigate(path)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors no-drag ${
+                className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors no-drag ${
                   active
                     ? 'bg-brand/15 text-brand-light font-medium'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
@@ -159,13 +159,13 @@ export function AppShell({ children }: AppShellProps) {
 
           {reports.length > 0 ? (
             <>
-              <div className="pt-4 pb-2 px-3 flex items-center justify-between">
+              <div className="pt-4 pb-2 px-3 flex items-center justify-between group">
                 <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
                   Direct reports
                 </span>
                 <button
                   onClick={() => setAddReportOpen(true)}
-                  className="w-5 h-5 rounded-lg flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag"
+                  className="w-5 h-5 rounded-lg flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-all no-drag opacity-0 group-hover:opacity-100"
                   aria-label="Add direct report"
                   title="Add direct report"
                 >
@@ -181,7 +181,7 @@ export function AppShell({ children }: AppShellProps) {
                   <button
                     key={r.name}
                     onClick={() => navigate(path)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors no-drag group ${
+                    className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors no-drag group ${
                       active
                         ? 'bg-brand/15 text-brand-light font-medium'
                         : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
@@ -226,7 +226,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="px-3 py-3 border-t border-border">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 rounded-xl border border-border/60 bg-zinc-900/60 p-0.5">
               <button
                 onClick={() => setShortcutsOpen(true)}
                 className="p-1.5 rounded-lg transition-colors no-drag text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised"

@@ -276,9 +276,12 @@ export function SearchPage() {
   }
 
   const typeIcon = (type: string) => {
-    if (type === 'person') return <User className="w-4 h-4" aria-hidden="true" />
-    if (type === 'meeting') return <Calendar className="w-4 h-4" aria-hidden="true" />
-    return <FileText className="w-4 h-4" aria-hidden="true" />
+    if (type === 'person') return <User className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+    if (type === 'meeting') return <Calendar className="w-4 h-4 text-brand-light" aria-hidden="true" />
+    if (type === 'slack') return <FileText className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+    if (type === 'github') return <FileText className="w-4 h-4 text-zinc-200" aria-hidden="true" />
+    if (type === 'email') return <FileText className="w-4 h-4 text-amber-300" aria-hidden="true" />
+    return <FileText className="w-4 h-4 text-zinc-500" aria-hidden="true" />
   }
 
   return (
@@ -313,20 +316,20 @@ export function SearchPage() {
         )}
 
         {query.trim() && results.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-border/60 bg-zinc-900/40 p-1.5">
             {FILTERS.map(filter => (
               <button
                 key={filter}
                 onClick={() => setTypeFilter(filter)}
-                className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
                   typeFilter === filter
                     ? 'bg-brand/15 text-brand-light font-medium'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised/70'
                 }`}
               >
                 {filter === 'all' ? 'All' : getResultLabel(filter)}
                 {filter !== 'all' && (
-                  <span className="ml-1.5 text-zinc-600">
+                  <span className="ml-1.5 inline-flex min-w-4 items-center justify-center rounded-md bg-zinc-800/70 px-1 py-0.5 text-[10px] text-zinc-600">
                     {results.filter(r => r.type === filter).length}
                   </span>
                 )}
@@ -347,28 +350,25 @@ export function SearchPage() {
       )}
 
       {filteredResults.length > 0 && (
-        <div className="space-y-1 animate-fade-in" ref={resultsContainerRef}>
+        <div className="space-y-1.5 animate-fade-in" ref={resultsContainerRef}>
           {filteredResults.map((r, i) => (
             <button
               key={`${r.type}-${r.route || r.filename}-${i}`}
               data-search-result={i}
               onClick={() => handleResultClick(r)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
                 selectedIndex === i
                   ? 'bg-brand/10 border-brand/20 shadow-md shadow-black/10'
                   : 'border-transparent'
               }`}
             >
-              <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
+              <div className="transition-all duration-150">
                 {typeIcon(r.type)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
-                <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
+                <div className="text-sm leading-tight text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
+                <div className="text-xs leading-snug text-zinc-500 truncate">{r.subtitle}</div>
               </div>
-              <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
-                 {getResultLabel(r.type)}
-                </span>
             </button>
           ))}
         </div>
@@ -379,24 +379,21 @@ export function SearchPage() {
           <div className="px-1 mb-3">
              <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent context</h2>
           </div>
-          <div ref={resultsContainerRef} className="space-y-1">
+          <div ref={resultsContainerRef} className="space-y-1.5">
             {recentItems.map((r, i) => (
               <button
                 key={r.filename || i}
                 data-search-result={i}
                 onClick={() => handleResultClick(r)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border border-transparent"
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border border-transparent"
               >
-                <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
+                <div className="transition-all duration-150">
                   {typeIcon(r.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
-                  <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
+                  <div className="text-sm leading-tight text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
+                  <div className="text-xs leading-snug text-zinc-500 truncate">{r.subtitle}</div>
                 </div>
-                <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
-                   {getResultLabel(r.type)}
-                 </span>
               </button>
             ))}
           </div>

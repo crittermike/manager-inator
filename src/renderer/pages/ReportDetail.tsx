@@ -1197,15 +1197,29 @@ export function ReportDetail() {
       </div>
 
       {/* ── Action buttons ── */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={refresh}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-          aria-label="Refresh report data"
-        >
-          <RefreshCw className="w-4 h-4" aria-hidden="true" />
-        </button>
-        <div className="relative" ref={aiActionsMenuRef}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={refresh}
+            className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+            aria-label="Refresh report data"
+          >
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <button
+            onClick={handleTogglePto}
+            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all active:scale-[0.97] ${
+              isOnPto
+                ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                : 'text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay'
+            }`}
+          >
+            <Plane className="w-4 h-4" aria-hidden="true" />
+            {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative" ref={aiActionsMenuRef}>
           <button
             onClick={() => setShowAiActionsMenu(prev => !prev)}
             disabled={streaming || aiLoading}
@@ -1272,25 +1286,15 @@ export function ReportDetail() {
               </button>
             </div>
           )}
+          </div>
+          <button
+            onClick={() => setAddingFeedback(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] shadow-lg shadow-brand/10"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add feedback
+          </button>
         </div>
-        <button
-          onClick={() => setAddingFeedback(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"
-        >
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          Add feedback
-        </button>
-        <button
-          onClick={handleTogglePto}
-          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all active:scale-[0.97] ${
-            isOnPto
-              ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
-              : 'text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay'
-          }`}
-        >
-          <Plane className="w-4 h-4" aria-hidden="true" />
-          {isOnPto ? 'Clear PTO' : 'Mark PTO'}
-        </button>
       </div>
 
       {editingProfile && (
@@ -1495,35 +1499,35 @@ export function ReportDetail() {
 
           {/* Actions */}
           {!streaming && !aiLoading && (aiContent || streamedText) && (
-            <div className="flex gap-2 mt-3 pt-3 border-t border-border flex-wrap">
+            <div className="flex gap-2 mt-4 pt-4 border-t border-border flex-wrap items-center">
               <button
                 onClick={handleSaveAI}
                 disabled={aiSaving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 shadow-lg shadow-brand/10"
               >
                 <Save className="w-3 h-3" aria-hidden="true" />
                 {aiSaving ? 'Saving…' : aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
               </button>
               <button
                 onClick={() => handleCopy(aiContent || prepContent || fullTextRef.current || streamedText)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                aria-label={copied ? 'Copied' : 'Copy AI content'}
               >
                 {copied ? <Check className="w-3 h-3 text-success" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
-                {copied ? 'Copied' : 'Copy'}
               </button>
               <button
                 onClick={() => handleDownload(
                   aiContent || prepContent || fullTextRef.current || streamedText,
                   `${name}-${aiMode}-${new Date().toISOString().split('T')[0]}.md`
                 )}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
+                aria-label="Download AI content"
               >
                 <Download className="w-3 h-3" aria-hidden="true" />
-                Download
               </button>
               <button
                 onClick={aiMode === 'prep' ? handlePrepOneOnOne : aiMode === 'checkin' ? handleGenerateCheckIn : handleGenerateReview}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"
               >
                 <Sparkles className="w-3 h-3" aria-hidden="true" />
                 Regenerate
