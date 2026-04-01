@@ -1047,7 +1047,7 @@ export function ReportDetail() {
   const ptoExpiry = name ? ptoReports[name] : undefined
   const isOnPto = !!ptoExpiry && new Date(ptoExpiry) > new Date()
 
-  const filterCounts = useMemo((): Record<StreamFilter, number> => ({
+  const filterCounts: Record<StreamFilter, number> = {
     all: streamEntries.length,
     context: streamEntries.filter(e => e.type === 'context').length,
     feedback: streamEntries.filter(e => e.type === 'feedback').length,
@@ -1055,7 +1055,7 @@ export function ReportDetail() {
     checkin: streamEntries.filter(e => e.type === 'checkin').length,
     review: streamEntries.filter(e => e.type === 'review').length,
     prep: streamEntries.filter(e => e.type === 'prep').length
-  }), [streamEntries, report.actionItems])
+  }
 
   const filters: { id: StreamFilter; label: string; icon: typeof FileText }[] = [
     { id: 'all', label: 'All', icon: Filter },

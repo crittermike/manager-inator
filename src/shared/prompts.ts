@@ -61,7 +61,7 @@ Required JSON shape:
   ],
   "impact": [
     {
-      "text": "YYYY-MM-DD — Short title: Description of the manager's impact"
+      "text": "Short title: Description of the manager's impact"
     }
   ],
   "key_context": "anything noteworthy the AI should remember for future reviews/check-ins"
@@ -76,7 +76,7 @@ Rules:
 - "summary" is a short 2-3 sentence overview for metadata
 - "detailed_summary" is a thorough, structured markdown summary that captures the substance of the content. Write it so someone reading it months later can understand what happened without reading the raw content. Include specific names, decisions, and outcomes.
 - "key_context" should capture strategic information useful for future performance reviews or check-ins
-- "impact" should capture evidence of MY impact as the manager
+- "impact" should capture evidence of MY impact as the manager: decisions I made or influenced, people I coached or unblocked, problems I solved, process improvements I drove, cross-team coordination I facilitated, recognition I received. Format each as "Short title: description" — do NOT include dates in the text (dates are added automatically).
 - "resolved_action_items" should identify any items from the EXISTING OPEN ITEMS list that this content indicates have been completed, addressed, or are no longer relevant. Only include items where the content provides clear evidence. Use the EXACT original_text from the open items list.
 
 {sourceHint}
