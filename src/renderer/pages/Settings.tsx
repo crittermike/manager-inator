@@ -26,6 +26,10 @@ import {
 } from 'lucide-react'
 import { PROMPT_TEMPLATES } from '../../shared/prompts'
 
+const cardClass = 'bg-surface rounded-2xl border border-border/80 p-5 shadow-[0_12px_32px_rgba(0,0,0,0.18)]'
+const fieldClass = 'w-full px-4 py-2.5 bg-zinc-950/70 shadow-inner shadow-black/20 border border-border/80 rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 transition-all'
+const textFieldClass = `${fieldClass} placeholder-zinc-600`
+
 export function Settings() {
   const { user, logout } = useAuth()
   const toast = useToast()
@@ -245,7 +249,7 @@ export function Settings() {
         <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
           Account
         </h2>
-        <div className="bg-surface rounded-xl border border-border p-5">
+        <div className={cardClass}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-surface-raised flex items-center justify-center">
@@ -285,7 +289,7 @@ export function Settings() {
         <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
           Your Identity
         </h2>
-        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+        <div className={`${cardClass} space-y-4`}>
           <div>
             <div className="flex items-center gap-2 mb-3">
               <User className="w-4 h-4 text-zinc-400" aria-hidden="true" />
@@ -299,7 +303,7 @@ export function Settings() {
               onChange={(e) => setUserNameVal(e.target.value)}
               placeholder="e.g. Jane Smith"
               aria-label="Your name"
-              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              className={textFieldClass}
             />
             <p className="text-xs text-zinc-600 mt-2">
               Used to identify you in meeting transcripts and AI prompts.
@@ -319,7 +323,7 @@ export function Settings() {
               onChange={(e) => setUserGithubVal(e.target.value)}
               placeholder="e.g. janesmith"
               aria-label="Your GitHub username"
-              className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              className={textFieldClass}
             />
             <p className="text-xs text-zinc-600 mt-2">
               Used to match your activity in meeting action items.
@@ -333,7 +337,7 @@ export function Settings() {
         <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
           Repository
         </h2>
-        <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
+        <div className={`${cardClass} space-y-4`}>
           <div className="flex items-center gap-2 mb-1">
             <FolderGit2 className="w-4 h-4 text-zinc-400" aria-hidden="true" />
             <span className="text-sm font-medium text-zinc-300">
@@ -347,14 +351,14 @@ export function Settings() {
               value={repoPathVal}
               onChange={(e) => { setRepoPathVal(e.target.value); setRepoPathError('') }}
               aria-label="Local repo path"
-              className="flex-1 px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 font-mono focus:outline-none focus:border-brand transition-colors"
+              className={`${fieldClass} flex-1 px-3 font-mono`}
             />
             <button
               onClick={async () => {
                 const result = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'Select repo folder' })
                 if (result) setRepoPathVal(result)
               }}
-              className="px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay border border-border rounded-lg transition-colors whitespace-nowrap"
+              className="px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-surface-raised/70 border border-border/70 rounded-lg transition-colors whitespace-nowrap"
             >
               Browse...
             </button>
@@ -386,7 +390,7 @@ export function Settings() {
               <button
                 type="button"
                 onClick={handleClearCaches}
-                className="px-3 py-2 text-sm text-zinc-300 bg-surface-raised hover:bg-surface-overlay border border-border rounded-lg transition-colors whitespace-nowrap"
+                className="px-3 py-2 text-sm text-zinc-300 bg-transparent hover:bg-surface-raised/70 border border-border/70 rounded-lg transition-colors whitespace-nowrap"
               >
                 Clear all caches
               </button>

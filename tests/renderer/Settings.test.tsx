@@ -142,4 +142,19 @@ describe('Settings clear caches action', () => {
       root.unmount()
     })
   })
+
+  it('renders refined settings cards and inset field chrome', async () => {
+    const { container, root } = await renderSettings()
+
+    const repoInput = container.querySelector('input[aria-label="Local repo path"]') as HTMLInputElement | null
+    expect(repoInput?.className).toContain('shadow-inner')
+    expect(repoInput?.className).toContain('focus:ring-brand/15')
+
+    const accountCard = Array.from(container.querySelectorAll('div')).find(node => node.className.includes('rounded-2xl') && node.textContent?.includes('Connected via GitHub')) as HTMLDivElement | undefined
+    expect(accountCard?.className).toContain('shadow-[0_12px_32px_rgba(0,0,0,0.18)]')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })

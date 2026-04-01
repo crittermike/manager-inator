@@ -10,6 +10,7 @@ interface AddReportModalProps {
 }
 
 const MEETING_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const fieldClass = 'w-full px-3 py-2.5 bg-zinc-950/70 shadow-inner shadow-black/20 border border-border/80 rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 transition-all'
 
 export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps) {
   const [name, setName] = useState('')
@@ -94,13 +95,16 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
       onClick={handleClose}
       onKeyDown={handleKeyDown}
     >
-      <div className="absolute inset-0 bg-black/50 animate-backdrop-fade" />
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm animate-backdrop-fade" />
       <div
-        className="relative bg-zinc-900 border border-border rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md p-6 animate-fade-up"
+        className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border/80 bg-zinc-950/95 shadow-2xl shadow-black/50 ring-1 ring-white/5 animate-fade-up"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-zinc-200">Add direct report</h2>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-border/70 bg-gradient-to-r from-white/[0.03] to-transparent">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-100">Add direct report</h2>
+            <p className="mt-1 text-xs text-zinc-500">Create the profile now, fill in anything else later.</p>
+          </div>
           <button
             onClick={handleClose}
             className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-surface-raised transition-colors"
@@ -110,7 +114,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-6 py-5">
           <div>
             <label htmlFor="report-name" className="block text-xs text-zinc-500 mb-1">
               Name <span className="text-red-400">*</span>
@@ -122,7 +126,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Jane Smith"
-              className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+              className={fieldClass}
               disabled={saving}
             />
           </div>
@@ -143,7 +147,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
                 value={team}
                 onChange={e => setTeam(e.target.value)}
                 placeholder="e.g. Platform"
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+                className={fieldClass}
                 disabled={saving}
               />
             </div>
@@ -158,7 +162,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
                 value={github}
                 onChange={e => setGithub(e.target.value)}
                 placeholder="e.g. janesmith"
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+                className={fieldClass}
                 disabled={saving}
               />
             </div>
@@ -170,7 +174,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
                 value={location}
                 onChange={e => setLocation(e.target.value)}
                 placeholder="e.g. San Francisco"
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand transition-colors"
+                className={fieldClass}
                 disabled={saving}
               />
             </div>
@@ -182,7 +186,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
               id="report-meeting-day"
               value={meetingDay}
               onChange={e => setMeetingDay(e.target.value)}
-              className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors appearance-none"
+              className={`${fieldClass} appearance-none`}
               disabled={saving}
             >
               <option value="" className="text-zinc-600">Not set</option>
@@ -199,7 +203,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 mt-6">
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border/70 bg-surface/60">
           <button
             onClick={handleClose}
             disabled={saving}
@@ -217,7 +221,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
           </button>
         </div>
 
-        <p className="text-[11px] text-zinc-600 mt-3 text-center">
+        <p className="text-[11px] text-zinc-600 px-6 pb-5 text-center">
           You can edit all details later from their profile page
         </p>
       </div>
