@@ -560,7 +560,11 @@ export function Settings() {
               </button>
             </div>
             <p className="text-xs text-zinc-600 mt-2">
-              Provide a fine-grained or classic PAT with read-only access to your organization. Used to show team PR/issue activity in the Today view.
+              Used to show team PR/issue activity in the Today view. Stored locally, only sent to the GitHub API.
+            </p>
+            <p className="text-xs text-zinc-600 mt-1">
+              <strong className="text-zinc-500">Fine-grained:</strong> read-only access to Organization → Members and your org's repos.{' '}
+              <strong className="text-zinc-500">Classic:</strong> <code className="bg-surface-raised px-1 rounded">read:org</code> + <code className="bg-surface-raised px-1 rounded">repo</code> scopes.
             </p>
           </div>
         </div>

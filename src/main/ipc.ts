@@ -77,7 +77,7 @@ export function setupIpcHandlers(): void {
 
     const repoPathChanging = 'repoPath' in raw && raw['repoPath'] !== getSettings().repoPath
 
-    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules', 'ptoReports', 'githubOrgName'] as const
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules', 'ptoReports', 'githubOrgName', 'userName', 'userGithub'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]

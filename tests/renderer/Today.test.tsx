@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import ReactDOM from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppSettings, TeamOverview, TeamMemberActivity } from '../../src/shared/types'
 
 const mockNavigate = vi.fn()
@@ -178,7 +178,19 @@ describe('Today page polish', () => {
         getRecentTeamContext: vi.fn().mockResolvedValue({}),
         saveActivitySnapshot: vi.fn().mockResolvedValue(undefined),
         saveSettings: vi.fn().mockResolvedValue(undefined),
-        toggleActionItem: vi.fn().mockResolvedValue(undefined)
+        toggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getReportData: vi.fn().mockResolvedValue({
+          profile: { displayName: 'Alice Smith' },
+          checkIns: [],
+          transcripts: [],
+          feedback: [],
+          reviews: [],
+          actionItems: [],
+          summaries: [],
+          contextNotes: []
+        }),
+        aiGenerate: vi.fn().mockResolvedValue('Mock generated check-in'),
+        commitFile: vi.fn().mockResolvedValue(undefined)
       }
     })
   })
@@ -198,6 +210,11 @@ describe('Today page polish', () => {
     expect(visibleAction).toBeDefined()
     expect(visibleAction?.className).toContain('uppercase')
 
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    
     await act(async () => {
       root.unmount()
     })
@@ -278,5 +295,231 @@ describe('Today page polish', () => {
     } finally {
       mockOverview.reports = originalReports
     }
+  })
+})
+
+describe('Today date-sensitive behavior', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not label check-ins as overdue on the 1st of the month', async () => {
+    const mockDate = new Date('2026-04-01T12:00:00Z')
+    vi.setSystemTime(mockDate)
+
+    const { container, root } = await renderToday()
+
+    expect(container.textContent).not.toContain('Monthly check-in with Alice Smith is overdue')
+    expect(container.textContent).toContain('Monthly check-in due for Alice Smith')
+
+    const overdueSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Overdue'))
+    expect(overdueSectionButton?.parentElement?.textContent).not.toContain('Monthly check-in due for Alice Smith')
+
+    const thisWeekSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('This week'))
+    expect(thisWeekSectionButton?.parentElement?.textContent).toContain('Monthly check-in due for Alice Smith')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('auto-generates missing check-ins on the last day of the month', async () => {
+    const mockDate = new Date(2026, 2, 31, 12, 0, 0)
+
+    vi.setSystemTime(mockDate)
+
+    const { root, container } = await renderToday()
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const api = (window as typeof window & {
+      api: {
+        getReportData: ReturnType<typeof vi.fn>
+        aiGenerate: ReturnType<typeof vi.fn>
+        commitFile: ReturnType<typeof vi.fn>
+      }
+    }).api
+
+    expect(api.getReportData).toHaveBeenCalledWith('alice-smith')
+    expect(api.aiGenerate).toHaveBeenCalledWith(
+      'generate-checkin',
+      expect.objectContaining({ month: '2026-03' }),
+      expect.any(Function),
+      expect.any(String)
+    )
+    expect(api.commitFile).toHaveBeenCalledWith(
+      'reports/alice-smith/check-ins/monthly/2026-03.md',
+      'Mock generated check-in',
+      'Auto-save Alice Smith check-in for March 2026'
+    )
+    expect(localStorage.getItem('auto-checkin-2026-03-alice-smith')).toBe('true')
+
+    const doneSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Done today')) as HTMLButtonElement | undefined
+    expect(doneSectionButton).toBeDefined()
+
+    await act(async () => {
+      doneSectionButton?.click()
+    })
+
+    expect(container.textContent).toContain('Generated check-in for Alice Smith')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+})
+
+describe('Today actionable items', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true
+    })
+    document.body.innerHTML = ''
+    localStorage.clear()
+    mockNavigate.mockReset()
+    mockRefresh.mockReset()
+    mockToast.success.mockReset()
+    mockToast.error.mockReset()
+
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: vi.fn()
+    })
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getTodayBootstrap: vi.fn().mockResolvedValue({ contexts: [], teamActionItems: [] }),
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        getTeamActivity: vi.fn().mockResolvedValue([]),
+        getRecentTeamContext: vi.fn().mockResolvedValue({}),
+        saveActivitySnapshot: vi.fn().mockResolvedValue(undefined),
+        saveSettings: vi.fn().mockResolvedValue(undefined),
+        toggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getReportData: vi.fn().mockResolvedValue({
+          profile: { displayName: 'Alice Smith' },
+          checkIns: [],
+          transcripts: [],
+          feedback: [],
+          reviews: [],
+          actionItems: [],
+          summaries: [],
+          contextNotes: []
+        }),
+        aiGenerate: vi.fn().mockResolvedValue('Mock content'),
+        commitFile: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('skip-level prep shows a Prep button with inline prompt instead of Dismiss', async () => {
+    // First week of month
+    vi.setSystemTime(new Date('2026-04-02T12:00:00Z'))
+
+    const { container, root } = await renderToday()
+
+    expect(container.textContent).toContain('Prep for your skip-level 1:1')
+    expect(container.textContent).toContain('Draft an agenda')
+
+    const prepButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === 'Prep') as HTMLButtonElement | undefined
+    expect(prepButton).toBeDefined()
+
+    // Click to expand inline prompt
+    await act(async () => {
+      prepButton?.click()
+    })
+
+    expect(container.textContent).toContain('Inline prompt')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('quarterly OKR shows a Draft button with inline prompt instead of Dismiss', async () => {
+    // April 2026 = Q2 start (month 3 in 0-indexed = April)
+    vi.setSystemTime(new Date('2026-04-02T12:00:00Z'))
+
+    const { container, root } = await renderToday()
+
+    expect(container.textContent).toContain('Quarterly planning')
+
+    const draftButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === 'Draft') as HTMLButtonElement | undefined
+    expect(draftButton).toBeDefined()
+
+    await act(async () => {
+      draftButton?.click()
+    })
+
+    expect(container.textContent).toContain('Inline prompt')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('team health check shows a Reflect button with inline prompt instead of Dismiss', async () => {
+    vi.setSystemTime(new Date('2026-04-02T12:00:00Z'))
+
+    const { container, root } = await renderToday()
+
+    expect(container.textContent).toContain('Team health check')
+    expect(container.textContent).toContain('BICEPS')
+
+    // Find the Reflect button specifically for team health check
+    const reflectButtons = Array.from(container.querySelectorAll('button'))
+      .filter(b => b.textContent?.trim() === 'Reflect')
+    expect(reflectButtons.length).toBeGreaterThan(0)
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('personal management retro shows Reflect with inline prompt in semi-annual periods', async () => {
+    // January = semi-annual month
+    vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
+
+    const { container, root } = await renderToday()
+
+    expect(container.textContent).toContain('Personal management retro')
+    expect(container.textContent).toContain('What kind of manager')
+
+    const reflectButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === 'Reflect') as HTMLButtonElement | undefined
+    expect(reflectButton).toBeDefined()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('1:1 format check shows Reflect with inline prompt in semi-annual periods', async () => {
+    vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
+
+    const { container, root } = await renderToday()
+
+    expect(container.textContent).toContain('1:1 format check')
+    expect(container.textContent).toContain('Reflect on how your 1:1s')
+
+    await act(async () => {
+      root.unmount()
+    })
   })
 })

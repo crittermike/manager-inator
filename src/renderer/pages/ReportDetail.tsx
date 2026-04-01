@@ -40,9 +40,11 @@ import {
   RefreshCw,
   GitPullRequest,
   Loader2,
-  Upload
+  Upload,
+  MoreHorizontal
 } from 'lucide-react'
 import { GitHubMark } from '../components/common/GitHubMark'
+import { getCheckInContext } from '../utils/checkin'
 
 // ── Types ──
 
@@ -86,6 +88,8 @@ export function ReportDetail() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSaving, setAiSaving] = useState(false)
   const [showAiActionsMenu, setShowAiActionsMenu] = useState(false)
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
 
   // Edit states
   const [editingProfile, setEditingProfile] = useState(false)
@@ -123,6 +127,7 @@ export function ReportDetail() {
 
   // Adding feedback
   const [addingFeedback, setAddingFeedback] = useState(false)
+  const [addingReview, setAddingReview] = useState(false)
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [showPtoModal, setShowPtoModal] = useState(false)
   const [ptoInput, setPtoInput] = useState(() => {
@@ -134,6 +139,8 @@ export function ReportDetail() {
   // Refs
   const savePrepRef = useRef<() => void>(() => {})
   const aiActionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const addMenuRef = useRef<HTMLDivElement | null>(null)
+  const moreMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     mountedRef.current = true
@@ -163,6 +170,38 @@ export function ReportDetail() {
       document.removeEventListener('keydown', handleEscape)
     }
   }, [showAiActionsMenu])
+
+  useEffect(() => {
+    if (!showAddMenu) return
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!addMenuRef.current?.contains(event.target as Node)) setShowAddMenu(false)
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowAddMenu(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showAddMenu])
+
+  useEffect(() => {
+    if (!showMoreMenu) return
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!moreMenuRef.current?.contains(event.target as Node)) setShowMoreMenu(false)
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowMoreMenu(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showMoreMenu])
 
   const { settings: _rdSettings, refreshSettings } = useSettings()
 
@@ -378,96 +417,38 @@ export function ReportDetail() {
     if (!report || !name) return
     setShowAI(true)
     setAiMode('checkin')
+    setAiLoading(true)
     setAiContent(null)
     reset()
 
-    const now = new Date()
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-
-    const recentSummaries = report.summaries.slice(-8)
-    const checkInPaths = recentSummaries.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
-    const checkInMap = await window.api.getFilesContentBulk(checkInPaths)
-    const summariesText = recentSummaries.map(s => {
-      const content = checkInMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
-      return content ? `### ${s.date}\n${content}` : ''
-    }).filter(Boolean).join('\n\n---\n\n')
-
-    const recentCheckIns = report.checkIns.slice(-3)
-    const checkInHistoryText = recentCheckIns.length > 0
-      ? recentCheckIns.map(c => `### ${c.date}\n${c.content || c.accomplishments.join('\n') || '(no content)'}`).join('\n\n---\n\n')
-      : undefined
-
-    let githubActivityText: string | undefined
     try {
-      const stats = await window.api.getMonthlyActivity(name, now.getFullYear(), now.getMonth() + 1)
-      if (stats && (stats.counts.prsMerged > 0 || stats.counts.prsReviewed > 0 || stats.counts.issuesCreated > 0 || stats.counts.issuesClosed > 0 || stats.counts.discussionsCreated > 0)) {
-        const sections: string[] = []
-        sections.push(`Summary: ${stats.counts.prsMerged} PRs merged, ${stats.counts.prsReviewed} PRs reviewed, ${stats.counts.issuesCreated} issues created, ${stats.counts.issuesClosed} issues closed, ${stats.counts.discussionsCreated} discussions created`)
-        if (stats.prsMerged.length > 0) {
-          sections.push('PRs merged:\n' + stats.prsMerged.map(pr => `- [${pr.title}](${pr.url}) (${pr.repo})`).join('\n'))
+      const { context } = await getCheckInContext(report, name)
+      const result = await generate('generate-checkin', context)
+      if (!mountedRef.current) return
+      const content = result || fullTextRef.current
+      if (content) {
+        setAiContent(content)
+        const { month } = await getCheckInContext(report, name, new Date())
+        try {
+          await window.api.commitFile(
+            `reports/${name}/check-ins/monthly/${month}.md`,
+            content,
+            `Save ${report.profile.displayName} check-in for ${month}`
+          )
+          toast.success('Check-in saved')
+          load()
+        } catch {
+          toast.error('Failed to auto-save check-in')
         }
-        if (stats.prsReviewed.length > 0) {
-          sections.push('PRs reviewed:\n' + stats.prsReviewed.map(pr => `- [${pr.title}](${pr.url}) (${pr.repo})`).join('\n'))
-        }
-        if (stats.discussionsCreated.length > 0) {
-          sections.push('Discussions created:\n' + stats.discussionsCreated.map(d => `- [${d.title}](${d.url}) (${d.repo})`).join('\n'))
-        }
-        if (stats.issuesCreated.length > 0) {
-          sections.push('Issues created:\n' + stats.issuesCreated.map(i => `- [${i.title}](${i.url}) (${i.repo}, ${i.state})`).join('\n'))
-        }
-        if (stats.issuesClosed.length > 0) {
-          sections.push('Issues closed:\n' + stats.issuesClosed.map(i => `- [${i.title}](${i.url}) (${i.repo})`).join('\n'))
-        }
-        githubActivityText = sections.join('\n\n')
+      } else {
+        setAiContent('_Failed to generate check-in. Try clicking Regenerate._')
       }
-    } catch { /* monthly activity unavailable is non-fatal */ }
-
-    try {
-      const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-      const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`
-      const enriched = await window.api.fetchActivityForPerson(name, startDate, endDate)
-      if (enriched && enriched.items.length > 0) {
-        const contentPreviews: string[] = []
-        for (const item of enriched.items) {
-          if (item.reviewComments?.length) {
-            for (const rc of item.reviewComments.slice(0, 3)) {
-              contentPreviews.push(`- Review on "${item.title}": ${rc.reviewState ? `[${rc.reviewState}] ` : ''}${rc.body.slice(0, 200)}`)
-            }
-          }
-          if (item.issueComments?.length) {
-            for (const ic of item.issueComments.slice(0, 3)) {
-              contentPreviews.push(`- Comment on "${item.title}": ${ic.body.slice(0, 200)}`)
-            }
-          }
-        }
-        if (contentPreviews.length > 0) {
-          const enrichedSection = '\n\nCode review & comment content (for assessing quality and engagement):\n' + contentPreviews.slice(0, 20).join('\n')
-          githubActivityText = (githubActivityText || '') + enrichedSection
-        }
-      }
-    } catch { /* content enrichment unavailable is non-fatal */ }
-
-    try {
-      await generate('generate-checkin', {
-        reportName: report.profile.displayName,
-        displayName: report.profile.displayName,
-        month,
-        monthName: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
-        about: report.profile.about || undefined,
-        jobExpectations: report.jobExpectations || undefined,
-        summaries: summariesText || 'No recent summaries available.',
-        checkInHistory: checkInHistoryText,
-        feedback: report.feedback.map(f => `${f.date}: ${f.content}`).join('\n---\n'),
-        actionItems: report.actionItems.filter(a => !a.completed).slice(0, 20).map(a => `- ${a.text}`).join('\n'),
-        contextNotes: report.contextNotes.length > 0
-          ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
-          : undefined,
-        githubActivity: githubActivityText
-      })
     } catch {
       if (!mountedRef.current) return
+    } finally {
+      if (mountedRef.current) setAiLoading(false)
     }
-  }, [report, name, generate, reset])
+  }, [report, name, generate, reset, fullTextRef, toast, load])
 
   const handleGenerateReview = useCallback(async () => {
     if (!report || !name) return
@@ -591,12 +572,11 @@ export function ReportDetail() {
         toast.success('Prep updated')
         load()
       } else if (aiMode === 'checkin') {
-        const now = new Date()
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        const { month } = await getCheckInContext(report, name, new Date())
         await window.api.commitFile(
           `reports/${name}/check-ins/monthly/${month}.md`,
           content,
-          `Save ${report.profile.displayName} check-in for ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}`
+          `Save ${report.profile.displayName} check-in for ${month}`
         )
         toast.success('Check-in saved')
         load()
@@ -1195,27 +1175,7 @@ export function ReportDetail() {
       </div>
 
       {/* ── Action buttons ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={refresh}
-            className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-            aria-label="Refresh report data"
-          >
-            <RefreshCw className="w-4 h-4" aria-hidden="true" />
-          </button>
-          <button
-            onClick={handleTogglePto}
-            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all active:scale-[0.97] ${
-              isOnPto
-                ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
-                : 'text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay'
-            }`}
-          >
-            <Plane className="w-4 h-4" aria-hidden="true" />
-            {isOnPto ? 'Clear PTO' : 'Mark PTO'}
-          </button>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative" ref={aiActionsMenuRef}>
           <button
@@ -1285,15 +1245,108 @@ export function ReportDetail() {
             </div>
           )}
           </div>
+
+          <div className="relative" ref={addMenuRef}>
+            <button
+              onClick={() => setShowAddMenu(prev => !prev)}
+              aria-label="Add"
+              aria-haspopup="menu"
+              aria-expanded={showAddMenu}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] shadow-lg shadow-brand/10"
+            >
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Add
+              <ChevronDown className={`w-4 h-4 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+
+            {showAddMenu && (
+              <div
+                role="menu"
+                aria-label="Add menu"
+                className="absolute left-0 top-full z-20 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowAddMenu(false)
+                    setAddingFeedback(true)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                >
+                  <MessageSquare className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                  Feedback
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowAddMenu(false)
+                    setAddingReview(true)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                >
+                  <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                  Review
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="relative" ref={moreMenuRef}>
           <button
-            onClick={() => setAddingFeedback(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] shadow-lg shadow-brand/10"
+            onClick={() => setShowMoreMenu(prev => !prev)}
+            aria-label="More actions"
+            aria-haspopup="menu"
+            aria-expanded={showMoreMenu}
+            className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
           >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            Add feedback
+            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
           </button>
+
+          {showMoreMenu && (
+            <div
+              role="menu"
+              aria-label="More actions menu"
+              className="absolute right-0 top-full z-20 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
+            >
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowMoreMenu(false)
+                  refresh()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+              >
+                <RefreshCw className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                Refresh data
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowMoreMenu(false)
+                  handleTogglePto()
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-overlay ${
+                  isOnPto ? 'text-amber-300' : 'text-zinc-300 hover:text-zinc-100'
+                }`}
+              >
+                <Plane className={`w-4 h-4 ${isOnPto ? 'text-amber-400' : 'text-zinc-400'}`} aria-hidden="true" />
+                {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {addingReview && (
+        <InlineReviewForm
+          name={name!}
+          report={report}
+          toast={toast}
+          refresh={refresh}
+          onClose={() => setAddingReview(false)}
+        />
+      )}
 
       {editingProfile && (
         <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in space-y-4">
@@ -2312,6 +2365,87 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
   )
 }
 
+function InlineReviewForm({ name, report, toast, refresh, onClose }: {
+  name: string
+  report: NonNullable<ReturnType<typeof useReportData>['report']>
+  toast: ReturnType<typeof useToast>
+  refresh: () => void
+  onClose: () => void
+}) {
+  const [periodDraft, setPeriodDraft] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${now.getMonth() >= 6 ? 'H2' : 'H1'}`
+  })
+  const [reviewDraft, setReviewDraft] = useState('')
+  const [savingReview, setSavingReview] = useState(false)
+
+  const handleSaveReview = useCallback(async () => {
+    if (!name || !report || !periodDraft.trim() || !reviewDraft.trim()) return
+    setSavingReview(true)
+    try {
+      await window.api.commitFile(
+        `reports/${name}/reviews/${periodDraft.trim()}.md`,
+        reviewDraft.trim() + '\n',
+        `Save performance review for ${report.profile.displayName} (${periodDraft.trim()})`
+      )
+      toast.success('Review saved')
+      onClose()
+      refresh()
+    } catch (e) {
+      console.error('Failed to save review:', e)
+      toast.error('Failed to save review')
+    } finally {
+      setSavingReview(false)
+    }
+  }, [name, report, periodDraft, reviewDraft, toast, refresh, onClose])
+
+  return (
+    <div className="bg-surface rounded-xl border border-brand/20 p-4 animate-fade-in space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-zinc-300">Add performance review</span>
+        <button
+          onClick={onClose}
+          className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+          aria-label="Close review form"
+        >
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Review period</label>
+        <input
+          type="text"
+          value={periodDraft}
+          onChange={e => setPeriodDraft(e.target.value)}
+          placeholder="2026-H1"
+          className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-brand/40 transition-colors"
+        />
+      </div>
+      <textarea
+        value={reviewDraft}
+        onChange={e => setReviewDraft(e.target.value)}
+        onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSaveReview() } }}
+        placeholder="Write or paste the review here..."
+        className="w-full h-48 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-600 resize-y focus:outline-none focus:border-brand/40 transition-colors"
+        autoFocus
+      />
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveReview}
+          disabled={!periodDraft.trim() || !reviewDraft.trim() || savingReview}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Save className="w-3 h-3" aria-hidden="true" />
+          {savingReview ? 'Saving...' : 'Save review'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Inline Editor ──
 
 function InlineEditor({ initialContent, onSave }: { initialContent: string; onSave: (content: string) => Promise<void> }) {
@@ -2442,7 +2576,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
               <span className="text-xs text-zinc-500 truncate block mt-0.5">{entry.preview}</span>
             )}
           </div>
-          {!entry.pinned && (
+          {!entry.pinned && entry.type !== 'checkin' && (
             <span className="text-xs text-zinc-600 shrink-0">{formatDate(entry.date)}</span>
           )}
           {expanded ? (
@@ -2493,8 +2627,8 @@ const StreamEntryCard = memo(function StreamEntryCard({
             {entry.type === 'context' && !(isViewing && isEditing) && <ContextDetail entry={entry} activeTab={contextTab} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
-            {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} />}
-            {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onViewContent={onViewContent} />}
+            {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onSave={onSaveContent} onDelete={onDeleteContent} />}
+            {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onSave={onSaveContent} onDelete={onDeleteContent} />}
             {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
           </div>
 
@@ -2733,18 +2867,54 @@ function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntr
   )
 }
 
-function CheckinDetail({ entry, name }: { entry: StreamEntry; name: string }) {
+function CheckinDetail({ entry, name, onSave, onDelete }: {
+  entry: StreamEntry;
+  name: string;
+  onSave: (path: string, content: string) => Promise<void>;
+  onDelete: (path: string) => void;
+}) {
   const c = entry.data as { date: string; accomplishments: string[] }
   const checkinPath = `reports/${name}/check-ins/monthly/${c.date}.md`
   const { content, loading } = useFileContent(checkinPath)
+  const [isEditing, setIsEditing] = useState(false)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (isEditing && content != null) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium text-zinc-300">Edit check-in</span>
+          <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-zinc-300">Cancel</button>
+        </div>
+        <InlineEditor 
+          initialContent={content} 
+          onSave={async (newContent) => {
+            await onSave(checkinPath, newContent)
+            setIsEditing(false)
+          }} 
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-2">
-      {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : content ? (
+    <div className="space-y-2 group">
+      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity mb-2">
+        <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors">
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+        <button onClick={() => onDelete(checkinPath)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-danger bg-surface-raised rounded-lg transition-colors">
+          <Trash2 className="w-3 h-3" /> Delete
+        </button>
+      </div>
+      {content ? (
         <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(content)}</ReactMarkdown>
         </div>
@@ -2764,24 +2934,62 @@ function CheckinDetail({ entry, name }: { entry: StreamEntry; name: string }) {
   )
 }
 
-function ReviewDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (id: string, path: string, title: string) => void }) {
+function ReviewDetail({ entry, name, onSave, onDelete }: {
+  entry: StreamEntry
+  name: string
+  onSave: (path: string, content: string) => Promise<void>
+  onDelete: (path: string) => void
+}) {
   const r = entry.data as { period: string; content: string }
+  const reviewPath = `reports/${name}/reviews/${r.period}.md`
+  const { content, loading } = useFileContent(reviewPath)
+  const [isEditing, setIsEditing] = useState(false)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (isEditing && content != null) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium text-zinc-300">Edit review</span>
+          <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-zinc-300">Cancel</button>
+        </div>
+        <InlineEditor
+          initialContent={content}
+          onSave={async (newContent) => {
+            await onSave(reviewPath, newContent)
+            setIsEditing(false)
+          }}
+        />
+      </div>
+    )
+  }
+
+  const reviewContent = content || r.content
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-zinc-400 leading-relaxed line-clamp-4">
-        {r.content.slice(0, 300).replace(/[#*_]/g, '')}…
-      </p>
-      <button
-        onClick={() => onViewContent(
-          entry.id,
-          `reports/${name}/reviews/${r.period}.md`,
-          `Review — ${r.period}`
-        )}
-        className="text-xs text-brand-light hover:text-brand transition-colors"
-      >
-        View full review →
-      </button>
+    <div className="space-y-3 group">
+      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors">
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+        <button onClick={() => onDelete(reviewPath)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-danger bg-surface-raised rounded-lg transition-colors">
+          <Trash2 className="w-3 h-3" /> Delete
+        </button>
+      </div>
+      {reviewContent ? (
+        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(reviewContent)}</ReactMarkdown>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500">Unable to load review content.</p>
+      )}
     </div>
   )
 }

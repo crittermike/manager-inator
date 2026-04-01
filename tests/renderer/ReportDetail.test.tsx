@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReactDOM from 'react-dom/client'
 import type { Report } from '../../src/shared/types'
 
@@ -109,6 +109,14 @@ async function renderReportDetail() {
   return { container, root }
 }
 
+async function flushPromises(iterations = 6) {
+  await act(async () => {
+    for (let i = 0; i < iterations; i += 1) {
+      await Promise.resolve()
+    }
+  })
+}
+
 describe('ReportDetail AI actions menu', () => {
   beforeEach(() => {
     Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
@@ -141,7 +149,8 @@ describe('ReportDetail AI actions menu', () => {
         getMonthlyActivity: vi.fn().mockResolvedValue(null),
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue(mockSettings),
-        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined)
+        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getFileContent: vi.fn().mockResolvedValue('mock file content')
       }
     })
   })
@@ -365,6 +374,604 @@ describe('ReportDetail AI actions menu', () => {
     }))
 
     dispatchSpy.mockRestore()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+})
+
+
+describe('ReportDetail monthly check-in workflow', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    ;(window as typeof window & { api: { commitFile: ReturnType<typeof vi.fn> } }).api.commitFile.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('targets previous month if generated on the 1st of the month', async () => {
+    const mockDate = new Date(2026, 3, 1, 12, 0, 0)
+    vi.setSystemTime(mockDate)
+
+    const { container, root } = await renderReportDetail()
+    const menuButton = container.querySelector('button[aria-label="Generate"]') as HTMLButtonElement | null
+
+    await act(async () => {
+      menuButton?.click()
+    })
+
+    const genButton = Array.from(container.querySelectorAll('button[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Monthly performance check-in')) as HTMLButtonElement | undefined
+
+    expect(genButton).toBeDefined()
+
+    await act(async () => {
+      genButton?.click()
+    })
+
+    await flushPromises()
+
+    expect(mockGenerate).toHaveBeenCalledWith(
+      'generate-checkin',
+      expect.objectContaining({
+        month: '2026-03',
+        monthName: 'March 2026'
+      })
+    )
+
+    expect((window as typeof window & { api: { commitFile: ReturnType<typeof vi.fn> } }).api.commitFile).toHaveBeenCalledWith(
+      'reports/chanakya-valluri/check-ins/monthly/2026-03.md',
+      'Generated content',
+      'Save Chanakya Valluri check-in for 2026-03'
+    )
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('allows inline editing and saving of check-in details', async () => {
+    mockUseFileContent.mockImplementation((path: string | null) => {
+      if (path === 'reports/chanakya-valluri/check-ins/monthly/2026-02.md') {
+        return { content: 'Mock checkin content', loading: false }
+      }
+      return { content: null, loading: false }
+    })
+
+    const origCheckIns = [...mockReport.checkIns]
+    mockReport.checkIns = [{
+      date: '2026-02',
+      content: 'Original check-in content',
+      updatedAt: '2026-03-01T12:00:00Z',
+      accomplishments: [],
+      concerns: [],
+      githubActivity: {}
+    }]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const filterBtn = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Check-ins')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        filterBtn?.click()
+      })
+
+      const rowButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Monthly check-in — 2026-02')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        rowButton?.click()
+      })
+
+      const editButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Edit') as HTMLButtonElement | undefined
+
+      expect(editButton).toBeDefined()
+
+      await act(async () => {
+        editButton?.click()
+      })
+
+      const textarea = container.querySelector('textarea') as HTMLTextAreaElement | null
+      expect(textarea).not.toBeNull()
+
+      await act(async () => {
+        if (textarea) {
+          const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+          valueSetter?.call(textarea, 'Updated check-in content')
+          textarea.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+        }
+      })
+
+      expect((container.querySelector('textarea') as HTMLTextAreaElement | null)?.value).toBe('Updated check-in content')
+
+      const saveButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Save') as HTMLButtonElement | undefined
+
+      expect(saveButton).toBeDefined()
+
+      await act(async () => {
+        saveButton?.click()
+        await Promise.resolve()
+      })
+
+      expect((window as typeof window & { api: { commitFile: ReturnType<typeof vi.fn> } }).api.commitFile).toHaveBeenCalledWith(
+        'reports/chanakya-valluri/check-ins/monthly/2026-02.md',
+        'Updated check-in content',
+        'Update context note'
+      )
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockReport.checkIns = origCheckIns
+    }
+  })
+
+  it('allows inline deleting of check-in details', async () => {
+    mockUseFileContent.mockImplementation((path: string | null) => {
+      if (path === 'reports/chanakya-valluri/check-ins/monthly/2026-02.md') {
+        return { content: 'Mock checkin content', loading: false }
+      }
+      return { content: null, loading: false }
+    })
+
+    const origCheckIns = [...mockReport.checkIns]
+    mockReport.checkIns = [{
+      date: '2026-02',
+      content: 'Original check-in content',
+      updatedAt: '2026-03-01T12:00:00Z',
+      accomplishments: [],
+      concerns: [],
+      githubActivity: {}
+    }]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const filterBtn = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Check-ins')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        filterBtn?.click()
+      })
+
+      const rowButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Monthly check-in — 2026-02')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        rowButton?.click()
+      })
+
+      const deleteButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Delete') as HTMLButtonElement | undefined
+
+      expect(deleteButton).toBeDefined()
+
+      await act(async () => {
+        deleteButton?.click()
+      })
+
+      expect(deleteButton?.textContent).toContain('Delete')
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockReport.checkIns = origCheckIns
+    }
+  })
+
+  it('renders review content inline and supports creating a new review', async () => {
+    mockUseFileContent.mockImplementation((path: string | null) => (
+      path === 'reports/chanakya-valluri/reviews/2026-H1.md'
+        ? { content: '# Performance review: Chanakya Valluri\n\nStrong half.', loading: false }
+        : { content: null, loading: false }
+    ))
+
+    const originalReviews = mockReport.reviews
+    mockReport.reviews = [{ period: '2026-H1', content: '# Performance review: Chanakya Valluri\n\nStrong half.' }]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const reviewFilter = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Reviews')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        reviewFilter?.click()
+      })
+
+      const reviewRow = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Performance review — 2026-H1')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        reviewRow?.click()
+      })
+
+      expect(container.textContent).toContain('Strong half.')
+      expect(container.textContent).not.toContain('View full review')
+
+      // Open the "Add" dropdown, then click "Review"
+      const addDropdown = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Add') && b.getAttribute('aria-haspopup') === 'menu') as HTMLButtonElement | undefined
+
+      await act(async () => {
+        addDropdown?.click()
+      })
+
+      const addReviewMenuItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+        .find(b => b.textContent?.includes('Review')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        addReviewMenuItem?.click()
+      })
+
+      const inputs = container.querySelectorAll('input')
+      const periodInput = Array.from(inputs).find(input => (input as HTMLInputElement).placeholder === '2026-H1') as HTMLInputElement | undefined
+      const reviewTextarea = Array.from(container.querySelectorAll('textarea')).find(textarea => textarea.getAttribute('placeholder') === 'Write or paste the review here...') as HTMLTextAreaElement | undefined
+
+      expect(periodInput).toBeDefined()
+      expect(reviewTextarea).toBeDefined()
+
+      await act(async () => {
+        if (periodInput) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+          setter?.call(periodInput, '2026-H2')
+          periodInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+        }
+        if (reviewTextarea) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+          setter?.call(reviewTextarea, 'New review body')
+          reviewTextarea.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+        }
+      })
+
+      const saveReviewButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Save review')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        saveReviewButton?.click()
+        await Promise.resolve()
+      })
+
+      expect((window as typeof window & { api: { commitFile: ReturnType<typeof vi.fn> } }).api.commitFile).toHaveBeenCalledWith(
+        'reports/chanakya-valluri/reviews/2026-H2.md',
+        'New review body\n',
+        'Save performance review for Chanakya Valluri (2026-H2)'
+      )
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockReport.reviews = originalReviews
+    }
+  })
+
+  it('allows inline editing and deleting of review details', async () => {
+    mockUseFileContent.mockImplementation((path: string | null) => (
+      path === 'reports/chanakya-valluri/reviews/2026-H1.md'
+        ? { content: '# Performance review: Chanakya Valluri\n\nExisting review body', loading: false }
+        : { content: null, loading: false }
+    ))
+
+    const originalReviews = mockReport.reviews
+    mockReport.reviews = [{ period: '2026-H1', content: '# Performance review: Chanakya Valluri\n\nExisting review body' }]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const reviewFilter = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Reviews')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        reviewFilter?.click()
+      })
+
+      const reviewRow = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Performance review — 2026-H1')) as HTMLButtonElement | undefined
+
+      await act(async () => {
+        reviewRow?.click()
+      })
+
+      const editButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Edit') as HTMLButtonElement | undefined
+
+      await act(async () => {
+        editButton?.click()
+      })
+
+      const textarea = container.querySelector('textarea') as HTMLTextAreaElement | null
+      expect(textarea).not.toBeNull()
+
+      await act(async () => {
+        if (textarea) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+          setter?.call(textarea, 'Updated review body')
+          textarea.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+        }
+      })
+
+      const saveButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Save') as HTMLButtonElement | undefined
+
+      await act(async () => {
+        saveButton?.click()
+        await Promise.resolve()
+      })
+
+      expect((window as typeof window & { api: { commitFile: ReturnType<typeof vi.fn> } }).api.commitFile).toHaveBeenCalledWith(
+        'reports/chanakya-valluri/reviews/2026-H1.md',
+        'Updated review body',
+        'Update context note'
+      )
+
+      const deleteButton = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Delete') as HTMLButtonElement | undefined
+
+      expect(deleteButton).toBeDefined()
+
+      await act(async () => {
+        deleteButton?.click()
+      })
+
+      expect(deleteButton?.textContent).toContain('Delete')
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockReport.reviews = originalReviews
+    }
+  })
+})
+
+describe('ReportDetail Add dropdown', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true
+    })
+    document.body.innerHTML = ''
+    mockNavigate.mockReset()
+    mockGenerate.mockReset()
+    mockGenerate.mockResolvedValue('Generated content')
+    mockCancel.mockReset()
+    mockReset.mockReset()
+    mockLoad.mockReset()
+    mockRefresh.mockReset()
+    mockRefreshSettings.mockReset()
+    mockUseFileContent.mockReset()
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
+    mockToast.success.mockReset()
+    mockToast.error.mockReset()
+    mockToast.info.mockReset()
+    mockToast.warning.mockReset()
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        listContexts: vi.fn().mockResolvedValue([]),
+        fetchActivityForPerson: vi.fn().mockResolvedValue(null),
+        getMonthlyActivity: vi.fn().mockResolvedValue(null),
+        commitFile: vi.fn().mockResolvedValue(undefined),
+        getSettings: vi.fn().mockResolvedValue(mockSettings),
+        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getFileContent: vi.fn().mockResolvedValue('mock file content')
+      }
+    })
+  })
+
+  it('shows an Add dropdown with Feedback and Review menu items', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement | null
+    expect(addTrigger).not.toBeNull()
+    expect(addTrigger?.textContent).toContain('Add')
+
+    await act(async () => {
+      addTrigger?.click()
+    })
+
+    const menu = container.querySelector('[role="menu"][aria-label="Add menu"]')
+    expect(menu).not.toBeNull()
+    expect(menu?.textContent).toContain('Feedback')
+    expect(menu?.textContent).toContain('Review')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('opens feedback form from the Add dropdown', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement
+    await act(async () => {
+      addTrigger.click()
+    })
+
+    const feedbackItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Feedback')) as HTMLButtonElement
+
+    await act(async () => {
+      feedbackItem?.click()
+    })
+
+    // Menu should close
+    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
+    // Feedback form should be visible
+    expect(container.textContent).toContain('Positive')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('opens review form from the Add dropdown', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement
+    await act(async () => {
+      addTrigger.click()
+    })
+
+    const reviewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Review')) as HTMLButtonElement
+
+    await act(async () => {
+      reviewItem?.click()
+    })
+
+    // Menu should close
+    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
+    // Review form should be visible (period input placeholder)
+    const inputs = container.querySelectorAll('input')
+    const periodInput = Array.from(inputs).find(input => (input as HTMLInputElement).placeholder === '2026-H1')
+    expect(periodInput).toBeDefined()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('closes Add dropdown on outside click and Escape', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement
+
+    await act(async () => {
+      addTrigger.click()
+    })
+    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).not.toBeNull()
+
+    await act(async () => {
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
+
+    await act(async () => {
+      addTrigger.click()
+    })
+    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).not.toBeNull()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+})
+
+describe('ReportDetail More actions menu', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true
+    })
+    document.body.innerHTML = ''
+    mockNavigate.mockReset()
+    mockGenerate.mockReset()
+    mockGenerate.mockResolvedValue('Generated content')
+    mockCancel.mockReset()
+    mockReset.mockReset()
+    mockLoad.mockReset()
+    mockRefresh.mockReset()
+    mockRefreshSettings.mockReset()
+    mockUseFileContent.mockReset()
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
+    mockToast.success.mockReset()
+    mockToast.error.mockReset()
+    mockToast.info.mockReset()
+    mockToast.warning.mockReset()
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        listContexts: vi.fn().mockResolvedValue([]),
+        fetchActivityForPerson: vi.fn().mockResolvedValue(null),
+        getMonthlyActivity: vi.fn().mockResolvedValue(null),
+        commitFile: vi.fn().mockResolvedValue(undefined),
+        getSettings: vi.fn().mockResolvedValue(mockSettings),
+        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getFileContent: vi.fn().mockResolvedValue('mock file content'),
+        saveSettings: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+  })
+
+  it('shows a More actions menu with Refresh and PTO options', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const moreTrigger = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement | null
+    expect(moreTrigger).not.toBeNull()
+
+    await act(async () => {
+      moreTrigger?.click()
+    })
+
+    const menu = container.querySelector('[role="menu"][aria-label="More actions menu"]')
+    expect(menu).not.toBeNull()
+    expect(menu?.textContent).toContain('Refresh data')
+    expect(menu?.textContent).toContain('Mark PTO')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('triggers refresh from More actions menu', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const moreTrigger = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement
+    await act(async () => {
+      moreTrigger.click()
+    })
+
+    const refreshItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Refresh data')) as HTMLButtonElement
+
+    await act(async () => {
+      refreshItem?.click()
+    })
+
+    expect(mockRefresh).toHaveBeenCalled()
+    expect(container.querySelector('[role="menu"][aria-label="More actions menu"]')).toBeNull()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('closes More actions menu on outside click', async () => {
+    const { container, root } = await renderReportDetail()
+
+    const moreTrigger = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement
+
+    await act(async () => {
+      moreTrigger.click()
+    })
+    expect(container.querySelector('[role="menu"][aria-label="More actions menu"]')).not.toBeNull()
+
+    await act(async () => {
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    expect(container.querySelector('[role="menu"][aria-label="More actions menu"]')).toBeNull()
 
     await act(async () => {
       root.unmount()
