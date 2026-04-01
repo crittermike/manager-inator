@@ -39,7 +39,8 @@ import {
   fileExists,
   clearAllCaches,
   getTodayBootstrap,
-  preWarmCaches
+  preWarmCaches,
+  isPrewarmComplete
 } from '../../src/main/github'
 
 function setRepoPath(p: string) {
@@ -200,6 +201,12 @@ describe('github.ts integration tests', () => {
       expect(alice11?.title).toBe('Alice 1:1')
     })
 
+    it('preserves source metadata for context entries', () => {
+      const contexts = listContexts()
+      const alice11 = contexts.find(m => m.filename === '2026-03-11-alice-1-1.md')
+      expect(alice11?.source).toBe('meeting')
+    })
+
     it('derives title from filename when no frontmatter', () => {
       const contexts = listContexts()
       const alice04 = contexts.find(m => m.filename === '2026-03-04-alice-1-1.md')
@@ -253,6 +260,14 @@ describe('github.ts integration tests', () => {
       expect(results.length).toBeGreaterThanOrEqual(1)
       const meetingResult = results.find(r => r.directory === 'contexts')
       expect(meetingResult).toBeDefined()
+      expect(meetingResult?.source).toBe('meeting')
+    })
+
+    it('includes context source metadata on context matches', () => {
+      const results = searchContent('standup')
+      const contextResult = results.find(r => r.directory === 'contexts')
+      expect(contextResult).toBeDefined()
+      expect(contextResult?.source).toBeDefined()
     })
 
     it('finds reports by name', () => {
@@ -592,6 +607,18 @@ describe('github.ts integration tests', () => {
       await preWarmCaches()
       const elapsed = performance.now() - t0
       expect(elapsed).toBeLessThan(1000)
+    })
+
+    it('marks prewarm complete when repo path is missing', async () => {
+      setRepoPath(`${fixture.dir}-missing`)
+      clearAllCaches()
+
+      await preWarmCaches()
+
+      expect(isPrewarmComplete()).toBe(true)
+
+      setRepoPath(fixture.dir)
+      clearAllCaches()
     })
   })
 })

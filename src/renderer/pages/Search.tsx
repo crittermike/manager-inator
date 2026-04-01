@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
-import type { ContextEntry, PersonEntry } from '../../shared/types'
+import type { ContentSearchResult, ContextEntry, ContextSource, PersonEntry } from '../../shared/types'
 
 interface SearchResult {
-  type: 'meeting' | 'person' | 'content'
+  type: ContextSource | 'person'
   title: string
   subtitle: string
   route: string
@@ -13,12 +13,26 @@ interface SearchResult {
   directory?: 'contexts' | 'reports' | 'people' | 'notes'
 }
 
-interface ContentSearchResult {
-  filename: string
-  directory: 'contexts' | 'reports' | 'people' | 'notes'
-  title: string
-  snippet: string
-  date?: string
+const SOURCE_LABELS: Record<ContextSource, string> = {
+  slack: 'Slack',
+  github: 'GitHub',
+  email: 'Email',
+  meeting: 'Meeting',
+  other: 'Note'
+}
+
+const FILTERS = ['all', 'slack', 'github', 'email', 'meeting', 'other', 'person'] as const
+type SearchFilter = typeof FILTERS[number]
+
+function getResultLabel(type: SearchResult['type']): string {
+  return type === 'person' ? 'People' : SOURCE_LABELS[type]
+}
+
+function getSearchResultKey(result: SearchResult): string {
+  if (result.type === 'person') return `person:${result.filename || result.title}`
+  if (result.directory && result.filename) return `${result.directory}:${result.filename}`
+  if (result.filename) return `${result.type}:${result.filename}`
+  return `${result.type}:${result.route || result.title}`
 }
 
 export function SearchPage() {
@@ -28,7 +42,7 @@ export function SearchPage() {
   const [contentResults, setContentResults] = useState<ContentSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  const [typeFilter, setTypeFilter] = useState<'all' | 'meeting' | 'person' | 'content'>('all')
+  const [typeFilter, setTypeFilter] = useState<SearchFilter>('all')
   const resultsContainerRef = useRef<HTMLDivElement>(null)
   
   const navigate = useNavigate()
@@ -87,12 +101,13 @@ export function SearchPage() {
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 30)
       .map(m => ({
-        type: 'meeting' as const,
+        type: m.source,
         title: m.title,
         subtitle: m.date,
         route: '',
         date: m.date,
-        filename: m.filename
+        filename: m.filename,
+        directory: 'contexts' as const
       }))
   }, [query, contexts])
 
@@ -105,12 +120,13 @@ export function SearchPage() {
     for (const m of contexts) {
       if (m.title.toLowerCase().includes(q) || m.filename.toLowerCase().includes(q)) {
         titleItems.push({
-          type: 'meeting',
+          type: m.source,
           title: m.title,
           subtitle: m.date,
           route: '',
           date: m.date,
-          filename: m.filename
+          filename: m.filename,
+          directory: 'contexts'
         })
       }
     }
@@ -123,7 +139,9 @@ export function SearchPage() {
           type: 'person',
           title: p.name,
           subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-          route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`
+          route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`,
+          filename: `${p.slug}.md`,
+          directory: 'people'
         })
       }
     }
@@ -131,7 +149,7 @@ export function SearchPage() {
     for (const c of contentResults) {
       if (c.directory === 'contexts') {
         contentItems.push({
-          type: 'content',
+          type: c.source || 'other',
           title: c.title,
           subtitle: c.snippet,
           route: '',
@@ -142,7 +160,7 @@ export function SearchPage() {
       } else if (c.directory === 'reports') {
         const reportName = c.filename.split('/')[0]
         contentItems.push({
-          type: 'content',
+          type: 'other',
           title: c.title,
           subtitle: c.snippet,
           route: `/report/${reportName}`,
@@ -152,7 +170,7 @@ export function SearchPage() {
         })
       } else if (c.directory === 'notes') {
         contentItems.push({
-          type: 'content',
+          type: 'other',
           title: c.title,
           subtitle: c.snippet,
           route: '',
@@ -162,9 +180,8 @@ export function SearchPage() {
         })
       } else {
         const slug = c.filename.replace(/\.(md|txt)$/i, '')
-        const name = slug.replace(/-/g, ' ')
         contentItems.push({
-          type: 'content',
+          type: 'person',
           title: c.title,
           subtitle: c.snippet,
           route: `/people/${slug}`,
@@ -186,7 +203,18 @@ export function SearchPage() {
       return 0
     })
 
-    return [...titleItems, ...contentItems].slice(0, 50)
+    const merged = [...titleItems, ...contentItems]
+    const deduped: SearchResult[] = []
+    const seen = new Set<string>()
+
+    for (const result of merged) {
+      const key = getSearchResultKey(result)
+      if (seen.has(key)) continue
+      seen.add(key)
+      deduped.push(result)
+    }
+
+    return deduped.slice(0, 50)
   }, [query, contexts, people, contentResults])
 
   const filteredResults = useMemo(() => {
@@ -208,11 +236,9 @@ export function SearchPage() {
   }, [selectedIndex])
 
   const handleResultClick = (r: SearchResult) => {
-    if (r.type === 'meeting' && r.filename) {
+    if (r.directory === 'contexts' && r.filename) {
       navigate(`/context/${encodeURIComponent(r.filename)}?dir=contexts`)
-    } else if (r.type === 'content' && r.directory === 'contexts' && r.filename) {
-      navigate(`/context/${encodeURIComponent(r.filename)}?dir=contexts`)
-    } else if (r.type === 'content' && r.directory === 'notes' && r.filename) {
+    } else if (r.directory === 'notes' && r.filename) {
       navigate(`/context/${encodeURIComponent(r.filename)}?dir=weekly-log`)
     } else if (r.route.startsWith('/search?q=')) {
       const name = new URL(r.route, 'http://x').searchParams.get('q') || r.title
@@ -251,8 +277,8 @@ export function SearchPage() {
 
   const typeIcon = (type: string) => {
     if (type === 'person') return <User className="w-4 h-4" aria-hidden="true" />
-    if (type === 'content') return <FileText className="w-4 h-4" aria-hidden="true" />
-    return <Calendar className="w-4 h-4" aria-hidden="true" />
+    if (type === 'meeting') return <Calendar className="w-4 h-4" aria-hidden="true" />
+    return <FileText className="w-4 h-4" aria-hidden="true" />
   }
 
   return (
@@ -262,7 +288,7 @@ export function SearchPage() {
           <SearchIcon className="w-6 h-6 text-brand" aria-hidden="true" />
           Search
         </h1>
-        <p className="text-sm text-zinc-500 mt-1">Find context, people, and notes</p>
+        <p className="text-sm text-zinc-500 mt-1">Find Slack, GitHub, email, meetings, notes, and people</p>
       </div>
 
       <div className="space-y-3">
@@ -273,7 +299,7 @@ export function SearchPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search context, people, notes..."
+            placeholder="Search Slack, GitHub, email, meetings, notes, people..."
             className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 text-sm transition-all"
             autoFocus
           />
@@ -288,7 +314,7 @@ export function SearchPage() {
 
         {query.trim() && results.length > 0 && (
           <div className="flex items-center gap-2">
-            {(['all', 'meeting', 'person', 'content'] as const).map(filter => (
+            {FILTERS.map(filter => (
               <button
                 key={filter}
                 onClick={() => setTypeFilter(filter)}
@@ -298,7 +324,7 @@ export function SearchPage() {
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
                 }`}
               >
-                {filter === 'all' ? 'All' : filter === 'meeting' ? 'Context' : filter === 'person' ? 'People' : 'Content'}
+                {filter === 'all' ? 'All' : getResultLabel(filter)}
                 {filter !== 'all' && (
                   <span className="ml-1.5 text-zinc-600">
                     {results.filter(r => r.type === filter).length}
@@ -341,8 +367,8 @@ export function SearchPage() {
                 <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
               </div>
               <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
-                {r.type === 'content' ? 'content' : r.type}
-              </span>
+                 {getResultLabel(r.type)}
+                </span>
             </button>
           ))}
         </div>
@@ -351,7 +377,7 @@ export function SearchPage() {
       {!query.trim() && recentItems.length > 0 && (
         <div className="animate-fade-in">
           <div className="px-1 mb-3">
-            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent context</h2>
+             <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent context</h2>
           </div>
           <div ref={resultsContainerRef} className="space-y-1">
             {recentItems.map((r, i) => (
@@ -362,15 +388,15 @@ export function SearchPage() {
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border border-transparent"
               >
                 <div className="p-2 rounded-lg bg-surface-raised text-zinc-500 group-hover:text-brand-light group-hover:bg-brand/10 transition-all duration-150">
-                  <Calendar className="w-4 h-4" />
+                  {typeIcon(r.type)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
                   <div className="text-xs text-zinc-500 truncate">{r.subtitle}</div>
                 </div>
                 <span className="text-[10px] text-zinc-600 uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full bg-surface-raised/50">
-                  context
-                </span>
+                   {getResultLabel(r.type)}
+                 </span>
               </button>
             ))}
           </div>
@@ -383,8 +409,8 @@ export function SearchPage() {
             <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />
           </div>
           <h2 className="text-base font-medium text-zinc-200 mb-1">Nothing to search yet</h2>
-          <p className="text-sm text-zinc-500 mb-2">As you add people and process context entries, everything becomes searchable here.</p>
-          <p className="text-xs text-zinc-600">Context, people, feedback, action items, check-ins, and notes — all in one place.</p>
+          <p className="text-sm text-zinc-500 mb-2">As you add people and save management context, everything becomes searchable here.</p>
+          <p className="text-xs text-zinc-600">Slack, GitHub, email, meetings, notes, people, feedback, action items, and check-ins — all in one place.</p>
         </div>
       )}
     </div>

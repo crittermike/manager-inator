@@ -13,7 +13,9 @@ import type {
   ActionItem,
   FeedbackEntry,
   PrepEntry,
+  ContentSearchResult,
   ContextNote,
+  ContextSource,
   TeamOverview,
   ReportStatus,
   TeamActionItem,
@@ -747,6 +749,7 @@ interface SearchIndexEntry {
   directory: 'contexts' | 'reports' | 'people' | 'notes'
   content: string
   lowered: string
+  source?: ContextSource
 }
 
 let _prewarmComplete = false
@@ -764,7 +767,7 @@ function getSearchIndex(): SearchIndexEntry[] {
   for (const entry of contextsCache.entries) {
     const title = entry.title || entry.filename.replace(/\.(md|txt)$/i, '').replace(/-/g, ' ')
     const content = `${entry.filename} ${title} ${entry.summary}`
-    entries.push({ filename: entry.filename, directory: 'contexts', content, lowered: content.toLowerCase() })
+    entries.push({ filename: entry.filename, directory: 'contexts', content, lowered: content.toLowerCase(), source: entry.source as ContextSource })
   }
 
   const reports = getReports()
@@ -783,11 +786,11 @@ function getSearchIndex(): SearchIndexEntry[] {
   return entries
 }
 
-export function searchContent(query: string): { filename: string; directory: string; title: string; snippet: string; date?: string }[] {
+export function searchContent(query: string): ContentSearchResult[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
 
-  const results: { filename: string; directory: string; title: string; snippet: string; date?: string }[] = []
+  const results: ContentSearchResult[] = []
   const index = getSearchIndex()
 
   for (const entry of index) {
@@ -807,7 +810,8 @@ export function searchContent(query: string): { filename: string; directory: str
         directory: 'contexts',
         title,
         snippet,
-        date
+        date,
+        source: entry.source
       })
     } else if (entry.directory === 'reports') {
       const date = entry.filename.split('/').pop()?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
@@ -1272,6 +1276,7 @@ export function listContexts(): ContextEntry[] {
   return cache.entries
     .map(e => ({
       date: e.date,
+      source: e.source as ContextSource,
       title: e.title || formatMeetingTitle(e.filename.replace(/^\d{4}-\d{2}-\d{2}-?/, '').replace('.md', '').replace(/-/g, ' ')),
       filename: e.filename,
       processed: e.hasFrontmatter
@@ -1748,6 +1753,7 @@ export function clearAllCaches(): void {
   _resolvedRepoPathSource = null
   _realpathCache.clear()
   _contextsCache = null
+  _prewarmComplete = false
   invalidateReportCache()
   invalidatePeopleCache()
   invalidateSearchIndex()
@@ -1760,6 +1766,7 @@ export async function preWarmCaches(onProgress?: (message: string) => void): Pro
     const rp = repoPath()
     if (!existsSync(rp)) {
       console.warn('[Cache] Repo path does not exist, skipping pre-warm:', rp)
+      _prewarmComplete = true
       return
     }
     console.log('[Cache] Pre-warming...')

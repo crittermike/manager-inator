@@ -108,6 +108,8 @@ export interface ContextNote {
   filename: string // e.g. "2026-03-26-slack-thread.md"
 }
 
+export type ContextSource = ContextNote['source']
+
 // ── 1:1 Prep entry ──
 export interface PrepEntry {
   date: string // YYYY-MM-DD
@@ -199,9 +201,19 @@ export interface AppSettings {
 // ── Context entry (from listContexts) ──
 export interface ContextEntry {
   date: string
+  source: ContextSource
   title: string
   filename: string
   processed: boolean
+}
+
+export interface ContentSearchResult {
+  filename: string
+  directory: 'contexts' | 'reports' | 'people' | 'notes'
+  title: string
+  snippet: string
+  date?: string
+  source?: ContextSource
 }
 
 // ── GitHub Activity (org-level PR/issue tracking) ──
@@ -353,7 +365,7 @@ export interface IpcApi {
   saveActivitySnapshot: (reportName: string, startDate: string, endDate: string) => Promise<string>
   updateFeedbackEntry: (reportName: string, entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
   deleteFeedbackEntry: (reportName: string, entryIndex: number) => Promise<void>
-  searchContent: (query: string) => Promise<{ filename: string; directory: 'contexts' | 'reports' | 'people' | 'notes'; title: string; snippet: string; date?: string }[]>
+  searchContent: (query: string) => Promise<ContentSearchResult[]>
   onLoadingProgress: (cb: (data: { message: string }) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
