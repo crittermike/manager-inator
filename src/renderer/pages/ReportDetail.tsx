@@ -1107,23 +1107,25 @@ export function ReportDetail() {
       </button>
 
       {/* ── Profile header ── */}
-      <div className="flex items-start gap-5">
-        <div className="w-14 h-14 rounded-2xl bg-brand/20 ring-1 ring-brand/10 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
-          {report.profile.displayName.split(' ').map(n => n[0]).join('')}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-zinc-100">
-              {report.profile.displayName}
-            </h1>
-            <button
-              onClick={handleEditProfileStart}
-              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors hover:bg-surface-raised rounded"
-              aria-label="Edit profile"
-            >
-              <Pencil className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </div>
+      <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
+        <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-6 py-5">
+          <div className="flex items-start gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand/30 to-brand/10 ring-1 ring-brand/20 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
+              {report.profile.displayName.split(' ').map(n => n[0]).join('')}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">
+                  {report.profile.displayName}
+                </h1>
+                <button
+                  onClick={handleEditProfileStart}
+                  className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors hover:bg-white/[0.06] rounded"
+                  aria-label="Edit profile"
+                >
+                  <Pencil className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
           {/* Identity facts inline */}
           <div className="flex items-center gap-3 mt-1.5 text-sm text-zinc-500 flex-wrap">
             {report.profile.role && (
@@ -1173,9 +1175,10 @@ export function ReportDetail() {
           )}
         </div>
       </div>
+      </div>
 
       {/* ── Action buttons ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="px-6 py-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative" ref={aiActionsMenuRef}>
           <button
@@ -1336,6 +1339,7 @@ export function ReportDetail() {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {addingReview && (
