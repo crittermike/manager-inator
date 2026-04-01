@@ -2426,7 +2426,7 @@ function InlineReviewForm({ name, report, toast, refresh, onClose }: {
 
 // ── Inline Editor ──
 
-function InlineEditor({ initialContent, onSave }: { initialContent: string; onSave: (content: string) => Promise<void> }) {
+function InlineEditor({ initialContent, onSave, onCancel }: { initialContent: string; onSave: (content: string) => Promise<void>; onCancel?: () => void }) {
   const [content, setContent] = useState(initialContent)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -2443,8 +2443,17 @@ function InlineEditor({ initialContent, onSave }: { initialContent: string; onSa
         onChange={e => setContent(e.target.value)}
         onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() } }}
         className="w-full h-64 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-300 font-mono resize-y focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"
+        autoFocus
       />
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
         <button
           onClick={handleSave}
           disabled={isSaving || content === initialContent}
@@ -2636,6 +2645,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
                   <InlineEditor
                     initialContent={fileContent}
                     onSave={(content) => onSaveContent(viewingPath, content)}
+                    onCancel={onCancelEdit}
                   />
                 ) : (
                   <div className="relative group/content">
@@ -2744,7 +2754,7 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
 
   if (editing) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex gap-1.5">
           {(['positive', 'constructive', 'mixed', 'observation'] as const).map(t => (
             <button
@@ -2768,15 +2778,15 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
           autoFocus
         />
         <div className="flex justify-end gap-2">
-          <button onClick={() => { setEditing(false); setDraft(f.content); setDraftType(f.type) }} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+          <button onClick={() => { setEditing(false); setDraft(f.content); setDraftType(f.type) }} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !draft.trim()}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-dark text-white text-sm rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
           >
-            <Save className="w-3 h-3" />
+            <Save className="w-4 h-4" />
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -2785,7 +2795,23 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 group">
+      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity mb-2">
+        <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors">
+          <Pencil className="w-3 h-3" /> Edit
+        </button>
+        {confirmDelete ? (
+          <span className="flex items-center gap-2">
+            <span className="text-xs text-zinc-400">Delete?</span>
+            <button onClick={handleDelete} className="text-xs text-danger hover:text-red-400">Yes</button>
+            <button onClick={() => setConfirmDelete(false)} className="text-xs text-zinc-500 hover:text-zinc-300">No</button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-danger bg-surface-raised rounded-lg transition-colors">
+            <Trash2 className="w-3 h-3" /> Delete
+          </button>
+        )}
+      </div>
       <div className="prose-dark text-sm leading-relaxed"><ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <p className="text-zinc-300 my-1">{children}</p> }}>{f.content}</ReactMarkdown></div>
       <div className="flex items-center gap-3 text-xs text-zinc-500">
         <span>{formatDate(f.date)}</span>
@@ -2794,22 +2820,6 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
           <a href={f.context} target="_blank" rel="noopener noreferrer" className="text-brand-light hover:text-brand">
             View context →
           </a>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <button onClick={() => setEditing(true)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
-          <Pencil className="w-3 h-3" /> Edit
-        </button>
-        {confirmDelete ? (
-          <span className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">Delete this feedback?</span>
-            <button onClick={handleDelete} className="text-xs text-danger hover:text-red-400">Yes</button>
-            <button onClick={() => setConfirmDelete(false)} className="text-xs text-zinc-500 hover:text-zinc-300">No</button>
-          </span>
-        ) : (
-          <button onClick={() => setConfirmDelete(true)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
-            <Trash2 className="w-3 h-3" /> Delete
-          </button>
         )}
       </div>
     </div>
@@ -2866,19 +2876,14 @@ function CheckinDetail({ entry, name, onSave, onDelete }: {
 
   if (isEditing && content != null) {
     return (
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-zinc-300">Edit check-in</span>
-          <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-zinc-300">Cancel</button>
-        </div>
-        <InlineEditor 
-          initialContent={content} 
-          onSave={async (newContent) => {
-            await onSave(checkinPath, newContent)
-            setIsEditing(false)
-          }} 
-        />
-      </div>
+      <InlineEditor 
+        initialContent={content} 
+        onSave={async (newContent) => {
+          await onSave(checkinPath, newContent)
+          setIsEditing(false)
+        }}
+        onCancel={() => setIsEditing(false)}
+      />
     )
   }
 
@@ -2933,19 +2938,14 @@ function ReviewDetail({ entry, name, onSave, onDelete }: {
 
   if (isEditing && content != null) {
     return (
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-zinc-300">Edit review</span>
-          <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-zinc-300">Cancel</button>
-        </div>
-        <InlineEditor
-          initialContent={content}
-          onSave={async (newContent) => {
-            await onSave(reviewPath, newContent)
-            setIsEditing(false)
-          }}
-        />
-      </div>
+      <InlineEditor
+        initialContent={content}
+        onSave={async (newContent) => {
+          await onSave(reviewPath, newContent)
+          setIsEditing(false)
+        }}
+        onCancel={() => setIsEditing(false)}
+      />
     )
   }
 
