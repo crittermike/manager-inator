@@ -219,6 +219,9 @@ export function CaptureSession({
     }
   }, [initialContent, reports, toast])
 
+  const retryCountRef = useRef(0)
+  const MAX_RETRIES = 3
+
   const handleProcess = useCallback(async () => {
     if (!initialContent.trim() || streaming) return
 
@@ -247,40 +250,55 @@ export function CaptureSession({
       }
     } catch { }
 
-    try {
-      const response = await generate('classify-content', {
-        content: initialContent.trim(),
-        reportNames,
-        sourceHint: sourceHint || undefined,
-        openActionItems: openActionItemsText || undefined,
-      })
-
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (!mountedRef.current) return
 
-      let parsed: ClassifiedResult
       try {
-        const jsonStr = response.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
-        parsed = JSON.parse(jsonStr)
-        if (!parsed.resolved_action_items) {
-          parsed.resolved_action_items = []
+        const response = await generate('classify-content', {
+          content: initialContent.trim(),
+          reportNames,
+          sourceHint: sourceHint || undefined,
+          openActionItems: openActionItemsText || undefined,
+        })
+
+        if (!mountedRef.current) return
+
+        let parsed: ClassifiedResult
+        try {
+          const jsonStr = response.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
+          parsed = JSON.parse(jsonStr)
+          if (!parsed.resolved_action_items) {
+            parsed.resolved_action_items = []
+          }
+        } catch {
+          if (attempt < MAX_RETRIES) {
+            reset()
+            continue
+          }
+          setSaveError('AI returned invalid JSON after multiple attempts.')
+          setState('error')
+          setExpanded(true)
+          return
         }
-      } catch {
-        setSaveError('AI returned invalid JSON. Try again.')
+
+        retryCountRef.current = 0
+        setResult(parsed)
+        const confirmMap: Record<number, boolean> = {}
+        parsed.resolved_action_items.forEach((_, i) => { confirmMap[i] = true })
+        setResolvedConfirmed(confirmMap)
+        await autoSave(parsed, confirmMap)
+        return
+      } catch (e) {
+        if (!mountedRef.current) return
+        if (attempt < MAX_RETRIES) {
+          reset()
+          continue
+        }
+        setSaveError((e as Error).message || 'AI processing failed after multiple attempts')
         setState('error')
         setExpanded(true)
         return
       }
-
-      setResult(parsed)
-      const confirmMap: Record<number, boolean> = {}
-      parsed.resolved_action_items.forEach((_, i) => { confirmMap[i] = true })
-      setResolvedConfirmed(confirmMap)
-      await autoSave(parsed, confirmMap)
-    } catch (e) {
-      if (!mountedRef.current) return
-      setSaveError((e as Error).message || 'AI processing failed')
-      setState('error')
-      setExpanded(true)
     }
   }, [autoSave, generate, initialContent, reports, reset, sourceHint, streaming])
 
