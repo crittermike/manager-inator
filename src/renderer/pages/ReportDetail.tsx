@@ -1107,7 +1107,7 @@ export function ReportDetail() {
       </button>
 
       {/* ── Profile header ── */}
-      <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
+      <div className="rounded-2xl border border-border/60 bg-surface">
         <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-6 py-5">
           <div className="flex items-start gap-5">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand/30 to-brand/10 ring-1 ring-brand/20 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
