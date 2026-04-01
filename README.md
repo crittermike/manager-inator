@@ -26,7 +26,7 @@ An AI-native Electron desktop app for engineering managers. Surfaces what needs 
 │  ┌─────────┐  ┌──────────────────────────────────────────┐  │
 │  │ AppShell│  │              Pages                        │  │
 │  │(sidebar)│  │ Today · ReportDetail · Search            │  │
-│  │         │  │ TranscriptProcessor · Settings            │  │
+│  │         │  │ CapturePanel · Settings                   │  │
 │  └─────────┘  └──────────────────────────────────────────┘  │
 │                                                             │
 │  Hooks: useAuth · useData · useAI                           │
@@ -300,13 +300,15 @@ Find meetings and people by keyword. Features:
 - Recent meetings list shown when no search query
 - Deep-linkable via `?meeting=` query param
 
-### Transcript Processor (`/transcript`)
+### Capture panel
 
-4-step AI pipeline for processing meeting transcripts:
-1. **Paste** — Input transcript + title + date
-2. **AI processing** — Summary → Action items → Feedback → Impact (with progress bar)
-3. **Review** — Edit title, review all AI outputs
-4. **Save** — Commits raw transcript to `transcripts/processed/`, summary to `meetings/`, and impact log entries to repo
+Meeting transcripts and other context are processed through the global capture panel, which you can open from the File menu, UI entry points, or `Cmd/Ctrl+Shift+N`.
+
+Typical flow:
+1. **Paste or drop content** — Add a meeting transcript, Slack thread, GitHub discussion, email, or other manager context
+2. **Choose the context type** — Helps the AI label and route the content correctly
+3. **AI processing** — Extract summaries, action items, feedback, and impact where relevant
+4. **Save in place** — Commits the processed outputs to the local repo and invalidates only the affected caches
 
 ### Settings (`/settings`)
 
