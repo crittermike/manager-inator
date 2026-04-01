@@ -338,4 +338,36 @@ describe('ReportDetail AI actions menu', () => {
       mockReport.checkIns = originalCheckIns
     }
   })
+
+  it('dispatches the canonical capture shortcut from the empty transcript state', async () => {
+    const dispatchSpy = vi.spyOn(document, 'dispatchEvent')
+    const { container, root } = await renderReportDetail()
+
+    const filterButton = getButtonByText(container, '1:1s')
+    expect(filterButton).not.toBeNull()
+
+    await act(async () => {
+      filterButton?.click()
+    })
+
+    const captureButton = getButtonByText(container, 'Open capture panel to process a transcript')
+    expect(captureButton).not.toBeNull()
+
+    await act(async () => {
+      captureButton?.click()
+    })
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'keydown',
+      key: 'n',
+      shiftKey: true,
+      metaKey: true
+    }))
+
+    dispatchSpy.mockRestore()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })

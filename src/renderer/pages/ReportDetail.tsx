@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   Calendar,
   MapPin,
-  Github,
   Briefcase,
   FileText,
   MessageSquare,
@@ -43,6 +42,7 @@ import {
   Loader2,
   Upload
 } from 'lucide-react'
+import { GitHubMark } from '../components/common/GitHubMark'
 
 // ── Types ──
 
@@ -1029,8 +1029,6 @@ export function ReportDetail() {
 
   // ── Pre-computed values (must be above early returns to preserve hook ordering) ──
 
-  const sortedFeedback = useMemo(() => report ? [...report.feedback].sort((a, b) => b.date.localeCompare(a.date)) : [], [report])
-
   // ── Loading / Error states ──
 
   if (loading) {
@@ -1167,7 +1165,7 @@ export function ReportDetail() {
             )}
             {report.profile.github && (
               <span className="flex items-center gap-1">
-                <Github className="w-3 h-3 text-zinc-600" aria-hidden="true" />
+                <GitHubMark className="w-3 h-3 text-zinc-600" aria-hidden="true" />
                 @{report.profile.github}
               </span>
             )}
@@ -1831,7 +1829,7 @@ export function ReportDetail() {
                 </div>
                 <button
                   onClick={() => {
-                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', metaKey: true, shiftKey: true, bubbles: true }))
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, shiftKey: true, bubbles: true }))
                   }}
                   className="text-sm text-brand-light hover:text-brand transition-colors"
                 >
@@ -2492,7 +2490,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
       {expanded && (
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
-            {entry.type === 'context' && !(isViewing && isEditing) && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} activeTab={contextTab} onTabChange={setContextTab} />}
+            {entry.type === 'context' && !(isViewing && isEditing) && <ContextDetail entry={entry} activeTab={contextTab} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
             {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} />}
@@ -2556,18 +2554,10 @@ const StreamEntryCard = memo(function StreamEntryCard({
 
 function ContextDetail({ 
   entry, 
-  name, 
-  onEdit, 
-  onDelete,
   activeTab,
-  onTabChange
 }: { 
   entry: StreamEntry; 
-  name: string; 
-  onEdit: (id: string, path: string) => void;
-  onDelete: (path: string) => void;
   activeTab: 'processed' | 'raw';
-  onTabChange: (tab: 'processed' | 'raw') => void;
 }) {
   const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string; title: string }
   const tags = ctx.tags || []
