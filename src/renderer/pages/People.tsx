@@ -18,7 +18,7 @@ import {
   Search,
   FileText,
   MapPin,
-  GithubIcon,
+  Github,
   Briefcase,
   X,
   UserPlus
@@ -342,36 +342,37 @@ ${editNotes}`
           ) : (
             <>
               {/* Profile header */}
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-brand/15 flex items-center justify-center text-lg font-bold text-brand-light shrink-0 ring-1 ring-brand/10">
+              <div className="rounded-2xl border border-border/80 bg-surface shadow-[0_12px_32px_rgba(0,0,0,0.18)] overflow-hidden">
+                <div className="flex items-start gap-5 px-6 py-5 bg-gradient-to-r from-white/[0.02] to-transparent">
+                <div className="w-16 h-16 rounded-3xl bg-brand/15 flex items-center justify-center text-lg font-bold text-brand-light shrink-0 ring-1 ring-brand/10">
                   {selected.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-zinc-100">{selected.name}</h1>
-                  <div className="flex items-center gap-4 mt-1.5 text-sm text-zinc-500 flex-wrap">
+                  <h1 className="text-2xl font-semibold text-zinc-100">{selected.name}</h1>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-zinc-400 flex-wrap">
                     {selected.role && (
-                      <span className="flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-surface-raised/70 px-2.5 py-1">
                         <Briefcase className="w-3.5 h-3.5" aria-hidden="true" /> {selected.role}
                       </span>
                     )}
                     {selected.github && (
-                      <span className="flex items-center gap-1">
-                        <GithubIcon className="w-3.5 h-3.5" aria-hidden="true" /> @{selected.github}
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-surface-raised/70 px-2.5 py-1">
+                        <Github className="w-3.5 h-3.5" aria-hidden="true" /> @{selected.github}
                       </span>
                     )}
                     {selected.location && (
-                      <span className="flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-surface-raised/70 px-2.5 py-1">
                         <MapPin className="w-3.5 h-3.5" aria-hidden="true" /> {selected.location}
                       </span>
                     )}
                     {selected.relationship && (
-                      <span className="flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-surface-raised/70 px-2.5 py-1">
                         <User className="w-3.5 h-3.5" aria-hidden="true" /> {selected.relationship}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-zinc-600">
-                    <span>{meetings.length > 0 ? meetings.length : selected.meetingCount} contexts</span>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-zinc-500 flex-wrap">
+                    <span className="font-medium text-zinc-400">{meetings.length > 0 ? meetings.length : selected.meetingCount} contexts</span>
                     {selected.lastSeen && (
                       <span>Last seen {formatRelativeDate(new Date(selected.lastSeen)).toLowerCase()}</span>
                     )}
@@ -379,11 +380,12 @@ ${editNotes}`
                 </div>
                 <button
                   onClick={() => editing ? setEditing(false) : startEditing()}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors shrink-0"
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors shrink-0 border ${editing ? 'border-border bg-surface-raised text-zinc-200' : 'border-border/70 bg-transparent text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised/70'}`}
                 >
                   <Edit3 className="w-4 h-4" aria-hidden="true" />
                   {editing ? 'Cancel' : 'Edit profile'}
                 </button>
+              </div>
               </div>
 
               {/* Edit mode */}
@@ -457,7 +459,7 @@ ${editNotes}`
               ) : (
                 <>
                   {/* Profile content (strip frontmatter for display) */}
-                  <div className="bg-surface rounded-xl border border-border p-6 prose-dark">
+                  <div className="bg-surface rounded-2xl border border-border/80 p-6 prose-dark shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                       {profileContent
                         .replace(/^---\n[\s\S]*?\n---\n*/m, '')
@@ -473,15 +475,15 @@ ${editNotes}`
                      {meetings.length === 0 ? (
                        <p className="text-sm text-zinc-600">No context found.</p>
                     ) : (
-                      <div className="space-y-2">
-                        {meetings.map((m) => (
-                          <button
-                            key={m.filename}
-                            onClick={() => navigate(`/search?meeting=${encodeURIComponent(m.filename)}`)}
-                            className="w-full flex items-center gap-3 p-3.5 bg-surface rounded-xl border border-border hover:border-brand/30 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group/meeting"
-                          >
-                            <FileText className="w-4 h-4 text-zinc-500 shrink-0 group-hover/meeting:text-brand-light transition-colors" aria-hidden="true" />
-                            <div className="flex-1 min-w-0">
+                         <div className="space-y-2.5">
+                         {meetings.map((m) => (
+                           <button
+                             key={m.filename}
+                             onClick={() => navigate(`/search?meeting=${encodeURIComponent(m.filename)}`)}
+                             className="w-full flex items-center gap-3 p-4 bg-surface rounded-2xl border border-border/80 hover:border-brand/30 hover:bg-surface-raised/60 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group/meeting"
+                           >
+                             <FileText className="w-4 h-4 text-zinc-500 shrink-0 group-hover/meeting:text-brand-light transition-colors" aria-hidden="true" />
+                             <div className="flex-1 min-w-0">
                               <span className="text-sm text-zinc-300">{formatMeetingTitle(m.title)}</span>
                               <span className="ml-2 text-xs text-zinc-600">{m.date}</span>
                             </div>
@@ -497,7 +499,7 @@ ${editNotes}`
         </>
       ) : (
         <>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
                 <Users className="w-6 h-6 text-brand" aria-hidden="true" />
@@ -507,7 +509,7 @@ ${editNotes}`
                 {people.length} people
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               <button
                 onClick={() => { setShowAddReportForm(!showAddReportForm); setShowAddForm(false) }}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97]"
@@ -517,14 +519,14 @@ ${editNotes}`
               </button>
               <button
                 onClick={() => { setShowAddForm(!showAddForm); setShowAddReportForm(false) }}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 border border-border/70 bg-transparent hover:bg-surface-raised/70 rounded-lg transition-colors"
               >
                 <UserPlus className="w-4 h-4" aria-hidden="true" />
                 Add person
               </button>
               <button
                 onClick={loadPeople}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 border border-border/70 bg-transparent hover:bg-surface-raised/70 rounded-lg transition-colors"
                 aria-label="Refresh"
               >
                 <RefreshCw className="w-4 h-4" aria-hidden="true" />
@@ -676,20 +678,20 @@ ${editNotes}`
                     openPerson(p)
                   }
                 }}
-                className="w-full flex items-center gap-4 p-4 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group"
+                className="w-full flex items-center gap-4 p-4 bg-surface rounded-2xl border border-border/80 hover:border-brand/30 hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 text-left group"
               >
-                <div className="w-10 h-10 rounded-full bg-brand/15 flex items-center justify-center text-sm font-semibold text-brand-light shrink-0 group-hover:bg-brand/25 transition-colors">
+                <div className="w-11 h-11 rounded-2xl bg-brand/15 flex items-center justify-center text-sm font-semibold text-brand-light shrink-0 ring-1 ring-brand/10 group-hover:bg-brand/25 transition-colors">
                   {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-zinc-200">{p.name}</span>
                     {p.relationship?.toLowerCase() === 'direct report' && (
-                      <span className="text-[10px] font-medium text-brand-light bg-brand/10 px-1.5 py-0.5 rounded">Report</span>
+                      <span className="text-[10px] font-medium text-brand-light bg-brand/10 px-1.5 py-0.5 rounded-full">Report</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-zinc-500 mt-0.5">
-                    {p.role && <span>{p.role}</span>}
+                  <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1 flex-wrap">
+                    {p.role && <span className="text-zinc-400">{p.role}</span>}
                     <span>{p.meetingCount} contexts</span>
                     {p.lastSeen && (
                       <span>Last seen {formatRelativeDate(new Date(p.lastSeen)).toLowerCase()}</span>

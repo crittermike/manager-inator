@@ -197,4 +197,27 @@ describe('People page collision handling', () => {
       root.unmount()
     })
   })
+
+  it('renders the selected person header with badge-style metadata and quieter edit action', async () => {
+    const { container, root } = await renderPeople()
+
+    await act(async () => {
+      getButtonByText(container, 'Aaron Cathcart')?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain('Senior Director')
+    expect(container.textContent).toContain('@aaroncathcart')
+    expect(container.textContent).toContain('Seattle, WA')
+    expect(container.textContent).toContain('Skip-level')
+
+    const editButton = getButtonByText(container, 'Edit profile')
+    expect(editButton).not.toBeNull()
+    expect(editButton?.className).toContain('border')
+    expect(editButton?.className).toContain('bg-transparent')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })
