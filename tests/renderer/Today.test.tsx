@@ -247,4 +247,36 @@ describe('Today page polish', () => {
       root.unmount()
     })
   })
+
+  it('dispatches the canonical capture shortcut from the transcript entry point', async () => {
+    const originalReports = mockOverview.reports
+    mockOverview.reports = []
+
+    try {
+      const dispatchSpy = vi.spyOn(document, 'dispatchEvent')
+      const { container, root } = await renderToday()
+
+      const transcriptButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Process a meeting transcript')) as HTMLButtonElement | undefined
+      expect(transcriptButton).toBeDefined()
+
+      await act(async () => {
+        transcriptButton?.click()
+      })
+
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'keydown',
+        key: 'n',
+        shiftKey: true,
+        metaKey: true
+      }))
+
+      dispatchSpy.mockRestore()
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockOverview.reports = originalReports
+    }
+  })
 })

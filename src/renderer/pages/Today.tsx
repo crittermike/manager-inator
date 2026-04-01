@@ -1192,7 +1192,7 @@ export function Today() {
 
           <button
             onClick={() => {
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', metaKey: true, shiftKey: true, bubbles: true }))
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, shiftKey: true, bubbles: true }))
             }}
             className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
           >
