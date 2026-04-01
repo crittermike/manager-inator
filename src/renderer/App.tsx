@@ -52,7 +52,6 @@ function LoadingScreen({ message }: { message: string }) {
   let progress: number
   if (reportMatch) {
     const [, current, total] = reportMatch
-    // Reports loading spans from step 1 ("Loading reports...") to step 2 ("Building team overview...")
     const reportsBase = (1 / LOADING_STEPS.length) * 100
     const reportsEnd = (2 / LOADING_STEPS.length) * 100
     progress = reportsBase + (Number(current) / Number(total)) * (reportsEnd - reportsBase)
@@ -61,21 +60,26 @@ function LoadingScreen({ message }: { message: string }) {
     progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 5
   }
 
-  const displayMessage = reportMatch ? `Loading reports... (${reportMatch[1]}/${reportMatch[2]})` : message
+  const displayMessage = reportMatch ? `Loading reports (${reportMatch[1]}/${reportMatch[2]})` : message
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
-      <div className="flex flex-col items-center gap-6 max-w-xs w-full">
-        <div className="text-3xl font-bold text-zinc-100 tracking-tight">Manager-inator</div>
+    <div className="h-screen w-screen flex items-center justify-center bg-[#0a0a0c]">
+      <div className="flex flex-col items-center gap-8 max-w-xs w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center shadow-lg shadow-brand/20">
+            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <span className="text-2xl font-bold text-zinc-100 tracking-tight">Manager-inator</span>
+        </div>
         <div className="w-full space-y-3">
-          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden">
             <div
-              className="h-full bg-brand rounded-full transition-all duration-500 ease-out"
+              className="h-full bg-gradient-to-r from-brand to-brand-light rounded-full transition-all duration-700 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
           <div className="text-center">
-            <span className="text-zinc-500 text-sm">{displayMessage}</span>
+            <span className="text-zinc-600 text-xs">{displayMessage}</span>
           </div>
         </div>
       </div>

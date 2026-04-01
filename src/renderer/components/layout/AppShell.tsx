@@ -12,7 +12,8 @@ import {
   ClipboardPaste,
   Keyboard,
   X,
-  Plus
+  Plus,
+  Mic
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
@@ -121,19 +122,31 @@ export function AppShell({ children }: AppShellProps) {
         <CommandPalette onOpenCapture={() => setCapturePanelOpen(true)} onOpenAI={() => setAiPanelOpen(true)} />
       </Suspense>
       {/* Sidebar */}
-      <aside className="w-64 bg-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
+      <aside className="w-64 bg-gradient-to-b from-zinc-900 to-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
         {/* Title bar drag region — sits below traffic lights */}
-        <div className="drag-region pt-14 pb-4 px-3">
+        <div className="drag-region pt-14 pb-3 px-3">
           <div className="no-drag flex items-center gap-2.5 px-3">
-            <div className="w-7 h-7 rounded-lg bg-brand/15 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-brand" aria-hidden="true" />
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center shadow-lg shadow-brand/20">
+              <Zap className="w-4 h-4 text-white" aria-hidden="true" />
             </div>
-            <span className="font-semibold text-sm tracking-tight text-zinc-200">Manager-inator</span>
+            <span className="font-semibold text-sm tracking-tight text-zinc-100">Manager-inator</span>
           </div>
         </div>
 
+        {/* Capture button */}
+        <div className="px-3 pb-3">
+          <button
+            onClick={toggleCapture}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand/10 text-brand-light hover:bg-brand/20 border border-brand/20 transition-all active:scale-[0.98] no-drag"
+          >
+            <Mic className="w-4 h-4" aria-hidden="true" />
+            <span className="flex-1 text-left">Process transcript</span>
+            <kbd className="text-[10px] text-brand-light/50 bg-brand/10 px-1.5 py-0.5 rounded font-mono">⌘⇧N</kbd>
+          </button>
+        </div>
+
         {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
           {navItems.map(({ path, icon: Icon, label, shortcut }) => {
             const active = path === '/'
               ? location.pathname === '/'
@@ -142,13 +155,13 @@ export function AppShell({ children }: AppShellProps) {
               <button
                 key={path}
                 onClick={() => navigate(path)}
-                className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors no-drag ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all no-drag ${
                   active
-                    ? 'bg-brand/15 text-brand-light font-medium'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
+                    ? 'bg-white/[0.08] text-zinc-100 font-medium shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-brand-light' : ''}`} aria-hidden="true" />
                 <span className="flex-1 text-left">{label}</span>
                 {shortcut && (
                   <kbd className="text-[10px] text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded font-mono">{shortcut}</kbd>
@@ -159,13 +172,13 @@ export function AppShell({ children }: AppShellProps) {
 
           {reports.length > 0 ? (
             <>
-              <div className="pt-4 pb-2 px-3 flex items-center justify-between group">
+              <div className="pt-5 pb-2 px-3 flex items-center justify-between group">
                 <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
                   Direct reports
                 </span>
                 <button
                   onClick={() => setAddReportOpen(true)}
-                  className="w-5 h-5 rounded-lg flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-all no-drag opacity-0 group-hover:opacity-100"
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-all no-drag opacity-0 group-hover:opacity-100"
                   aria-label="Add direct report"
                   title="Add direct report"
                 >
@@ -181,14 +194,14 @@ export function AppShell({ children }: AppShellProps) {
                   <button
                     key={r.name}
                     onClick={() => navigate(path)}
-                    className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors no-drag group ${
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all no-drag group ${
                       active
-                        ? 'bg-brand/15 text-brand-light font-medium'
-                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised'
+                        ? 'bg-white/[0.08] text-zinc-100 font-medium shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
                     }`}
                   >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 transition-colors ${
-                      active ? 'bg-brand/25 text-brand-light' : 'bg-zinc-800 text-zinc-500 group-hover:bg-brand/15 group-hover:text-brand-light'
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 transition-colors ${
+                      active ? 'bg-brand/25 text-brand-light ring-1 ring-brand/30' : 'bg-zinc-800 text-zinc-500 group-hover:bg-brand/15 group-hover:text-brand-light'
                     }`}>
                       {r.displayName.charAt(0)}
                     </div>
@@ -223,13 +236,13 @@ export function AppShell({ children }: AppShellProps) {
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-3 border-t border-border">
+        <div className="px-3 py-3 border-t border-white/[0.06]">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-zinc-600">v{__APP_VERSION__}</span>
-            <div className="flex items-center gap-0.5 rounded-xl border border-border/60 bg-zinc-900/60 p-0.5">
+            <span className="text-[10px] text-zinc-700 font-mono">v{__APP_VERSION__}</span>
+            <div className="flex items-center gap-0.5 rounded-lg bg-white/[0.03] p-0.5">
               <button
                 onClick={() => setShortcutsOpen(true)}
-                className="p-1.5 rounded-lg transition-colors no-drag text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised"
+                className="p-1.5 rounded-md transition-colors no-drag text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]"
                 aria-label="Keyboard shortcuts"
                 title="Keyboard shortcuts (?)"
               >
@@ -237,10 +250,10 @@ export function AppShell({ children }: AppShellProps) {
               </button>
               <button
                 onClick={() => navigate('/my-profile')}
-                className={`p-1.5 rounded-lg transition-colors no-drag ${
+                className={`p-1.5 rounded-md transition-colors no-drag ${
                   location.pathname === '/my-profile'
                     ? 'text-brand-light bg-brand/15'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]'
                 }`}
                 aria-label="My Profile"
               >
@@ -248,10 +261,10 @@ export function AppShell({ children }: AppShellProps) {
               </button>
               <button
                 onClick={() => navigate('/settings')}
-                className={`p-1.5 rounded-lg transition-colors no-drag ${
+                className={`p-1.5 rounded-md transition-colors no-drag ${
                   location.pathname === '/settings'
                     ? 'text-brand-light bg-brand/15'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]'
                 }`}
                 aria-label="Settings"
               >
@@ -263,7 +276,7 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
 
       {/* Main content */}
-      <main id="main-content" className="flex-1 overflow-hidden relative">
+      <main id="main-content" className="flex-1 overflow-hidden relative bg-zinc-950">
         {/* Drag region for the rest of the title bar */}
         <div className={`${isChatRoute ? 'h-full' : 'h-full pt-14'} overflow-y-auto ${isChatRoute ? '' : 'px-8 pb-8'}`}>
           {children}
