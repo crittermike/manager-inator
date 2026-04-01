@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
-import React from 'react'
+import React, { act } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ReactDOM from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
 
 const mockLogin = vi.fn()
 const mockPoll = vi.fn()
@@ -19,6 +18,11 @@ import { AuthScreen } from '../../src/renderer/pages/AuthScreen'
 describe('AuthScreen polling flow', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true,
+    })
     mockLogin.mockReset()
     mockPoll.mockReset()
     document.body.innerHTML = ''

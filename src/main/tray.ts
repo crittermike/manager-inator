@@ -1,14 +1,30 @@
 import { app, Tray, BrowserWindow, Menu, nativeImage, screen, ipcMain } from 'electron'
 import { join } from 'path'
 import { getMainWindow, ensureWindowAndSend } from './windowState'
+import { getResourcePathCandidates } from './resourcePaths'
 
 let tray: Tray | null = null
 let captureWindow: BrowserWindow | null = null
 
+function loadTrayIcon() {
+  for (const iconPath of getResourcePathCandidates('trayTemplate.png')) {
+    const raw = nativeImage.createFromPath(iconPath)
+    if (raw.isEmpty()) continue
+
+    const icon = raw.resize({ width: 16, height: 16 })
+    icon.setTemplateImage(true)
+    return icon
+  }
+
+  return null
+}
+
 export function createTray(): void {
-  const iconPath = join(__dirname, '../../resources/trayTemplate.png')
-  const icon = nativeImage.createFromPath(iconPath)
-  icon.setTemplateImage(true)
+  const icon = loadTrayIcon()
+  if (!icon) {
+    console.error('Failed to load tray icon from any known resource path', getResourcePathCandidates('trayTemplate.png'))
+    return
+  }
 
   tray = new Tray(icon)
   tray.setToolTip('Manager-inator')

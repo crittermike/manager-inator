@@ -85,6 +85,7 @@ export function ReportDetail() {
   const [aiContent, setAiContent] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSaving, setAiSaving] = useState(false)
+  const [showAiActionsMenu, setShowAiActionsMenu] = useState(false)
 
   // Edit states
   const [editingProfile, setEditingProfile] = useState(false)
@@ -132,11 +133,36 @@ export function ReportDetail() {
 
   // Refs
   const savePrepRef = useRef<() => void>(() => {})
+  const aiActionsMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false; cancel() }
   }, [cancel])
+
+  useEffect(() => {
+    if (!showAiActionsMenu) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!aiActionsMenuRef.current?.contains(event.target as Node)) {
+        setShowAiActionsMenu(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowAiActionsMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showAiActionsMenu])
 
   const { settings: _rdSettings, refreshSettings } = useSettings()
 
@@ -709,6 +735,10 @@ export function ReportDetail() {
     }
   }, [name, activityRange, toast])
 
+  const handleOpenActivity = useCallback(() => {
+    setShowActivity(true)
+  }, [])
+
   const handleSaveSnapshot = useCallback(async () => {
     if (!name || !activityData) return
     setSavingSnapshot(true)
@@ -1175,41 +1205,74 @@ export function ReportDetail() {
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
         </button>
-        <button
-          onClick={handlePrepOneOnOne}
-          disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Sparkles className="w-4 h-4" aria-hidden="true" />
-          Prep 1:1
-        </button>
-        <button
-          onClick={handleGenerateCheckIn}
-          disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Sparkles className="w-4 h-4" aria-hidden="true" />
-          Generate check-in
-        </button>
-        <button
-          onClick={handleGenerateReview}
-          disabled={streaming || aiLoading}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Sparkles className="w-4 h-4" aria-hidden="true" />
-          Generate review
-        </button>
-        <button
-          onClick={() => setShowActivity(!showActivity)}
-          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all active:scale-[0.97] ${
-            showActivity
-              ? 'bg-brand/20 text-brand-light'
-              : 'text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay'
-          }`}
-        >
-          <GitPullRequest className="w-4 h-4" aria-hidden="true" />
-          GitHub Activity
-        </button>
+        <div className="relative" ref={aiActionsMenuRef}>
+          <button
+            onClick={() => setShowAiActionsMenu(prev => !prev)}
+            disabled={streaming || aiLoading}
+            aria-label="Generate"
+            aria-haspopup="menu"
+            aria-expanded={showAiActionsMenu}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="w-4 h-4" aria-hidden="true" />
+            Generate
+            <ChevronDown className={`w-4 h-4 transition-transform ${showAiActionsMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+
+          {showAiActionsMenu && (
+            <div
+              role="menu"
+              aria-label="Generate menu"
+              className="absolute left-0 top-full z-20 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
+            >
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowAiActionsMenu(false)
+                  void handlePrepOneOnOne()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+              >
+                <ClipboardList className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                1:1 prep
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowAiActionsMenu(false)
+                  void handleGenerateCheckIn()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+              >
+                <CheckSquare className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                Monthly performance check-in
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowAiActionsMenu(false)
+                  void handleGenerateReview()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+              >
+                <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                Bi-annual performance review
+              </button>
+              <div className="my-1 h-px bg-border" role="separator" />
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowAiActionsMenu(false)
+                  handleOpenActivity()
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+              >
+                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                GitHub activity summary
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setAddingFeedback(true)}
           className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"

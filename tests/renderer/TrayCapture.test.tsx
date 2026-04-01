@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
+import { act } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ReactDOM from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
 
 import type { IpcApi } from '../../src/shared/types'
 import { TrayCapture } from '../../src/renderer/components/TrayCapture'
@@ -72,6 +72,11 @@ describe('TrayCapture', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllTimers()
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true,
+    })
     document.body.innerHTML = ''
     resetCallback = null
     trayCaptureSubmit.mockClear()

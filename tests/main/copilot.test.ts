@@ -24,7 +24,9 @@ describe('buildMessages', () => {
       aiCustomInstructions: '',
       githubToken: null,
       repoOwner: '',
-      repoName: ''
+      repoName: '',
+      userName: '',
+      userGithub: ''
     })
     mockedCreateSession.mockResolvedValue({
       on: () => () => {},
@@ -47,7 +49,9 @@ describe('buildMessages', () => {
       aiCustomInstructions: 'Always be concise',
       githubToken: null,
       repoOwner: '',
-      repoName: ''
+      repoName: '',
+      userName: '',
+      userGithub: ''
     })
 
     const result = buildMessages('generate-checkin', { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' })

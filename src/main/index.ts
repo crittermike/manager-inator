@@ -4,6 +4,7 @@ import { setupIpcHandlers } from './ipc'
 import { preWarmCaches, flushPendingCommitsAsync } from './github'
 import { stopClient } from './copilot'
 import { buildAppMenu } from './menu'
+import { getResourcePath } from './resourcePaths'
 import { createTray, destroyTray } from './tray'
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts'
 import { getMainWindow, setMainWindow, getIsQuitting, setIsQuitting, ensureWindowAndSend } from './windowState'
@@ -39,7 +40,7 @@ function createWindow(): void {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#09090b',
-    icon: join(__dirname, '../../resources/icon.png'),
+    icon: getResourcePath('icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -117,7 +118,7 @@ app.whenReady().then(() => {
     applicationName: 'Manager-inator',
     applicationVersion: app.getVersion(),
     copyright: 'Manager-inator',
-    iconPath: join(__dirname, '../../resources/icon.png')
+    iconPath: getResourcePath('icon.png')
   })
 
   buildAppMenu()

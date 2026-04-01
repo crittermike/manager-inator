@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
-import React from 'react'
+import React, { act } from 'react'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import ReactDOM from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
 
 const mockNavigate = vi.fn()
 const mockLocation = { pathname: '/' }
@@ -83,6 +82,11 @@ async function renderIntoBody(node: React.ReactNode) {
 
 describe('CapturePanel tray-capture-content integration', () => {
   beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true,
+    })
     document.body.innerHTML = ''
     mockUseTeamOverview.mockReset()
     mockUseSettings.mockReset()
@@ -177,6 +181,11 @@ describe('CapturePanel tray-capture-content integration', () => {
 describe('AppShell tray capture IPC integration', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true,
+    })
     document.body.innerHTML = ''
     trayCaptureCallback = null
 
