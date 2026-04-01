@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { Zap, GithubIcon, Copy, Check, ExternalLink, AlertCircle } from 'lucide-react'
+import { Zap, Copy, Check, ExternalLink, AlertCircle } from 'lucide-react'
+import { GitHubMark } from '../components/common/GitHubMark'
 
 interface AuthScreenProps {
   onAuthenticated: (user?: string) => void
@@ -12,7 +13,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const [userCode, setUserCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [consecutiveErrors, setConsecutiveErrors] = useState(0)
+  const consecutiveErrorsRef = useRef(0)
   const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
   const unmountedRef = useRef(false)
 
@@ -35,7 +36,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
     try {
       setStep('waiting')
       setErrorMessage('')
-      setConsecutiveErrors(0)
+      consecutiveErrorsRef.current = 0
       const { userCode } = await login()
       setUserCode(userCode)
 
@@ -95,29 +96,25 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           }
 
           if (result.error && result.error !== 'authorization_pending') {
-            setConsecutiveErrors(prev => {
-              const next = prev + 1
-              if (next >= 5) {
-                clearTimeout(timeoutId)
-                setErrorMessage(`Connection error: ${result.error}. Please check your network and try again.`)
-                setStep('error')
-              }
-              return next
-            })
-          } else {
-            setConsecutiveErrors(0)
-          }
-        } catch {
-          setConsecutiveErrors(prev => {
-            const next = prev + 1
-            if (next >= 5 && !unmountedRef.current) {
-              clearTimeout(timeoutId)
-              setErrorMessage('Unable to connect to GitHub. Please check your internet connection.')
-              setStep('error')
-            }
-            return next
-          })
-        }
+             const next = consecutiveErrorsRef.current + 1
+             consecutiveErrorsRef.current = next
+             if (next >= 5) {
+               clearTimeout(timeoutId)
+               setErrorMessage(`Connection error: ${result.error}. Please check your network and try again.`)
+               setStep('error')
+             }
+           } else {
+             consecutiveErrorsRef.current = 0
+           }
+         } catch {
+           const next = consecutiveErrorsRef.current + 1
+           consecutiveErrorsRef.current = next
+           if (next >= 5 && !unmountedRef.current) {
+             clearTimeout(timeoutId)
+             setErrorMessage('Unable to connect to GitHub. Please check your internet connection.')
+             setStep('error')
+           }
+         }
         if (unmountedRef.current) return
         pollInterval = Math.min(pollInterval + 1000, 15000)
         trackTimeout(doPoll, pollInterval)
@@ -164,7 +161,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
               onClick={handleLogin}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-100 text-zinc-900 rounded-lg font-medium text-sm hover:bg-zinc-200 transition-all active:scale-[0.97] no-drag"
             >
-              <GithubIcon className="w-4 h-4" aria-hidden="true" />
+              <GitHubMark className="w-4 h-4" aria-hidden="true" />
               Connect with GitHub
             </button>
           </div>
@@ -217,7 +214,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
               </p>
             </div>
             <button
-              onClick={() => { setStep('idle'); setErrorMessage(''); setConsecutiveErrors(0) }}
+            onClick={() => { setStep('idle'); setErrorMessage(''); consecutiveErrorsRef.current = 0 }}
               className="w-full px-4 py-3 bg-surface-raised text-zinc-200 rounded-lg font-medium text-sm hover:bg-surface-overlay transition-colors no-drag"
             >
               Try again

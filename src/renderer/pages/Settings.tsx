@@ -17,7 +17,6 @@ import {
   ChevronDown,
   CalendarClock,
   MessageSquare,
-  Github,
   Eye,
   EyeOff,
   ScrollText,
@@ -25,6 +24,7 @@ import {
   ArrowDown
 } from 'lucide-react'
 import { PROMPT_TEMPLATES } from '../../shared/prompts'
+import { GitHubMark } from '../components/common/GitHubMark'
 
 const cardClass = 'bg-surface rounded-2xl border border-border/80 p-5 shadow-[0_12px_32px_rgba(0,0,0,0.18)]'
 const fieldClass = 'w-full px-4 py-2.5 bg-zinc-950/70 shadow-inner shadow-black/20 border border-border/80 rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 transition-all'
@@ -312,7 +312,7 @@ export function Settings() {
 
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Github className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <GitHubMark className="w-4 h-4 text-zinc-400" aria-hidden="true" />
               <span className="text-sm font-medium text-zinc-300">
                 GitHub username
               </span>
@@ -512,7 +512,7 @@ export function Settings() {
         <div className="bg-surface rounded-xl border border-border p-5 space-y-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Github className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <GitHubMark className="w-4 h-4 text-zinc-400" aria-hidden="true" />
               <span className="text-sm font-medium text-zinc-300">
                 Organization name
               </span>
@@ -530,7 +530,7 @@ export function Settings() {
           <div>
             <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
-                <Github className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                <GitHubMark className="w-4 h-4 text-zinc-400" aria-hidden="true" />
                 <span className="text-sm font-medium text-zinc-300">
                   Personal Access Token (PAT)
                 </span>

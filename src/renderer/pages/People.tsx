@@ -18,13 +18,13 @@ import {
   Search,
   FileText,
   MapPin,
-  Github,
   Briefcase,
   X,
   UserPlus
 } from 'lucide-react'
 import { formatRelativeDate } from '../utils/formatDate'
 import { ComboInput } from '../components/common/ComboInput'
+import { GitHubMark } from '../components/common/GitHubMark'
 
 interface PersonEntry {
   name: string
@@ -357,7 +357,7 @@ ${editNotes}`
                     )}
                     {selected.github && (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-surface-raised/70 px-2.5 py-1">
-                        <Github className="w-3.5 h-3.5" aria-hidden="true" /> @{selected.github}
+                        <GitHubMark className="w-3.5 h-3.5" aria-hidden="true" /> @{selected.github}
                       </span>
                     )}
                     {selected.location && (
