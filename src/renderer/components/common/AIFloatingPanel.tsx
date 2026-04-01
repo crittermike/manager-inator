@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAI } from '../../hooks/useAI'
+import { useActiveFile } from '../../hooks/useActiveFile'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import {
   Send, Bot, StopCircle, X, User, FolderOpen,
-  Trash2, Plus, MessageSquare, Copy, Check
+  Trash2, Plus, MessageSquare, Copy, Check, FileText
 } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -65,6 +66,7 @@ function friendlyToolStatus(toolName: string, args: Record<string, unknown>): st
 
 export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation()
+  const { activeFile } = useActiveFile()
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const loaded = loadSessions()
     return loaded.length > 0 ? loaded : [createSession()]
@@ -180,6 +182,10 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     const contextHint = getContextHint()
 
     let activityContext = ''
+    let fileContext = ''
+    if (activeFile) {
+      fileContext = `\n\nThe user currently has this file open: "${activeFile.title}" (${activeFile.path})\n\nFile contents:\n${activeFile.content}`
+    }
     if (location.pathname.startsWith('/report/')) {
       const reportName = location.pathname.replace('/report/', '')
       try {
@@ -207,10 +213,11 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     }
 
     try {
+      const fullContext = [contextHint, activityContext, fileContext].filter(Boolean).join('\n\n')
       const response = await generate('chat', {
         message: text,
         history: messages.map(m => ({ role: m.role, content: m.content })),
-        ...(contextHint ? { pageContext: contextHint + (activityContext ? '\n\n' + activityContext : '') } : activityContext ? { pageContext: activityContext } : {})
+        ...(fullContext ? { pageContext: fullContext } : {})
       })
 
       updateSession(activeId, s => ({
@@ -502,6 +509,15 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
       {/* Input */}
       <div className="shrink-0 px-3 py-2.5 border-t border-border bg-surface/80 backdrop-blur-sm">
+        {activeFile && (
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-brand/10 text-brand-light text-[11px] font-medium">
+              <FileText className="w-3 h-3" />
+              {activeFile.title}
+            </div>
+            <span className="text-[10px] text-zinc-600">attached as context</span>
+          </div>
+        )}
         <div className="flex items-end gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
           <textarea
             ref={inputRef}

@@ -1,6 +1,7 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useReportData, useFileContent, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
+import { useActiveFile } from '../hooks/useActiveFile'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -71,6 +72,7 @@ export function ReportDetail() {
   const [searchParams] = useSearchParams()
   const { report, setReport, loading, error, load, refresh } = useReportData(name)
   const { streaming, streamedText, generate, cancel, reset, fullTextRef } = useAI()
+  const { setActiveFile } = useActiveFile()
   const toast = useToast()
   const mountedRef = useRef(true)
 
@@ -118,6 +120,16 @@ export function ReportDetail() {
   const [viewingContent, setViewingContent] = useState<{ id: string; path: string; title: string } | null>(null)
   const [isEditingContent, setIsEditingContent] = useState(false)
   const { content: fileContent, loading: fileLoading } = useFileContent(viewingContent?.path ?? null)
+
+  // Sync viewed file to AI context
+  useEffect(() => {
+    if (viewingContent && fileContent) {
+      setActiveFile({ path: viewingContent.path, title: viewingContent.title, content: fileContent })
+    } else {
+      setActiveFile(null)
+    }
+    return () => setActiveFile(null)
+  }, [viewingContent, fileContent, setActiveFile])
 
   // Copy state
   const [copied, setCopied] = useState(false)

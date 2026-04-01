@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { TeamOverviewProvider, SettingsProvider } from './hooks/useData'
+import { ActiveFileProvider } from './hooks/useActiveFile'
 
 const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
@@ -23,17 +24,19 @@ function Layout() {
   return (
     <SettingsProvider>
       <TeamOverviewProvider>
-        <AppShell>
-          <ErrorBoundary>
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-full">
-                <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-              </div>
-            }>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
-        </AppShell>
+        <ActiveFileProvider>
+          <AppShell>
+            <ErrorBoundary>
+              <Suspense fallback={
+                <div className="flex items-center justify-center h-full">
+                  <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+                </div>
+              }>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
+          </AppShell>
+        </ActiveFileProvider>
       </TeamOverviewProvider>
     </SettingsProvider>
   )
