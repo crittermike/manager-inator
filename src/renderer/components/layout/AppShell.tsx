@@ -12,8 +12,7 @@ import {
   ClipboardPaste,
   Keyboard,
   X,
-  Plus,
-  Mic
+  Plus
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
@@ -131,18 +130,6 @@ export function AppShell({ children }: AppShellProps) {
             </div>
             <span className="font-semibold text-sm tracking-tight text-zinc-100">Manager-inator</span>
           </div>
-        </div>
-
-        {/* Capture button */}
-        <div className="px-3 pb-3">
-          <button
-            onClick={toggleCapture}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand/10 text-brand-light hover:bg-brand/20 border border-brand/20 transition-all active:scale-[0.98] no-drag"
-          >
-            <Mic className="w-4 h-4" aria-hidden="true" />
-            <span className="flex-1 text-left">Process transcript</span>
-            <kbd className="text-[10px] text-brand-light/50 bg-brand/10 px-1.5 py-0.5 rounded font-mono">⌘⇧N</kbd>
-          </button>
         </div>
 
         {/* Nav items */}
