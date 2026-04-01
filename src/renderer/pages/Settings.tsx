@@ -179,6 +179,16 @@ export function Settings() {
   }
   saveRef.current = handleSave
 
+  const handleClearCaches = async () => {
+    try {
+      await window.api.clearCaches()
+      toast.success('All caches cleared')
+    } catch (e) {
+      console.error('Failed to clear caches:', e)
+      toast.error('Failed to clear caches')
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
@@ -364,6 +374,24 @@ export function Settings() {
               </button>
             </div>
           )}
+
+          <div className="pt-2 border-t border-border/60">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-zinc-300">Clear all caches</p>
+                <p className="text-xs text-zinc-600 mt-1">
+                  Use this if search or report data looks stale after external file edits.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearCaches}
+                className="px-3 py-2 text-sm text-zinc-300 bg-surface-raised hover:bg-surface-overlay border border-border rounded-lg transition-colors whitespace-nowrap"
+              >
+                Clear all caches
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
