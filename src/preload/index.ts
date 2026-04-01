@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('api', {
   getTodayBootstrap: () => ipcRenderer.invoke('github:today-bootstrap'),
   clearCaches: () => ipcRenderer.invoke('github:clear-caches'),
   getPrewarmStatus: () => ipcRenderer.invoke('github:prewarm-status'),
+  getPrewarmProgress: () => ipcRenderer.invoke('github:prewarm-progress'),
   getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
   getRecentTeamContext: (days: number) => ipcRenderer.invoke('github:recent-team-context', days),
   getMonthlyActivity: (reportName: string, year: number, month: number) =>

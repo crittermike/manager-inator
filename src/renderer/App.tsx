@@ -52,12 +52,13 @@ function LoadingScreen({ message }: { message: string }) {
   let progress: number
   if (reportMatch) {
     const [, current, total] = reportMatch
-    const reportsBase = (3 / LOADING_STEPS.length) * 100
-    const reportsEnd = (4 / LOADING_STEPS.length) * 100
+    // Reports loading spans from step 1 ("Loading reports...") to step 2 ("Building team overview...")
+    const reportsBase = (1 / LOADING_STEPS.length) * 100
+    const reportsEnd = (2 / LOADING_STEPS.length) * 100
     progress = reportsBase + (Number(current) / Number(total)) * (reportsEnd - reportsBase)
   } else {
     const stepIndex = LOADING_STEPS.indexOf(message)
-    progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 10
+    progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 5
   }
 
   const displayMessage = reportMatch ? `Loading reports... (${reportMatch[1]}/${reportMatch[2]})` : message
@@ -129,9 +130,20 @@ export default function App() {
       }
     })
 
-    window.api.getPrewarmStatus?.().then((ready) => {
-      if (ready) setCachesReady(true)
-    }).catch(() => {})
+    // Poll prewarm progress to catch up on missed messages.
+    // The renderer may mount after the main process has already started
+    // pre-warming, so real-time events via onLoadingProgress get lost.
+    const pollProgress = () => {
+      window.api.getPrewarmProgress?.().then(({ ready, message }) => {
+        if (ready) {
+          setCachesReady(true)
+        } else {
+          setLoadingMessage(message)
+        }
+      }).catch(() => {})
+    }
+    pollProgress()
+    const pollInterval = setInterval(pollProgress, 1000)
 
     cacheTimerRef.current = setTimeout(() => {
       setCachesReady(true)
@@ -139,6 +151,7 @@ export default function App() {
 
     return () => {
       unsub?.()
+      clearInterval(pollInterval)
       if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
     }
   }, [])

@@ -359,6 +359,7 @@ export interface IpcApi {
   getTodayBootstrap: () => Promise<{ contexts: ContextEntry[]; teamActionItems: TeamActionItem[] }>
   clearCaches: () => Promise<void>
   getPrewarmStatus: () => Promise<boolean>
+  getPrewarmProgress: () => Promise<{ ready: boolean; message: string }>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
   getRecentTeamContext: (days: number) => Promise<Record<string, { date: string; source: string; title: string; summary: string }[]>>
   getMonthlyActivity: (reportName: string, year: number, month: number) => Promise<MonthlyActivityStats | null>

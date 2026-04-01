@@ -33,6 +33,7 @@ import {
   cancelPendingCommits,
   preWarmCaches,
   isPrewarmComplete,
+  getPrewarmProgress,
   safeSend,
   getRecentTeamContext,
   updateFeedbackEntry,
@@ -123,6 +124,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
   safeHandle('github:prewarm-status', () => isPrewarmComplete())
+  safeHandle('github:prewarm-progress', () => getPrewarmProgress())
   safeHandle('github:team-activity', () => getTeamActivity())
   safeHandle('github:recent-team-context', (_e, days) => getRecentTeamContext(days as number))
   safeHandle('github:monthly-activity', (_e, reportName, year, month) =>

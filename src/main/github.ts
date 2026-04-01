@@ -709,6 +709,7 @@ interface SearchIndexEntry {
 }
 
 let _prewarmComplete = false
+let _prewarmMessage = 'Starting up...'
 
 let _searchIndexCache: SearchIndexEntry[] | null = null
 
@@ -997,7 +998,15 @@ export function getReportData(name: string): Report {
   const feedback = parseFeedbackLog(feedbackRaw)
 
   const mdReviews = reviewFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep' && !f.startsWith('YYYY')).sort()
-  const reviews = mdReviews.map((f) => ({ period: f.replace('.md', ''), content: '' }))
+  const reviews = mdReviews.map((f) => {
+    const period = f.replace('.md', '')
+    try {
+      const content = getFileContent(`reports/${name}/reviews/${f}`)
+      return { period, content }
+    } catch {
+      return { period, content: '' }
+    }
+  })
 
   const prepFiles = listFiles(`reports/${name}/prep`).filter(f => f.endsWith('.md')).sort()
   const preps: PrepEntry[] = prepFiles.map((f) => {
@@ -1812,6 +1821,7 @@ export function clearAllCaches(): void {
   _realpathCache.clear()
   _contextsCache = null
   _prewarmComplete = false
+  _prewarmMessage = 'Starting up...'
   invalidateReportCache()
   invalidatePeopleCache()
   invalidateSearchIndex()
@@ -1820,38 +1830,44 @@ export function clearAllCaches(): void {
 /** Pre-warm all caches at startup so first navigation is instant */
 export async function preWarmCaches(onProgress?: (message: string) => void): Promise<void> {
   const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
+  const emit = (msg: string) => {
+    _prewarmMessage = msg
+    onProgress?.(msg)
+  }
   try {
     const rp = repoPath()
     if (!existsSync(rp)) {
       console.warn('[Cache] Repo path does not exist, skipping pre-warm:', rp)
       _prewarmComplete = true
+      _prewarmMessage = 'Ready!'
       return
     }
     console.log('[Cache] Pre-warming...')
     const t0 = Date.now()
-    onProgress?.('Scanning context files...')
+    emit('Scanning context files...')
     await yield_()
     getContextsCache()
     // Warm each report individually with yields between them to avoid blocking the event loop
     const reportNames = getReports()
     for (let i = 0; i < reportNames.length; i++) {
-      onProgress?.(`Loading report ${i + 1}/${reportNames.length}...`)
+      emit(`Loading report ${i + 1}/${reportNames.length}...`)
       await yield_()
       try { getReportData(reportNames[i]) } catch { /* skip */ }
     }
     // Now getTeamOverview is instant — all reportData is cached
-    onProgress?.('Building team overview...')
+    emit('Building team overview...')
     await yield_()
     getTeamOverview()
-    onProgress?.('Building people index...')
+    emit('Building people index...')
     await yield_()
     listPeople()
-    onProgress?.('Ready!')
+    emit('Ready!')
     _prewarmComplete = true
     console.log(`[Cache] Pre-warmed in ${Date.now() - t0}ms`)
   } catch (e) {
     // Even on failure, mark complete so the app doesn't hang on LoadingScreen
     _prewarmComplete = true
+    _prewarmMessage = 'Ready!'
     console.warn('[Cache] Pre-warm failed:', (e as Error).message)
   }
 }
@@ -1859,4 +1875,9 @@ export async function preWarmCaches(onProgress?: (message: string) => void): Pro
 /** Returns whether preWarmCaches() has finished (success or failure) */
 export function isPrewarmComplete(): boolean {
   return _prewarmComplete
+}
+
+/** Returns current prewarm progress for late-connecting renderers */
+export function getPrewarmProgress(): { ready: boolean; message: string } {
+  return { ready: _prewarmComplete, message: _prewarmMessage }
 }
