@@ -967,7 +967,7 @@ export function ReportDetail() {
       entries.push({
         id: `checkin-${c.date}`,
         type: 'checkin',
-        date: c.date + '-15', // month dates sort correctly as mid-month
+        date: c.updatedAt || (c.date + '-15'),
         title: `Monthly check-in — ${c.date}`,
         preview: c.accomplishments.length > 0 ? c.accomplishments[0] : 'Check-in on file',
         data: c
@@ -2491,7 +2491,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
             {entry.type === 'context' && !(isViewing && isEditing) && <ContextDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} activeTab={contextTab} onTabChange={setContextTab} />}
             {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
-            {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onViewContent={onViewContent} />}
+            {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} />}
             {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onViewContent={onViewContent} />}
             {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
           </div>
@@ -2739,12 +2739,22 @@ function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntr
   )
 }
 
-function CheckinDetail({ entry, name, onViewContent }: { entry: StreamEntry; name: string; onViewContent: (id: string, path: string, title: string) => void }) {
+function CheckinDetail({ entry, name }: { entry: StreamEntry; name: string }) {
   const c = entry.data as { date: string; accomplishments: string[] }
+  const checkinPath = `reports/${name}/check-ins/monthly/${c.date}.md`
+  const { content, loading } = useFileContent(checkinPath)
 
   return (
     <div className="space-y-2">
-      {c.accomplishments.length > 0 && (
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : content ? (
+        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(content)}</ReactMarkdown>
+        </div>
+      ) : c.accomplishments.length > 0 ? (
         <ul className="space-y-1">
           {c.accomplishments.slice(0, 5).map((a, i) => (
             <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
@@ -2753,17 +2763,9 @@ function CheckinDetail({ entry, name, onViewContent }: { entry: StreamEntry; nam
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="text-sm text-zinc-500">Unable to load check-in content.</p>
       )}
-      <button
-        onClick={() => onViewContent(
-          entry.id,
-          `reports/${name}/check-ins/monthly/${c.date}.md`,
-          `Check-in — ${c.date}`
-        )}
-        className="text-xs text-brand-light hover:text-brand transition-colors"
-      >
-        View full check-in →
-      </button>
     </div>
   )
 }

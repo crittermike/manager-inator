@@ -21,6 +21,7 @@ export interface CheckIn {
   accomplishments: string[]
   concerns: string[]
   githubActivity: Record<string, string | number>
+  updatedAt?: string
 }
 
 // ── 1:1 Summary ──

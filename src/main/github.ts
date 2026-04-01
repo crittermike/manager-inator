@@ -948,10 +948,18 @@ export function getReportData(name: string): Report {
   const recentCheckIns = mdCheckIns.slice(-6)
   const checkIns: CheckIn[] = recentCheckIns.map((f) => {
     try {
+      const fullPath = safePath(`reports/${name}/check-ins/monthly/${f}`)
       const content = getFileContent(`reports/${name}/check-ins/monthly/${f}`)
-      return { date: f.replace('.md', ''), content, accomplishments: [], concerns: [], githubActivity: {} }
+      return {
+        date: f.replace('.md', ''),
+        content,
+        accomplishments: [],
+        concerns: [],
+        githubActivity: {},
+        updatedAt: new Date(lstatSync(fullPath).mtimeMs).toISOString()
+      }
     } catch {
-      return { date: f.replace('.md', ''), content: '', accomplishments: [], concerns: [], githubActivity: {} }
+      return { date: f.replace('.md', ''), content: '', accomplishments: [], concerns: [], githubActivity: {}, updatedAt: undefined }
     }
   })
 

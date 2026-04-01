@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ReactDOM from 'react-dom/client'
+import type { Report } from '../../src/shared/types'
 
 const mockNavigate = vi.fn()
 const mockGenerate = vi.fn()
@@ -10,6 +11,7 @@ const mockReset = vi.fn()
 const mockLoad = vi.fn()
 const mockRefresh = vi.fn()
 const mockRefreshSettings = vi.fn()
+const mockUseFileContent = vi.fn()
 const mockToast = {
   success: vi.fn(),
   error: vi.fn(),
@@ -19,7 +21,7 @@ const mockToast = {
 
 const mockSettings = { ptoReports: {} }
 
-const mockReport = {
+const mockReport: Report = {
   name: 'chanakya-valluri',
   profile: {
     name: 'chanakya-valluri',
@@ -62,7 +64,7 @@ vi.mock('../../src/renderer/hooks/useData', () => ({
     load: mockLoad,
     refresh: mockRefresh
   }),
-  useFileContent: () => ({ content: null, loading: false }),
+  useFileContent: (...args: unknown[]) => mockUseFileContent(...args),
   useSettings: () => ({ settings: mockSettings, loading: false, refreshSettings: mockRefreshSettings })
 }))
 
@@ -123,6 +125,8 @@ describe('ReportDetail AI actions menu', () => {
     mockLoad.mockReset()
     mockRefresh.mockReset()
     mockRefreshSettings.mockReset()
+    mockUseFileContent.mockReset()
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
     mockToast.success.mockReset()
     mockToast.error.mockReset()
     mockToast.info.mockReset()
@@ -265,5 +269,73 @@ describe('ReportDetail AI actions menu', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+
+  it('uses check-in updatedAt for recent relative time instead of the month label', async () => {
+    const originalCheckIns = mockReport.checkIns
+    mockReport.checkIns = [
+      {
+        date: '2026-03',
+        content: 'Freshly generated check-in content',
+        accomplishments: ['Shipped the latest work'],
+        concerns: [],
+        githubActivity: {},
+        updatedAt: new Date().toISOString()
+      }
+    ]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      expect(container.textContent).toContain('Monthly check-in — 2026-03')
+      expect(container.textContent?.toLowerCase()).not.toContain('2 weeks ago')
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockReport.checkIns = originalCheckIns
+    }
+  })
+
+  it('shows full check-in content inline without a separate view-full link', async () => {
+    const originalCheckIns = mockReport.checkIns
+    mockReport.checkIns = [
+      {
+        date: '2026-03',
+        content: 'Monthly check-in body',
+        accomplishments: ['Shipped the latest work'],
+        concerns: [],
+        githubActivity: {},
+        updatedAt: new Date().toISOString()
+      }
+    ]
+
+    mockUseFileContent.mockImplementation((path: string | null) => (
+      path === 'reports/chanakya-valluri/check-ins/monthly/2026-03.md'
+        ? { content: '# Monthly check-in: 2026-03\n\nFresh inline body', loading: false }
+        : { content: null, loading: false }
+    ))
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const expandButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Monthly check-in — 2026-03')) as HTMLButtonElement | undefined
+      expect(expandButton).toBeDefined()
+
+      await act(async () => {
+        expandButton?.click()
+        await Promise.resolve()
+      })
+
+      expect(container.textContent).toContain('Fresh inline body')
+      expect(container.textContent).not.toContain('View full check-in')
+
+      await act(async () => {
+        root.unmount()
+      })
+    } finally {
+      mockReport.checkIns = originalCheckIns
+    }
   })
 })
