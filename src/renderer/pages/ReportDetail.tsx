@@ -147,61 +147,35 @@ export function ReportDetail() {
     return () => { mountedRef.current = false; cancel() }
   }, [cancel])
 
+  // Single global listener for all dropdown menus — avoids re-render-triggered
+  // effect setup/teardown which causes visible delay when toggling menus
   useEffect(() => {
-    if (!showAiActionsMenu) return
-
     const handlePointerDown = (event: MouseEvent) => {
-      if (!aiActionsMenuRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (showAiActionsMenu && aiActionsMenuRef.current && !aiActionsMenuRef.current.contains(target)) {
         setShowAiActionsMenu(false)
       }
+      if (showAddMenu && addMenuRef.current && !addMenuRef.current.contains(target)) {
+        setShowAddMenu(false)
+      }
+      if (showMoreMenu && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setShowMoreMenu(false)
+      }
     }
-
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setShowAiActionsMenu(false)
+        if (showAiActionsMenu) setShowAiActionsMenu(false)
+        else if (showAddMenu) setShowAddMenu(false)
+        else if (showMoreMenu) setShowMoreMenu(false)
       }
     }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleEscape)
-
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [showAiActionsMenu])
-
-  useEffect(() => {
-    if (!showAddMenu) return
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!addMenuRef.current?.contains(event.target as Node)) setShowAddMenu(false)
-    }
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowAddMenu(false)
-    }
     document.addEventListener('mousedown', handlePointerDown)
     document.addEventListener('keydown', handleEscape)
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [showAddMenu])
-
-  useEffect(() => {
-    if (!showMoreMenu) return
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!moreMenuRef.current?.contains(event.target as Node)) setShowMoreMenu(false)
-    }
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowMoreMenu(false)
-    }
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [showMoreMenu])
+  }, [showAiActionsMenu, showAddMenu, showMoreMenu])
 
   const { settings: _rdSettings, refreshSettings } = useSettings()
 
@@ -1073,7 +1047,7 @@ export function ReportDetail() {
   const ptoExpiry = name ? ptoReports[name] : undefined
   const isOnPto = !!ptoExpiry && new Date(ptoExpiry) > new Date()
 
-  const filterCounts: Record<StreamFilter, number> = {
+  const filterCounts = useMemo((): Record<StreamFilter, number> => ({
     all: streamEntries.length,
     context: streamEntries.filter(e => e.type === 'context').length,
     feedback: streamEntries.filter(e => e.type === 'feedback').length,
@@ -1081,7 +1055,7 @@ export function ReportDetail() {
     checkin: streamEntries.filter(e => e.type === 'checkin').length,
     review: streamEntries.filter(e => e.type === 'review').length,
     prep: streamEntries.filter(e => e.type === 'prep').length
-  }
+  }), [streamEntries, report.actionItems])
 
   const filters: { id: StreamFilter; label: string; icon: typeof FileText }[] = [
     { id: 'all', label: 'All', icon: Filter },
