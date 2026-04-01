@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
 import type { ContentSearchResult, ContextEntry, ContextSource, PersonEntry } from '../../shared/types'
+import { GitHubMark } from '../components/common/GitHubMark'
 
 interface SearchResult {
   type: ContextSource | 'person'
@@ -279,7 +280,7 @@ export function SearchPage() {
     if (type === 'person') return <User className="w-4 h-4 text-emerald-400" aria-hidden="true" />
     if (type === 'meeting') return <Calendar className="w-4 h-4 text-brand-light" aria-hidden="true" />
     if (type === 'slack') return <FileText className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-    if (type === 'github') return <FileText className="w-4 h-4 text-zinc-200" aria-hidden="true" />
+    if (type === 'github') return <GitHubMark className="w-4 h-4 text-zinc-200" aria-hidden="true" />
     if (type === 'email') return <FileText className="w-4 h-4 text-amber-300" aria-hidden="true" />
     return <FileText className="w-4 h-4 text-zinc-500" aria-hidden="true" />
   }

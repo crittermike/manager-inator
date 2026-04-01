@@ -14,7 +14,6 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
   const [userGithub, setUserGithub] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [wasCreate, setWasCreate] = useState(false)
 
   const handleConnect = async (e: { preventDefault(): void }) => {
     e.preventDefault()
@@ -44,7 +43,6 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
       }
 
       setSaving(false)
-      setWasCreate(false)
       setMode('identity')
     } catch (e) {
       setError((e as Error).message)
@@ -66,7 +64,6 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
       await window.api.initializeRepo(repoPath.trim())
       await window.api.saveSettings({ repoPath: repoPath.trim() })
       setSaving(false)
-      setWasCreate(true)
       setMode('identity')
     } catch (e) {
       setError((e as Error).message)

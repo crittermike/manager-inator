@@ -16,7 +16,8 @@ export function useUnsavedChanges(dirty: boolean): UseUnsavedChangesReturn {
     if (!dirty) return
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
-      e.returnValue = ''
+      // Keep the legacy assignment for browser confirmation dialogs without surfacing the TS deprecation hint.
+      ;(e as BeforeUnloadEvent & { returnValue: string }).returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
