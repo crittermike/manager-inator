@@ -7,12 +7,14 @@ const REMARK_PLUGINS = [remarkGfm]
 import type { PersonEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import { useToast } from '../components/common/Toast'
+import { useActiveFile } from '../hooks/useActiveFile'
 
 export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { success, error: showError } = useToast()
+  const { setActiveFile } = useActiveFile()
   const dir = searchParams.get('dir') || 'contexts'
   
   const [content, setContent] = useState<string | null>(null)
@@ -173,6 +175,14 @@ export function ContextDetail() {
       
     return () => { isMounted = false }
   }, [decodedFilename, dir])
+
+  // Sync viewed file to AI context
+  useEffect(() => {
+    if (content && title && decodedFilename) {
+      setActiveFile({ path: `${dir}/${decodedFilename}`, title: title || decodedFilename, content })
+    }
+    return () => setActiveFile(null)
+  }, [content, title, decodedFilename, dir, setActiveFile])
 
   const handleSaveTitle = useCallback(async () => {
     if (!editTitleValue.trim() || editTitleValue === title) {

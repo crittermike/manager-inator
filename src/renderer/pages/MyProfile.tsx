@@ -3,6 +3,7 @@ import { useAI } from '../hooks/useAI'
 import { useToast } from '../components/common/Toast'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
+import { useActiveFile } from '../hooks/useActiveFile'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
@@ -38,6 +39,7 @@ export function MyProfile() {
   const { streaming, streamedText, generate, cancel, reset } = useAI()
   const [showAI, setShowAI] = useState(false)
   const toast = useToast()
+  const { setActiveFile } = useActiveFile()
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(editing)
   const saveRef = useRef<() => void>(() => {})
 
@@ -55,6 +57,13 @@ export function MyProfile() {
   }, [cancel])
 
   useKeyboardShortcut({ key: 's', handler: useCallback(() => saveRef.current(), []), enabled: editing })
+
+  // Sync impact log to AI context when viewing
+  useEffect(() => {
+    if (tab === 'impact' && content && !loading) {
+      setActiveFile({ path: 'impact-log.md', title: 'Impact Log', content })
+    }
+  }, [tab, content, loading, setActiveFile])
 
   const loadLog = async () => {
     setLoading(true)
@@ -93,6 +102,16 @@ export function MyProfile() {
       setEntryLoading(false)
     }
   }, [])
+
+  // Sync viewed weekly-log entry to AI context
+  useEffect(() => {
+    if (selectedEntry && entryContent && !entryLoading) {
+      setActiveFile({ path: `weekly-log/${selectedEntry.filename}`, title: selectedEntry.title, content: entryContent })
+    } else if (!selectedEntry) {
+      setActiveFile(null)
+    }
+    return () => setActiveFile(null)
+  }, [selectedEntry, entryContent, entryLoading, setActiveFile])
 
   const saveEntry = useCallback(async () => {
     if (!selectedEntry || !entryEditDraft.trim()) return

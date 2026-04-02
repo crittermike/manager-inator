@@ -124,9 +124,9 @@ export function ReportDetail() {
 
   // Sync viewed file to AI context
   useEffect(() => {
-    if (viewingContent && fileContent) {
+    if (viewingContent && fileContent != null && fileContent !== '') {
       setActiveFile({ path: viewingContent.path, title: viewingContent.title, content: fileContent })
-    } else {
+    } else if (!viewingContent) {
       setActiveFile(null)
     }
     return () => setActiveFile(null)
