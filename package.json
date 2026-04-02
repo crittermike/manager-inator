@@ -13,6 +13,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "electron-vite build && playwright test",
+    "dist": "electron-vite build && electron-builder --mac --publish never",
+    "release": "electron-vite build && electron-builder --mac --publish always",
     "qa:search": "node scripts/qa-search.mjs"
   },
   "keywords": [],
@@ -22,15 +24,35 @@
   "build": {
     "appId": "com.manager-inator.app",
     "productName": "Manager-inator",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "crittermike",
+        "repo": "manager-inator-app"
+      }
+    ],
     "mac": {
       "icon": "resources/icon.icns",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
+      ]
     },
     "files": [
       "out/**",
       "resources/**",
       "package.json"
-    ]
+    ],
+    "directories": {
+      "output": "dist"
+    }
   },
   "dependencies": {
     "@github/copilot": "^1.0.9",
@@ -38,6 +60,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "date-fns": "^4.1.0",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -55,6 +78,7 @@
     "autoprefixer": "^10.4.27",
     "concurrently": "^9.2.1",
     "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
     "electron-playwright-helpers": "^2.1.0",
     "electron-vite": "^5.0.0",
     "happy-dom": "^20.8.4",

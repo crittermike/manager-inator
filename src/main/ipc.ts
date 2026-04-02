@@ -127,6 +127,10 @@ export function setupIpcHandlers(): void {
   safeHandle('github:clear-caches', () => clearAllCaches())
   safeHandle('github:prewarm-status', () => isPrewarmComplete())
   safeHandle('github:prewarm-progress', () => getPrewarmProgress())
+  safeHandle('app:install-update', () => {
+    const { autoUpdater } = require('electron-updater')
+    autoUpdater.quitAndInstall(false, true)
+  })
   safeHandle('github:team-activity', () => getTeamActivity())
   safeHandle('github:recent-team-context', (_e, days) => getRecentTeamContext(days as number))
   safeHandle('github:monthly-activity', (_e, reportName, year, month) =>

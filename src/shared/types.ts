@@ -371,6 +371,8 @@ export interface IpcApi {
   deleteFeedbackEntry: (reportName: string, entryIndex: number) => Promise<void>
   searchContent: (query: string) => Promise<ContentSearchResult[]>
   onLoadingProgress: (cb: (data: { message: string }) => void) => () => void
+  onUpdateReady: (cb: (version: string) => void) => () => void
+  installUpdate: () => Promise<void>
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void

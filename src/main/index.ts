@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, session, shell } from 'electron'
 import { join } from 'path'
+import { autoUpdater } from 'electron-updater'
 import { setupIpcHandlers } from './ipc'
 import { preWarmCaches, flushPendingCommitsAsync } from './github'
 import { stopClient } from './copilot'
@@ -28,6 +29,31 @@ function isSafeUrl(url: string): boolean {
 
 function openExternalSafe(url: string): void {
   if (isSafeUrl(url)) shell.openExternal(url)
+}
+
+function setupAutoUpdater(): void {
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version)
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('app:update-ready', info.version)
+    }
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err.message)
+  })
+
+  // Check for updates 5s after launch, then every 4 hours
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000)
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000)
 }
 
 function createWindow(): void {
@@ -125,6 +151,7 @@ app.whenReady().then(() => {
   createWindow()
   createTray()
   registerGlobalShortcuts()
+  setupAutoUpdater()
 
   if (process.platform === 'darwin' && app.dock) {
     app.dock.setMenu(Menu.buildFromTemplate([

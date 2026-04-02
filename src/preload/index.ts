@@ -68,6 +68,12 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('app:loading-progress', handler)
     return () => ipcRenderer.removeListener('app:loading-progress', handler)
   },
+  onUpdateReady: (cb: (version: string) => void) => {
+    const handler = (_event: unknown, version: string) => cb(version)
+    ipcRenderer.on('app:update-ready', handler)
+    return () => ipcRenderer.removeListener('app:update-ready', handler)
+  },
+  installUpdate: () => ipcRenderer.invoke('app:install-update'),
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => {
     const handler = (_event: unknown, data: { success: boolean; error?: string }) => cb(data)
     ipcRenderer.on('github:push-status', handler)

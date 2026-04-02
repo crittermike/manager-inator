@@ -95,6 +95,7 @@ export default function App() {
   const [hasRepo, setHasRepo] = useState<boolean | null>(null)
   const [loadingMessage, setLoadingMessage] = useState('Starting up...')
   const [cachesReady, setCachesReady] = useState(false)
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
   const cacheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const router = useMemo(() => createHashRouter([
@@ -163,6 +164,13 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const unsub = window.api.onUpdateReady?.((version) => {
+      setUpdateVersion(version)
+    })
+    return () => { unsub?.() }
+  }, [])
+
   if (bridgeError) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-zinc-950 p-8">
@@ -206,6 +214,23 @@ export default function App() {
 
   return (
     <ToastProvider>
+      {updateVersion && (
+        <div className="fixed top-0 left-0 right-0 z-[9999] bg-brand/95 backdrop-blur-sm text-white text-center py-2 px-4 text-sm flex items-center justify-center gap-3 animate-slide-down">
+          <span>Version {updateVersion} is ready —</span>
+          <button
+            onClick={() => window.api.installUpdate()}
+            className="font-semibold underline underline-offset-2 hover:text-white/80 transition-colors"
+          >
+            Restart to update
+          </button>
+          <button
+            onClick={() => setUpdateVersion(null)}
+            className="ml-2 text-white/60 hover:text-white transition-colors text-xs"
+          >
+            Later
+          </button>
+        </div>
+      )}
       <RouterProvider router={router} />
     </ToastProvider>
   )
