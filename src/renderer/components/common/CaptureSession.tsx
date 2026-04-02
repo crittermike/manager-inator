@@ -356,14 +356,6 @@ export function CaptureSession({
     }
   }, [cancel])
 
-  const statusBadge = state === 'processing'
-    ? <span className="text-[10px] text-brand-light flex items-center gap-1"><Loader2 className="w-2.5 h-2.5 animate-spin" />Processing</span>
-    : state === 'saved'
-      ? <span className="text-[10px] text-success flex items-center gap-1"><Check className="w-2.5 h-2.5" />Saved</span>
-      : state === 'editing'
-        ? <span className="text-[10px] text-amber-400 flex items-center gap-1"><Pencil className="w-2.5 h-2.5" />Editing</span>
-        : <span className="text-[10px] text-danger flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5" />Error</span>
-
   const summaryText = result?.summary || initialContent.trim().split('\n')[0] || 'Captured content'
 
   return (
@@ -384,7 +376,9 @@ export function CaptureSession({
           )}
           <div className="min-w-0">
             <div className="text-xs text-zinc-200 truncate">{summaryText}</div>
-            <div className="mt-0.5">{statusBadge}</div>
+            <div className="mt-0.5 text-[10px] text-zinc-500">
+              {state === 'processing' ? 'Processing' : state === 'saved' ? 'Saved' : state === 'editing' ? 'Editing' : 'Error'}
+            </div>
           </div>
         </button>
         {state === 'processing' && (
