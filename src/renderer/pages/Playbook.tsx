@@ -110,8 +110,8 @@ const practices: Practice[] = [
     name: 'Write weekly snippet',
     description: 'Generate a status update for your manager covering: top of mind, accomplishments, incidents, risks, and shout-outs.',
     cadence: 'weekly',
-    frequency: 'Snippet day',
-    trigger: 'Snippet day arrives',
+    frequency: 'Weekly (configurable day)',
+    trigger: 'Configured snippet day arrives',
     perReport: false,
   },
   {
@@ -462,12 +462,13 @@ function EditBuiltInPracticeForm({
   const [intervalDays, setIntervalDays] = useState(existingSchedule?.intervalDays || 0)
   
   const isWeeklyRef = practice.id === 'weekly-reflection'
+  const isWeeklySnippet = practice.id === 'weekly-snippet'
   const isFeedbackGap = practice.id === 'feedback-gap'
   const isSprintStart = practice.id === 'sprint-start'
   const isSprintEnd = practice.id === 'sprint-end'
   const isMonthly = practice.id === 'monthly-checkin'
 
-  const hasCadenceSettings = isWeeklyRef || isFeedbackGap || isSprintStart || isSprintEnd || isMonthly
+  const hasCadenceSettings = isWeeklyRef || isWeeklySnippet || isFeedbackGap || isSprintStart || isSprintEnd || isMonthly
 
   const schedulableIds = new Set([
     'skip-level', 'monthly-checkin', 'peer-sync',
@@ -540,6 +541,19 @@ function EditBuiltInPracticeForm({
            <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">End of week day</label>
               <select value={local.endOfWeekDay} onChange={e => setLocal({...local, endOfWeekDay: e.target.value as DayOfWeek})} className={inputClasses}>
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday</option>
+              </select>
+           </div>
+        )}
+
+        {isWeeklySnippet && (
+           <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Snippet day</label>
+              <select value={local.snippetDay} onChange={e => setLocal({...local, snippetDay: e.target.value as DayOfWeek})} className={inputClasses}>
                 <option value="monday">Monday</option>
                 <option value="tuesday">Tuesday</option>
                 <option value="wednesday">Wednesday</option>

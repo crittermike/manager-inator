@@ -540,7 +540,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <span className="text-[10px] text-zinc-600">attached as context</span>
           </div>
         )}
-        <div className="flex items-center gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
+        <div className="flex items-end gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
           <textarea
             ref={inputRef}
             value={input}
@@ -549,8 +549,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             placeholder="Ask about your team…"
             aria-label="Ask about your team"
             rows={1}
-            className="flex-1 bg-transparent text-xs text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none px-2 py-2 max-h-24 self-center"
-            style={{ minHeight: '28px' }}
+            className="flex-1 bg-transparent text-xs text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none px-2 py-1 max-h-24 leading-[26px]"
           />
           {streaming ? (
             <button
