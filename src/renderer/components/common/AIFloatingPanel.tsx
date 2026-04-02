@@ -162,7 +162,14 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 96) + 'px'
+    const singleLineHeight = 28
+    const natural = el.scrollHeight
+    // Only grow beyond single line when there's actual multi-line content
+    if (natural > singleLineHeight + 4) {
+      el.style.height = Math.min(natural, 96) + 'px'
+    } else {
+      el.style.height = ''
+    }
   }
 
   const sendMessage = async (overrideText?: string) => {
