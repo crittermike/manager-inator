@@ -907,7 +907,7 @@ export function Today() {
               generatedAny = true
             }
           } catch (e) {
-            console.error("GEN ERROR", 'Failed to auto-generate checkin for', r.name, e)
+            console.error('Failed to auto-generate checkin for', r.name, e)
           }
         }
       }
@@ -1027,7 +1027,7 @@ export function Today() {
       const data = await window.api.getTeamActivity()
       setTeamActivity(data)
     } catch (err) {
-      console.error("GEN ERROR", err)
+      console.error(err)
     } finally {
       setActivityLoading(false)
     }
@@ -1084,7 +1084,7 @@ export function Today() {
       const todayKey = format(new Date(), 'yyyy-MM-dd')
       localStorage.setItem(`activity-summary-${todayKey}`, result)
     } catch (err) {
-      console.error("GEN ERROR", '[Activity Summary] AI generation failed:', err)
+      console.error('[Activity Summary] AI generation failed:', err)
     }
   }, [activityAI, ptoReports])
 

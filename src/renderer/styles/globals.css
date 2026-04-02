@@ -75,23 +75,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @keyframes backdrop-fade { from { opacity: 0; } to { opacity: 1; } }
 .animate-backdrop-fade { animation: backdrop-fade 0.2s ease-out; }
 
-@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
-
-@keyframes slide-up-fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-.animate-slide-up-fade { animation: slide-up-fade 0.35s ease-out; }
-
-@keyframes gentle-bounce { 0% { transform: translateY(0); } 30% { transform: translateY(-6px); } 50% { transform: translateY(0); } 70% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
-.animate-gentle-bounce { animation: gentle-bounce 0.5s ease-in-out; }
-
 @keyframes success-pop { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
 .animate-success-pop { animation: success-pop 0.3s ease-out; }
-
-@keyframes confetti { 0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; } 100% { transform: translateY(-40px) rotate(180deg) scale(0); opacity: 0; } }
-.animate-confetti { animation: confetti 0.6s ease-out forwards; }
-
-@keyframes wiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
-.animate-wiggle { animation: wiggle 0.3s ease-in-out; }
 
 @keyframes skeleton-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 .skeleton { background: linear-gradient(90deg, var(--color-surface-raised) 25%, var(--color-surface-overlay) 50%, var(--color-surface-raised) 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.5s ease-in-out infinite; border-radius: 0.5rem; }
@@ -101,6 +86,3 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade-up { animation: fade-up 0.28s ease-out; }
-
-@keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.06); } 100% { transform: scale(1); } }
-.animate-pop { animation: pop 0.28s ease-in-out; }

@@ -353,11 +353,13 @@ export function InlinePrompt({
     setEditing(true)
   }, [text])
 
-  const handleRegenerate = useCallback(() => {
-    setText('')
+  const handleRegenerate = useCallback(async () => {
     setPhase('editing')
     setEditing(false)
-  }, [])
+    setText('')
+    // Immediately trigger AI draft
+    await handleSuggest()
+  }, [handleSuggest])
 
   if (phase === 'loading') {
     return (

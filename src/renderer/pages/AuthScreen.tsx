@@ -54,12 +54,9 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
       const doPoll = async () => {
         if (timedOut || unmountedRef.current) return
         try {
-          console.log('[AuthScreen] Polling...')
           const result = await poll()
-          console.log('[AuthScreen] Poll result:', result)
           if (result.success) {
             clearTimeout(timeoutId)
-            console.log('[AuthScreen] Auth succeeded! Calling onAuthenticated with user:', result.user)
             if (!unmountedRef.current) onAuthenticated(result.user)
             return
           }

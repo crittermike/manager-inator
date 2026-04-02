@@ -81,7 +81,7 @@ async function fetchUserActivity(
     'X-GitHub-Api-Version': '2022-11-28'
   }
 
-  console.log(`[GitHub Activity] Fetching: org=${org}, user=${username}, since=${sinceStr}, lookback=${lookbackDays}d`)
+
 
   const authorQuery = `org:${org} author:${username} updated:>=${sinceStr}`
   const authorIssueQuery = `org:${org} author:${username} created:>=${sinceStr}`
@@ -376,7 +376,7 @@ async function fetchMonthlyActivity(
     'X-GitHub-Api-Version': '2022-11-28'
   }
 
-  console.log(`[GitHub Activity] Monthly fetch: org=${org}, user=${username}, ${start}..${end}`)
+
 
   const [mergedPRs, reviewedPRs, createdIssues, closedIssues, discussions] = await Promise.all([
     fetchSearchPage(`org:${org} author:${username} is:pr is:merged merged:${start}..${end}`, headers),
@@ -556,7 +556,7 @@ async function fetchUserActivityForDateRange(
     'X-GitHub-Api-Version': '2022-11-28'
   }
 
-  console.log(`[GitHub Activity] Fetching range: org=${org}, user=${username}, ${startDate}..${endDate}`)
+
 
   const dateRange = `${startDate}..${endDate}`
   const authorQuery = `org:${org} author:${username} updated:${dateRange}`

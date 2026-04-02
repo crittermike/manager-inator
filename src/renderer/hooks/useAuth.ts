@@ -20,9 +20,7 @@ export function useAuth() {
       return
     }
     try {
-      console.log('[useAuth] checkAuth calling getAuthStatus...')
       const { authenticated, user } = await window.api.getAuthStatus()
-      console.log('[useAuth] getAuthStatus returned:', { authenticated, user })
       setAuthenticated(authenticated)
       setUser(user || null)
     } catch (e) {
@@ -39,11 +37,8 @@ export function useAuth() {
   }, [])
 
   const poll = useCallback(async (): Promise<PollResult> => {
-    console.log('[useAuth] poll() calling pollAuth...')
     const result: PollResult = await window.api.pollAuth()
-    console.log('[useAuth] pollAuth returned:', result)
     if (result.success) {
-      console.log('[useAuth] Poll succeeded, setting authenticated directly')
       setAuthenticated(true)
       if (result.user) setUser(result.user)
     }
@@ -51,7 +46,6 @@ export function useAuth() {
   }, [])
 
   const forceAuthenticated = useCallback((userName?: string) => {
-    console.log('[useAuth] forceAuthenticated called, user:', userName)
     setAuthenticated(true)
     if (userName) setUser(userName)
     setLoading(false)

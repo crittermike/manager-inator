@@ -214,9 +214,11 @@ export function MyProfile() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-border">
+      <div className="flex items-center gap-1 border-b border-border" role="tablist">
         <button
           onClick={() => setTab('impact')}
+          role="tab"
+          aria-selected={tab === 'impact'}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             tab === 'impact'
               ? 'text-brand-light border-brand'
@@ -228,6 +230,8 @@ export function MyProfile() {
         </button>
         <button
           onClick={() => setTab('weekly-log')}
+          role="tab"
+          aria-selected={tab === 'weekly-log'}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             tab === 'weekly-log'
               ? 'text-brand-light border-brand'

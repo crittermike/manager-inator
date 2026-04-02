@@ -29,6 +29,7 @@ import { GitHubMark } from '../components/common/GitHubMark'
 interface PersonEntry {
   name: string
   slug: string
+  aliases: string[]
   meetingCount: number
   lastSeen: string
   role: string
@@ -175,7 +176,7 @@ relationship:
       setShowAddForm(false)
       toast.success(`Added ${trimmed}`)
       const freshPeople = await loadPeople()
-      const person = freshPeople.find(p => p.slug === slug) || { name: trimmed, slug, meetingCount: 0, lastSeen: '', role: '', github: '', location: '', relationship: '' }
+      const person = freshPeople.find(p => p.slug === slug) || { name: trimmed, slug, aliases: [], meetingCount: 0, lastSeen: '', role: '', github: '', location: '', relationship: '' }
       openPerson(person)
     } catch (e) {
       console.error('Failed to create person:', e)
@@ -296,7 +297,15 @@ ${editNotes}`
   const debouncedSearch = useDebouncedValue(search, 300)
 
   const filtered = debouncedSearch
-    ? people.filter(p => p.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    ? people.filter(p => {
+        const q = debouncedSearch.toLowerCase()
+        return p.name.toLowerCase().includes(q)
+          || p.role.toLowerCase().includes(q)
+          || p.github.toLowerCase().includes(q)
+          || p.location.toLowerCase().includes(q)
+          || p.relationship.toLowerCase().includes(q)
+          || p.aliases.some(a => a.toLowerCase().includes(q))
+      })
     : people
 
   if (loading) {

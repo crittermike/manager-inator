@@ -32,7 +32,6 @@ export async function getAuthStatus(): Promise<{
   user?: string
 }> {
   const token = getToken()
-  console.log('[Auth] getAuthStatus called, hasToken:', !!token)
   if (!token) return { authenticated: false }
 
   if (process.env['ELECTRON_USER_DATA']) {
@@ -52,12 +51,10 @@ export async function getAuthStatus(): Promise<{
 
     if (res.ok) {
       const user = await res.json()
-      console.log('[Auth] Token valid, user:', user.login)
       return { authenticated: true, user: user.login }
     }
     // Only clear token on definitive auth failure (401/403), not on server errors
     if (res.status === 401 || res.status === 403) {
-      console.log('[Auth] Token invalid (HTTP', res.status, '), clearing')
       clearToken()
       return { authenticated: false }
     }
@@ -75,7 +72,6 @@ export async function startAuth(): Promise<{
   userCode: string
   verificationUri: string
 }> {
-  console.log('[Auth] Starting device code flow...')
   const body = new URLSearchParams({
     client_id: GITHUB_CLIENT_ID,
     scope: 'repo'
@@ -98,7 +94,6 @@ export async function startAuth(): Promise<{
   const data: DeviceCodeResponse = await res.json()
   pendingDeviceCode = data
   deviceCodeExpiresAt = Date.now() + data.expires_in * 1000
-  console.log('[Auth] Got device code, expires in', data.expires_in, 'seconds, interval:', data.interval, 'seconds')
 
   if (isSafeUrl(data.verification_uri)) {
     shell.openExternal(data.verification_uri).catch(() => {})
@@ -120,7 +115,6 @@ export interface PollResult {
 }
 
 export async function pollAuth(): Promise<PollResult> {
-  console.log('[Auth] pollAuth called, pendingDeviceCode:', !!pendingDeviceCode)
   if (!pendingDeviceCode) {
     console.warn('[Auth] pollAuth called but no pending device code')
     return { success: false, error: 'no_pending_code' }
@@ -154,13 +148,10 @@ export async function pollAuth(): Promise<PollResult> {
     clearTimeout(timeout)
 
     const data = await res.json()
-    console.log('[Auth] poll response status:', res.status, 'error:', data.error || 'none', 'has_token:', !!data.access_token)
 
     if (data.access_token) {
-      console.log('[Auth] Got access token, storing...')
       setToken(data.access_token)
       pendingDeviceCode = null
-      console.log('[Auth] Token stored, fetching username...')
 
       // Fetch the username so the renderer can set state directly
       // without making another getAuthStatus() round-trip
@@ -176,7 +167,6 @@ export async function pollAuth(): Promise<PollResult> {
         if (userRes.ok) {
           const userJson = await userRes.json()
           user = userJson.login
-          console.log('[Auth] Got username:', user)
         } else {
           console.warn('[Auth] Could not fetch username (HTTP', userRes.status, '), proceeding anyway')
         }
@@ -184,14 +174,11 @@ export async function pollAuth(): Promise<PollResult> {
         console.warn('[Auth] Username fetch failed:', (err as Error).message, '— proceeding anyway')
       }
 
-      console.log('[Auth] Returning success, user:', user || '(unknown)')
       return { success: true, user }
     }
 
     if (data.error === 'slow_down') {
-      // GitHub wants us to increase the polling interval
       const retryAfter = (data.interval || 10) + 5
-      console.log('[Auth] GitHub says slow_down, retry after', retryAfter, 'seconds')
       return { success: false, retryAfter }
     }
 

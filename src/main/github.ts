@@ -1986,7 +1986,6 @@ export async function preWarmCaches(onProgress?: (message: string) => void): Pro
       _prewarmMessage = 'Ready!'
       return
     }
-    console.log('[Cache] Pre-warming...')
     const t0 = Date.now()
     emit('Scanning context files...')
     await yield_()
