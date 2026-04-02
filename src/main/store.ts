@@ -36,7 +36,7 @@ const storeDefaults: StoreSchema = {
   repoOwner: '',
   repoName: '',
   repoPath: '',
-  defaultModel: 'gpt-4.1',
+  defaultModel: 'claude-opus-4.6',
   checkInFrequency: 'monthly',
   feedbackReminderDays: 14,
   sprintLengthWeeks: 2,

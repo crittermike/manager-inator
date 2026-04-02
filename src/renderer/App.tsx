@@ -132,19 +132,20 @@ export default function App() {
       }
     })
 
-    const pollProgress = () => {
+    const pollInterval = setInterval(() => {
       window.api.getPrewarmProgress?.().then(({ ready, message }) => {
         if (ready) {
           setCachesReady(true)
+          clearInterval(pollInterval)
         } else {
           setLoadingMessage(message)
         }
       }).catch(() => {})
-    }
-    const pollInterval = setInterval(pollProgress, 1000)
+    }, 1000)
 
     cacheTimerRef.current = setTimeout(() => {
       setCachesReady(true)
+      clearInterval(pollInterval)
     }, 60_000)
 
     return () => {

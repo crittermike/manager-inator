@@ -129,6 +129,16 @@ export function setupIpcHandlers(): void {
   safeHandle('github:today-bootstrap', () => getTodayBootstrap())
   safeHandle('github:search-content', (_e, query) => searchContent(query as string))
   safeHandle('github:clear-caches', () => clearAllCaches())
+  safeHandle('github:validate-token', async (_e, token) => {
+    try {
+      const res = await fetch('https://api.github.com/user', {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  })
   safeHandle('github:prewarm-status', () => isPrewarmComplete())
   safeHandle('github:prewarm-progress', () => getPrewarmProgress())
   safeHandle('app:install-update', () => {

@@ -38,7 +38,8 @@ describe('SetupScreen github-org step', () => {
         isGitRepo: mockIsGitRepo,
         getReports: mockGetReports,
         initializeRepo: mockInitializeRepo,
-        showOpenDialog: mockShowOpenDialog
+        showOpenDialog: mockShowOpenDialog,
+        validateGithubToken: vi.fn().mockResolvedValue(true)
       }
     })
   })
@@ -117,10 +118,9 @@ describe('SetupScreen github-org step', () => {
 
     expect(container.textContent).toContain('read your team\'s activity')
     expect(container.textContent).toContain('stored locally')
-    expect(container.textContent).toContain('Fine-grained PAT')
-    expect(container.textContent).toContain('Classic PAT')
-    expect(container.textContent).toContain('read:org')
-    expect(container.textContent).toContain('repo')
+    expect(container.textContent).toContain('fine-grained PAT under your organization')
+    expect(container.textContent).toContain('Contents')
+    expect(container.textContent).toContain('Pull requests')
 
     await act(async () => {
       root.unmount()

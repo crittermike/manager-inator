@@ -23,7 +23,15 @@ echo "🔨 Building app (this takes ~2 min)..."
 npm run dist 2>&1 | tail -5
 
 echo "🔐 Removing quarantine..."
-DMG=$(ls -t dist/*.dmg 2>/dev/null | head -1)
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+  DMG=$(ls -t dist/*-arm64.dmg 2>/dev/null | head -1)
+else
+  DMG=$(ls -t dist/*.dmg 2>/dev/null | grep -v arm64 | head -1)
+fi
+if [ -z "$DMG" ]; then
+  DMG=$(ls -t dist/*.dmg 2>/dev/null | head -1)
+fi
 if [ -z "$DMG" ]; then
   echo "❌ No DMG found in dist/"
   exit 1

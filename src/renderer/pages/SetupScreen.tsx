@@ -103,6 +103,22 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     setSaving(true)
     setError('')
 
+    // Validate PAT if provided — go through main process to avoid CSP
+    if (githubOrgToken.trim()) {
+      try {
+        const valid = await window.api.validateGithubToken(githubOrgToken.trim())
+        if (!valid) {
+          setError('Token validation failed — please check your PAT and try again.')
+          setSaving(false)
+          return
+        }
+      } catch {
+        setError('Could not validate token. Check your connection and try again.')
+        setSaving(false)
+        return
+      }
+    }
+
     try {
       const settings: Record<string, string> = {}
       if (githubOrgName.trim()) settings.githubOrgName = githubOrgName.trim()
@@ -297,20 +313,25 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               <div className="mt-2.5 space-y-1.5 text-xs text-zinc-500">
                 <p>This token lets the app read your team's activity (PRs, issues, discussions). It is stored locally and never sent anywhere except the GitHub API.</p>
                 <p className="text-zinc-600">
-                  <strong className="text-zinc-500">Fine-grained PAT:</strong> read-only access to Organization → Members and your org's repositories.
+                  <strong className="text-zinc-500">Create a fine-grained PAT under your organization</strong> (not your personal account) with <strong className="text-zinc-500">read-only</strong> access to:
                 </p>
-                <p className="text-zinc-600">
-                  <strong className="text-zinc-500">Classic PAT:</strong> <code className="text-zinc-500 bg-surface-raised px-1 rounded">read:org</code> and <code className="text-zinc-500 bg-surface-raised px-1 rounded">repo</code> scopes.
-                </p>
+                <ul className="list-disc list-inside text-zinc-600 space-y-0.5 pl-1">
+                  <li>Contents</li>
+                  <li>Discussions</li>
+                  <li>Issues</li>
+                  <li>Pull requests</li>
+                </ul>
               </div>
               <a
-                href="https://github.com/settings/tokens?type=beta"
+                href={githubOrgName.trim()
+                  ? `https://github.com/organizations/${githubOrgName.trim()}/settings/personal-access-tokens/new`
+                  : 'https://github.com/settings/tokens?type=beta'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 mt-2 text-xs text-brand-light hover:text-brand transition-colors no-drag"
               >
                 <ExternalLink className="w-3 h-3" />
-                Create a fine-grained token on GitHub
+                Create a fine-grained token {githubOrgName.trim() ? `for ${githubOrgName.trim()}` : 'on GitHub'}
               </a>
             </div>
 

@@ -346,6 +346,7 @@ export interface IpcApi {
   getFilesContentBulk: (paths: string[]) => Promise<Record<string, string>>
   commitFile: (path: string, content: string, message: string) => Promise<void>
   commitBinaryFile: (path: string, base64Data: string, message: string) => Promise<void>
+  validateGithubToken: (token: string) => Promise<boolean>
   deleteFile: (path: string) => Promise<void>
   listContexts: () => Promise<ContextEntry[]>
   listPeople: () => Promise<PersonEntry[]>
