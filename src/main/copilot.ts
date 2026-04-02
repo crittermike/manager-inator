@@ -609,6 +609,38 @@ ${context.githubActivity ? `Team GitHub activity this week (what shipped, what's
       })
       break
 
+    case 'weekly-snippet':
+      messages.push({
+        role: 'user',
+        content: `Write my weekly snippet to share with my manager. This is a concise status update covering the past week.
+
+Use EXACTLY these headings in this order:
+
+## Top of mind
+[1-2 things I'm most focused on or concerned about right now]
+
+## Top accomplishments
+[3-5 concrete wins from this week — things that shipped, decisions made, problems solved]
+
+## Incidents
+[Any incidents, outages, escalations, or fires this week. If none, say "None this week."]
+
+## Risks
+[Things that could go wrong, blockers, concerns about upcoming work or people]
+
+## Shout-outs
+[Team members who went above and beyond this week, and what they did]
+
+Be specific and concise. Use bullet points. Reference actual PRs, issues, and people by name where possible. This should read like a real status update, not generic filler.
+
+Context:
+${context.weeklyGoals ? `My priorities for this week were:\n${context.weeklyGoals}\n` : ''}
+${context.teamContext ? `Team overview:\n${context.teamContext}\n` : ''}
+${context.actionItems ? `Open action items:\n${context.actionItems}\n` : ''}
+${context.githubActivity ? `Team GitHub activity this week:\n${context.githubActivity}` : ''}`
+      })
+      break
+
     case 'sprint-goal':
       messages.push({
         role: 'user',

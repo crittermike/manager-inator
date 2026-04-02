@@ -106,6 +106,15 @@ const practices: Practice[] = [
     perReport: false,
   },
   {
+    id: 'weekly-snippet',
+    name: 'Write weekly snippet',
+    description: 'Generate a status update for your manager covering: top of mind, accomplishments, incidents, risks, and shout-outs.',
+    cadence: 'weekly',
+    frequency: 'Snippet day',
+    trigger: 'Snippet day arrives',
+    perReport: false,
+  },
+  {
     id: 'feedback-gap',
     name: 'Feedback gap check',
     description: 'Flag reports who have not received feedback recently. Catch blind spots before they compound.',
@@ -310,6 +319,10 @@ function computeTimelineEvents(
 
     if (isEndOfWeek) {
       events.push({ date: d, practiceId: 'weekly-reflection', label: 'Weekly reflection', cadence: 'weekly' })
+    }
+
+    if (dayName === cadence.snippetDay) {
+      events.push({ date: d, practiceId: 'weekly-snippet', label: 'Write weekly snippet', cadence: 'weekly' })
     }
 
     if (cadence.sprintStartDate) {
@@ -760,6 +773,7 @@ export function Playbook() {
     feedbackReminderDays: 14,
     sprintLengthWeeks: 2,
     endOfWeekDay: 'friday',
+    snippetDay: 'friday',
     sprintStartDate: '',
     staleActionDays: 7
   })
@@ -790,6 +804,7 @@ export function Playbook() {
       feedbackReminderDays: s.feedbackReminderDays ?? 14,
       sprintLengthWeeks: s.sprintLengthWeeks ?? 2,
       endOfWeekDay: s.endOfWeekDay || 'friday',
+      snippetDay: s.snippetDay || 'friday',
       sprintStartDate: s.sprintStartDate || '',
       staleActionDays: s.staleActionDays ?? 5
     })

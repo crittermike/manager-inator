@@ -88,6 +88,7 @@ function getPracticeIdForItem(itemId: string): string | null {
   if (itemId.startsWith('overdue-checkin-')) return 'monthly-checkin'
   if (itemId === 'weekly-priorities') return 'weekly-priorities'
   if (itemId === 'weekly-reflection') return 'weekly-reflection'
+  if (itemId === 'weekly-snippet') return 'weekly-snippet'
   if (itemId.startsWith('sprint-start-')) return 'sprint-start'
   if (itemId.startsWith('sprint-end-')) return 'sprint-end'
   if (itemId.startsWith('monthly-skip-level-')) return 'skip-level'
@@ -104,6 +105,7 @@ function getPracticeIdForItem(itemId: string): string | null {
   if (itemId.startsWith('coming-up-1on1-')) return 'one-on-one-prep'
   if (itemId.startsWith('coming-up-priorities-')) return 'weekly-priorities'
   if (itemId.startsWith('coming-up-reflection-')) return 'weekly-reflection'
+  if (itemId.startsWith('coming-up-snippet-')) return 'weekly-snippet'
   if (itemId.startsWith('coming-up-sprint-start-')) return 'sprint-start'
   if (itemId.startsWith('coming-up-sprint-end-')) return 'sprint-end'
   if (itemId.startsWith('coming-up-checkins-')) return 'monthly-checkin'
@@ -177,6 +179,7 @@ function computeTimelineItems(
   const isFirstWeek = dayOfMonth <= 7
   const isMonday = dayIndex === 1
   const isEndOfWeekDay = todayName === cadence.endOfWeekDay
+  const isSnippetDay = todayName === cadence.snippetDay
 
   for (const r of reports) {
     if (r.daysGap > 14 && r.lastOneOnOne) {
@@ -360,7 +363,21 @@ function computeTimelineItems(
       actionType: 'prompt',
       promptType: 'weekly-reflection'
     })
+  }
 
+  if (isSnippetDay) {
+    items.push({
+      id: 'weekly-snippet',
+      section: doneIds.has('weekly-snippet') ? 'done' : 'this-week',
+      title: 'Write weekly snippet',
+      subtitle: 'Status update for your manager: top of mind, wins, risks, shout-outs',
+      actionLabel: 'Write',
+      actionType: 'prompt',
+      promptType: 'weekly-snippet'
+    })
+  }
+
+  if (isEndOfWeekDay) {
     for (const r of reports) {
       if (!r.lastFeedback) {
         items.push({
@@ -687,6 +704,22 @@ function computeTimelineItems(
       }
     }
 
+    // Weekly snippet
+    const futureIsSnippetDay = futureDayName === cadence.snippetDay
+    if (futureIsSnippetDay) {
+      const id = `coming-up-snippet-${format(futureDate, 'yyyy-MM-dd')}`
+      if (!doneIds.has(id)) {
+        items.push({
+          id,
+          section: 'coming-up',
+          title: 'Write weekly snippet',
+          subtitle: futureDateLabel,
+          practiceLink: '/playbook?practice=weekly-snippet',
+          actionType: 'info'
+        })
+      }
+    }
+
     // Sprint boundaries
     if (cadence.sprintStartDate) {
       const sprintStart = new Date(cadence.sprintStartDate)
@@ -816,6 +849,7 @@ export function Today() {
     feedbackReminderDays: 14,
     sprintLengthWeeks: 2,
     endOfWeekDay: 'friday',
+    snippetDay: 'friday',
     sprintStartDate: '',
     staleActionDays: 7
   })
@@ -950,6 +984,7 @@ export function Today() {
       feedbackReminderDays: settings.feedbackReminderDays ?? 14,
       sprintLengthWeeks: settings.sprintLengthWeeks ?? 2,
       endOfWeekDay: settings.endOfWeekDay || 'friday',
+      snippetDay: settings.snippetDay || 'friday',
       sprintStartDate: settings.sprintStartDate || '',
       staleActionDays: settings.staleActionDays ?? 5
     })

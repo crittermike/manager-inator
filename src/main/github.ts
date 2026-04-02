@@ -1909,7 +1909,7 @@ export function listWeeklyLog(): { filename: string; title: string; date: string
     if (weeklyMatch) {
       const [, year, week, type] = weeklyMatch
       date = `${year}-W${week}`
-      category = type === 'priorities' ? 'Weekly Priorities' : type === 'reflection' ? 'Weekly Reflection' : type
+      category = type === 'priorities' ? 'Weekly Priorities' : type === 'reflection' ? 'Weekly Reflection' : type === 'snippet' ? 'Weekly Snippet' : type
       title = `${category} — ${year} Week ${parseInt(week)}`
       return { filename: f, title, date, category }
     }

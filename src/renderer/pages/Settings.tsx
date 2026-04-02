@@ -40,6 +40,7 @@ export function Settings() {
   const [staleActionDays, setStaleActionDays] = useState(5)
   const [sprintLength, setSprintLength] = useState(2)
   const [endOfWeekDay, setEndOfWeekDay] = useState<DayOfWeek>('friday')
+  const [snippetDay, setSnippetDay] = useState<DayOfWeek>('friday')
   const [sprintStartDate, setSprintStartDate] = useState('')
   const [customInstructions, setCustomInstructions] = useState('')
   const [saved, setSaved] = useState(false)
@@ -53,6 +54,7 @@ export function Settings() {
   const [savedStaleActionDays, setSavedStaleActionDays] = useState(5)
   const [savedSprintLength, setSavedSprintLength] = useState(2)
   const [savedEndOfWeekDay, setSavedEndOfWeekDay] = useState<DayOfWeek>('friday')
+  const [savedSnippetDay, setSavedSnippetDay] = useState<DayOfWeek>('friday')
   const [savedSprintStartDate, setSavedSprintStartDate] = useState('')
   const [savedCustomInstructions, setSavedCustomInstructions] = useState('')
   const [githubOrgName, setGithubOrgName] = useState('')
@@ -68,7 +70,7 @@ export function Settings() {
   const [userGithubVal, setUserGithubVal] = useState('')
   const [savedUserGithub, setSavedUserGithub] = useState('')
 
-  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken || userNameVal !== savedUserName || userGithubVal !== savedUserGithub
+  const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || snippetDay !== savedSnippetDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken || userNameVal !== savedUserName || userGithubVal !== savedUserGithub
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
   const saveRef = useRef<() => void>(() => {})
 
@@ -76,7 +78,7 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; snippetDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
@@ -84,6 +86,7 @@ export function Settings() {
         const sad = s.staleActionDays ?? 5
         const sl = s.sprintLengthWeeks ?? 2
         const eow = s.endOfWeekDay || 'friday'
+        const sd = s.snippetDay || 'friday'
         const ssd = s.sprintStartDate || ''
         const ci = s.aiCustomInstructions || ''
         const gon = s.githubOrgName || ''
@@ -94,6 +97,7 @@ export function Settings() {
         setStaleActionDays(sad)
         setSprintLength(sl)
         setEndOfWeekDay(eow)
+        setSnippetDay(sd)
         setSprintStartDate(ssd)
         setCustomInstructions(ci)
         setGithubOrgName(gon)
@@ -109,6 +113,7 @@ export function Settings() {
         setSavedStaleActionDays(sad)
         setSavedSprintLength(sl)
         setSavedEndOfWeekDay(eow)
+        setSavedSnippetDay(sd)
         setSavedSprintStartDate(ssd)
         setSavedCustomInstructions(ci)
         setSavedGithubOrgName(gon)
@@ -133,6 +138,7 @@ export function Settings() {
         staleActionDays, 
         sprintLengthWeeks: sprintLength, 
         endOfWeekDay, 
+        snippetDay,
         sprintStartDate, 
         aiCustomInstructions: customInstructions, 
         githubOrgName,
@@ -147,7 +153,7 @@ export function Settings() {
           setRepoPathError('')
         } catch {
           setRepoPathError('Invalid repo path — no reports found at that location')
-          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions, githubOrgName: savedGithubOrgName, userName: savedUserName, userGithub: savedUserGithub })
+          await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, snippetDay: savedSnippetDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions, githubOrgName: savedGithubOrgName, userName: savedUserName, userGithub: savedUserGithub })
           setSaving(false)
           return
         }
@@ -164,6 +170,7 @@ export function Settings() {
       setSavedStaleActionDays(staleActionDays)
       setSavedSprintLength(sprintLength)
       setSavedEndOfWeekDay(endOfWeekDay)
+      setSavedSnippetDay(snippetDay)
       setSavedSprintStartDate(sprintStartDate)
       setSavedCustomInstructions(customInstructions)
       setSavedGithubOrgName(githubOrgName)
@@ -724,6 +731,33 @@ export function Settings() {
             </div>
             <p className="text-xs text-zinc-600 mt-2">
               Which day triggers the weekly reflection prompts and feedback reminders.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-zinc-300">
+                Weekly snippet day
+              </span>
+            </div>
+            <div className="relative">
+              <select
+                value={snippetDay}
+                onChange={(e) => setSnippetDay(e.target.value as DayOfWeek)}
+                aria-label="Day to write weekly snippet"
+                className="w-full appearance-none px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand transition-colors"
+              >
+                <option value="monday">Monday</option>
+                <option value="tuesday">Tuesday</option>
+                <option value="wednesday">Wednesday</option>
+                <option value="thursday">Thursday</option>
+                <option value="friday">Friday (default)</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" aria-hidden="true" />
+            </div>
+            <p className="text-xs text-zinc-600 mt-2">
+              Which day triggers the weekly snippet prompt — the status update you share with your manager.
             </p>
           </div>
         </div>

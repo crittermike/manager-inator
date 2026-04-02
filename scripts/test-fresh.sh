@@ -30,8 +30,8 @@ if [ -z "$DMG" ]; then
 fi
 
 echo "📂 Mounting $DMG..."
-MOUNT_DIR=$(hdiutil attach "$DMG" -nobrowse | grep "/Volumes" | awk '{print $NF}')
-APP_PATH=$(find "$MOUNT_DIR" -name "*.app" -maxdepth 1 | head -1)
+MOUNT_DIR=$(hdiutil attach "$DMG" -nobrowse | grep "/Volumes" | sed 's/.*\/Volumes/\/Volumes/')
+APP_PATH=$(find "$MOUNT_DIR" -name "*.app" -maxdepth 1 2>/dev/null | head -1)
 
 if [ -z "$APP_PATH" ]; then
   echo "❌ No .app found in DMG"

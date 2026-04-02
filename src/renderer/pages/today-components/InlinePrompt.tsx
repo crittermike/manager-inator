@@ -18,7 +18,7 @@ function getWeekNumber() {
   }
 }
 
-function getWeeklyPath(type: 'priorities' | 'reflection') {
+function getWeeklyPath(type: 'priorities' | 'reflection' | 'snippet') {
   const { year, weekNum } = getWeekNumber()
   return `weekly-log/${year}-W${String(weekNum).padStart(2, '0')}-${type}.md`
 }
@@ -110,6 +110,13 @@ const promptConfig: Record<PromptType, PromptConfig> = {
     commitMsg: () => `Save weekly reflection for ${format(new Date(), 'yyyy-MM-dd')}`,
     header: () => `# Weekly Reflection — ${format(new Date(), 'yyyy-MM-dd')}`,
     aiAction: 'weekly-reflection'
+  },
+  'weekly-snippet': {
+    placeholder: 'Write your weekly snippet to share with your manager. Top of mind, accomplishments, risks, shout-outs...',
+    savePath: () => getWeeklyPath('snippet'),
+    commitMsg: () => `Save weekly snippet for ${format(new Date(), 'yyyy-MM-dd')}`,
+    header: () => `# Weekly Snippet — ${format(new Date(), 'yyyy-MM-dd')}`,
+    aiAction: 'weekly-snippet'
   },
   'skip-level-prep': {
     placeholder: 'What do you want to discuss with your manager? Key updates, blockers, asks?',
@@ -235,7 +242,7 @@ export function InlinePrompt({
   }, [config])
 
   useEffect(() => {
-    if (promptType !== 'weekly-reflection') return
+    if (promptType !== 'weekly-reflection' && promptType !== 'weekly-snippet') return
     window.api.getFileContent(getWeeklyPath('priorities'))
       .then(content => {
         const lines = content.split('\n')

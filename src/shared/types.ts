@@ -82,6 +82,7 @@ export interface CadenceSettings {
   feedbackReminderDays: number
   sprintLengthWeeks: number       // 1 | 2 | 3 | 4
   endOfWeekDay: DayOfWeek         // when weekly reflection triggers
+  snippetDay: DayOfWeek           // when weekly snippet triggers
   sprintStartDate: string         // ISO date of a known sprint start (for calculating sprint boundaries)
   staleActionDays: number         // days before an open action item is flagged as stale
 }
@@ -184,6 +185,7 @@ export interface AppSettings {
   feedbackReminderDays: number
   sprintLengthWeeks: number
   endOfWeekDay: DayOfWeek
+  snippetDay: DayOfWeek
   sprintStartDate: string
   staleActionDays: number
   aiCustomInstructions: string

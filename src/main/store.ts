@@ -14,6 +14,7 @@ interface StoreSchema {
   feedbackReminderDays: number
   sprintLengthWeeks: number
   endOfWeekDay: DayOfWeek
+  snippetDay: DayOfWeek
   sprintStartDate: string
   staleActionDays: number
   aiCustomInstructions: string
@@ -40,6 +41,7 @@ const storeDefaults: StoreSchema = {
   feedbackReminderDays: 14,
   sprintLengthWeeks: 2,
   endOfWeekDay: 'friday',
+  snippetDay: 'friday',
   sprintStartDate: '',
   staleActionDays: 5,
   aiCustomInstructions: '',
@@ -185,6 +187,7 @@ export function getSettingsForRenderer() {
     feedbackReminderDays: store.get('feedbackReminderDays'),
     sprintLengthWeeks: store.get('sprintLengthWeeks'),
     endOfWeekDay: store.get('endOfWeekDay'),
+    snippetDay: store.get('snippetDay'),
     sprintStartDate: store.get('sprintStartDate'),
     staleActionDays: store.get('staleActionDays'),
     aiCustomInstructions: store.get('aiCustomInstructions'),
