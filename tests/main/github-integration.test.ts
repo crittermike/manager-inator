@@ -137,11 +137,6 @@ describe('github.ts integration tests', () => {
       expect(data.reviews[0].content).toContain('Performance Review')
     })
 
-    it('includes dashboard content', () => {
-      const data = getReportData('alice')
-      expect(data.dashboard).toContain('On Track')
-    })
-
     it('includes job expectations', () => {
       const data = getReportData('alice')
       expect(data.jobExpectations).toContain('Senior Engineer Expectations')

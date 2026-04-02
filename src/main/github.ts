@@ -954,8 +954,6 @@ export function getReportData(name: string): Report {
   let feedbackRaw = ''
   try { feedbackRaw = getFileContent(`reports/${name}/feedback/log.md`) } catch {}
   const reviewFiles = listFiles(`reports/${name}/reviews`)
-  let dashboardRaw = ''
-  try { dashboardRaw = getFileContent(`reports/${name}/DASHBOARD.md`) } catch {}
   let jobExpectationsRaw = ''
   try { jobExpectationsRaw = getFileContent(`reports/${name}/job-expectations.md`) } catch {}
 
@@ -1062,7 +1060,7 @@ export function getReportData(name: string): Report {
     }
   }).filter((n): n is ContextNote => n !== null)
 
-  const result = { name, profile, checkIns, summaries, transcripts, actionItems: relevantActions, feedback, reviews, preps, contextNotes, dashboard: dashboardRaw, jobExpectations: jobExpectationsRaw }
+  const result = { name, profile, checkIns, summaries, transcripts, actionItems: relevantActions, feedback, reviews, preps, contextNotes, jobExpectations: jobExpectationsRaw }
   _reportDataCache.set(name, result)
   return result
 }

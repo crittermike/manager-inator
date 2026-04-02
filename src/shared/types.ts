@@ -130,11 +130,10 @@ export interface Report {
   reviews: { period: string; content: string }[]
   preps: PrepEntry[]
   contextNotes: ContextNote[]
-  dashboard: string
   jobExpectations: string
 }
 
-// ── Team dashboard data ──
+// ── Team overview data ──
 export interface TeamOverview {
   reports: ReportStatus[]
   attentionItems: string[]
