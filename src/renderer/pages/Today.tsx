@@ -1020,7 +1020,7 @@ export function Today() {
       if (member.items.length === 0) return `${member.displayName} (@${member.githubUsername})${ptoLabel}: No recent activity`
       const items = member.items.map(item => {
         const age = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-        const roleLabel = item.role === 'commenter' ? 'reviewed' : 'authored'
+        const roleLabel = item.role === 'commenter' ? (item.type === 'issue' ? 'commented' : 'reviewed') : 'authored'
         return `  - [${item.type.toUpperCase()}] ${item.title} (${item.repo}, ${item.state}, ${roleLabel}, ${age}d old, ${item.comments} comments) ${item.url}`
       }).join('\n')
       return `${member.displayName} (@${member.githubUsername})${ptoLabel}:\n${items}`
@@ -1066,9 +1066,16 @@ export function Today() {
     if (localStorage.getItem(storageKey)) return
     localStorage.setItem(storageKey, 'true')
 
+    // Use the same lookback as the team activity fetch (1 day, or 3 on Monday)
+    const now = new Date()
+    const lookbackDays = now.getDay() === 1 ? 3 : 1
+    const since = new Date(now)
+    since.setDate(since.getDate() - lookbackDays)
+    const sinceKey = format(since, 'yyyy-MM-dd')
+
     const membersWithActivity = teamActivity.filter(m => m.items.length > 0 && !m.error)
     for (const member of membersWithActivity) {
-      window.api.saveActivitySnapshot(member.reportName, todayKey, todayKey).catch(() => {})
+      window.api.saveActivitySnapshot(member.reportName, sinceKey, todayKey).catch(() => {})
     }
   }, [teamActivity])
 
@@ -1561,7 +1568,7 @@ export function Today() {
                                         </span>
                                         <span>·</span>
                                         <span className={item.role === 'commenter' ? 'text-amber-400' : 'text-blue-400'}>
-                                          {item.role === 'commenter' ? 'Reviewer' : 'Author'}
+                                          {item.role === 'commenter' ? (item.type === 'issue' ? 'Commenter' : 'Reviewer') : 'Author'}
                                         </span>
                                         {hasComments && (
                                           <>

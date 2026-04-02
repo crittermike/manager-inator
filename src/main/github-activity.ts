@@ -84,10 +84,11 @@ async function fetchUserActivity(
   console.log(`[GitHub Activity] Fetching: org=${org}, user=${username}, since=${sinceStr}, lookback=${lookbackDays}d`)
 
   const authorQuery = `org:${org} author:${username} updated:>=${sinceStr}`
+  const authorIssueQuery = `org:${org} author:${username} created:>=${sinceStr}`
   const commenterQuery = `org:${org} commenter:${username} updated:>=${sinceStr}`
 
   const [issueItems, prItems, commentedIssues, commentedPRs, authoredDiscussions, commentedDiscussions] = await Promise.all([
-    fetchSearchPage(`${authorQuery} is:issue`, headers),
+    fetchSearchPage(`${authorIssueQuery} is:issue`, headers),
     fetchSearchPage(`${authorQuery} is:pull-request`, headers),
     fetchSearchPage(`${commenterQuery} is:issue`, headers),
     fetchSearchPage(`${commenterQuery} is:pull-request`, headers),
@@ -559,10 +560,11 @@ async function fetchUserActivityForDateRange(
 
   const dateRange = `${startDate}..${endDate}`
   const authorQuery = `org:${org} author:${username} updated:${dateRange}`
+  const authorIssueQuery = `org:${org} author:${username} created:${dateRange}`
   const commenterQuery = `org:${org} commenter:${username} updated:${dateRange}`
 
   const [issueItems, prItems, commentedIssues, commentedPRs, authoredDiscussions, commentedDiscussions] = await Promise.all([
-    fetchSearchPage(`${authorQuery} is:issue`, headers),
+    fetchSearchPage(`${authorIssueQuery} is:issue`, headers),
     fetchSearchPage(`${authorQuery} is:pull-request`, headers),
     fetchSearchPage(`${commenterQuery} is:issue`, headers),
     fetchSearchPage(`${commenterQuery} is:pull-request`, headers),
@@ -623,13 +625,13 @@ export function formatActivityAsMarkdown(result: PersonActivityResult): string {
   const authoredPRs = prItems.filter(i => i.role !== 'commenter')
   const reviewedPRs = prItems.filter(i => i.role === 'commenter')
   const authoredIssues = issueItems.filter(i => i.role !== 'commenter')
-  const reviewedIssues = issueItems.filter(i => i.role === 'commenter')
+  const commentedIssues = issueItems.filter(i => i.role === 'commenter')
 
   const lines: string[] = []
   lines.push(`# GitHub activity: ${displayName} (@${githubUsername})`)
   lines.push(`_${startDate} to ${endDate}_\n`)
 
-  lines.push(`**Summary**: ${authoredPRs.length} PRs authored, ${reviewedPRs.length} PRs reviewed/commented, ${authoredIssues.length} issues authored, ${reviewedIssues.length} issues commented, ${discussionItems.length} discussions\n`)
+  lines.push(`**Summary**: ${authoredPRs.length} PRs authored, ${reviewedPRs.length} PRs reviewed/commented, ${authoredIssues.length} issues authored, ${commentedIssues.length} issues commented, ${discussionItems.length} discussions\n`)
 
   if (authoredPRs.length > 0) {
     lines.push('## Pull requests (authored)')
@@ -694,9 +696,9 @@ export function formatActivityAsMarkdown(result: PersonActivityResult): string {
     lines.push('')
   }
 
-  if (reviewedIssues.length > 0) {
+  if (commentedIssues.length > 0) {
     lines.push('## Issues (commented)')
-    for (const issue of reviewedIssues) {
+    for (const issue of commentedIssues) {
       const stateEmoji = issue.state === 'open' ? '🟢' : '⚫'
       lines.push(`- ${stateEmoji} [${issue.title}](${issue.url}) (${issue.repo}, ${issue.state})`)
       if (issue.issueComments && issue.issueComments.length > 0) {

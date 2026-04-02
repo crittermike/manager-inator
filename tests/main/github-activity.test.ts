@@ -719,8 +719,8 @@ describe('getTeamActivity', () => {
       (c: any[]) => typeof c[0] === 'string' && c[0].includes('/search/issues')
     )
     const firstUrl = decodeURIComponent(restCalls[0][0] as string)
-    // Monday March 30 minus 3 days = Friday March 27
-    expect(firstUrl).toContain('updated:>=2026-03-27')
+    // Monday March 30 minus 3 days = Friday March 27; issue author query uses created:
+    expect(firstUrl).toContain('created:>=2026-03-27')
 
     vi.useRealTimers()
   })
@@ -747,8 +747,8 @@ describe('getTeamActivity', () => {
       (c: any[]) => typeof c[0] === 'string' && c[0].includes('/search/issues')
     )
     const firstUrl = decodeURIComponent(restCalls[0][0] as string)
-    // Wednesday March 25 minus 1 day = Tuesday March 24
-    expect(firstUrl).toContain('updated:>=2026-03-24')
+    // Wednesday March 25 minus 1 day = Tuesday March 24; issue author query uses created:
+    expect(firstUrl).toContain('created:>=2026-03-24')
 
     vi.useRealTimers()
   })

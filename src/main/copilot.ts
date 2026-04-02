@@ -513,6 +513,11 @@ ${context.content}`
 
 Write it as a quick-read briefing I can scan in 30 seconds. Cover each person who has activity. For each person, summarize what they're working on, highlight anything that needs my attention (stale PRs, PRs with no reviews, interesting side projects, etc.), and link to specific PRs/issues where relevant.
 
+CRITICAL: Each activity item is tagged as either "authored" or "reviewed". You MUST respect this distinction:
+- "authored" means the person wrote the PR or created the issue. Use words like "landed", "shipped", "opened", "working on" ONLY for authored items.
+- "reviewed" means the person reviewed someone else's PR. Use words like "reviewed", "approved", "gave feedback on" for these. NEVER say someone "landed" or "shipped" a PR they only reviewed.
+- "commented" means the person commented on an issue. Use "commented on" or "engaged with" for these.
+
 If someone is marked [ON PTO], note that they're on PTO. Low or no activity from someone on PTO is expected and not a concern — don't suggest checking in with them or flag their inactivity. If they DO have activity while on PTO, mention it briefly but don't make a big deal of it.
 
 IMPORTANT: I've included recent context notes below (meetings, Slack threads, emails, etc. from the past week). Use this to avoid flagging things I already know about. If a PR or issue was discussed in a recent meeting or Slack thread, don't tell me to "check in" on it or flag it as needing attention — I'm already aware. Focus your attention flags on things that are NOT covered by the recent context.
