@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAI } from '../../hooks/useAI'
 import { useActiveFile } from '../../hooks/useActiveFile'
 import ReactMarkdown from 'react-markdown'
@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import {
   Send, Bot, StopCircle, X, User, FolderOpen,
-  Trash2, Plus, MessageSquare, Copy, Check, FileText
+  Trash2, Plus, MessageSquare, Copy, Check, FileText, Maximize2
 } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -66,6 +66,7 @@ function friendlyToolStatus(toolName: string, args: Record<string, unknown>): st
 
 export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { activeFile } = useActiveFile()
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const loaded = loadSessions()
@@ -368,6 +369,17 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             title="New chat"
           >
             <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <button
+            onClick={() => {
+              onClose()
+              navigate('/chat')
+            }}
+            className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-lg transition-colors"
+            aria-label="Open full chat"
+            title="Open full chat"
+          >
+            <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
             onClick={onClose}
