@@ -752,6 +752,65 @@ describe('getTeamActivity', () => {
 
     vi.useRealTimers()
   })
+
+  it('assigns role author to items from the author search and commenter to items from the commenter search', async () => {
+    mockedGetToken.mockReturnValue('ghp_test123')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const authorIssue = { id: 10, title: 'Author Issue', pull_request: undefined }
+    const authorPR = { id: 20, title: 'Author PR', pull_request: { merged_at: null } }
+    const commenterIssue = { id: 30, title: 'Commenter Issue', pull_request: undefined }
+    const commenterPR = { id: 40, title: 'Commenter PR', pull_request: { merged_at: null } }
+
+    mockFetchResponder(
+      [
+        makeSearchResponse([authorIssue]),   // authored issues
+        makeSearchResponse([authorPR]),      // authored PRs
+        makeSearchResponse([commenterIssue]),// commented issues
+        makeSearchResponse([commenterPR])    // commented PRs
+      ],
+      [emptyGraphQLResponse, emptyGraphQLResponse]
+    )
+
+    const result = await getTeamActivity()
+
+    const items = result[0].items
+    expect(items.find(i => i.id === 10)!.role).toBe('author')
+    expect(items.find(i => i.id === 20)!.role).toBe('author')
+    expect(items.find(i => i.id === 30)!.role).toBe('commenter')
+    expect(items.find(i => i.id === 40)!.role).toBe('commenter')
+  })
+
+  it('gives author precedence when an item appears in both author and commenter PR searches', async () => {
+    mockedGetToken.mockReturnValue('ghp_test123')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const sharedPR = { id: 50, title: 'Shared PR', pull_request: { merged_at: null } }
+    const commenterOnlyPR = { id: 60, title: 'Commenter Only PR', pull_request: { merged_at: null } }
+
+    mockFetchResponder(
+      [
+        emptySearchResponse,                          // authored issues
+        makeSearchResponse([sharedPR]),                // authored PRs
+        emptySearchResponse,                          // commented issues
+        makeSearchResponse([sharedPR, commenterOnlyPR]) // commented PRs
+      ],
+      [emptyGraphQLResponse, emptyGraphQLResponse]
+    )
+
+    const result = await getTeamActivity()
+
+    const items = result[0].items
+    // Shared PR should only appear once with role 'author'
+    expect(items.filter(i => i.id === 50)).toHaveLength(1)
+    expect(items.find(i => i.id === 50)!.role).toBe('author')
+    // Commenter-only PR should have role 'commenter'
+    expect(items.find(i => i.id === 60)!.role).toBe('commenter')
+  })
 })
 
 describe('getActivityLookbackHours', () => {

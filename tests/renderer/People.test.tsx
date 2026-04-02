@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import ReactDOM from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockNavigate = vi.fn()
 const mockToast = {
@@ -219,5 +219,130 @@ describe('People page collision handling', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+})
+
+describe('People search filtering', () => {
+  const searchablePeople = [
+    {
+      slug: 'aaron-cathcart',
+      name: 'Aaron Cathcart',
+      role: 'Senior Director',
+      github: 'aaroncathcart',
+      location: 'Seattle, WA',
+      relationship: 'Skip-level',
+      aliases: ['AC'],
+      meetingCount: 24,
+      lastSeen: '2026-03-30'
+    },
+    {
+      slug: 'bela-kumar',
+      name: 'Bela Kumar',
+      role: 'Staff Engineer',
+      github: 'belakumar',
+      location: 'Austin, TX',
+      relationship: 'Direct report',
+      aliases: ['BK', 'Bee'],
+      meetingCount: 10,
+      lastSeen: '2026-03-28'
+    },
+    {
+      slug: 'carla-jones',
+      name: 'Carla Jones',
+      role: 'Product Manager',
+      github: 'carlaj',
+      location: 'New York, NY',
+      relationship: 'Cross-functional',
+      aliases: [],
+      meetingCount: 5,
+      lastSeen: '2026-03-25'
+    }
+  ]
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true
+    })
+
+    document.body.innerHTML = ''
+    mockNavigate.mockReset()
+    mockToast.success.mockReset()
+    mockToast.error.mockReset()
+    mockToast.info.mockReset()
+    mockToast.warning.mockReset()
+
+    testApi = {
+      listPeople: vi.fn().mockResolvedValue(searchablePeople),
+      getSettingsOptions: vi.fn().mockResolvedValue({ roles: [], relationships: [] }),
+      findPersonByName: vi.fn().mockResolvedValue(null),
+      getFileContent: vi.fn().mockRejectedValue(new Error('File not found')),
+      getPersonMeetings: vi.fn().mockResolvedValue([]),
+      commitFile: vi.fn().mockResolvedValue(undefined),
+      createReport: vi.fn().mockResolvedValue('test')
+    }
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: testApi
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function renderAndSearch(query: string) {
+    const { container, root } = await renderPeople()
+
+    const searchInput = container.querySelector('input[aria-label="Search people"]') as HTMLInputElement
+    expect(searchInput).not.toBeNull()
+
+    await setInputValue(searchInput, query)
+
+    // Advance past debounce delay (300ms)
+    await act(async () => {
+      vi.advanceTimersByTime(350)
+      await Promise.resolve()
+    })
+
+    const visibleNames = Array.from(container.querySelectorAll('button'))
+      .map(b => b.textContent?.trim())
+      .filter(t => searchablePeople.some(p => t?.includes(p.name)))
+
+    return { container, root, visibleNames }
+  }
+
+  it('filters people by name', async () => {
+    const { root, visibleNames } = await renderAndSearch('Bela')
+    expect(visibleNames.some(n => n?.includes('Bela Kumar'))).toBe(true)
+    expect(visibleNames.some(n => n?.includes('Aaron Cathcart'))).toBe(false)
+    expect(visibleNames.some(n => n?.includes('Carla Jones'))).toBe(false)
+    await act(async () => { root.unmount() })
+  })
+
+  it('filters people by role', async () => {
+    const { root, visibleNames } = await renderAndSearch('Staff Engineer')
+    expect(visibleNames.some(n => n?.includes('Bela Kumar'))).toBe(true)
+    expect(visibleNames.some(n => n?.includes('Aaron Cathcart'))).toBe(false)
+    await act(async () => { root.unmount() })
+  })
+
+  it('filters people by github handle', async () => {
+    const { root, visibleNames } = await renderAndSearch('carlaj')
+    expect(visibleNames.some(n => n?.includes('Carla Jones'))).toBe(true)
+    expect(visibleNames.some(n => n?.includes('Aaron Cathcart'))).toBe(false)
+    expect(visibleNames.some(n => n?.includes('Bela Kumar'))).toBe(false)
+    await act(async () => { root.unmount() })
+  })
+
+  it('filters people by alias', async () => {
+    const { root, visibleNames } = await renderAndSearch('Bee')
+    expect(visibleNames.some(n => n?.includes('Bela Kumar'))).toBe(true)
+    expect(visibleNames.some(n => n?.includes('Aaron Cathcart'))).toBe(false)
+    expect(visibleNames.some(n => n?.includes('Carla Jones'))).toBe(false)
+    await act(async () => { root.unmount() })
   })
 })

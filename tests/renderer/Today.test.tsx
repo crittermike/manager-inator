@@ -523,3 +523,108 @@ describe('Today actionable items', () => {
     })
   })
 })
+
+describe('Today activity snapshot date range', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true
+    })
+    document.body.innerHTML = ''
+    localStorage.clear()
+    mockNavigate.mockReset()
+    mockRefresh.mockReset()
+    mockToast.success.mockReset()
+    mockToast.error.mockReset()
+
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: vi.fn()
+    })
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getTodayBootstrap: vi.fn().mockResolvedValue({ contexts: [], teamActionItems: [] }),
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        getTeamActivity: vi.fn().mockResolvedValue(mockTeamActivity),
+        getRecentTeamContext: vi.fn().mockResolvedValue({}),
+        saveActivitySnapshot: vi.fn().mockResolvedValue(undefined),
+        saveSettings: vi.fn().mockResolvedValue(undefined),
+        toggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getReportData: vi.fn().mockResolvedValue({
+          profile: { displayName: 'Alice Smith' },
+          checkIns: [],
+          transcripts: [],
+          feedback: [],
+          reviews: [],
+          actionItems: [],
+          summaries: [],
+          contextNotes: []
+        }),
+        aiGenerate: vi.fn().mockResolvedValue('Mock content'),
+        commitFile: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('uses the lookback date (yesterday) as start date for the activity snapshot', async () => {
+    // Wednesday 2026-04-08
+    vi.setSystemTime(new Date('2026-04-08T14:00:00Z'))
+
+    const { root } = await renderToday()
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const api = (window as typeof window & {
+      api: { saveActivitySnapshot: ReturnType<typeof vi.fn> }
+    }).api
+
+    // Should save with yesterday (2026-04-07) as start, today (2026-04-08) as end
+    expect(api.saveActivitySnapshot).toHaveBeenCalledWith(
+      'alice-smith',
+      '2026-04-07',
+      '2026-04-08'
+    )
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('uses 3-day lookback on Mondays for the activity snapshot', async () => {
+    // Monday 2026-04-06
+    vi.setSystemTime(new Date('2026-04-06T14:00:00Z'))
+
+    const { root } = await renderToday()
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const api = (window as typeof window & {
+      api: { saveActivitySnapshot: ReturnType<typeof vi.fn> }
+    }).api
+
+    // Monday lookback is 3 days: start = 2026-04-03 (Friday), end = 2026-04-06
+    expect(api.saveActivitySnapshot).toHaveBeenCalledWith(
+      'alice-smith',
+      '2026-04-03',
+      '2026-04-06'
+    )
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+})

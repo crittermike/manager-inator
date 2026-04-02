@@ -983,4 +983,63 @@ describe('ReportDetail More actions menu', () => {
       root.unmount()
     })
   })
+
+  it('sanitizes review period string when saving', async () => {
+    const { container, root } = await renderReportDetail()
+
+    // Open the "Add" dropdown, then click "Review"
+    const addDropdown = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Add') && b.getAttribute('aria-haspopup') === 'menu') as HTMLButtonElement | undefined
+
+    await act(async () => {
+      addDropdown?.click()
+    })
+
+    const addReviewMenuItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Review')) as HTMLButtonElement | undefined
+
+    await act(async () => {
+      addReviewMenuItem?.click()
+    })
+
+    const inputs = container.querySelectorAll('input')
+    const periodInput = Array.from(inputs).find(input => (input as HTMLInputElement).placeholder === '2026-H1') as HTMLInputElement | undefined
+    const reviewTextarea = Array.from(container.querySelectorAll('textarea')).find(textarea => textarea.getAttribute('placeholder') === 'Write or paste the review here...') as HTMLTextAreaElement | undefined
+
+    expect(periodInput).toBeDefined()
+    expect(reviewTextarea).toBeDefined()
+
+    // Enter a period with special characters that should be sanitized
+    await act(async () => {
+      if (periodInput) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+        setter?.call(periodInput, '2026 H1!')
+        periodInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+      }
+      if (reviewTextarea) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+        setter?.call(reviewTextarea, 'Review body with sanitized period')
+        reviewTextarea.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+      }
+    })
+
+    const saveReviewButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Save review')) as HTMLButtonElement | undefined
+
+    await act(async () => {
+      saveReviewButton?.click()
+      await Promise.resolve()
+    })
+
+    // The period "2026 H1!" should be sanitized: spaces and ! replaced with hyphens
+    expect((window as typeof window & { api: { commitFile: ReturnType<typeof vi.fn> } }).api.commitFile).toHaveBeenCalledWith(
+      'reports/chanakya-valluri/reviews/2026-H1-.md',
+      'Review body with sanitized period\n',
+      'Save performance review for Chanakya Valluri (2026-H1-)'
+    )
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })
