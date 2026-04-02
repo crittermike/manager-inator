@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, session, shell } from 'electron'
 import { join } from 'path'
-import { autoUpdater } from 'electron-updater'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
 import { setupIpcHandlers } from './ipc'
 import { preWarmCaches, flushPendingCommitsAsync } from './github'
 import { stopClient } from './copilot'
