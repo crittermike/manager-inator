@@ -12,8 +12,13 @@ if [ ! -d "$BACKUP" ]; then
   exit 1
 fi
 
+# Kill the production app if running
+echo "🛑 Closing Manager-inator if running..."
+osascript -e 'quit app "Manager-inator"' 2>/dev/null || true
+sleep 1
+
 echo "♻️  Restoring settings from backup..."
 rm -rf "$APP_DATA"
 mv "$BACKUP" "$APP_DATA"
 
-echo "✅ Settings restored. Restart the app to pick them up."
+echo "✅ Settings restored. Restart the app (npm run dev) to pick them up."
