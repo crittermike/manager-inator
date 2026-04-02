@@ -1082,7 +1082,8 @@ export function getTeamOverview(): TeamOverview {
         : null
 
       reports.push({
-        name, displayName: data.profile.displayName, lastOneOnOne: lastTranscript,
+        name, displayName: data.profile.displayName, github: data.profile.github,
+        lastOneOnOne: lastTranscript,
         daysGap, openActionItems: openItems, status, meetingDay: data.profile.meetingDay,
         lastCheckIn, lastFeedback,
         feedbackCount: data.feedback.length,

@@ -1096,9 +1096,13 @@ export function ReportDetail() {
       <div className="rounded-2xl border border-border/60 bg-surface">
         <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-6 py-5">
           <div className="flex items-start gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand/30 to-brand/10 ring-1 ring-brand/20 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
-              {report.profile.displayName.split(' ').map(n => n[0]).join('')}
-            </div>
+            {report.profile.github ? (
+              <img src={`https://github.com/${report.profile.github}.png?size=112`} alt={report.profile.displayName} className="w-14 h-14 rounded-2xl shrink-0 object-cover ring-1 ring-brand/20" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand/30 to-brand/10 ring-1 ring-brand/20 flex items-center justify-center text-lg font-bold text-brand-light shrink-0">
+                {report.profile.displayName.split(' ').map(n => n[0]).join('')}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">

@@ -143,6 +143,7 @@ export interface TeamOverview {
 export interface ReportStatus {
   name: string
   displayName: string
+  github: string
   lastOneOnOne: string | null
   daysGap: number
   openActionItems: number

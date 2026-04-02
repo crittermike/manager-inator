@@ -169,6 +169,9 @@ function computeTimelineItems(
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const todayName = dayNames[dayIndex]
   const currentMonth = format(now, 'yyyy-MM')
+  // The check-in that's "due" in the first week covers the previous month
+  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const previousMonth = format(prevMonthDate, 'yyyy-MM')
   const dayOfMonth = getDate(now)
   const month = getMonth(now)
   const isFirstWeek = dayOfMonth <= 7
@@ -240,7 +243,20 @@ function computeTimelineItems(
 
   if (isCheckInWeek) {
     for (const r of reports) {
-      if (!r.lastCheckIn || r.lastCheckIn < currentMonth) {
+      if (r.lastCheckIn === previousMonth) {
+        // Check-in exists for the month that just ended — review and deliver
+        items.push({
+          id: `overdue-checkin-${r.name}`,
+          section: doneIds.has(`overdue-checkin-${r.name}`) ? 'done' : 'this-week',
+          title: `Review check-in for ${r.displayName}`,
+          subtitle: `${previousMonth} check-in ready to review`,
+          reportName: r.name,
+          route: `/report/${r.name}?filter=checkin`,
+          actionLabel: 'Review',
+          actionType: 'navigate'
+        })
+      } else if (!r.lastCheckIn || r.lastCheckIn < previousMonth) {
+        // No check-in for the previous month — needs to be written
         items.push({
           id: `overdue-checkin-${r.name}`,
           section: doneIds.has(`overdue-checkin-${r.name}`) ? 'done' : (now.getDate() === 1 ? 'this-week' : 'overdue'),
@@ -1803,11 +1819,17 @@ const TimelineRow = memo(function TimelineRow({
         className="flex items-start gap-3 px-5 py-4 group cursor-pointer hover:bg-surface-raised/30 transition-all duration-150"
         onClick={handleRowClick}
       >
-        {item.reportName ? (
-          <div className="w-8 h-8 rounded-2xl bg-brand/15 flex items-center justify-center text-xs font-medium text-brand-light shrink-0 ring-1 ring-brand/10">
-            {reportByName.get(item.reportName)?.displayName.charAt(0) ?? '?'}
-          </div>
-        ) : (
+        {item.reportName ? (() => {
+          const rpt = reportByName.get(item.reportName)
+          const ghUser = rpt?.github
+          return ghUser ? (
+            <img src={`https://github.com/${ghUser}.png?size=64`} alt={rpt?.displayName ?? ''} className="w-8 h-8 rounded-full shrink-0 object-cover" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-brand/15 flex items-center justify-center text-xs font-medium text-brand-light shrink-0 ring-1 ring-brand/10">
+              {rpt?.displayName.charAt(0) ?? '?'}
+            </div>
+          )
+        })() : (
           <div className="w-8 h-8 rounded-2xl bg-surface-raised flex items-center justify-center shrink-0 ring-1 ring-white/5">
             <FileText className="w-3.5 h-3.5 text-zinc-500" aria-hidden="true" />
           </div>

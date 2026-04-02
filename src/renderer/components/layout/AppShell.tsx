@@ -187,11 +187,15 @@ export function AppShell({ children }: AppShellProps) {
                         : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
                     }`}
                   >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 transition-colors ${
-                      active ? 'bg-brand/25 text-brand-light ring-1 ring-brand/30' : 'bg-zinc-800 text-zinc-500 group-hover:bg-brand/15 group-hover:text-brand-light'
-                    }`}>
-                      {r.displayName.charAt(0)}
-                    </div>
+                    {r.github ? (
+                      <img src={`https://github.com/${r.github}.png?size=48`} alt="" className={`w-6 h-6 rounded-full shrink-0 object-cover ${active ? 'ring-1 ring-brand/30' : ''}`} />
+                    ) : (
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 transition-colors ${
+                        active ? 'bg-brand/25 text-brand-light ring-1 ring-brand/30' : 'bg-zinc-800 text-zinc-500 group-hover:bg-brand/15 group-hover:text-brand-light'
+                      }`}>
+                        {r.displayName.charAt(0)}
+                      </div>
+                    )}
                     <span className="truncate">{r.displayName}</span>
                     {onPto && (
                       <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
