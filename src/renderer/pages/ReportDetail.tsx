@@ -42,7 +42,8 @@ import {
   GitPullRequest,
   Loader2,
   Upload,
-  MoreHorizontal
+  MoreHorizontal,
+  UserMinus
 } from 'lucide-react'
 import { GitHubMark } from '../components/common/GitHubMark'
 import { getCheckInContext } from '../utils/checkin'
@@ -142,6 +143,7 @@ export function ReportDetail() {
   const [addingReview, setAddingReview] = useState(false)
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [showPtoModal, setShowPtoModal] = useState(false)
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
   const [ptoInput, setPtoInput] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 7)
@@ -900,6 +902,23 @@ export function ReportDetail() {
     }
   }, [name, report, ptoReports, toast, ptoInput, refreshSettings])
 
+  const handleDeactivate = useCallback(async () => {
+    if (!name) return
+    try {
+      const s = await window.api.getSettings()
+      const current = s.deactivatedReports || []
+      if (!current.includes(name)) {
+        await window.api.saveSettings({ deactivatedReports: [...current, name] })
+      }
+      refreshSettings()
+      toast.success(`${report?.profile.displayName ?? name} deactivated`)
+      setShowDeactivateConfirm(false)
+      navigate('/')
+    } catch {
+      toast.error('Failed to deactivate report')
+    }
+  }, [name, report, toast, refreshSettings, navigate])
+
   // ── Build activity stream ──
 
   const streamEntries = useMemo((): StreamEntry[] => {
@@ -1337,6 +1356,17 @@ export function ReportDetail() {
               >
                 <Plane className={`w-4 h-4 ${isOnPto ? 'text-amber-400' : 'text-zinc-400'}`} aria-hidden="true" />
                 {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setShowMoreMenu(false)
+                  setShowDeactivateConfirm(true)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 transition-colors hover:bg-surface-overlay"
+              >
+                <UserMinus className="w-4 h-4" aria-hidden="true" />
+                Deactivate
               </button>
             </div>
           )}
@@ -2005,6 +2035,22 @@ export function ReportDetail() {
                   Save
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Deactivate Confirmation ── */}
+      {showDeactivateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+          <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
+            <h3 className="text-lg font-bold text-zinc-100 mb-2">Deactivate {report?.profile.displayName}?</h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              They&#39;ll be hidden from the sidebar and Today page. Their data will be preserved and you can reactivate them anytime from Settings.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowDeactivateConfirm(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
+              <button onClick={handleDeactivate} className="px-3 py-1.5 text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors">Deactivate</button>
             </div>
           </div>
         </div>

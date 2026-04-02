@@ -25,6 +25,7 @@ interface StoreSchema {
   practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
   ptoReports: Record<string, string>
+  deactivatedReports: string[]
   userName: string
   userGithub: string
 }
@@ -52,6 +53,7 @@ const storeDefaults: StoreSchema = {
   practiceSchedules: {},
   snoozedActionItems: {},
   ptoReports: {},
+  deactivatedReports: [],
   userName: '',
   userGithub: ''
 }
@@ -198,6 +200,7 @@ export function getSettingsForRenderer() {
     practiceSchedules: store.get('practiceSchedules'),
     snoozedActionItems: store.get('snoozedActionItems'),
     ptoReports: store.get('ptoReports'),
+    deactivatedReports: store.get('deactivatedReports'),
     hasGithubOrgToken: !!store.get('githubOrgToken'),
     githubOrgName: store.get('githubOrgName'),
     userName: store.get('userName'),

@@ -48,6 +48,7 @@ export function AppShell({ children }: AppShellProps) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [addReportOpen, setAddReportOpen] = useState(false)
   const ptoReports = settings?.ptoReports ?? {}
+  const deactivatedReports = settings?.deactivatedReports ?? []
   const isChatRoute = location.pathname === '/chat'
 
   const toggleCapture = useCallback(() => {
@@ -173,7 +174,7 @@ export function AppShell({ children }: AppShellProps) {
                   <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               </div>
-              {reports.map((r) => {
+              {reports.filter(r => !deactivatedReports.includes(r.name)).map((r) => {
                 const path = `/report/${r.name}`
                 const active = location.pathname === path
                 const expiry = ptoReports[r.name]

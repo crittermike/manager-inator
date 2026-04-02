@@ -21,7 +21,8 @@ import {
   EyeOff,
   ScrollText,
   Lightbulb,
-  ArrowDown
+  ArrowDown,
+  UserPlus
 } from 'lucide-react'
 import { PROMPT_TEMPLATES } from '../../shared/prompts'
 import { GitHubMark } from '../components/common/GitHubMark'
@@ -69,6 +70,7 @@ export function Settings() {
   const [savedUserName, setSavedUserName] = useState('')
   const [userGithubVal, setUserGithubVal] = useState('')
   const [savedUserGithub, setSavedUserGithub] = useState('')
+  const [deactivatedReports, setDeactivatedReports] = useState<string[]>([])
 
   const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || snippetDay !== savedSnippetDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken || userNameVal !== savedUserName || userGithubVal !== savedUserGithub
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
@@ -78,7 +80,7 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; snippetDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; snippetDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string; deactivatedReports?: string[] }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
@@ -119,6 +121,7 @@ export function Settings() {
         setSavedGithubOrgName(gon)
         setSavedUserName(un)
         setSavedUserGithub(ug)
+        setDeactivatedReports(s.deactivatedReports || [])
         setLoading(false)
       })
       .catch(() => {
@@ -197,6 +200,17 @@ export function Settings() {
     } catch (e) {
       console.error('Failed to clear caches:', e)
       toast.error('Failed to clear caches')
+    }
+  }
+
+  const handleReactivate = async (reportName: string) => {
+    try {
+      const next = deactivatedReports.filter(n => n !== reportName)
+      await window.api.saveSettings({ deactivatedReports: next })
+      setDeactivatedReports(next)
+      toast.success(`${reportName} reactivated`)
+    } catch {
+      toast.error('Failed to reactivate report')
     }
   }
 
@@ -762,6 +776,34 @@ export function Settings() {
           </div>
         </div>
       </section>
+
+      {/* Deactivated reports */}
+      {deactivatedReports.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+            Deactivated reports
+          </h2>
+          <div className={cardClass}>
+            <p className="text-xs text-zinc-500 mb-3">
+              These reports are hidden from the sidebar and Today page. Their data is preserved.
+            </p>
+            <div className="space-y-2">
+              {deactivatedReports.map(name => (
+                <div key={name} className="flex items-center justify-between py-2 px-3 rounded-lg bg-zinc-950/50 border border-border/50">
+                  <span className="text-sm text-zinc-300">{name}</span>
+                  <button
+                    onClick={() => handleReactivate(name)}
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs text-brand-light bg-brand/10 hover:bg-brand/20 rounded-lg transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                    Reactivate
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* About */}
       <section className="space-y-4">

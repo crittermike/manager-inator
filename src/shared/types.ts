@@ -196,6 +196,7 @@ export interface AppSettings {
   practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
   ptoReports: Record<string, string>
+  deactivatedReports: string[]
   hasGithubOrgToken: boolean
   githubOrgName: string
   userName: string

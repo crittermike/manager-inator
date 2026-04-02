@@ -53,6 +53,7 @@ const mockSettings: AppSettings = {
   practiceSchedules: {},
   snoozedActionItems: {},
   ptoReports: {},
+  deactivatedReports: [],
   hasGithubOrgToken: true,
   githubOrgName: 'org',
   userName: 'Manager',
@@ -273,7 +274,7 @@ describe('Today page polish', () => {
       const dispatchSpy = vi.spyOn(document, 'dispatchEvent')
       const { container, root } = await renderToday()
 
-      const transcriptButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Process a meeting transcript')) as HTMLButtonElement | undefined
+      const transcriptButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Capture your first context')) as HTMLButtonElement | undefined
       expect(transcriptButton).toBeDefined()
 
       await act(async () => {

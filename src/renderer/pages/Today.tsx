@@ -29,7 +29,10 @@ import {
   MessageSquare,
   Zap,
   UserPlus,
-  Settings
+  Settings as SettingsIcon,
+  ClipboardPaste,
+  X,
+  Check
 } from 'lucide-react'
 import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
 import type { TimelineSection, TimelineItem } from './today-components'
@@ -1114,7 +1117,8 @@ export function Today() {
     }
   }, [teamActivity])
 
-  const reports = overview?.reports ?? []
+  const deactivatedReports = settings?.deactivatedReports ?? []
+  const reports = useMemo(() => (overview?.reports ?? []).filter(r => !deactivatedReports.includes(r.name)), [overview, deactivatedReports])
   const reportByName = useMemo(() => new Map(reports.map(r => [r.name, r])), [reports])
 
   const filteredTeamActions = useMemo(() => {
@@ -1304,82 +1308,15 @@ export function Today() {
     )
   }
 
-  if (!overview || overview.reports.length === 0) {
-    return (
-      <div className="max-w-2xl mx-auto py-12 animate-fade-in">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-brand/15 flex items-center justify-center mx-auto mb-5">
-            <Zap className="w-8 h-8 text-brand" />
-          </div>
-          <h1 className="text-2xl font-bold text-zinc-100">Welcome to Manager-inator</h1>
-          <p className="text-sm text-zinc-500 mt-2 max-w-md mx-auto">
-            Your AI-powered management dashboard. Let's get you set up — it only takes a few minutes.
-          </p>
-        </div>
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
+    localStorage.getItem('onboarding-dismissed') === 'true'
+  )
+  const showOnboarding = !onboardingDismissed && (!overview || overview.reports.length === 0)
 
-        <div className="space-y-3">
-          <button
-            onClick={() => setAddReportOpen(true)}
-            className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-brand/20 hover:border-brand/40 hover:bg-surface-raised/70 transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center shrink-0 group-hover:bg-brand/20 transition-colors">
-              <UserPlus className="w-5 h-5 text-brand-light" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-zinc-200">Add your direct reports</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Add the people you manage — this is how the app organizes everything</p>
-            </div>
-            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-brand-light bg-brand/10 rounded-full shrink-0">
-              Start here
-            </div>
-          </button>
-
-          <button
-            onClick={() => navigate('/settings')}
-            className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
-              <Settings className="w-5 h-5 text-zinc-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-zinc-200">Configure settings</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Set your AI model, management cadence, and optionally connect GitHub for team activity</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => {
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, shiftKey: true, bubbles: true }))
-            }}
-            className="w-full flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/70 transition-all text-left group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
-              <FileText className="w-5 h-5 text-zinc-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-zinc-200">Process a meeting transcript</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Opens the capture panel where you can paste a transcript for AI processing. You can also use <kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Cmd+Shift+N</kbd> anytime.</p>
-            </div>
-          </button>
-        </div>
-
-        <div className="mt-8 p-4 bg-surface rounded-xl border border-border">
-          <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">How it works</h3>
-          <div className="space-y-2.5 text-sm text-zinc-500">
-            <p>1. <span className="text-zinc-300">Add your direct reports</span> — profiles, meeting days, and roles</p>
-            <p>2. <span className="text-zinc-300">Process transcripts</span> — AI extracts summaries, action items, and feedback</p>
-            <p>3. <span className="text-zinc-300">Stay on top of everything</span> — this page becomes your daily action plan</p>
-          </div>
-        </div>
-
-        <AddReportModal
-          open={addReportOpen}
-          onClose={() => setAddReportOpen(false)}
-          onCreated={handleReportCreated}
-        />
-      </div>
-    )
-  }
+  const dismissOnboarding = useCallback(() => {
+    setOnboardingDismissed(true)
+    localStorage.setItem('onboarding-dismissed', 'true')
+  }, [])
 
   const activeSections = sections.filter(s => itemsBySection[s].length > 0)
 
@@ -1411,6 +1348,71 @@ export function Today() {
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
+
+      {showOnboarding && (
+        <div className="bg-gradient-to-br from-brand/[0.06] to-transparent border border-brand/20 rounded-2xl p-5 animate-fade-in">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-200">Getting started</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">Complete these steps to set up your management dashboard</p>
+            </div>
+            <button
+              onClick={dismissOnboarding}
+              className="p-1 text-zinc-600 hover:text-zinc-400 transition-colors"
+              aria-label="Dismiss onboarding"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-2">
+            <button
+              onClick={() => setAddReportOpen(true)}
+              className="w-full flex items-center gap-3 p-3 bg-surface/50 rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all text-left group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center shrink-0 group-hover:bg-brand/20 transition-colors">
+                <UserPlus className="w-4 h-4 text-brand-light" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-zinc-200">Add your direct reports</span>
+                <span className="text-xs text-zinc-600 block">Add the people you manage</span>
+              </div>
+              {overview && overview.reports.length > 0 && <Check className="w-4 h-4 text-success shrink-0" />}
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="w-full flex items-center gap-3 p-3 bg-surface/50 rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/50 transition-all text-left group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
+                <SettingsIcon className="w-4 h-4 text-zinc-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-zinc-200">Configure settings</span>
+                <span className="text-xs text-zinc-600 block">AI model, cadence, and GitHub activity</span>
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, shiftKey: true, bubbles: true }))
+              }}
+              className="w-full flex items-center gap-3 p-3 bg-surface/50 rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/50 transition-all text-left group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
+                <ClipboardPaste className="w-4 h-4 text-zinc-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-zinc-200">Capture your first context</span>
+                <span className="text-xs text-zinc-600 block">Paste a meeting transcript or notes</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <AddReportModal
+        open={addReportOpen}
+        onClose={() => setAddReportOpen(false)}
+        onCreated={handleReportCreated}
+      />
 
       {totalActive === 0 && doneCount === 0 && itemsBySection['coming-up'].length === 0 && (
         <div className="bg-surface rounded-xl border border-border p-12 text-center">
