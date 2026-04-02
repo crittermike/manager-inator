@@ -136,3 +136,42 @@ npm run build        # Production build (electron-vite)
 npx tsc --noEmit     # Type check
 npx vitest run       # Test suite
 ```
+
+## Releasing
+
+The app is distributed via GitHub Releases with automatic updates via `electron-updater`.
+
+### To create a new release:
+
+1. **Bump the version** in `package.json` (e.g., `"version": "1.1.0"`)
+2. **Commit the version bump**:
+   ```bash
+   git add package.json
+   git commit -m "Bump version to 1.1.0"
+   ```
+3. **Tag and push**:
+   ```bash
+   git tag v1.1.0
+   git push origin main --tags
+   ```
+4. GitHub Actions (`.github/workflows/release.yml`) will automatically:
+   - Build a universal Mac `.dmg` and `.zip`
+   - Publish them as a GitHub Release for tag `v1.1.0`
+5. All running copies of the app will detect the new version within ~4 hours (or on next launch) and prompt the user to restart to update.
+
+### How auto-update works:
+- `electron-updater` checks GitHub Releases on app launch (after 5s) and every 4 hours
+- Updates download silently in the background
+- A banner appears at the top of the app: "Version X ready — Restart to update"
+- The user clicks "Restart to update" or the update installs on next quit
+
+### Build scripts:
+```bash
+npm run dist         # Build .dmg locally (no publish)
+npm run release      # Build + publish to GitHub Releases
+```
+
+### Notes:
+- The app is **not code-signed**. First-time users must right-click → Open to bypass macOS Gatekeeper.
+- To enable code signing, add `CSC_LINK` (base64 .p12 cert) and `CSC_KEY_PASSWORD` as GitHub repo secrets. electron-builder handles the rest.
+- The GitHub Actions workflow uses `GITHUB_TOKEN` (auto-provided) for publishing releases.
