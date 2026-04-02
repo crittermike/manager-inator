@@ -56,7 +56,6 @@ export function SearchPage() {
 
   useEffect(() => {
     setSelectedIndex(-1)
-    setTypeFilter('all')
 
     if (!query.trim()) {
       setContentResults([])
@@ -218,10 +217,37 @@ export function SearchPage() {
     return deduped.slice(0, 50)
   }, [query, contexts, people, contentResults])
 
+  const browseItems = useMemo((): SearchResult[] => {
+    if (query.trim()) return []
+    if (typeFilter === 'all') return recentItems
+    if (typeFilter === 'person') {
+      return [...people]
+        .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
+        .map(p => {
+          const isReport = p.relationship?.toLowerCase() === 'direct report'
+          return {
+            type: 'person' as const,
+            title: p.name,
+            subtitle: [p.role, p.location].filter(Boolean).join(' · '),
+            route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`,
+            filename: `${p.slug}.md`,
+            directory: 'people' as const,
+            date: p.lastSeen,
+            _github: p.github
+          }
+        })
+    }
+    if (typeFilter === 'other') {
+      return recentItems.filter(r => r.type === 'other')
+    }
+    return recentItems.filter(r => r.type === typeFilter)
+  }, [query, typeFilter, recentItems, people])
+
   const filteredResults = useMemo(() => {
+    if (!query.trim()) return browseItems
     if (typeFilter === 'all') return results
     return results.filter(r => r.type === typeFilter)
-  }, [results, typeFilter])
+  }, [query, results, browseItems, typeFilter])
 
   useEffect(() => {
     setSelectedIndex(-1)
@@ -250,7 +276,7 @@ export function SearchPage() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const activeItems = query.trim() ? filteredResults : recentItems
+    const activeItems = filteredResults
     if (activeItems.length === 0) {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -316,9 +342,16 @@ export function SearchPage() {
           </div>
         )}
 
-        {query.trim() && results.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-border/60 bg-zinc-900/40 p-1.5">
-            {FILTERS.map(filter => (
+        <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-border/60 bg-zinc-900/40 p-1.5">
+          {FILTERS.map(filter => {
+            const count = query.trim()
+              ? results.filter(r => r.type === filter).length
+              : filter === 'person'
+                ? people.length
+                : filter === 'all'
+                  ? recentItems.length
+                  : recentItems.filter(r => r.type === filter).length
+            return (
               <button
                 key={filter}
                 onClick={() => setTypeFilter(filter)}
@@ -331,13 +364,13 @@ export function SearchPage() {
                 {filter === 'all' ? 'All' : getResultLabel(filter)}
                 {filter !== 'all' && (
                   <span className="ml-1.5 inline-flex min-w-4 items-center justify-center rounded-md bg-zinc-800/70 px-1 py-0.5 text-[10px] text-zinc-600">
-                    {results.filter(r => r.type === filter).length}
+                    {count}
                   </span>
                 )}
               </button>
-            ))}
-          </div>
-        )}
+            )
+          })}
+        </div>
       </div>
 
       {query.trim() && filteredResults.length === 0 && !isSearching && (
@@ -345,63 +378,79 @@ export function SearchPage() {
           <div className="w-12 h-12 rounded-2xl bg-zinc-800/50 flex items-center justify-center mx-auto mb-4">
             <SearchIcon className="w-6 h-6 text-zinc-600" aria-hidden="true" />
           </div>
-          <p className="text-sm text-zinc-400 mb-1">No results for "{query}"</p>
+          <p className="text-sm text-zinc-400 mb-1">No results for &quot;{query}&quot;</p>
           <p className="text-xs text-zinc-600">Try a different search term</p>
         </div>
       )}
 
       {filteredResults.length > 0 && (
-        <div className="space-y-1.5 animate-fade-in" ref={resultsContainerRef}>
-          {filteredResults.map((r, i) => (
-            <button
-              key={`${r.type}-${r.route || r.filename}-${i}`}
-              data-search-result={i}
-              onClick={() => handleResultClick(r)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
-                selectedIndex === i
-                  ? 'bg-brand/10 border-brand/20 shadow-md shadow-black/10'
-                  : 'border-transparent'
-              }`}
-            >
-              <div className="transition-all duration-150">
-                {typeIcon(r.type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm leading-tight text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
-                <div className="text-xs leading-snug text-zinc-500 truncate">{r.subtitle}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!query.trim() && recentItems.length > 0 && (
         <div className="animate-fade-in">
-          <div className="px-1 mb-3">
-             <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Recent context</h2>
-          </div>
-          <div ref={resultsContainerRef} className="space-y-1.5">
-            {recentItems.map((r, i) => (
-              <button
-                key={r.filename || i}
-                data-search-result={i}
-                onClick={() => handleResultClick(r)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border border-transparent"
-              >
-                <div className="transition-all duration-150">
-                  {typeIcon(r.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm leading-tight text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
-                  <div className="text-xs leading-snug text-zinc-500 truncate">{r.subtitle}</div>
-                </div>
-              </button>
-            ))}
-          </div>
+          {!query.trim() && (
+            <div className="px-1 mb-3">
+              <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                {typeFilter === 'person' ? 'People' : typeFilter === 'all' ? 'Recent context' : getResultLabel(typeFilter)}
+              </h2>
+            </div>
+          )}
+          {!query.trim() && typeFilter === 'person' ? (
+            <div ref={resultsContainerRef} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {filteredResults.map((r, i) => (
+                <button
+                  key={r.filename || i}
+                  data-search-result={i}
+                  onClick={() => handleResultClick(r)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
+                    selectedIndex === i
+                      ? 'bg-brand/10 border-brand/20 shadow-md shadow-black/10'
+                      : 'border-transparent'
+                  }`}
+                >
+                  {(r as any)._github ? (
+                    <img
+                      src={`https://github.com/${(r as any)._github}.png?size=64`}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm leading-tight text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
+                    <div className="text-xs leading-snug text-zinc-500 truncate">{r.subtitle}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div ref={resultsContainerRef} className="space-y-1.5">
+              {filteredResults.map((r, i) => (
+                <button
+                  key={`${r.type}-${r.route || r.filename}-${i}`}
+                  data-search-result={i}
+                  onClick={() => handleResultClick(r)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
+                    selectedIndex === i
+                      ? 'bg-brand/10 border-brand/20 shadow-md shadow-black/10'
+                      : 'border-transparent'
+                  }`}
+                >
+                  <div className="transition-all duration-150">
+                    {typeIcon(r.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm leading-tight text-zinc-200 truncate group-hover:text-zinc-100">{r.title}</div>
+                    <div className="text-xs leading-snug text-zinc-500 truncate">{r.subtitle}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {!query.trim() && recentItems.length === 0 && (
+      {!query.trim() && filteredResults.length === 0 && (
         <div className="text-center py-16 animate-fade-in">
           <div className="w-14 h-14 rounded-2xl bg-zinc-800/30 flex items-center justify-center mx-auto mb-5">
             <SearchIcon className="w-7 h-7 text-zinc-700" aria-hidden="true" />

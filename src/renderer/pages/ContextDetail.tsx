@@ -493,8 +493,11 @@ export function ContextDetail() {
                                 <button
                                   key={i}
                                   onClick={() => navigate(route)}
-                                  className="px-2 py-0.5 rounded-md bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-300 transition-colors"
+                                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-300 transition-colors"
                                 >
+                                  {person.github ? (
+                                    <img src={`https://github.com/${person.github}.png?size=32`} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                  ) : null}
                                   {person.name}
                                 </button>
                               )
