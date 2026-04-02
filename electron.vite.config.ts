@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 import pkg from './package.json'
+import type { Plugin } from 'vite'
+
+// Strip `crossorigin` from built HTML tags — file:// + crossorigin + CSP breaks script loading in Electron
+function stripCrossOrigin(): Plugin {
+  return {
+    name: 'strip-crossorigin',
+    enforce: 'post',
+    transformIndexHtml(html) {
+      return html.replace(/ crossorigin/g, '')
+    }
+  }
+}
 
 export default defineConfig({
   main: {
@@ -37,7 +49,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), stripCrossOrigin()],
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version)
     },

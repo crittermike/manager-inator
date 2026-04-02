@@ -131,6 +131,14 @@ export function setupIpcHandlers(): void {
     const { autoUpdater } = require('electron-updater')
     autoUpdater.quitAndInstall(false, true)
   })
+  safeHandle('app:start-prewarm', async () => {
+    await preWarmCaches((message) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('app:loading-progress', { message })
+      }
+    })
+  })
   safeHandle('github:team-activity', () => getTeamActivity())
   safeHandle('github:recent-team-context', (_e, days) => getRecentTeamContext(days as number))
   safeHandle('github:monthly-activity', (_e, reportName, year, month) =>

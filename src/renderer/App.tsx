@@ -131,6 +131,13 @@ export default function App() {
   }, [authenticated])
 
   useEffect(() => {
+    if (authenticated && hasRepo) {
+      // Trigger prewarm now that the renderer is ready to receive progress events
+      window.api.startPrewarm?.().catch(() => {})
+    }
+  }, [authenticated, hasRepo])
+
+  useEffect(() => {
     const unsub = window.api.onLoadingProgress?.((data) => {
       setLoadingMessage(data.message)
       if (data.message === 'Ready!') {
@@ -138,9 +145,6 @@ export default function App() {
       }
     })
 
-    // Poll prewarm progress to catch up on missed messages.
-    // The renderer may mount after the main process has already started
-    // pre-warming, so real-time events via onLoadingProgress get lost.
     const pollProgress = () => {
       window.api.getPrewarmProgress?.().then(({ ready, message }) => {
         if (ready) {
@@ -150,7 +154,6 @@ export default function App() {
         }
       }).catch(() => {})
     }
-    pollProgress()
     const pollInterval = setInterval(pollProgress, 1000)
 
     cacheTimerRef.current = setTimeout(() => {

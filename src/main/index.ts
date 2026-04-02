@@ -163,13 +163,8 @@ app.whenReady().then(() => {
     ]))
   }
 
-  // Pre-warm caches after window is shown so first navigation is instant
-  setTimeout(() => preWarmCaches((message) => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('app:loading-progress', { message })
-    }
-  }), 500)
+  // Prewarm is triggered by the renderer via IPC after auth/repo checks complete.
+  // This avoids blocking the event loop before the UI is ready.
 
   app.on('activate', () => {
     const win = getMainWindow()

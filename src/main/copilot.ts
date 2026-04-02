@@ -38,9 +38,23 @@ const activeSessions = new Map<string, { session: CopilotSession; cancelled: boo
 async function getClient(): Promise<CopilotClient> {
   if (!client) {
     let cliPath: string | undefined
+
+    // In packaged Mac apps, PATH is minimal. Try shell login PATH first.
+    const shellPath = await new Promise<string>((resolve) => {
+      const child = spawn('/bin/sh', ['-l', '-c', 'echo $PATH'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      let out = ''
+      child.stdout.on('data', (d: Buffer) => { out += d.toString() })
+      child.on('close', () => resolve(out.trim()))
+      child.on('error', () => resolve(''))
+    })
+    const searchPath = shellPath || process.env.PATH || ''
+
     try {
       cliPath = await new Promise<string>((resolve, reject) => {
-        const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
+        const child = spawn('which', ['copilot'], {
+          stdio: ['ignore', 'pipe', 'ignore'],
+          env: { ...process.env, PATH: searchPath }
+        })
         let out = ''
         child.stdout.on('data', (d: Buffer) => { out += d.toString() })
         child.on('error', reject)
@@ -49,19 +63,20 @@ async function getClient(): Promise<CopilotClient> {
     } catch {
       // Try common paths
       const fs = await import('fs')
-      for (const p of [`${process.env.HOME}/.local/bin/copilot`, '/usr/local/bin/copilot', '/opt/homebrew/bin/copilot']) {
+      const home = process.env.HOME || ''
+      for (const p of [`${home}/.local/bin/copilot`, '/usr/local/bin/copilot', '/opt/homebrew/bin/copilot']) {
         try { fs.statSync(p); cliPath = p; break } catch { /* next */ }
       }
     }
 
-    debugLog('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
+    console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
     client = new CopilotClient({
       ...(cliPath ? { cliPath } : {}),
       useLoggedInUser: true,
       autoStart: false
     } as ConstructorParameters<typeof CopilotClient>[0])
     await client.start()
-    debugLog('[Copilot SDK] Client started')
+    console.log('[Copilot SDK] Client started')
   }
   return client
 }

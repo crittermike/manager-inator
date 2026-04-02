@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('app:update-ready', handler)
   },
   installUpdate: () => ipcRenderer.invoke('app:install-update'),
+  startPrewarm: () => ipcRenderer.invoke('app:start-prewarm'),
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => {
     const handler = (_event: unknown, data: { success: boolean; error?: string }) => cb(data)
     ipcRenderer.on('github:push-status', handler)
