@@ -99,23 +99,22 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     }
   }
 
+  const [tokenWarning, setTokenWarning] = useState('')
+
   const handleGithubOrgComplete = async () => {
     setSaving(true)
     setError('')
+    setTokenWarning('')
 
-    // Validate PAT if provided — go through main process to avoid CSP
+    // Validate PAT if provided — warn but don't block
     if (githubOrgToken.trim()) {
       try {
         const valid = await window.api.validateGithubToken(githubOrgToken.trim())
         if (!valid) {
-          setError('Token validation failed — please check your PAT and try again.')
-          setSaving(false)
-          return
+          setTokenWarning('Token could not be validated — it may not work. You can update it later in Settings.')
         }
       } catch {
-        setError('Could not validate token. Check your connection and try again.')
-        setSaving(false)
-        return
+        // Validation failed (network/IPC issue) — proceed anyway
       }
     }
 
@@ -336,6 +335,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             </div>
 
             {error && <p className="text-sm text-danger">{error}</p>}
+            {tokenWarning && <p className="text-sm text-amber-400">{tokenWarning}</p>}
 
             <div className="flex flex-col gap-2 pt-2">
               <button
