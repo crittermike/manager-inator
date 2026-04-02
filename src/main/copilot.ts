@@ -212,7 +212,15 @@ export async function aiGenerate(
       }))
 
       debugLog('[Copilot SDK] Sending message...')
-      const response = await session.sendAndWait({ prompt: userMessage }, timeout)
+      // Build file attachments for images (if any)
+      const imagePaths = Array.isArray(context['imagePaths']) ? context['imagePaths'] as string[] : []
+      const attachments = imagePaths.length > 0
+        ? imagePaths.map(p => ({
+            type: 'file' as const,
+            path: join(settings.repoPath || '', p),
+          }))
+        : undefined
+      const response = await session.sendAndWait({ prompt: userMessage, attachments }, timeout)
 
       // Use sendAndWait return if streaming didn't capture anything
       const returnContent = response?.data?.content || ''

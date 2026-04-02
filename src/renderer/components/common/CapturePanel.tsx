@@ -20,6 +20,7 @@ interface SessionItem {
   content: string
   sourceHint: SourceHint
   status: SessionState
+  imagePaths?: string[]
 }
 
 interface AttachedImage {
@@ -165,12 +166,14 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     if (!content.trim() && images.length === 0) return
     const id = crypto.randomUUID()
     const imageRefs = images.map(img => `\n[Attached image: attachments/${img.filename}]`).join('')
+    const imagePaths = images.map(img => `attachments/${img.filename}`)
     setSessions(prev => [
       {
         id,
         content: (content.trim() + imageRefs).trim(),
         sourceHint,
         status: 'processing',
+        imagePaths: imagePaths.length > 0 ? imagePaths : undefined,
       },
       ...prev,
     ])
@@ -343,6 +346,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             id={session.id}
             initialContent={session.content}
             sourceHint={session.sourceHint}
+            imagePaths={session.imagePaths}
             reports={reports}
             onStatusChange={handleStatusChange}
             onRemove={handleRemoveSession}

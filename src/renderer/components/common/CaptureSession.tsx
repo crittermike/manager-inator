@@ -46,6 +46,7 @@ export function CaptureSession({
   id,
   initialContent,
   sourceHint,
+  imagePaths,
   reports,
   onStatusChange,
   onRemove,
@@ -53,6 +54,7 @@ export function CaptureSession({
   id: string
   initialContent: string
   sourceHint: SourceHint
+  imagePaths?: string[]
   reports: ReportSummary[]
   onStatusChange: (id: string, status: SessionState) => void
   onRemove: (id: string) => void
@@ -259,6 +261,7 @@ export function CaptureSession({
           reportNames,
           sourceHint: sourceHint || undefined,
           openActionItems: openActionItemsText || undefined,
+          imagePaths: imagePaths || undefined,
         })
 
         if (!mountedRef.current) return
