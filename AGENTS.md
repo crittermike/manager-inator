@@ -1,6 +1,21 @@
 # AGENTS.md — Session Context for AI Agents
 
-## Recent Changes (March 2026)
+## Recent Changes (April 2026)
+
+### Check-in + Review Workflow Upgrade (COMPLETE)
+- **Monthly check-ins auto-save after generation** in `ReportDetail.tsx`. Generating a performance check-in now immediately writes `reports/{name}/check-ins/monthly/YYYY-MM.md` instead of waiting for a separate save step.
+- **Correct monthly check-in period selection**: the reporting month now targets the completed month (for example, Apr 1 generates/saves `2026-03.md`, not `2026-04.md`).
+- **Correct monthly GitHub activity range** for check-ins: the check-in context now uses the intended reporting month consistently.
+- **Check-ins are fully editable inline** in `ReportDetail.tsx`, including inline delete.
+- **Check-ins no longer show misleading relative-time UI** in the stream row; the title month is treated as the primary label.
+- **Performance reviews now have full CRUD in `ReportDetail.tsx`**:
+  - add review inline
+  - expand and read full review inline
+  - edit inline
+  - delete inline
+- **Review bodies are now loaded in `getReportData()`** (`src/main/github.ts`) instead of returning empty strings. This fixes two things:
+  1. inline review display/edit now works from real file content
+  2. prior review text is actually available to AI review-generation context
 
 ### Performance Overhaul (COMPLETE)
 43+ optimizations to eliminate 20-30s post-edit sluggishness:
@@ -64,6 +79,17 @@ All invalidated via `invalidateCachesForPath(path)` on any `commitFile()`.
 - `ReportDetail.tsx` builds `streamEntries` from this data in a `useMemo` — the unified activity timeline
 - Filter bar (All, 1:1s, Feedback, Actions, Check-ins, Reviews) filters `streamEntries` by type
 
+### Prompt Context Notes
+- **There is still no dedicated goals file** in the report model. Goal-related AI context currently comes from a mix of:
+  - `reports/{name}/profile.md` About section
+  - `reports/{name}/job-expectations.md`
+  - previous monthly check-ins
+  - recent 1:1 summaries / context notes
+  - action items
+- **Prior review text is now present in `report.reviews[].content`** because `getReportData()` reads review file bodies directly.
+- `generate-checkin` context is built in `src/renderer/utils/checkin.ts`.
+- `generate-review` context is built in `src/renderer/pages/ReportDetail.tsx`.
+
 ### Stream Entry Types in ReportDetail
 | Type | ID Pattern | Data Shape |
 |------|-----------|------------|
@@ -74,13 +100,14 @@ All invalidated via `invalidateCachesForPath(path)` on any `commitFile()`.
 | `review` | `review-${period}` | `{ period, content }` |
 
 ## Test Suite
-- 270 tests across 13 files
+- 271+ tests across 13 files
 - Run: `npx vitest run`
 - Key test files:
-  - `tests/main/github-integration.test.ts` (72 tests) — core data layer
+  - `tests/main/github-integration.test.ts` (73 tests) — core data layer
   - `tests/main/github-activity.test.ts` (16 tests) — org-level PR/issue tracking
   - `tests/main/parseSpeakers.test.ts` (17 tests) — YAML frontmatter speaker parsing
   - `tests/main/copilot.test.ts` (14 tests) — AI integration
+  - `tests/renderer/ReportDetail.test.tsx` — check-in/review inline UX, autosave, and CRUD coverage
 
 ## Development Rules
 

@@ -134,6 +134,7 @@ describe('github.ts integration tests', () => {
       const data = getReportData('alice')
       expect(data.reviews.length).toBe(1)
       expect(data.reviews[0].period).toBe('2025-H2')
+      expect(data.reviews[0].content).toContain('Performance Review')
     })
 
     it('includes dashboard content', () => {

@@ -469,7 +469,7 @@ describe('ReportDetail monthly check-in workflow', () => {
       })
 
       const editButton = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.trim() === 'Edit') as HTMLButtonElement | undefined
+        .find(b => b.getAttribute('aria-label') === 'Edit') as HTMLButtonElement | undefined
 
       expect(editButton).toBeDefined()
 
@@ -550,7 +550,7 @@ describe('ReportDetail monthly check-in workflow', () => {
       })
 
       const deleteButton = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.trim() === 'Delete') as HTMLButtonElement | undefined
+        .find(b => b.getAttribute('aria-label') === 'Delete') as HTMLButtonElement | undefined
 
       expect(deleteButton).toBeDefined()
 
@@ -558,7 +558,10 @@ describe('ReportDetail monthly check-in workflow', () => {
         deleteButton?.click()
       })
 
-      expect(deleteButton?.textContent).toContain('Delete')
+      // Confirm delete step
+      const confirmYes = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Yes') as HTMLButtonElement | undefined
+      expect(confirmYes).toBeDefined()
 
       await act(async () => {
         root.unmount()
@@ -683,7 +686,7 @@ describe('ReportDetail monthly check-in workflow', () => {
       })
 
       const editButton = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.trim() === 'Edit') as HTMLButtonElement | undefined
+        .find(b => b.getAttribute('aria-label') === 'Edit') as HTMLButtonElement | undefined
 
       await act(async () => {
         editButton?.click()
@@ -715,7 +718,7 @@ describe('ReportDetail monthly check-in workflow', () => {
       )
 
       const deleteButton = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.trim() === 'Delete') as HTMLButtonElement | undefined
+        .find(b => b.getAttribute('aria-label') === 'Delete') as HTMLButtonElement | undefined
 
       expect(deleteButton).toBeDefined()
 
@@ -723,7 +726,10 @@ describe('ReportDetail monthly check-in workflow', () => {
         deleteButton?.click()
       })
 
-      expect(deleteButton?.textContent).toContain('Delete')
+      // Confirm delete step
+      const confirmYes = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Yes') as HTMLButtonElement | undefined
+      expect(confirmYes).toBeDefined()
 
       await act(async () => {
         root.unmount()

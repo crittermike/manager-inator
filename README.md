@@ -186,6 +186,8 @@ The core data module. All filesystem reads and Git writes happen here.
 
 All caches are **write-invalidated only** — no time-based expiry. Since the app controls all writes to the repo, there's no stale data risk.
 
+`getReportData(name)` now reads review file bodies from `reports/{name}/reviews/*.md`, so `report.reviews[].content` is populated instead of containing empty strings.
+
 **Load vs. Refresh pattern** (in `useData.ts` hooks):
 - `load()` — reads from caches without clearing. Used on page mount for instant navigation.
 - `refresh()` — clears caches first, then reloads. Used only on explicit user "Refresh" action.
@@ -219,6 +221,11 @@ Uses `@github/copilot-sdk` with the user's existing GitHub Copilot CLI authentic
 | `generate-review` | Semi-annual performance review draft |
 | `prep-one-on-one` | Interactive prep doc with checkboxes |
 | `chat` | Free-form conversation |
+
+**Prompt context notes:**
+- Monthly check-ins do **not** read from a dedicated goals file.
+- Goal-related context currently comes from a mix of the profile About section, `job-expectations.md`, previous monthly check-ins, recent 1:1/context notes, and action items.
+- Prior performance review text is now available to the app because review bodies are loaded into `report.reviews[].content` by the data layer.
 
 **Model configuration:**
 - Default model stored in electron-store (default: `gpt-4.1`)
@@ -284,11 +291,17 @@ Every item is actionable in-place. Supports drag-and-drop transcript upload (.tx
 Single scrollable page per person with:
 - **Profile header** — Name, role, GitHub handle, meeting day, location
 - **Key facts bar** — Last 1:1, next 1:1, open action items, days since last feedback
-- **Quick actions** — Prep 1:1, generate check-in, generate review, add feedback (all expand inline)
+- **Quick actions** — Prep 1:1, generate check-in, generate review, add feedback, add review (all expand inline)
 - **About section** — Editable notes about the person (collapsible)
 - **Job expectations** — Editable role expectations used as AI context (collapsible)
 - **Filter bar** — Clickable type tags (All, 1:1s, Feedback, Actions, Check-ins, Reviews)
 - **Unified activity stream** — Reverse-chronological feed of all activity. Open action items pinned to top.
+
+Notable workflow details:
+- Generating a **monthly performance check-in** auto-saves it immediately to `reports/{name}/check-ins/monthly/YYYY-MM.md`.
+- Monthly check-ins target the intended reporting month (for example, generating on April 1 produces the March check-in).
+- Check-ins expand inline and support edit + delete.
+- Performance reviews expand inline and support full CRUD directly in `ReportDetail`.
 
 Context-aware entry: arriving from Today with a `?filter=` param pre-selects the relevant filter.
 
@@ -355,7 +368,7 @@ ActionItem       // text, owner, completed, sourceFile, sourceLine, sourceLineNu
 TeamActionItem   // extends ActionItem with reportName, displayName
 FeedbackEntry    // date, type (positive/constructive/mixed), source, context, content
 CadenceSettings  // checkInFrequency, feedbackReminderDays, sprintLengthWeeks, endOfWeekDay, sprintStartDate
-Report           // aggregate: profile + checkIns + summaries + transcripts + actionItems + feedback + reviews + jobExpectations
+Report           // aggregate: profile + checkIns + summaries + transcripts + actionItems + feedback + reviews(with content) + jobExpectations
 TeamOverview     // reports: ReportStatus[], attentionItems, lastUpdated
 ReportStatus     // name, displayName, lastOneOnOne, daysGap, openActionItems, status, meetingDay, lastCheckIn, lastFeedback
 AppSettings      // hasToken, repoPath, defaultModel, cadence settings, aiCustomInstructions

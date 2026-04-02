@@ -2553,9 +2553,44 @@ const StreamEntryCard = memo(function StreamEntryCard({
   const handleToggle = useCallback(() => onToggle(entry.id), [onToggle, entry.id])
   const [contextTab, setContextTab] = useState<'processed' | 'raw'>('processed')
 
-  // For context entries: build the file path so we can wire up edit/delete
-  const contextData = entry.type === 'context' ? entry.data as unknown as { filename: string } : null
-  const contextPath = contextData ? `contexts/${contextData.filename}` : ''
+  // Compute file path for all entry types that use file-based storage
+  const entryPath = useMemo(() => {
+    switch (entry.type) {
+      case 'context': return `contexts/${(entry.data as any).filename}`
+      case 'checkin': return `reports/${name}/check-ins/monthly/${(entry.data as any).date}.md`
+      case 'review': return `reports/${name}/reviews/${(entry.data as any).period}.md`
+      case 'prep': return `reports/${name}/prep/${(entry.data as any).date}.md`
+      default: return ''
+    }
+  }, [entry.type, entry.data, name])
+
+  // Shared editing + delete-confirm state for all detail types
+  const [detailEditing, setDetailEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const stopEditing = useCallback(() => setDetailEditing(false), [])
+
+  useEffect(() => {
+    if (!expanded) { setDetailEditing(false); setConfirmDelete(false) }
+  }, [expanded])
+
+  const canEditDelete = entry.type !== 'action'
+
+  const handleHeaderEdit = useCallback(() => {
+    if (entry.type === 'context' || entry.type === 'prep') {
+      onEditContent(entry.id, entryPath)
+    } else {
+      setDetailEditing(true)
+    }
+  }, [entry.type, entry.id, entryPath, onEditContent])
+
+  const handleHeaderDelete = useCallback(() => {
+    if (entry.type === 'feedback') {
+      onDeleteFeedback((entry.data as FeedbackEntry & { _index: number })._index)
+    } else {
+      onDeleteContent(entryPath)
+    }
+    setConfirmDelete(false)
+  }, [entry.type, entry.data, entryPath, onDeleteContent, onDeleteFeedback])
 
   return (
     <div className={`bg-surface rounded-xl border transition-all duration-150 ${entry.pinned ? 'border-brand/20' : 'border-border hover:border-zinc-500 hover:shadow-lg hover:shadow-black/10'}`}>
@@ -2585,36 +2620,48 @@ const StreamEntryCard = memo(function StreamEntryCard({
           )}
         </button>
 
-        {/* Inline controls — only when expanded */}
-        {expanded && entry.type === 'context' && (
+        {/* Inline controls — shown in header for all editable types */}
+        {expanded && canEditDelete && !detailEditing && (
           <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+            {entry.type === 'context' && (
+              <>
+                <button
+                  onClick={() => setContextTab('processed')}
+                  className={`px-2 py-1 text-[11px] rounded transition-colors ${contextTab === 'processed' ? 'bg-surface-raised text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Processed
+                </button>
+                <button
+                  onClick={() => setContextTab('raw')}
+                  className={`px-2 py-1 text-[11px] rounded transition-colors ${contextTab === 'raw' ? 'bg-surface-raised text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Raw
+                </button>
+                <div className="w-px h-4 bg-border mx-1" />
+              </>
+            )}
             <button
-              onClick={() => setContextTab('processed')}
-              className={`px-2 py-1 text-[11px] rounded transition-colors ${contextTab === 'processed' ? 'bg-surface-raised text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              Processed
-            </button>
-            <button
-              onClick={() => setContextTab('raw')}
-              className={`px-2 py-1 text-[11px] rounded transition-colors ${contextTab === 'raw' ? 'bg-surface-raised text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              Raw
-            </button>
-            <div className="w-px h-4 bg-border mx-1" />
-            <button
-              onClick={() => onEditContent(entry.id, contextPath)}
+              onClick={handleHeaderEdit}
               className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
               aria-label="Edit"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
-            <button
-              onClick={() => onDeleteContent(contextPath)}
-              className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
-              aria-label="Delete"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            {confirmDelete ? (
+              <span className="flex items-center gap-1.5 text-xs">
+                <span className="text-zinc-400">Delete?</span>
+                <button onClick={handleHeaderDelete} className="text-danger hover:text-red-400 font-medium">Yes</button>
+                <button onClick={() => setConfirmDelete(false)} className="text-zinc-500 hover:text-zinc-300">No</button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+                aria-label="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -2624,11 +2671,11 @@ const StreamEntryCard = memo(function StreamEntryCard({
         <div className="px-3.5 pb-3.5 pt-0 animate-slide-down">
           <div className="border-t border-border pt-3">
             {entry.type === 'context' && !(isViewing && isEditing) && <ContextDetail entry={entry} activeTab={contextTab} />}
-            {entry.type === 'feedback' && <FeedbackDetail entry={entry} onUpdate={onUpdateFeedback} onDelete={onDeleteFeedback} />}
+            {entry.type === 'feedback' && <FeedbackDetail entry={entry} editing={detailEditing} onStopEditing={stopEditing} onUpdate={onUpdateFeedback} />}
             {entry.type === 'action' && <ActionDetail entry={entry} onToggleAction={onToggleAction} isToggling={isToggling} />}
-            {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} onSave={onSaveContent} onDelete={onDeleteContent} />}
-            {entry.type === 'review' && <ReviewDetail entry={entry} name={name} onSave={onSaveContent} onDelete={onDeleteContent} />}
-            {entry.type === 'prep' && <PrepDetail entry={entry} name={name} onEdit={onEditContent} onDelete={onDeleteContent} />}
+            {entry.type === 'checkin' && <CheckinDetail entry={entry} name={name} editing={detailEditing} onStopEditing={stopEditing} onSave={onSaveContent} />}
+            {entry.type === 'review' && <ReviewDetail entry={entry} name={name} editing={detailEditing} onStopEditing={stopEditing} onSave={onSaveContent} />}
+            {entry.type === 'prep' && <PrepDetail entry={entry} name={name} />}
           </div>
 
           {isViewing && viewingPath && (
@@ -2740,29 +2787,28 @@ function ContextDetail({
   )
 }
 
-function FeedbackDetail({ entry, onUpdate, onDelete }: { 
+function FeedbackDetail({ entry, editing, onStopEditing, onUpdate }: { 
   entry: StreamEntry; 
+  editing: boolean;
+  onStopEditing: () => void;
   onUpdate: (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>;
-  onDelete: (entryIndex: number) => Promise<void>;
 }) {
   const f = entry.data as FeedbackEntry & { _index: number }
-  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(f.content)
   const [draftType, setDraftType] = useState<FeedbackEntry['type']>(f.type)
   const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  useEffect(() => {
+    if (editing) { setDraft(f.content); setDraftType(f.type) }
+  }, [editing, f.content, f.type])
 
   const handleSave = useCallback(async () => {
     if (!draft.trim()) return
     setSaving(true)
     await onUpdate(f._index, draft, draftType)
     setSaving(false)
-    setEditing(false)
-  }, [f._index, draft, draftType, onUpdate])
-
-  const handleDelete = useCallback(async () => {
-    await onDelete(f._index)
-  }, [f._index, onDelete])
+    onStopEditing()
+  }, [f._index, draft, draftType, onUpdate, onStopEditing])
 
   if (editing) {
     return (
@@ -2790,7 +2836,7 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
           autoFocus
         />
         <div className="flex justify-end gap-2">
-          <button onClick={() => { setEditing(false); setDraft(f.content); setDraftType(f.type) }} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+          <button onClick={() => { onStopEditing(); setDraft(f.content); setDraftType(f.type) }} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
             Cancel
           </button>
           <button
@@ -2807,23 +2853,7 @@ function FeedbackDetail({ entry, onUpdate, onDelete }: {
   }
 
   return (
-    <div className="space-y-2 group">
-      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity mb-2">
-        <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors">
-          <Pencil className="w-3 h-3" /> Edit
-        </button>
-        {confirmDelete ? (
-          <span className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">Delete?</span>
-            <button onClick={handleDelete} className="text-xs text-danger hover:text-red-400">Yes</button>
-            <button onClick={() => setConfirmDelete(false)} className="text-xs text-zinc-500 hover:text-zinc-300">No</button>
-          </span>
-        ) : (
-          <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-danger bg-surface-raised rounded-lg transition-colors">
-            <Trash2 className="w-3 h-3" /> Delete
-          </button>
-        )}
-      </div>
+    <div className="space-y-2">
       <div className="prose-dark text-sm leading-relaxed"><ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <p className="text-zinc-300 my-1">{children}</p> }}>{f.content}</ReactMarkdown></div>
       <div className="flex items-center gap-3 text-xs text-zinc-500">
         <span>{formatDate(f.date)}</span>
@@ -2867,16 +2897,16 @@ function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntr
   )
 }
 
-function CheckinDetail({ entry, name, onSave, onDelete }: {
+function CheckinDetail({ entry, name, editing, onStopEditing, onSave }: {
   entry: StreamEntry;
   name: string;
+  editing: boolean;
+  onStopEditing: () => void;
   onSave: (path: string, content: string) => Promise<void>;
-  onDelete: (path: string) => void;
 }) {
   const c = entry.data as { date: string; accomplishments: string[] }
   const checkinPath = `reports/${name}/check-ins/monthly/${c.date}.md`
   const { content, loading } = useFileContent(checkinPath)
-  const [isEditing, setIsEditing] = useState(false)
 
   if (loading) {
     return (
@@ -2886,29 +2916,21 @@ function CheckinDetail({ entry, name, onSave, onDelete }: {
     )
   }
 
-  if (isEditing && content != null) {
+  if (editing && content != null) {
     return (
       <InlineEditor 
         initialContent={content} 
         onSave={async (newContent) => {
           await onSave(checkinPath, newContent)
-          setIsEditing(false)
+          onStopEditing()
         }}
-        onCancel={() => setIsEditing(false)}
+        onCancel={onStopEditing}
       />
     )
   }
 
   return (
-    <div className="space-y-2 group">
-      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity mb-2">
-        <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors">
-          <Pencil className="w-3 h-3" /> Edit
-        </button>
-        <button onClick={() => onDelete(checkinPath)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-danger bg-surface-raised rounded-lg transition-colors">
-          <Trash2 className="w-3 h-3" /> Delete
-        </button>
-      </div>
+    <div className="space-y-2">
       {content ? (
         <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(content)}</ReactMarkdown>
@@ -2929,16 +2951,16 @@ function CheckinDetail({ entry, name, onSave, onDelete }: {
   )
 }
 
-function ReviewDetail({ entry, name, onSave, onDelete }: {
+function ReviewDetail({ entry, name, editing, onStopEditing, onSave }: {
   entry: StreamEntry
   name: string
+  editing: boolean
+  onStopEditing: () => void
   onSave: (path: string, content: string) => Promise<void>
-  onDelete: (path: string) => void
 }) {
   const r = entry.data as { period: string; content: string }
   const reviewPath = `reports/${name}/reviews/${r.period}.md`
   const { content, loading } = useFileContent(reviewPath)
-  const [isEditing, setIsEditing] = useState(false)
 
   if (loading) {
     return (
@@ -2948,15 +2970,15 @@ function ReviewDetail({ entry, name, onSave, onDelete }: {
     )
   }
 
-  if (isEditing && content != null) {
+  if (editing && content != null) {
     return (
       <InlineEditor
         initialContent={content}
         onSave={async (newContent) => {
           await onSave(reviewPath, newContent)
-          setIsEditing(false)
+          onStopEditing()
         }}
-        onCancel={() => setIsEditing(false)}
+        onCancel={onStopEditing}
       />
     )
   }
@@ -2964,15 +2986,7 @@ function ReviewDetail({ entry, name, onSave, onDelete }: {
   const reviewContent = content || r.content
 
   return (
-    <div className="space-y-3 group">
-      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors">
-          <Pencil className="w-3 h-3" /> Edit
-        </button>
-        <button onClick={() => onDelete(reviewPath)} className="flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-400 hover:text-danger bg-surface-raised rounded-lg transition-colors">
-          <Trash2 className="w-3 h-3" /> Delete
-        </button>
-      </div>
+    <div className="space-y-3">
       {reviewContent ? (
         <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(reviewContent)}</ReactMarkdown>
@@ -2984,7 +2998,7 @@ function ReviewDetail({ entry, name, onSave, onDelete }: {
   )
 }
 
-function PrepDetail({ entry, name, onEdit, onDelete }: { entry: StreamEntry; name: string; onEdit: (id: string, path: string) => void; onDelete: (path: string) => void }) {
+function PrepDetail({ entry, name }: { entry: StreamEntry; name: string }) {
   const p = entry.data as PrepEntry
   const prepPath = `reports/${name}/prep/${p.date}.md`
   const [content, setContent] = useState(p.content)
@@ -3067,14 +3081,6 @@ function PrepDetail({ entry, name, onEdit, onDelete }: { entry: StreamEntry; nam
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <button onClick={() => onEdit(entry.id, prepPath)} className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1">
-          <Pencil className="w-3 h-3" /> Edit
-        </button>
-        <button onClick={() => onDelete(prepPath)} className="text-xs text-zinc-500 hover:text-danger flex items-center gap-1">
-          <Trash2 className="w-3 h-3" /> Delete
-        </button>
-      </div>
     </div>
   )
 }
