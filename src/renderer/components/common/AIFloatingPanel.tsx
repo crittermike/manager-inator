@@ -501,13 +501,11 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <div className={`rounded-xl px-3 py-2 bg-surface border border-border animate-shimmer ${streamedText.trimStart() ? 'max-w-[85%]' : 'w-fit'}`}>
               {streamedText.trimStart() ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
-                  <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText.trimStart()}</div>
-                  {toolStatus && (
-                    <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-border/50 text-[10px] text-zinc-500">
-                      <FolderOpen className="w-2.5 h-2.5 shrink-0 animate-pulse" aria-hidden="true" />
-                      <span className="truncate">{toolStatus}</span>
-                    </div>
-                  )}
+                  <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText.trimStart().replace(/<system_notification>[\s\S]*?<\/system_notification>\s*/g, '')}</div>
+                  <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-border/50 text-[10px] text-zinc-500">
+                    <span className="w-1 h-1 rounded-full bg-brand animate-pulse" />
+                    <span className="truncate">{toolStatus || 'Thinking…'}</span>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-1 py-0.5">
@@ -542,7 +540,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <span className="text-[10px] text-zinc-600">attached as context</span>
           </div>
         )}
-        <div className="flex items-end gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
+        <div className="flex items-center gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
           <textarea
             ref={inputRef}
             value={input}
@@ -551,8 +549,8 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             placeholder="Ask about your team…"
             aria-label="Ask about your team"
             rows={1}
-            className="flex-1 bg-transparent text-xs text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none px-2 py-1.5 max-h-24"
-            style={{ minHeight: '32px' }}
+            className="flex-1 bg-transparent text-xs text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none px-2 py-2 max-h-24 self-center"
+            style={{ minHeight: '28px' }}
           />
           {streaming ? (
             <button

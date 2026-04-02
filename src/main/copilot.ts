@@ -78,6 +78,11 @@ export interface AiGenerateResult {
   modifiedFiles: string[]
 }
 
+/** Strip <system_notification>...</system_notification> tags from AI output */
+function stripSystemNotifications(text: string): string {
+  return text.replace(/<system_notification>[\s\S]*?<\/system_notification>\s*/g, '')
+}
+
 export async function aiGenerate(
   action: string,
   context: Record<string, unknown>,
@@ -202,7 +207,9 @@ export async function aiGenerate(
         onChunk(finalContent.slice(lastSentLength))
       }
 
-      return { content: finalContent, modifiedFiles: [...modifiedFiles] }
+      const cleanedContent = stripSystemNotifications(finalContent)
+
+      return { content: cleanedContent, modifiedFiles: [...modifiedFiles] }
     } else {
       // ── Non-chat mode (simple generation, no tools) ──
       let fullResponse = ''
@@ -239,7 +246,7 @@ export async function aiGenerate(
       }
 
       debugLog('[Copilot SDK] Response complete:', fullResponse.length, 'chars')
-      return { content: fullResponse, modifiedFiles: [] }
+      return { content: stripSystemNotifications(fullResponse), modifiedFiles: [] }
     }
   } catch (error) {
     if (entry.cancelled) {
