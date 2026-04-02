@@ -142,6 +142,7 @@ export function Chat() {
   const [editingTitle, setEditingTitle] = useState('')
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -157,6 +158,9 @@ export function Chat() {
   const selectedModelLabel = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel
 
   useEffect(() => { saveSessions(sessions) }, [sessions])
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
+  }, [])
 
   useEffect(() => {
     const unsub = window.api.onAiToolStatus((data) => {
@@ -294,7 +298,7 @@ export function Chat() {
     setActiveId(fresh.id)
     reset()
     setToolStatus(null)
-    setTimeout(() => inputRef.current?.focus(), 50)
+    requestAnimationFrame(() => inputRef.current?.focus())
   }, [streaming, selectedModel, reset])
 
   const handleSwitchSession = (id: string) => {
@@ -564,7 +568,8 @@ export function Chat() {
                         onClick={async () => {
                           await navigator.clipboard.writeText(msg.content)
                           setCopiedIdx(i)
-                          setTimeout(() => setCopiedIdx(null), 2000)
+                          if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                          copyTimerRef.current = setTimeout(() => setCopiedIdx(null), 2000)
                         }}
                         className="absolute top-2 right-2 p-1 rounded-md bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/msg:opacity-100 transition-opacity"
                         aria-label="Copy"

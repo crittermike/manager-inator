@@ -85,12 +85,17 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     saveSessions(sessions)
   }, [sessions])
+
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
+  }, [])
 
   useEffect(() => {
     const unsub = window.api.onAiToolStatus((data) => {
@@ -451,7 +456,8 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                   onClick={async () => {
                     await navigator.clipboard.writeText(msg.content)
                     setCopiedIdx(i)
-                    setTimeout(() => setCopiedIdx(null), 2000)
+                    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                    copyTimerRef.current = setTimeout(() => setCopiedIdx(null), 2000)
                   }}
                   className="absolute top-1.5 right-1.5 p-0.5 rounded bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/msg:opacity-100 transition-opacity"
                   aria-label="Copy"

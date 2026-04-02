@@ -350,11 +350,9 @@ export function CaptureSession({
   const handleCancelProcessing = useCallback(async () => {
     await cancel()
     if (mountedRef.current) {
-      setSaveError('Capture canceled')
-      setState('error')
-      setExpanded(true)
+      onRemove(id)
     }
-  }, [cancel])
+  }, [cancel, onRemove, id])
 
   const summaryText = result?.summary || initialContent.trim().split('\n')[0] || 'Captured content'
 

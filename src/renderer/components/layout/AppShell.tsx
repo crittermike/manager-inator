@@ -142,6 +142,7 @@ export function AppShell({ children }: AppShellProps) {
               <button
                 key={path}
                 onClick={() => navigate(path)}
+                aria-current={active ? 'page' : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all no-drag ${
                   active
                     ? 'bg-white/[0.08] text-zinc-100 font-medium shadow-sm'

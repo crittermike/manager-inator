@@ -292,12 +292,13 @@ export function ReportDetail() {
     setPrepContent(null)
     reset()
 
-    const recentSummaryDates = report.summaries.slice(-5)
-    const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
-    const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
-    const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
-    if (!mountedRef.current) return
-    const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
+    try {
+      const recentSummaryDates = report.summaries.slice(-5)
+      const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
+      const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
+      const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
+      if (!mountedRef.current) return
+      const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
 
     const displayName = report.profile.displayName
     const firstName = displayName.split(' ')[0]
@@ -397,6 +398,11 @@ export function ReportDetail() {
       setAiContent('_Failed to generate prep. Try clicking Regenerate._')
     }
     setAiLoading(false)
+    } catch (e) {
+      if (!mountedRef.current) return
+      setAiContent('_Failed to load data for prep. Try again._')
+      setAiLoading(false)
+    }
   }, [report, name, generate, reset, fullTextRef, toast, cancel, load])
 
   const handleGenerateCheckIn = useCallback(async () => {
@@ -444,15 +450,16 @@ export function ReportDetail() {
     setAiContent(null)
     reset()
 
-    const now = new Date()
-    const month = now.getMonth()
-    const year = now.getFullYear()
-    const isH2 = month >= 6
-    const periodLabel = isH2 ? `${year} H2 (Jul–Dec)` : `${year} H1 (Jan–Jun)`
+    try {
+      const now = new Date()
+      const month = now.getMonth()
+      const year = now.getFullYear()
+      const isH2 = month >= 6
+      const periodLabel = isH2 ? `${year} H2 (Jul–Dec)` : `${year} H1 (Jan–Jun)`
 
-    const recentSummaries = report.summaries.slice(-20)
-    const reviewPaths = recentSummaries.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
-    const reviewMap = await window.api.getFilesContentBulk(reviewPaths)
+      const recentSummaries = report.summaries.slice(-20)
+      const reviewPaths = recentSummaries.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
+      const reviewMap = await window.api.getFilesContentBulk(reviewPaths)
     const summariesText = recentSummaries.map(s => {
       const content = reviewMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
       return content ? `### ${s.date}\n${content}` : ''
@@ -538,6 +545,11 @@ export function ReportDetail() {
       setAiContent('_Failed to generate review. Try clicking Regenerate._')
     }
     setAiLoading(false)
+    } catch {
+      if (!mountedRef.current) return
+      setAiContent('_Failed to load data for review. Try again._')
+      setAiLoading(false)
+    }
   }, [report, name, generate, reset, fullTextRef, toast])
 
   // ── Save Handlers ──
@@ -2375,18 +2387,20 @@ function InlineReviewForm({ name, report, toast, refresh, onClose }: {
 
   const handleSaveReview = useCallback(async () => {
     if (!name || !report || !periodDraft.trim() || !reviewDraft.trim()) return
+    // Sanitize period: only allow alphanumeric, hyphens, and dots (e.g., "2026-H1", "Q2-2026")
+    const sanitizedPeriod = periodDraft.trim().replace(/[^a-zA-Z0-9\-_.]/g, '-')
+    if (!sanitizedPeriod) return
     setSavingReview(true)
     try {
       await window.api.commitFile(
-        `reports/${name}/reviews/${periodDraft.trim()}.md`,
+        `reports/${name}/reviews/${sanitizedPeriod}.md`,
         reviewDraft.trim() + '\n',
-        `Save performance review for ${report.profile.displayName} (${periodDraft.trim()})`
+        `Save performance review for ${report.profile.displayName} (${sanitizedPeriod})`
       )
       toast.success('Review saved')
       onClose()
       refresh()
-    } catch (e) {
-      console.error('Failed to save review:', e)
+    } catch {
       toast.error('Failed to save review')
     } finally {
       setSavingReview(false)
@@ -2446,10 +2460,18 @@ function InlineEditor({ initialContent, onSave, onCancel }: { initialContent: st
   const [content, setContent] = useState(initialContent)
   const [isSaving, setIsSaving] = useState(false)
 
+  const [saveError, setSaveError] = useState(false)
+
   const handleSave = async () => {
     setIsSaving(true)
-    await onSave(content)
-    setIsSaving(false)
+    setSaveError(false)
+    try {
+      await onSave(content)
+    } catch {
+      setSaveError(true)
+    } finally {
+      setIsSaving(false)
+    }
   }
   
   return (
@@ -2461,7 +2483,10 @@ function InlineEditor({ initialContent, onSave, onCancel }: { initialContent: st
         className="w-full h-64 bg-surface-raised border border-border rounded-lg p-3 text-sm text-zinc-300 font-mono resize-y focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"
         autoFocus
       />
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        {saveError && (
+          <span className="text-xs text-danger mr-auto">Save failed — try again</span>
+        )}
         {onCancel && (
           <button
             onClick={onCancel}
@@ -2603,6 +2628,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
         {/* Clickable area: badge + title + date + chevron */}
         <button
           onClick={handleToggle}
+          aria-expanded={expanded}
           className="flex-1 flex items-center gap-3 text-left min-w-0"
         >
           <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded ${style.bg} ${style.text}`}>
@@ -2786,7 +2812,9 @@ function ContextDetail({
             {activeTab === 'processed' || !raw ? processed : raw}
           </ReactMarkdown>
         </div>
-      ) : null}
+      ) : (
+        <p className="text-sm text-zinc-500 py-4">Unable to load content.</p>
+      )}
     </div>
   )
 }
