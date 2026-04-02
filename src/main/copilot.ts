@@ -1,6 +1,7 @@
 import { CopilotClient, approveAll } from '@github/copilot-sdk'
 import { getSettings } from './store'
 import { spawn } from 'child_process'
+import { join } from 'path'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 function debugLog(...args: unknown[]): void {
@@ -38,33 +39,24 @@ const activeSessions = new Map<string, { session: CopilotSession; cancelled: boo
 async function getClient(): Promise<CopilotClient> {
   if (!client) {
     let cliPath: string | undefined
-
-    // In packaged Mac apps, PATH is minimal. Try shell login PATH first.
-    const shellPath = await new Promise<string>((resolve) => {
-      const child = spawn('/bin/sh', ['-l', '-c', 'echo $PATH'], { stdio: ['ignore', 'pipe', 'ignore'] })
-      let out = ''
-      child.stdout.on('data', (d: Buffer) => { out += d.toString() })
-      child.on('close', () => resolve(out.trim()))
-      child.on('error', () => resolve(''))
-    })
-    const searchPath = shellPath || process.env.PATH || ''
-
     try {
       cliPath = await new Promise<string>((resolve, reject) => {
-        const child = spawn('which', ['copilot'], {
-          stdio: ['ignore', 'pipe', 'ignore'],
-          env: { ...process.env, PATH: searchPath }
-        })
+        const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
         let out = ''
         child.stdout.on('data', (d: Buffer) => { out += d.toString() })
         child.on('error', reject)
         child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error('not found')))
       })
     } catch {
-      // Try common paths
       const fs = await import('fs')
       const home = process.env.HOME || ''
-      for (const p of [`${home}/.local/bin/copilot`, '/usr/local/bin/copilot', '/opt/homebrew/bin/copilot']) {
+      const candidates = [
+        `${home}/.local/bin/copilot`,
+        '/usr/local/bin/copilot',
+        '/opt/homebrew/bin/copilot',
+        join(__dirname, '../../node_modules/.bin/copilot'),
+      ]
+      for (const p of candidates) {
         try { fs.statSync(p); cliPath = p; break } catch { /* next */ }
       }
     }
