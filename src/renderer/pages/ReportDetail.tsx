@@ -271,13 +271,12 @@ export function ReportDetail() {
     try {
       await window.api.commitFile(path, newContent, 'Update context note')
       toast.success('Changes saved successfully')
-      refresh()
       setIsEditingContent(false)
       setViewingContent(null)
     } catch (err) {
       toast.error('Failed to save changes')
     }
-  }, [refresh, toast])
+  }, [toast])
 
   const handleCloseContent = useCallback(() => {
     setViewingContent(null)
@@ -397,7 +396,15 @@ export function ReportDetail() {
         )
         toast.success('Prep saved')
         setAiSaved(true)
-        load()
+        setReport(prev => {
+          if (!prev) return prev
+          const newPrep = { date: today, content }
+          const existing = prev.preps.findIndex(p => p.date === today)
+          const preps = existing >= 0
+            ? prev.preps.map((p, i) => i === existing ? newPrep : p)
+            : [newPrep, ...prev.preps]
+          return { ...prev, preps }
+        })
       } catch {
         toast.error('Failed to auto-save prep')
       } finally {
@@ -412,7 +419,7 @@ export function ReportDetail() {
       setAiContent('_Failed to load data for prep. Try again._')
       setAiLoading(false)
     }
-  }, [report, name, generate, reset, fullTextRef, toast, cancel, load])
+  }, [report, name, generate, reset, fullTextRef, toast, cancel])
 
   const handleGenerateCheckIn = useCallback(async () => {
     if (!report || !name) return
@@ -441,7 +448,15 @@ export function ReportDetail() {
           )
           toast.success('Check-in saved')
           setAiSaved(true)
-          load()
+          setReport(prev => {
+            if (!prev) return prev
+            const newCheckIn = { date: month, content, accomplishments: [], concerns: [], githubActivity: {} }
+            const existing = prev.checkIns.findIndex(c => c.date === month)
+            const checkIns = existing >= 0
+              ? prev.checkIns.map((c, i) => i === existing ? newCheckIn : c)
+              : [newCheckIn, ...prev.checkIns]
+            return { ...prev, checkIns }
+          })
         } catch {
           toast.error('Failed to auto-save check-in')
         } finally {
@@ -455,7 +470,7 @@ export function ReportDetail() {
     } finally {
       if (mountedRef.current) setAiLoading(false)
     }
-  }, [report, name, generate, reset, fullTextRef, toast, load])
+  }, [report, name, generate, reset, fullTextRef, toast])
 
   const handleGenerateReview = useCallback(async () => {
     if (!report || !name) return
@@ -578,13 +593,22 @@ export function ReportDetail() {
     try {
       if (aiMode === 'prep') {
         const today = new Date().toISOString().split('T')[0]
+        const savedContent = prepContent || content
         await window.api.commitFile(
           `reports/${name}/prep/${today}.md`,
-          prepContent || content,
+          savedContent,
           `Update 1:1 prep for ${report.profile.displayName} on ${today}`
         )
         toast.success('Prep updated')
-        load()
+        setReport(prev => {
+          if (!prev) return prev
+          const newPrep = { date: today, content: savedContent }
+          const existing = prev.preps.findIndex(p => p.date === today)
+          const preps = existing >= 0
+            ? prev.preps.map((p, i) => i === existing ? newPrep : p)
+            : [newPrep, ...prev.preps]
+          return { ...prev, preps }
+        })
       } else if (aiMode === 'checkin') {
         const { month } = await getCheckInContext(report, name, new Date())
         await window.api.commitFile(
@@ -593,7 +617,15 @@ export function ReportDetail() {
           `Save ${report.profile.displayName} check-in for ${month}`
         )
         toast.success('Check-in saved')
-        load()
+        setReport(prev => {
+          if (!prev) return prev
+          const newCheckIn = { date: month, content, accomplishments: [], concerns: [], githubActivity: {} }
+          const existing = prev.checkIns.findIndex(c => c.date === month)
+          const checkIns = existing >= 0
+            ? prev.checkIns.map((c, i) => i === existing ? newCheckIn : c)
+            : [newCheckIn, ...prev.checkIns]
+          return { ...prev, checkIns }
+        })
       } else if (aiMode === 'review') {
         const now = new Date()
         const month = now.getMonth()
@@ -702,14 +734,27 @@ export function ReportDetail() {
       )
       toast.success('Profile saved')
       setEditingProfile(false)
-      refresh()
+      setReport(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          profile: {
+            ...prev.profile,
+            role: profileFields.role,
+            team: profileFields.team,
+            meetingDay: profileFields.meetingDay,
+            github: profileFields.github,
+            location: profileFields.location
+          }
+        }
+      })
     } catch (e) {
       console.error('Failed to save profile:', e)
       toast.error('Failed to save profile')
     } finally {
       setSavingProfile(false)
     }
-  }, [name, report, profileFields, toast, refresh])
+  }, [name, report, profileFields, toast])
 
   // ── GitHub Activity handlers ──
 
@@ -804,22 +849,30 @@ export function ReportDetail() {
     try {
       await window.api.updateFeedbackEntry(name, entryIndex, newContent, newType)
       toast.success('Feedback updated')
-      refresh()
+      setReport(prev => {
+        if (!prev) return prev
+        const newFeedback = [...prev.feedback]
+        newFeedback[entryIndex] = { ...newFeedback[entryIndex], content: newContent, type: newType }
+        return { ...prev, feedback: newFeedback }
+      })
     } catch {
       toast.error('Failed to update feedback')
     }
-  }, [name, toast, refresh])
+  }, [name, toast])
 
   const handleDeleteFeedback = useCallback(async (entryIndex: number) => {
     if (!name) return
     try {
       await window.api.deleteFeedbackEntry(name, entryIndex)
       toast.success('Feedback deleted')
-      refresh()
+      setReport(prev => {
+        if (!prev) return prev
+        return { ...prev, feedback: prev.feedback.filter((_, i) => i !== entryIndex) }
+      })
     } catch {
       toast.error('Failed to delete feedback')
     }
-  }, [name, toast, refresh])
+  }, [name, toast])
 
   // ── Action item toggle ──
 
@@ -1038,6 +1091,29 @@ export function ReportDetail() {
     if (activeFilter === 'all') return streamEntries
     return streamEntries.filter(e => (e.pinned && activeFilter === 'action') || e.type === activeFilter)
   }, [streamEntries, activeFilter])
+
+  // Sync expanded entry content to AI context (for check-ins, reviews, etc.)
+  useEffect(() => {
+    if (viewingContent) return // File viewer has its own sync
+    if (expandedItems.size !== 1) { setActiveFile(null); return }
+    const expandedId = [...expandedItems][0]
+    const entry = streamEntries.find(e => e.id === expandedId)
+    if (!entry) return
+    // Only sync types that have meaningful file content
+    if (entry.type === 'checkin') {
+      const c = entry.data as { date: string }
+      setActiveFile({ path: `reports/${name}/check-ins/monthly/${c.date}.md`, title: entry.title, content: '' })
+    } else if (entry.type === 'review') {
+      const r = entry.data as { period: string; content: string }
+      if (r.content) setActiveFile({ path: `reports/${name}/reviews/${r.period}.md`, title: entry.title, content: r.content })
+    } else if (entry.type === 'context') {
+      const ctx = entry.data as { filename: string; summary: string }
+      setActiveFile({ path: `contexts/${ctx.filename}`, title: entry.title, content: ctx.summary || '' })
+    } else if (entry.type === 'feedback') {
+      const f = entry.data as { content: string; date: string }
+      setActiveFile({ path: '', title: entry.title, content: f.content })
+    }
+  }, [expandedItems, streamEntries, viewingContent, name, setActiveFile])
 
   // ── Pre-computed values (must be above early returns to preserve hook ordering) ──
 
@@ -1877,7 +1953,7 @@ export function ReportDetail() {
         </div>
       )}
 
-      <EditableDetailsPanel report={report} name={name!} aboutText={aboutText} toast={toast} refresh={refresh} />
+      <EditableDetailsPanel report={report} name={name!} aboutText={aboutText} toast={toast} setReport={setReport} />
 
       {/* ── Filter bar ── */}
       <div className="flex gap-1.5 flex-wrap">
@@ -2097,12 +2173,12 @@ export function ReportDetail() {
 // ── Editable Details Panel (About + Job Expectations) ──
 // Extracted to isolate textarea draft state from ReportDetail re-renders
 
-function EditableDetailsPanel({ report, name, aboutText, toast, refresh }: {
+function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
   report: NonNullable<ReturnType<typeof useReportData>['report']>
   name: string
   aboutText: string
   toast: ReturnType<typeof useToast>
-  refresh: () => void
+  setReport: React.Dispatch<React.SetStateAction<ReturnType<typeof useReportData>['report']>>
 }) {
   const [detailsTab, setDetailsTab] = useState<'about' | 'expectations'>('about')
   const [detailsCollapsed, setDetailsCollapsed] = useState(false)
@@ -2140,14 +2216,14 @@ function EditableDetailsPanel({ report, name, aboutText, toast, refresh }: {
       )
       toast.success('About section saved')
       setEditingAbout(false)
-      refresh()
+      setReport(prev => prev ? { ...prev, profile: { ...prev.profile, about: aboutDraft.trim() } } : prev)
     } catch (e) {
       console.error('Failed to save about:', e)
       toast.error('Failed to save about section')
     } finally {
       setSavingAbout(false)
     }
-  }, [name, report, aboutDraft, toast, refresh])
+  }, [name, report, aboutDraft, toast])
 
   const handleEditJobExpectations = useCallback(() => {
     setJobExpectationsDraft((report.jobExpectations || '').replace(/<!--[\s\S]*?-->/g, '').trim())
@@ -2165,14 +2241,14 @@ function EditableDetailsPanel({ report, name, aboutText, toast, refresh }: {
       )
       toast.success('Job expectations saved')
       setEditingJobExpectations(false)
-      refresh()
+      setReport(prev => prev ? { ...prev, jobExpectations: jobExpectationsDraft.trim() + '\n' } : prev)
     } catch (e) {
       console.error('Failed to save job expectations:', e)
       toast.error('Failed to save job expectations')
     } finally {
       setSavingJobExpectations(false)
     }
-  }, [name, report, jobExpectationsDraft, toast, refresh])
+  }, [name, report, jobExpectationsDraft, toast])
 
   if (detailsCollapsed) {
     return (
