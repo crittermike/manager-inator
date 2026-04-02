@@ -161,14 +161,10 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const resizeTextarea = () => {
     const el = inputRef.current
     if (!el) return
-    el.style.height = 'auto'
-    const singleLineHeight = 28
-    const natural = el.scrollHeight
-    // Only grow beyond single line when there's actual multi-line content
-    if (natural > singleLineHeight + 4) {
-      el.style.height = Math.min(natural, 96) + 'px'
-    } else {
-      el.style.height = ''
+    el.style.height = ''
+    // Only set explicit height when content exceeds one line
+    if (el.scrollHeight > el.clientHeight) {
+      el.style.height = Math.min(el.scrollHeight, 96) + 'px'
     }
   }
 
