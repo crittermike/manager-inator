@@ -13,6 +13,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "electron-vite build && playwright test",
+    "test:fresh": "bash scripts/test-fresh.sh",
+    "test:restore": "bash scripts/test-restore.sh",
     "dist": "electron-vite build && electron-builder --mac --publish never",
     "release": "electron-vite build && electron-builder --mac --publish always",
     "qa:search": "node scripts/qa-search.mjs"
