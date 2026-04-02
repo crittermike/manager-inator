@@ -22,6 +22,13 @@ interface SessionItem {
   status: SessionState
 }
 
+interface AttachedImage {
+  id: string
+  filename: string
+  dataUrl: string
+  saved: boolean
+}
+
 export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { overview } = useTeamOverview()
   const reports = overview?.reports ?? []
@@ -30,6 +37,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   const [sourceHint, setSourceHint] = useState<SourceHint>('')
   const [minimized, setMinimized] = useState(false)
   const [sessions, setSessions] = useState<SessionItem[]>([])
+  const [images, setImages] = useState<AttachedImage[]>([])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -61,6 +69,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     setContent('')
     setSourceHint('')
     setMinimized(false)
+    setImages([])
     setSessions(prev => prev.filter(s => s.status === 'processing'))
   }, [open])
 
@@ -102,22 +111,74 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     return () => document.removeEventListener('keydown', handleEscape)
   }, [open, onClose, processingCount])
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items)
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const blob = item.getAsFile()
+        if (!blob) continue
+        const reader = new FileReader()
+        reader.onload = async () => {
+          const dataUrl = reader.result as string
+          const ext = item.type.split('/')[1] === 'jpeg' ? 'jpg' : item.type.split('/')[1] || 'png'
+          const id = crypto.randomUUID().slice(0, 8)
+          const filename = `${new Date().toISOString().split('T')[0]}-${id}.${ext}`
+          const base64 = dataUrl.split(',')[1]
+          await window.api.commitBinaryFile(
+            `attachments/${filename}`,
+            base64,
+            `Attach image: ${filename}`
+          )
+          setImages(prev => [...prev, { id, filename, dataUrl, saved: true }])
+        }
+        reader.readAsDataURL(blob)
+      }
+    }
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    for (const file of files) {
+      const reader = new FileReader()
+      reader.onload = async () => {
+        const dataUrl = reader.result as string
+        const ext = file.name.split('.').pop() || 'png'
+        const id = crypto.randomUUID().slice(0, 8)
+        const filename = `${new Date().toISOString().split('T')[0]}-${id}.${ext}`
+        const base64 = dataUrl.split(',')[1]
+        await window.api.commitBinaryFile(`attachments/${filename}`, base64, `Attach image: ${filename}`)
+        setImages(prev => [...prev, { id, filename, dataUrl, saved: true }])
+      }
+      reader.readAsDataURL(file)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
   const handleCreateSession = useCallback(() => {
-    if (!content.trim()) return
+    if (!content.trim() && images.length === 0) return
     const id = crypto.randomUUID()
+    const imageRefs = images.map(img => `\n[Attached image: attachments/${img.filename}]`).join('')
     setSessions(prev => [
       {
         id,
-        content: content.trim(),
+        content: (content.trim() + imageRefs).trim(),
         sourceHint,
         status: 'processing',
       },
       ...prev,
     ])
     setContent('')
+    setImages([])
     setSourceHint('')
-    setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [content, sourceHint])
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [content, sourceHint, images])
 
   useEffect(() => {
     if (!open) return
@@ -228,20 +289,45 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               </button>
             ))}
           </div>
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            placeholder="Paste a meeting transcript, Slack thread, GitHub discussion, email, or any content…"
-            className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[220px] max-h-[420px]"
-          />
+          <div onDrop={handleDrop} onDragOver={handleDragOver}>
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              onPaste={handlePaste}
+              placeholder="Paste a meeting transcript, Slack thread, GitHub discussion, email, or any content…"
+              className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[220px] max-h-[420px]"
+            />
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {images.map(img => (
+                  <div key={img.id} className="relative group">
+                    <img
+                      src={img.dataUrl}
+                      alt={img.filename}
+                      className="w-16 h-16 object-cover rounded-lg border border-border"
+                    />
+                    <button
+                      onClick={() => setImages(prev => prev.filter(i => i.id !== img.id))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-zinc-800 border border-border rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[9px] text-zinc-300 px-1 py-0.5 rounded-b-lg truncate">
+                      {img.filename}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-zinc-600">
               AI will classify, extract feedback, and auto-save.
             </p>
             <button
               onClick={handleCreateSession}
-              disabled={!content.trim()}
+              disabled={!content.trim() && images.length === 0}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Plus className="w-3 h-3" />

@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('api', {
   getFilesContentBulk: (paths: string[]) => ipcRenderer.invoke('github:get-files-bulk', paths),
   commitFile: (path: string, content: string, message: string) =>
     ipcRenderer.invoke('github:commit-file', path, content, message),
+  commitBinaryFile: (path: string, base64Data: string, message: string) =>
+    ipcRenderer.invoke('github:commit-binary', path, base64Data, message),
   deleteFile: (path: string) => ipcRenderer.invoke('github:delete-file', path),
   listContexts: () => ipcRenderer.invoke('github:list-contexts'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),

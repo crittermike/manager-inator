@@ -12,6 +12,7 @@ import {
   getFileContent,
   getFilesContentBulk,
   commitFile,
+  commitBinaryFile,
   commitAiModifiedFiles,
   deleteFile,
   listContexts,
@@ -106,6 +107,9 @@ export function setupIpcHandlers(): void {
   safeHandle('github:get-files-bulk', (_e, paths) => getFilesContentBulk(paths as string[]))
   safeHandle('github:commit-file', (_e, path, content, message) =>
     commitFile(path as string, content as string, message as string)
+  )
+  safeHandle('github:commit-binary', (_e, path, base64Data, message) =>
+    commitBinaryFile(path as string, base64Data as string, message as string)
   )
   safeHandle('github:delete-file', (_e, path) => deleteFile(path as string))
   safeHandle('github:list-contexts', () => listContexts())

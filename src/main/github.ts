@@ -181,6 +181,12 @@ export function commitFile(path: string, content: string, message: string): Prom
   return task
 }
 
+export function commitBinaryFile(path: string, base64Data: string, message: string): Promise<void> {
+  const task = _writeQueue.then(() => _commitBinaryFileImpl(path, base64Data, message))
+  _writeQueue = task.catch(() => {})
+  return task
+}
+
 export function deleteFile(path: string): Promise<void> {
   const task = _writeQueue.then(() => _deleteFileImpl(path))
   _writeQueue = task.catch(() => {})
@@ -270,6 +276,17 @@ async function _commitFileImpl(path: string, content: string, message: string): 
   const fullPath = safePath(path)
   mkdirSync(dirname(fullPath), { recursive: true })
   writeFileSync(fullPath, content, 'utf-8')
+
+  invalidateCachesForPath(path)
+
+  const rp = repoPath()
+  _scheduleCommit(path, message, rp)
+}
+
+async function _commitBinaryFileImpl(path: string, base64Data: string, message: string): Promise<void> {
+  const fullPath = safePath(path)
+  mkdirSync(dirname(fullPath), { recursive: true })
+  writeFileSync(fullPath, Buffer.from(base64Data, 'base64'))
 
   invalidateCachesForPath(path)
 
