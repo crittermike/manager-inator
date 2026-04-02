@@ -1897,8 +1897,8 @@ export function clearAllCaches(): void {
 
 /** List all files in weekly-log/ with parsed metadata */
 export function listWeeklyLog(): { filename: string; title: string; date: string; category: string }[] {
-  const files = listFiles('weekly-log').filter(f => f.endsWith('.md')).sort().reverse()
-  return files.map(f => {
+  const files = listFiles('weekly-log').filter(f => f.endsWith('.md'))
+  const entries = files.map(f => {
     const base = f.replace('.md', '')
     let title = base
     let date = ''
@@ -1968,6 +1968,7 @@ export function listWeeklyLog(): { filename: string; title: string; date: string
 
     return { filename: f, title, date: base, category }
   })
+  return entries.sort((a, b) => b.date.localeCompare(a.date))
 }
 
 /** Pre-warm essential caches at startup so first navigation is instant */

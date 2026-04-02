@@ -283,7 +283,13 @@ export function InlinePrompt({
       }
 
       const result = await generate(config.aiAction, context)
-      if (result) setText(result)
+      if (result) {
+        setText(result)
+        // Auto-save and switch to review mode
+        const content = result.trim().startsWith('#') ? `${result.trim()}\n` : `${config.header()}\n\n${result.trim()}\n`
+        await window.api.commitFile(config.savePath(), content, config.commitMsg())
+        setPhase('review')
+      }
     } catch {
       toast.error('AI suggestion failed')
     } finally {
@@ -391,7 +397,7 @@ export function InlinePrompt({
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
           <FolderOpen className="w-3 h-3" />
-          Saved to {config.savePath()}
+          Saved to {config.savePath()} — also on the Management Log tab in your profile
         </div>
       </div>
     )
@@ -476,7 +482,7 @@ export function InlinePrompt({
       </div>
       <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
         <FolderOpen className="w-3 h-3" />
-        Will save to {config.savePath()} — find it later in your weekly-log folder
+        Will save to {config.savePath()} — find it later on the Management Log tab in your profile
       </div>
     </div>
   )
