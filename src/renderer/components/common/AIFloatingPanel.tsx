@@ -502,6 +502,12 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               {streamedText.trimStart() ? (
                 <div className="prose-dark text-xs cursor-blink [&_p]:text-xs [&_li]:text-xs">
                   <div className="text-xs whitespace-pre-wrap text-zinc-300">{streamedText.trimStart()}</div>
+                  {toolStatus && (
+                    <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-border/50 text-[10px] text-zinc-500">
+                      <FolderOpen className="w-2.5 h-2.5 shrink-0 animate-pulse" aria-hidden="true" />
+                      <span className="truncate">{toolStatus}</span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-1 py-0.5">

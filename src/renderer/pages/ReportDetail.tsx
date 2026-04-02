@@ -90,6 +90,7 @@ export function ReportDetail() {
   const [aiContent, setAiContent] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSaving, setAiSaving] = useState(false)
+  const [aiSaved, setAiSaved] = useState(false)
   const [showAiActionsMenu, setShowAiActionsMenu] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -291,6 +292,7 @@ export function ReportDetail() {
     setAiMode('prep')
     setAiLoading(true)
     setAiContent(null)
+    setAiSaved(false)
     setPrepContent(null)
     reset()
 
@@ -413,6 +415,7 @@ export function ReportDetail() {
     setAiMode('checkin')
     setAiLoading(true)
     setAiContent(null)
+    setAiSaved(false)
     reset()
 
     try {
@@ -430,6 +433,7 @@ export function ReportDetail() {
             `Save ${report.profile.displayName} check-in for ${month}`
           )
           toast.success('Check-in saved')
+          setAiSaved(true)
           load()
         } catch {
           toast.error('Failed to auto-save check-in')
@@ -450,6 +454,7 @@ export function ReportDetail() {
     setAiMode('review')
     setAiLoading(true)
     setAiContent(null)
+    setAiSaved(false)
     reset()
 
     try {
@@ -598,6 +603,7 @@ export function ReportDetail() {
       toast.error('Failed to save')
     } finally {
       setAiSaving(false)
+      setAiSaved(true)
     }
   }, [name, report, aiContent, aiMode, prepContent, fullTextRef, streamedText, toast, load])
 
@@ -1587,14 +1593,21 @@ export function ReportDetail() {
           {/* Actions */}
           {!streaming && !aiLoading && (aiContent || streamedText) && (
             <div className="flex gap-2 mt-4 pt-4 border-t border-border flex-wrap items-center">
-              <button
-                onClick={handleSaveAI}
-                disabled={aiSaving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 shadow-lg shadow-brand/10"
-              >
-                <Save className="w-3 h-3" aria-hidden="true" />
-                {aiSaving ? 'Saving…' : aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
-              </button>
+              {!aiSaved ? (
+                <button
+                  onClick={handleSaveAI}
+                  disabled={aiSaving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 shadow-lg shadow-brand/10"
+                >
+                  <Save className="w-3 h-3" aria-hidden="true" />
+                  {aiSaving ? 'Saving…' : aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-success">
+                  <Check className="w-3 h-3" aria-hidden="true" />
+                  Saved
+                </span>
+              )}
               <button
                 onClick={() => handleCopy(aiContent || prepContent || fullTextRef.current || streamedText)}
                 className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised rounded-lg transition-colors"

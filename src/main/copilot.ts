@@ -130,10 +130,19 @@ export async function aiGenerate(
       let inToolPhase = false
       let hasStreamedAnyContent = false
 
+      let pendingTurnSeparator = false
+
       unsubscribers.push(session.on('assistant.message_delta', (event) => {
         if (entry.cancelled || inToolPhase) return
         const delta = event.data.deltaContent
         if (delta) {
+          // Emit buffered turn separator only when real text follows
+          if (pendingTurnSeparator) {
+            currentTurnText += '\n\n'
+            onChunk('\n\n')
+            lastSentLength = currentTurnText.length
+            pendingTurnSeparator = false
+          }
           currentTurnText += delta
           if (currentTurnText.length > lastSentLength) {
             onChunk(currentTurnText.slice(lastSentLength))
@@ -146,9 +155,9 @@ export async function aiGenerate(
       unsubscribers.push(session.on('assistant.turn_start', () => {
         if (entry.cancelled) return
         debugLog('[Copilot SDK] Turn started')
-        // Insert a visual break between turns so text doesn't concatenate
+        // Buffer the separator — only emit when the next text delta arrives
         if (hasStreamedAnyContent) {
-          onChunk('\n\n')
+          pendingTurnSeparator = true
         }
         currentTurnText = ''
         lastSentLength = 0
