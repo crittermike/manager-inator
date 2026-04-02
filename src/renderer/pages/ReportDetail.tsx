@@ -386,6 +386,8 @@ export function ReportDetail() {
     if (content) {
       setAiContent(content)
       setPrepContent(content)
+      setAiLoading(false)
+      setAiSaving(true)
       const today = new Date().toISOString().split('T')[0]
       try {
         await window.api.commitFile(
@@ -394,9 +396,12 @@ export function ReportDetail() {
           `Save 1:1 prep for ${report.profile.displayName} on ${today}`
         )
         toast.success('Prep saved')
+        setAiSaved(true)
         load()
       } catch {
         toast.error('Failed to auto-save prep')
+      } finally {
+        setAiSaving(false)
       }
     } else {
       setAiContent('_Failed to generate prep. Try clicking Regenerate._')
@@ -425,6 +430,8 @@ export function ReportDetail() {
       const content = result || fullTextRef.current
       if (content) {
         setAiContent(content)
+        setAiLoading(false)
+        setAiSaving(true)
         const { month } = await getCheckInContext(report, name, new Date())
         try {
           await window.api.commitFile(
@@ -437,6 +444,8 @@ export function ReportDetail() {
           load()
         } catch {
           toast.error('Failed to auto-save check-in')
+        } finally {
+          setAiSaving(false)
         }
       } else {
         setAiContent('_Failed to generate check-in. Try clicking Regenerate._')
@@ -1593,20 +1602,24 @@ export function ReportDetail() {
           {/* Actions */}
           {!streaming && !aiLoading && (aiContent || streamedText) && (
             <div className="flex gap-2 mt-4 pt-4 border-t border-border flex-wrap items-center">
-              {!aiSaved ? (
-                <button
-                  onClick={handleSaveAI}
-                  disabled={aiSaving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 shadow-lg shadow-brand/10"
-                >
-                  <Save className="w-3 h-3" aria-hidden="true" />
-                  {aiSaving ? 'Saving…' : aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
-                </button>
-              ) : (
+              {aiSaving ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-brand-light">
+                  <div className="w-3 h-3 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+                  Saving…
+                </span>
+              ) : aiSaved ? (
                 <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-success">
                   <Check className="w-3 h-3" aria-hidden="true" />
                   Saved
                 </span>
+              ) : (
+                <button
+                  onClick={handleSaveAI}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] shadow-lg shadow-brand/10"
+                >
+                  <Save className="w-3 h-3" aria-hidden="true" />
+                  {aiMode === 'prep' ? 'Save changes' : 'Save to repo'}
+                </button>
               )}
               <button
                 onClick={() => handleCopy(aiContent || prepContent || fullTextRef.current || streamedText)}
