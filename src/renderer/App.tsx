@@ -44,26 +44,13 @@ function Layout() {
 
 const LOADING_STEPS = [
   'Scanning context files...',
-  'Loading reports...',
   'Building team overview...',
-  'Building people index...',
   'Ready!'
 ]
 
 function LoadingScreen({ message }: { message: string }) {
-  const reportMatch = message.match(/^Loading report (\d+)\/(\d+)/)
-  let progress: number
-  if (reportMatch) {
-    const [, current, total] = reportMatch
-    const reportsBase = (1 / LOADING_STEPS.length) * 100
-    const reportsEnd = (2 / LOADING_STEPS.length) * 100
-    progress = reportsBase + (Number(current) / Number(total)) * (reportsEnd - reportsBase)
-  } else {
-    const stepIndex = LOADING_STEPS.indexOf(message)
-    progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 5
-  }
-
-  const displayMessage = reportMatch ? `Loading reports (${reportMatch[1]}/${reportMatch[2]})` : message
+  const stepIndex = LOADING_STEPS.indexOf(message)
+  const progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 5
 
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-[#0a0a0c]">
@@ -82,7 +69,7 @@ function LoadingScreen({ message }: { message: string }) {
             />
           </div>
           <div className="text-center">
-            <span className="text-zinc-600 text-xs">{displayMessage}</span>
+            <span className="text-zinc-600 text-xs">{message}</span>
           </div>
         </div>
       </div>

@@ -1055,39 +1055,83 @@ export function getTeamOverview(): TeamOverview {
 
   const reportNames = getReports()
   const reports: ReportStatus[] = []
+  const contextsCache = getContextsCache()
 
   for (const name of reportNames) {
     try {
-      const data = getReportData(name)
-      const lastTranscript = data.transcripts.length > 0
-        ? data.transcripts[data.transcripts.length - 1].date
-        : null
-
-      let daysGap = 999
-      if (lastTranscript) {
-        const lastDate = new Date(lastTranscript)
-        daysGap = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+      // Use cached report data if available, otherwise compute lightweight metadata
+      const cached = _reportDataCache.get(name)
+      if (cached) {
+        const lastTranscript = cached.transcripts.length > 0
+          ? cached.transcripts[cached.transcripts.length - 1].date
+          : null
+        let daysGap = 999
+        if (lastTranscript) {
+          daysGap = Math.floor((Date.now() - new Date(lastTranscript).getTime()) / (1000 * 60 * 60 * 24))
+        }
+        const openItems = cached.actionItems.filter((i) => !i.completed).length
+        let status: ReportStatus['status'] = 'on-track'
+        if (daysGap > 14 || openItems > 100) status = 'at-risk'
+        else if (daysGap > 7 || openItems > 50) status = 'needs-attention'
+        const lastCheckIn = cached.checkIns.length > 0
+          ? cached.checkIns[cached.checkIns.length - 1].date
+          : null
+        const lastFeedback = cached.feedback.length > 0
+          ? cached.feedback.reduce((max, f) => f.date > max ? f.date : max, cached.feedback[0].date)
+          : null
+        reports.push({
+          name, displayName: cached.profile.displayName, github: cached.profile.github,
+          lastOneOnOne: lastTranscript,
+          daysGap, openActionItems: openItems, status, meetingDay: cached.profile.meetingDay,
+          lastCheckIn, lastFeedback,
+          feedbackCount: cached.feedback.length,
+          checkInCount: cached.checkIns.length
+        })
+        continue
       }
 
-      const openItems = data.actionItems.filter((i) => !i.completed).length
-      let status: ReportStatus['status'] = 'on-track'
-      if (daysGap > 14 || openItems > 100) status = 'at-risk'
-      else if (daysGap > 7 || openItems > 50) status = 'needs-attention'
+      // Lightweight path: profile + file listings only — no content reads
+      const profile = getReportProfile(name)
 
-      const lastCheckIn = data.checkIns.length > 0
-        ? data.checkIns[data.checkIns.length - 1].date
+      // Last meeting date from contexts cache (no file I/O)
+      const meetings = getPersonMeetings(name)
+      const lastTranscript = meetings.length > 0 ? meetings[0].date : null
+      let daysGap = 999
+      if (lastTranscript) {
+        daysGap = Math.floor((Date.now() - new Date(lastTranscript).getTime()) / (1000 * 60 * 60 * 24))
+      }
+
+      // Check-in count and last date from file listing only
+      const checkInFiles = listFiles(`reports/${name}/check-ins/monthly`)
+        .filter(f => f.endsWith('.md') && f !== '.gitkeep').sort()
+      const lastCheckIn = checkInFiles.length > 0
+        ? checkInFiles[checkInFiles.length - 1].replace('.md', '')
         : null
-      const lastFeedback = data.feedback.length > 0
-        ? data.feedback.reduce((max, f) => f.date > max ? f.date : max, data.feedback[0].date)
-        : null
+
+      // Feedback count and last date — need to read the log file
+      let feedbackCount = 0
+      let lastFeedback: string | null = null
+      try {
+        const feedbackRaw = getFileContent(`reports/${name}/feedback/log.md`)
+        const feedback = parseFeedbackLog(feedbackRaw)
+        feedbackCount = feedback.length
+        if (feedback.length > 0) {
+          lastFeedback = feedback.reduce((max, f) => f.date > max ? f.date : max, feedback[0].date)
+        }
+      } catch { /* no feedback file */ }
+
+      // Status — skip action items count in lightweight mode (expensive: reads 5 meeting files)
+      let status: ReportStatus['status'] = 'on-track'
+      if (daysGap > 14) status = 'at-risk'
+      else if (daysGap > 7) status = 'needs-attention'
 
       reports.push({
-        name, displayName: data.profile.displayName, github: data.profile.github,
+        name, displayName: profile.displayName, github: profile.github,
         lastOneOnOne: lastTranscript,
-        daysGap, openActionItems: openItems, status, meetingDay: data.profile.meetingDay,
+        daysGap, openActionItems: 0, status, meetingDay: profile.meetingDay,
         lastCheckIn, lastFeedback,
-        feedbackCount: data.feedback.length,
-        checkInCount: data.checkIns.length
+        feedbackCount,
+        checkInCount: checkInFiles.length
       })
     } catch (err) {
       console.warn(`[Data] Skipping report ${name}:`, (err as Error).message)
@@ -1771,9 +1815,32 @@ export function getTeamActionItems(): TeamActionItem[] {
   const items: TeamActionItem[] = []
   for (const name of reportNames) {
     try {
-      const data = getReportData(name)
-      for (const ai of data.actionItems) {
-        items.push({ ...ai, reportName: name, displayName: data.profile.displayName })
+      // Use cached report data if available
+      const cached = _reportDataCache.get(name)
+      if (cached) {
+        for (const ai of cached.actionItems) {
+          items.push({ ...ai, reportName: name, displayName: cached.profile.displayName })
+        }
+        continue
+      }
+      // Lightweight path: read only the last 5 meeting files for action items
+      const profile = getReportProfile(name)
+      const meetings = getPersonMeetings(name)
+      const recentMeetings = meetings.slice(0, 5)
+      const personFirstName = (profile.displayName || profile.name || name).split(/\s+/)[0].toLowerCase()
+      const managerFirstName = (getSettings().userName || '').split(/\s+/)[0].toLowerCase()
+      for (const m of recentMeetings) {
+        try {
+          const content = getFileContent(`contexts/${m.filename}`)
+          const parsed = parseActionItems(content, `contexts/${m.filename}`)
+          for (const ai of parsed) {
+            const ownerLower = ai.owner.toLowerCase()
+            const ownerFirst = ownerLower.split(/\s+/)[0]
+            if (ownerFirst === personFirstName || (managerFirstName && ownerFirst === managerFirstName) || ownerLower === 'unknown') {
+              items.push({ ...ai, reportName: name, displayName: profile.displayName })
+            }
+          }
+        } catch { /* skip */ }
       }
     } catch { /* skip */ }
   }
@@ -1903,7 +1970,7 @@ export function listWeeklyLog(): { filename: string; title: string; date: string
   })
 }
 
-/** Pre-warm all caches at startup so first navigation is instant */
+/** Pre-warm essential caches at startup so first navigation is instant */
 export async function preWarmCaches(onProgress?: (message: string) => void): Promise<void> {
   const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
   const emit = (msg: string) => {
@@ -1923,20 +1990,11 @@ export async function preWarmCaches(onProgress?: (message: string) => void): Pro
     emit('Scanning context files...')
     await yield_()
     getContextsCache()
-    // Warm each report individually with yields between them to avoid blocking the event loop
-    const reportNames = getReports()
-    for (let i = 0; i < reportNames.length; i++) {
-      emit(`Loading report ${i + 1}/${reportNames.length}...`)
-      await yield_()
-      try { getReportData(reportNames[i]) } catch { /* skip */ }
-    }
-    // Now getTeamOverview is instant — all reportData is cached
+    // Build team overview using lightweight metadata (profiles + file listings only)
+    // Individual report data is loaded lazily when a report page is visited
     emit('Building team overview...')
     await yield_()
     getTeamOverview()
-    emit('Building people index...')
-    await yield_()
-    listPeople()
     emit('Ready!')
     _prewarmComplete = true
     console.log(`[Cache] Pre-warmed in ${Date.now() - t0}ms`)
