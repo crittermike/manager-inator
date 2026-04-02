@@ -158,6 +158,18 @@ export function Chat() {
   const selectedModelLabel = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel
 
   useEffect(() => { saveSessions(sessions) }, [sessions])
+
+  // Reload sessions from localStorage when page gains focus (picks up popup chat completions)
+  useEffect(() => {
+    const handleFocus = () => {
+      const fresh = loadSessions()
+      if (fresh.length > 0) {
+        setSessions(fresh)
+      }
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
   useEffect(() => {
     return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
   }, [])

@@ -300,7 +300,12 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     reset()
   }
 
-  if (!open) return null
+  // Stay mounted (hidden) while streaming so the response completes in background
+  if (!open && !streaming) return null
+  if (!open && streaming) {
+    // Hidden but mounted — streaming continues, saves to localStorage when done
+    return <div className="hidden" aria-hidden="true" />
+  }
 
   const getSuggestions = (): string[] => {
     const path = location.pathname
