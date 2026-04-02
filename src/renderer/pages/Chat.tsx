@@ -238,7 +238,10 @@ export function Chat() {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+    el.style.overflow = 'hidden'
+    const h = Math.min(el.scrollHeight, 160)
+    el.style.height = h + 'px'
+    if (el.scrollHeight > 160) el.style.overflow = 'auto'
   }
 
   const sendMessage = async (overrideText?: string) => {
@@ -642,7 +645,7 @@ export function Chat() {
         {/* Input area — floating over messages */}
         <div className="absolute bottom-0 left-0 right-0 px-6 pb-4 pt-8 bg-gradient-to-t from-zinc-900 via-zinc-900/95 to-transparent pointer-events-none">
           <div className="max-w-3xl mx-auto pointer-events-auto">
-            <div className="flex items-end gap-3 bg-zinc-950 rounded-2xl border border-border p-2 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
+            <div className="flex items-center gap-3 bg-zinc-950 rounded-2xl border border-border p-2 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -651,8 +654,7 @@ export function Chat() {
                 placeholder="Ask about your team..."
                 aria-label="Ask about your team"
                 rows={1}
-                className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none px-3 py-2 max-h-40"
-                style={{ minHeight: '44px' }}
+                className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none px-3 py-2 max-h-40 overflow-hidden"
               />
               {streaming ? (
                 <button
