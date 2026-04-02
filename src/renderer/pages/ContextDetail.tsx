@@ -8,6 +8,7 @@ import type { PersonEntry } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
+import { useSettings } from '../hooks/useData'
 
 export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
@@ -15,6 +16,8 @@ export function ContextDetail() {
   const [searchParams] = useSearchParams()
   const { success, error: showError } = useToast()
   const { setActiveFile } = useActiveFile()
+  const { settings } = useSettings()
+  const currentUserName = settings?.userName || ''
   const dir = searchParams.get('dir') || 'contexts'
   
   const [content, setContent] = useState<string | null>(null)
@@ -494,6 +497,15 @@ export function ContextDetail() {
                                 >
                                   {person.name}
                                 </button>
+                              )
+                            }
+                            // Don't offer to create a page for the current user
+                            const isCurrentUser = currentUserName && speaker.toLowerCase() === currentUserName.toLowerCase()
+                            if (isCurrentUser) {
+                              return (
+                                <span key={i} className="px-2 py-0.5 rounded-md bg-zinc-800/30 text-zinc-400">
+                                  {speaker}
+                                </span>
                               )
                             }
                             return (
