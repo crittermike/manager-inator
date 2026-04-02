@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { useAI } from '../hooks/useAI'
+import { useChatSessions, type ChatSession, type Message } from '../hooks/useChatSessions'
 import { useSettings } from '../hooks/useData'
 import { AVAILABLE_MODELS, DEFAULT_MODEL } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
@@ -12,44 +12,6 @@ import {
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-interface ChatSession {
-  id: string
-  title: string
-  messages: Message[]
-  createdAt: string
-  updatedAt: string
-  model?: string
-}
-
-const STORAGE_KEY = 'manager-inator-chats'
-
-function loadSessions(): ChatSession[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
-function saveSessions(sessions: ChatSession[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
-}
-
-function createSession(model?: string): ChatSession {
-  return {
-    id: crypto.randomUUID(),
-    title: 'New chat',
-    messages: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    model
-  }
-}
 
 function titleFromMessage(content: string): string {
   const trimmed = content.slice(0, 60).trim()
@@ -124,16 +86,11 @@ const SUGGESTIONS = [
 
 export function Chat() {
   const { settings } = useSettings()
-  const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    const loaded = loadSessions()
-    return loaded.length > 0 ? loaded : [createSession(settings?.defaultModel)]
-  })
-  const [activeId, setActiveId] = useState<string>(() => {
-    const loaded = loadSessions()
-    return loaded.length > 0 ? loaded[0].id : sessions[0].id
-  })
-  const activeSession = sessions.find(s => s.id === activeId) || sessions[0]
-  const messages = activeSession?.messages || []
+  const {
+    sessions, activeId, activeSession, messages, setActiveId,
+    updateSession, deleteSession: ctxDeleteSession, newChat,
+    streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef
+  } = useChatSessions()
 
   const [input, setInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -146,7 +103,6 @@ export function Chat() {
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  const { streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef } = useAI()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -157,19 +113,6 @@ export function Chat() {
   const selectedModel = activeSession?.model || settings?.defaultModel || DEFAULT_MODEL
   const selectedModelLabel = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel
 
-  useEffect(() => { saveSessions(sessions) }, [sessions])
-
-  // Reload sessions from localStorage when page gains focus (picks up popup chat completions)
-  useEffect(() => {
-    const handleFocus = () => {
-      const fresh = loadSessions()
-      if (fresh.length > 0) {
-        setSessions(fresh)
-      }
-    }
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [])
   useEffect(() => {
     return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
   }, [])
@@ -229,10 +172,6 @@ export function Chat() {
     document.addEventListener('keydown', handleKeyboard)
     return () => document.removeEventListener('keydown', handleKeyboard)
   }, [activeId, sessions])
-
-  const updateSession = useCallback((id: string, updater: (s: ChatSession) => ChatSession) => {
-    setSessions(prev => prev.map(s => s.id === id ? updater(s) : s))
-  }, [])
 
   const resizeTextarea = () => {
     const el = inputRef.current
@@ -307,14 +246,10 @@ export function Chat() {
   }
 
   const handleNewChat = useCallback(() => {
-    if (streaming) return
-    const fresh = createSession(selectedModel)
-    setSessions(prev => [fresh, ...prev])
-    setActiveId(fresh.id)
-    reset()
+    newChat(selectedModel)
     setToolStatus(null)
     requestAnimationFrame(() => inputRef.current?.focus())
-  }, [streaming, selectedModel, reset])
+  }, [newChat, selectedModel])
 
   const handleSwitchSession = (id: string) => {
     if (streaming || id === activeId) return
@@ -324,16 +259,7 @@ export function Chat() {
   }
 
   const handleDeleteSession = (id: string) => {
-    setSessions(prev => {
-      const filtered = prev.filter(s => s.id !== id)
-      if (filtered.length === 0) {
-        const fresh = createSession(selectedModel)
-        if (id === activeId) setActiveId(fresh.id)
-        return [fresh]
-      }
-      if (id === activeId) setActiveId(filtered[0].id)
-      return filtered
-    })
+    ctxDeleteSession(id)
     reset()
   }
 

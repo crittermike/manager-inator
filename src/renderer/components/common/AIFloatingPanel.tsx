@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useAI } from '../../hooks/useAI'
+import { useChatSessions, type Message } from '../../hooks/useChatSessions'
 import { useActiveFile } from '../../hooks/useActiveFile'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -10,42 +10,6 @@ import {
   Trash2, Plus, MessageSquare, Copy, Check, FileText, Maximize2
 } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-interface ChatSession {
-  id: string
-  title: string
-  messages: Message[]
-  createdAt: string
-  updatedAt: string
-}
-
-const STORAGE_KEY = 'manager-inator-chats'
-
-function loadSessions(): ChatSession[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
-function saveSessions(sessions: ChatSession[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
-}
-
-function createSession(): ChatSession {
-  return {
-    id: crypto.randomUUID(),
-    title: 'New chat',
-    messages: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-}
 
 function titleFromMessage(content: string): string {
   const trimmed = content.slice(0, 50).trim()
@@ -68,20 +32,14 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const location = useLocation()
   const navigate = useNavigate()
   const { activeFile } = useActiveFile()
-  const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    const loaded = loadSessions()
-    return loaded.length > 0 ? loaded : [createSession()]
-  })
-  const [activeId, setActiveId] = useState<string>(() => {
-    const loaded = loadSessions()
-    return loaded.length > 0 ? loaded[0].id : sessions[0].id
-  })
+  const {
+    sessions, activeId, activeSession, messages, setActiveId,
+    updateSession, deleteSession, newChat,
+    streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef
+  } = useChatSessions()
   const [showHistory, setShowHistory] = useState(false)
-  const activeSession = sessions.find(s => s.id === activeId) || sessions[0]
-  const messages = activeSession?.messages || []
 
   const [input, setInput] = useState('')
-  const { streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef } = useAI()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -89,10 +47,6 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
-
-  useEffect(() => {
-    saveSessions(sessions)
-  }, [sessions])
 
   useEffect(() => {
     return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
@@ -135,10 +89,6 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
     }
   }, [messages, streamedText])
-
-  const updateSession = useCallback((id: string, updater: (s: ChatSession) => ChatSession) => {
-    setSessions(prev => prev.map(s => s.id === id ? updater(s) : s))
-  }, [])
 
   const getContextHint = (): string => {
     const path = location.pathname
@@ -268,11 +218,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   }
 
   const handleNewChat = () => {
-    if (streaming) return
-    const fresh = createSession()
-    setSessions(prev => [fresh, ...prev])
-    setActiveId(fresh.id)
-    reset()
+    newChat()
     setToolStatus(null)
     setShowHistory(false)
     inputRef.current?.focus()
@@ -287,25 +233,11 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   }
 
   const handleDeleteSession = (id: string) => {
-    setSessions(prev => {
-      const filtered = prev.filter(s => s.id !== id)
-      if (filtered.length === 0) {
-        const fresh = createSession()
-        if (id === activeId) setActiveId(fresh.id)
-        return [fresh]
-      }
-      if (id === activeId) setActiveId(filtered[0].id)
-      return filtered
-    })
+    deleteSession(id)
     reset()
   }
 
-  // Stay mounted (hidden) while streaming so the response completes in background
-  if (!open && !streaming) return null
-  if (!open && streaming) {
-    // Hidden but mounted — streaming continues, saves to localStorage when done
-    return <div className="hidden" aria-hidden="true" />
-  }
+  if (!open) return null
 
   const getSuggestions = (): string[] => {
     const path = location.pathname
