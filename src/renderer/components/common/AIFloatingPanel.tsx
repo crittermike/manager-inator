@@ -419,7 +419,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               )}
               {msg.role === 'assistant' ? (
                 <div className="prose-dark text-xs [&_p]:text-xs [&_li]:text-xs [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs">
-                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content || '_No response received._'}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="text-xs whitespace-pre-wrap">{msg.content}</p>

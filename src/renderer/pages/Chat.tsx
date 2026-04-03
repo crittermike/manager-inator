@@ -520,7 +520,7 @@ export function Chat() {
                     )}
                     {msg.role === 'assistant' ? (
                       <div className="prose-dark text-sm [&_p]:text-sm [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm">
-                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content || '_No response received._'}</ReactMarkdown>
                       </div>
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>

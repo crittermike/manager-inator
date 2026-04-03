@@ -51,6 +51,11 @@ export function AppShell({ children }: AppShellProps) {
   const deactivatedReports = settings?.deactivatedReports ?? []
   const isChatRoute = location.pathname === '/chat'
 
+  // Auto-close AI popup when navigating to the full Chat page
+  useEffect(() => {
+    if (isChatRoute && aiPanelOpen) setAiPanelOpen(false)
+  }, [isChatRoute])
+
   const toggleCapture = useCallback(() => {
     setCapturePanelOpen(prev => !prev)
   }, [])
