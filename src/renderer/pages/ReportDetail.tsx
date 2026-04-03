@@ -76,6 +76,7 @@ export function ReportDetail() {
   const { setActiveFile } = useActiveFile()
   const toast = useToast()
   const mountedRef = useRef(true)
+  const aiPanelRef = useRef<HTMLDivElement>(null)
 
   // Stream filter state
   const initialFilter = (searchParams.get('filter') as StreamFilter) || 'all'
@@ -288,6 +289,7 @@ export function ReportDetail() {
   const handlePrepOneOnOne = useCallback(async () => {
     if (!report || !name) return
     setShowAI(true)
+    requestAnimationFrame(() => aiPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     setAiMode('prep')
     setAiLoading(true)
     setAiContent(null)
@@ -800,6 +802,9 @@ export function ReportDetail() {
     setAiMode('checkin')
     setAiContent(null)
     setPrepContent(null)
+    setAiSaved(false)
+    // Scroll to AI panel after it renders
+    requestAnimationFrame(() => aiPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 
     const sections: string[] = []
     const prs = activityData.items.filter(i => i.type === 'pr')
@@ -1581,7 +1586,7 @@ export function ReportDetail() {
 
       {/* ── AI Panel (unified for prep/checkin/review) ── */}
       {showAI && (
-        <div className="bg-surface rounded-xl border border-brand/20 p-5 animate-fade-in">
+        <div ref={aiPanelRef} className="bg-surface rounded-xl border border-brand/20 p-5 animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm font-medium text-brand-light">
               <Sparkles className="w-4 h-4" aria-hidden="true" />
