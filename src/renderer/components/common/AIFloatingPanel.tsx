@@ -34,7 +34,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const { activeFile } = useActiveFile()
   const {
     sessions, activeId, activeSession, messages, setActiveId,
-    updateSession, deleteSession, newChat,
+    updateSession, deleteSession, newChat, sendMessage,
     streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef
   } = useChatSessions()
   const [showHistory, setShowHistory] = useState(false)
@@ -118,28 +118,16 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     if (el.scrollHeight > 96) el.style.overflow = 'auto'
   }
 
-  const sendMessage = async (overrideText?: string) => {
+  const handleSend = async (overrideText?: string) => {
     const text = overrideText || input.trim()
     if (!text || streaming) return
 
     if (!overrideText) setInput('')
-    if (inputRef.current) inputRef.current.style.height = '36px'
-
-    const isFirstMessage = messages.length === 0
-    const newUserMsg: Message = { role: 'user', content: text }
-
-    updateSession(activeId, s => ({
-      ...s,
-      messages: [...s.messages, newUserMsg],
-      title: isFirstMessage ? titleFromMessage(text) : s.title,
-      updatedAt: new Date().toISOString()
-    }))
-
-    reset()
+    if (inputRef.current) inputRef.current.style.height = ''
     setToolStatus(null)
 
+    // Build context from current page/file
     const contextHint = getContextHint()
-
     let activityContext = ''
     let fileContext = ''
     if (activeFile) {
@@ -171,46 +159,16 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       } catch { /* non-fatal */ }
     }
 
-    try {
-      const fullContext = [contextHint, activityContext, fileContext].filter(Boolean).join('\n\n')
-      const response = await generate('chat', {
-        message: text,
-        history: messages.map(m => ({ role: m.role, content: m.content })),
-        ...(fullContext ? { pageContext: fullContext } : {})
-      })
-
-      updateSession(activeId, s => ({
-        ...s,
-        messages: [...s.messages, { role: 'assistant', content: response.trim() }],
-        updatedAt: new Date().toISOString()
-      }))
-    } catch {
-      const partialContent = fullTextRef.current?.trim()
-      if (partialContent) {
-        updateSession(activeId, s => ({
-          ...s,
-          messages: [
-            ...s.messages,
-            { role: 'assistant', content: partialContent + '\n\n*(Response interrupted — the AI may have timed out.)*' }
-          ],
-          updatedAt: new Date().toISOString()
-        }))
-      } else {
-        updateSession(activeId, s => ({
-          ...s,
-          messages: [...s.messages, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }],
-          updatedAt: new Date().toISOString()
-        }))
-      }
-    } finally {
-      setToolStatus(null)
-    }
+    const fullContext = [contextHint, activityContext, fileContext].filter(Boolean).join('\n\n')
+    // Delegate to shared context — survives unmount
+    await sendMessage(text, fullContext || undefined)
+    setToolStatus(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendMessage()
+      handleSend()
     }
     if (e.key === 'Escape') {
       onClose()
@@ -381,7 +339,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
               {suggestions.map(s => (
                 <button
                   key={s}
-                  onClick={() => sendMessage(s)}
+                  onClick={() => handleSend(s)}
                   className="text-left p-2.5 bg-surface rounded-lg border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all active:scale-[0.97] duration-150 text-[11px] text-zinc-400 hover:text-zinc-300"
                 >
                   {s}
@@ -501,7 +459,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             </button>
           ) : (
             <button
-              onClick={() => sendMessage()}
+              onClick={() => handleSend()}
               disabled={!input.trim()}
               aria-label="Send message"
               className="p-1.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-zinc-100 transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"

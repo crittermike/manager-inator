@@ -48,6 +48,7 @@ interface ChatContextValue {
   updateSession: (id: string, updater: (s: ChatSession) => ChatSession) => void
   deleteSession: (id: string) => void
   newChat: (model?: string) => void
+  sendMessage: (text: string, context?: string) => Promise<void>
   // AI state (shared)
   streaming: boolean
   streamedText: string
@@ -115,6 +116,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     ai.reset()
   }, [ai])
 
+  // Shared sendMessage — lives in the provider so it survives component unmounts
+  const sendMessage = useCallback(async (text: string, context?: string) => {
+    if (!text.trim() || ai.streaming) return
+    const sessionId = activeId
+
+    // Push user message
+    setSessions(prev => prev.map(s => s.id === sessionId ? {
+      ...s,
+      messages: [...s.messages, { role: 'user' as const, content: text.trim() }],
+      title: s.messages.length === 0 ? text.trim().slice(0, 50) : s.title,
+      updatedAt: new Date().toISOString()
+    } : s))
+
+    ai.reset()
+
+    try {
+      const response = await ai.generate('chat', {
+        message: text,
+        history: (sessions.find(s => s.id === sessionId)?.messages || []).map(m => ({ role: m.role, content: m.content })),
+        ...(context ? { pageContext: context } : {})
+      })
+
+      setSessions(prev => prev.map(s => s.id === sessionId ? {
+        ...s,
+        messages: [...s.messages, { role: 'assistant' as const, content: response.trim() }],
+        updatedAt: new Date().toISOString()
+      } : s))
+    } catch {
+      const partial = ai.fullTextRef.current?.trim()
+      setSessions(prev => prev.map(s => s.id === sessionId ? {
+        ...s,
+        messages: [...s.messages, {
+          role: 'assistant' as const,
+          content: partial
+            ? partial + '\n\n*(Response interrupted — the AI may have timed out.)*'
+            : 'Sorry, something went wrong. Please try again.'
+        }],
+        updatedAt: new Date().toISOString()
+      } : s))
+    }
+  }, [activeId, sessions, ai])
+
   const value: ChatContextValue = {
     sessions,
     activeId,
@@ -124,6 +167,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     updateSession,
     deleteSession,
     newChat,
+    sendMessage,
     streaming: ai.streaming,
     streamedText: ai.streamedText,
     generate: ai.generate,

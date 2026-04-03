@@ -88,7 +88,7 @@ export function Chat() {
   const { settings } = useSettings()
   const {
     sessions, activeId, activeSession, messages, setActiveId,
-    updateSession, deleteSession: ctxDeleteSession, newChat,
+    updateSession, deleteSession: ctxDeleteSession, newChat, sendMessage,
     streaming, streamedText, generate, cancel, reset, requestIdRef, fullTextRef
   } = useChatSessions()
 
@@ -183,65 +183,23 @@ export function Chat() {
     if (el.scrollHeight > 160) el.style.overflow = 'auto'
   }
 
-  const sendMessage = async (overrideText?: string) => {
+  const handleSend = async (overrideText?: string) => {
     const text = overrideText || input.trim()
     if (!text || streaming) return
 
     if (!overrideText) setInput('')
-    if (inputRef.current) inputRef.current.style.height = '44px'
-
-    const isFirstMessage = messages.length === 0
-    const newUserMsg: Message = { role: 'user', content: text }
-
-    updateSession(activeId, s => ({
-      ...s,
-      messages: [...s.messages, newUserMsg],
-      title: isFirstMessage ? titleFromMessage(text) : s.title,
-      updatedAt: new Date().toISOString()
-    }))
-
-    reset()
+    if (inputRef.current) inputRef.current.style.height = ''
     setToolStatus(null)
 
-    try {
-      const response = await generate('chat', {
-        message: text,
-        history: messages.map(m => ({ role: m.role, content: m.content })),
-        model: selectedModel,
-      })
-
-      updateSession(activeId, s => ({
-        ...s,
-        messages: [...s.messages, { role: 'assistant', content: response.trim() }],
-        updatedAt: new Date().toISOString()
-      }))
-    } catch {
-      const partialContent = fullTextRef.current?.trim()
-      if (partialContent) {
-        updateSession(activeId, s => ({
-          ...s,
-          messages: [
-            ...s.messages,
-            { role: 'assistant', content: partialContent + '\n\n*(Response interrupted)*' }
-          ],
-          updatedAt: new Date().toISOString()
-        }))
-      } else {
-        updateSession(activeId, s => ({
-          ...s,
-          messages: [...s.messages, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }],
-          updatedAt: new Date().toISOString()
-        }))
-      }
-    } finally {
-      setToolStatus(null)
-    }
+    // Delegate to shared context
+    await sendMessage(text)
+    setToolStatus(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendMessage()
+      handleSend()
     }
   }
 
@@ -482,7 +440,7 @@ export function Chat() {
                 {SUGGESTIONS.map(s => (
                   <button
                     key={s}
-                    onClick={() => sendMessage(s)}
+                    onClick={() => handleSend(s)}
                     className="text-left p-3.5 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all active:scale-[0.97] duration-150 text-sm text-zinc-400 hover:text-zinc-300"
                   >
                     {s}
@@ -592,7 +550,7 @@ export function Chat() {
                 </button>
               ) : (
                 <button
-                  onClick={() => sendMessage()}
+                  onClick={() => handleSend()}
                   disabled={!input.trim()}
                   aria-label="Send message"
                   className="p-2.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-zinc-100 transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
