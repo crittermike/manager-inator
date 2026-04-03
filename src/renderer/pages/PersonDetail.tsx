@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import type { PersonEntry, MeetingRef } from '../../shared/types'
 import { GitHubMark } from '../components/common/GitHubMark'
+import { ComboInput } from '../components/common/ComboInput'
 import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
 
@@ -26,6 +27,16 @@ export function PersonDetail() {
   const [editValue, setEditValue] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
+  const [roleOptions, setRoleOptions] = useState<string[]>([])
+  const [relationshipOptions, setRelationshipOptions] = useState<string[]>([])
+
+  // Load autocomplete options
+  useEffect(() => {
+    window.api.getSettingsOptions().then(opts => {
+      setRoleOptions(opts.roles)
+      setRelationshipOptions(opts.relationships)
+    }).catch(() => {})
+  }, [])
 
   // Load person data and file content
   useEffect(() => {
@@ -217,7 +228,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 </div>
                 <div>
                   <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Role</label>
-                  <input value={editFields.role} onChange={e => setEditFields(f => ({ ...f, role: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40" />
+                  <ComboInput value={editFields.role} onChange={v => setEditFields(f => ({ ...f, role: v }))} options={roleOptions} placeholder="e.g. Senior Engineer" />
                 </div>
                 <div>
                   <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">GitHub</label>
@@ -230,15 +241,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
               </div>
               <div>
                 <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Relationship</label>
-                <select value={editFields.relationship} onChange={e => setEditFields(f => ({ ...f, relationship: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40 appearance-none">
-                  <option value="">Not set</option>
-                  <option value="Direct Report">Direct Report</option>
-                  <option value="Peer">Peer</option>
-                  <option value="Skip-level">Skip-level</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Cross-functional">Cross-functional</option>
-                  <option value="Stakeholder">Stakeholder</option>
-                </select>
+                <ComboInput value={editFields.relationship} onChange={v => setEditFields(f => ({ ...f, relationship: v }))} options={relationshipOptions} placeholder="e.g. Peer, Direct Report" />
               </div>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setIsEditingProfile(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>

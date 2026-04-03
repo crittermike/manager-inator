@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import {
   Send, Bot, StopCircle, User, FolderOpen,
-  Trash2, Plus, MessageSquare, Copy, Check,
+  Trash2, Plus, MessageSquare, Copy, Check, Save,
   Search, Pencil, Download, ChevronDown, Sparkles, X,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react'
@@ -99,6 +99,7 @@ export function Chat() {
   const [editingTitle, setEditingTitle] = useState('')
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [savedIdx, setSavedIdx] = useState<number | null>(null)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -456,18 +457,36 @@ export function Chat() {
                       : 'bg-surface-raised/50 border border-border/60 text-zinc-300'
                   }`}>
                     {msg.role === 'assistant' && (
-                      <button
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(msg.content)
-                          setCopiedIdx(i)
-                          if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-                          copyTimerRef.current = setTimeout(() => setCopiedIdx(null), 2000)
-                        }}
-                        className="absolute -top-2 -right-2 p-1 rounded-md bg-surface border border-border text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/msg:opacity-100 transition-opacity shadow-sm"
-                        aria-label="Copy"
-                      >
-                        {copiedIdx === i ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-                      </button>
+                      <div className="absolute -top-2 -right-2 flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        <button
+                          onClick={async () => {
+                            const date = new Date().toISOString().split('T')[0]
+                            const id = crypto.randomUUID().slice(0, 8)
+                            const filename = `${date}-ai-note-${id}.md`
+                            const fileContent = `---\ntitle: AI-generated note\ndate: ${date}\nsource: other\nspeakers: []\n---\n\n${msg.content}\n`
+                            await window.api.commitFile(`contexts/${filename}`, fileContent, `Save AI chat response as note`)
+                            setSavedIdx(i)
+                            setTimeout(() => setSavedIdx(null), 2000)
+                          }}
+                          className="p-1 rounded-md bg-surface border border-border text-zinc-500 hover:text-zinc-200 shadow-sm"
+                          aria-label="Save as note"
+                          title="Save as context note"
+                        >
+                          {savedIdx === i ? <Check className="w-3 h-3 text-success" /> : <Save className="w-3 h-3" />}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(msg.content)
+                            setCopiedIdx(i)
+                            if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                            copyTimerRef.current = setTimeout(() => setCopiedIdx(null), 2000)
+                          }}
+                          className="p-1 rounded-md bg-surface border border-border text-zinc-500 hover:text-zinc-200 shadow-sm"
+                          aria-label="Copy"
+                        >
+                          {copiedIdx === i ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
                     )}
                     {msg.role === 'assistant' ? (
                       <div className="prose-dark text-sm [&_p]:text-sm [&_p]:my-1.5 [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:my-2 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_hr]:my-2">
