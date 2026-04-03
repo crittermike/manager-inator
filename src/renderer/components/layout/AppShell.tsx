@@ -128,12 +128,6 @@ export function AppShell({ children }: AppShellProps) {
       <aside className="w-64 bg-gradient-to-b from-zinc-900 to-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
         {/* Title bar drag region — sits below traffic lights */}
         <div className="drag-region pt-14 pb-3 px-3">
-          <div className="no-drag flex items-center gap-2.5 px-3">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center shadow-lg shadow-brand/20">
-              <Zap className="w-4 h-4 text-white" aria-hidden="true" />
-            </div>
-            <span className="font-semibold text-sm tracking-tight text-zinc-100">Manager-inator</span>
-          </div>
         </div>
 
         {/* Nav items */}
