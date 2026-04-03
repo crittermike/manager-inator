@@ -285,4 +285,71 @@ describe('ChatProvider / useChatSessions', () => {
 
     spy.mockRestore()
   })
+
+  it('does NOT cancel streaming when a consumer unmounts', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    // Mount a consumer inside the provider
+    const ConsumerA = () => {
+      useChatSessions()
+      return <div>A</div>
+    }
+
+    act(() => {
+      root.render(
+        <ChatProvider>
+          <ConsumerA />
+        </ChatProvider>
+      )
+    })
+
+    mockCancel.mockClear()
+
+    // Unmount the consumer (simulates navigating away from Chat page)
+    act(() => {
+      root.render(
+        <ChatProvider>
+          <div>empty</div>
+        </ChatProvider>
+      )
+    })
+
+    // cancel should NOT have been called — streaming is owned by the provider
+    expect(mockCancel).not.toHaveBeenCalled()
+
+    act(() => { root.unmount() })
+  })
+
+  it('streaming state is accessible to all consumers via shared context', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    let ctxA: ReturnType<typeof useChatSessions> | null = null
+    let ctxB: ReturnType<typeof useChatSessions> | null = null
+
+    const ConsumerA = () => { ctxA = useChatSessions(); return null }
+    const ConsumerB = () => { ctxB = useChatSessions(); return null }
+
+    act(() => {
+      root.render(
+        <ChatProvider>
+          <ConsumerA />
+          <ConsumerB />
+        </ChatProvider>
+      )
+    })
+
+    // Both consumers see the same streaming state
+    expect(ctxA!.streaming).toBe(ctxB!.streaming)
+    expect(ctxA!.streamedText).toBe(ctxB!.streamedText)
+    // Same function references (shared, not duplicated)
+    expect(ctxA!.generate).toBe(ctxB!.generate)
+    expect(ctxA!.cancel).toBe(ctxB!.cancel)
+    expect(ctxA!.sendMessage).toBe(ctxB!.sendMessage)
+
+    act(() => { root.unmount() })
+  })
 })
