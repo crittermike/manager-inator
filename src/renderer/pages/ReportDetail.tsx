@@ -1326,7 +1326,7 @@ export function ReportDetail() {
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
               >
                 <ClipboardList className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                1:1 prep
+                (Weekly) 1:1 prep
               </button>
               <button
                 role="menuitem"
@@ -1337,7 +1337,7 @@ export function ReportDetail() {
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
               >
                 <CheckSquare className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                Monthly performance check-in
+                (Monthly) Performance check-in
               </button>
               <button
                 role="menuitem"
@@ -1348,7 +1348,7 @@ export function ReportDetail() {
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
               >
                 <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                Bi-annual performance review
+                (6 months) Performance review
               </button>
               <div className="my-1 h-px bg-border" role="separator" />
               <button
@@ -1405,7 +1405,7 @@ export function ReportDetail() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
                 >
                   <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                  Review
+                  Past review
                 </button>
               </div>
             )}
