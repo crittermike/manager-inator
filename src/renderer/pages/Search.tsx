@@ -147,7 +147,7 @@ export function SearchPage() {
           type: 'person',
           title: p.name,
           subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-          route: isReport ? `/report/${p.slug}` : `/context/${encodeURIComponent(`${p.slug}.md`)}?dir=people`,
+          route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`,
           filename: `${p.slug}.md`,
           directory: 'people'
         })
@@ -192,7 +192,7 @@ export function SearchPage() {
           type: 'person',
           title: c.title,
           subtitle: c.snippet,
-          route: `/context/${encodeURIComponent(c.filename)}?dir=people`,
+          route: `/people/${slug}`,
           filename: c.filename,
           directory: 'people'
         })
@@ -237,7 +237,7 @@ export function SearchPage() {
             type: 'person' as const,
             title: p.name,
             subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-            route: isReport ? `/report/${p.slug}` : `/context/${encodeURIComponent(`${p.slug}.md`)}?dir=people`,
+            route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`,
             filename: `${p.slug}.md`,
             directory: 'people' as const,
             date: p.lastSeen,

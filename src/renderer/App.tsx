@@ -1,4 +1,4 @@
-import { createHashRouter, RouterProvider, Navigate, Outlet, useParams } from 'react-router-dom'
+import { createHashRouter, RouterProvider, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { AppShell } from './components/layout/AppShell'
 import { AuthScreen } from './pages/AuthScreen'
@@ -19,11 +19,7 @@ const MyProfile = lazy(() => import('./pages/MyProfile').then(m => ({ default: m
 const Today = lazy(() => import('./pages/Today').then(m => ({ default: m.Today })))
 const SearchPage = lazy(() => import('./pages/Search').then(m => ({ default: m.SearchPage })))
 const Chat = lazy(() => import('./pages/Chat').then(m => ({ default: m.Chat })))
-
-function PeopleSlugRedirect() {
-  const { slug } = useParams<{ slug: string }>()
-  return <Navigate to={`/context/${encodeURIComponent(`${slug}.md`)}?dir=people`} replace />
-}
+const PersonDetail = lazy(() => import('./pages/PersonDetail').then(m => ({ default: m.PersonDetail })))
 
 function Layout() {
   return (
@@ -104,7 +100,7 @@ export default function App() {
         { path: '/impact', element: <Navigate to="/my-profile" replace /> },
         { path: '/settings', element: <Settings /> },
         { path: '/people', element: <Navigate to="/search?tab=person" replace /> },
-        { path: '/people/:slug', element: <PeopleSlugRedirect /> },
+        { path: '/people/:slug', element: <PersonDetail /> },
         { path: '/context/:filename', element: <ContextDetail /> },
         { path: '/my-profile', element: <MyProfile /> },
         { path: '*', element: <Navigate to="/" replace /> }
