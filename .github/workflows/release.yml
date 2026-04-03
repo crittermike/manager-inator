@@ -25,4 +25,4 @@ jobs:
       - name: Build and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: electron-vite build && electron-builder --mac --arch=arm64 --arch=x64 --publish always
+        run: npx electron-vite build && npx electron-builder --mac --arch=arm64 --arch=x64 --publish always
