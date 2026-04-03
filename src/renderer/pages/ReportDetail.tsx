@@ -1807,30 +1807,54 @@ export function ReportDetail() {
 
             {activityData && activityData.items.length > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center gap-3 text-xs text-zinc-500">
-                  <span>{activityData.items.filter(i => i.type === 'pr').length} PRs</span>
-                  <span>·</span>
-                  <span>{activityData.items.filter(i => i.type === 'issue').length} issues</span>
-                  <span>·</span>
-                  <span>{activityData.items.filter(i => i.type === 'discussion').length} discussions</span>
+                <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
+                  {(() => {
+                    const prs = activityData.items.filter(i => i.type === 'pr')
+                    const authored = prs.filter(i => i.role !== 'commenter')
+                    const reviewed = prs.filter(i => i.role === 'commenter')
+                    const issues = activityData.items.filter(i => i.type === 'issue')
+                    const issueAuthored = issues.filter(i => i.role !== 'commenter')
+                    const issueCommented = issues.filter(i => i.role === 'commenter')
+                    const discussions = activityData.items.filter(i => i.type === 'discussion')
+                    const parts: string[] = []
+                    if (authored.length > 0) parts.push(`${authored.length} PRs authored`)
+                    if (reviewed.length > 0) parts.push(`${reviewed.length} PRs reviewed`)
+                    if (issueAuthored.length > 0) parts.push(`${issueAuthored.length} issues created`)
+                    if (issueCommented.length > 0) parts.push(`${issueCommented.length} issues commented`)
+                    if (discussions.length > 0) parts.push(`${discussions.length} discussions`)
+                    return parts.map((p, i) => (
+                      <span key={i}>{i > 0 && <span className="mr-3">·</span>}{p}</span>
+                    ))
+                  })()}
                 </div>
 
                 {(() => {
-                  const groups: { label: string; type: string; emoji: string }[] = [
-                    { label: 'Pull Requests', type: 'pr', emoji: '🔀' },
-                    { label: 'Issues', type: 'issue', emoji: '📋' },
-                    { label: 'Discussions', type: 'discussion', emoji: '💬' }
+                  const groups: { label: string; type: string; emoji: string; roleLabels: [string, string] }[] = [
+                    { label: 'Pull Requests', type: 'pr', emoji: '🔀', roleLabels: ['Authored', 'Reviewed'] },
+                    { label: 'Issues', type: 'issue', emoji: '📋', roleLabels: ['Created', 'Commented'] },
+                    { label: 'Discussions', type: 'discussion', emoji: '💬', roleLabels: ['Started', 'Commented'] }
                   ]
                   return groups.map(group => {
-                    const items = activityData.items.filter(i => i.type === group.type)
-                    if (items.length === 0) return null
+                    const allItems = activityData.items.filter(i => i.type === group.type)
+                    if (allItems.length === 0) return null
+                    const authored = allItems.filter(i => i.role !== 'commenter')
+                    const commented = allItems.filter(i => i.role === 'commenter')
+                    const sections = [
+                      { items: authored, label: group.roleLabels[0] },
+                      { items: commented, label: group.roleLabels[1] }
+                    ].filter(s => s.items.length > 0)
                     return (
                       <div key={group.type}>
                         <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-2">
-                          {group.emoji} {group.label} ({items.length})
+                          {group.emoji} {group.label} ({allItems.length})
                         </h4>
-                        <div className="space-y-1.5">
-                          {items.map(item => {
+                        {sections.map(section => (
+                          <div key={section.label} className="mb-3">
+                            {sections.length > 1 && (
+                              <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1.5 ml-1">{section.label} ({section.items.length})</div>
+                            )}
+                            <div className="space-y-1.5">
+                          {section.items.map(item => {
                             const stateColor = item.state === 'merged' ? 'text-purple-400'
                               : item.state === 'open' ? 'text-green-400'
                               : item.state === 'closed' ? 'text-zinc-500'
@@ -1912,7 +1936,9 @@ export function ReportDetail() {
                               </div>
                             )
                           })}
-                        </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )
                   })
