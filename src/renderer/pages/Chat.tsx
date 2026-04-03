@@ -447,18 +447,13 @@ export function Chat() {
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto px-6 py-6 pb-44 space-y-6">
+            <div className="max-w-3xl mx-auto px-6 py-6 pb-44 space-y-4">
               {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3 group/msg animate-fade-up ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                  {msg.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-lg bg-brand/15 flex items-center justify-center shrink-0 mt-1">
-                      <Bot className="w-4.5 h-4.5 text-brand" aria-hidden="true" />
-                    </div>
-                  )}
-                  <div className={`relative max-w-[80%] rounded-2xl px-4 py-3 ${
+                <div key={i} className={`flex group/msg ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                  <div className={`relative max-w-[80%] rounded-xl px-4 py-2.5 ${
                     msg.role === 'user'
-                      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
-                      : 'bg-surface border border-border'
+                      ? 'bg-brand/15 text-zinc-100 border border-brand/20'
+                      : 'bg-surface-raised/50 border border-border/60 text-zinc-300'
                   }`}>
                     {msg.role === 'assistant' && (
                       <button
@@ -468,37 +463,33 @@ export function Chat() {
                           if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
                           copyTimerRef.current = setTimeout(() => setCopiedIdx(null), 2000)
                         }}
-                        className="absolute top-2 right-2 p-1 rounded-md bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/msg:opacity-100 transition-opacity"
+                        className="absolute -top-2 -right-2 p-1 rounded-md bg-surface border border-border text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/msg:opacity-100 transition-opacity shadow-sm"
                         aria-label="Copy"
                       >
                         {copiedIdx === i ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
                       </button>
                     )}
                     {msg.role === 'assistant' ? (
-                      <div className="prose-dark text-sm [&_p]:text-sm [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm">
+                      <div className="prose-dark text-sm [&_p]:text-sm [&_p]:my-1.5 [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:my-2 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_hr]:my-2">
                         <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content || '_No response received._'}</ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                     )}
                   </div>
-                  {msg.role === 'user' && (
-                    <div className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center shrink-0 mt-1">
-                      <User className="w-4.5 h-4.5 text-zinc-300" aria-hidden="true" />
-                    </div>
-                  )}
                 </div>
               ))}
 
               {streaming && (
-                <div className="flex gap-3 animate-fade-up">
-                  <div className="w-8 h-8 rounded-lg bg-brand/15 flex items-center justify-center shrink-0 mt-1">
-                    <Bot className="w-4.5 h-4.5 text-brand" aria-hidden="true" />
-                  </div>
-                  <div className={`rounded-2xl px-4 py-3 bg-surface border border-border animate-shimmer ${streamedText.trimStart() ? 'max-w-[80%]' : 'w-fit'}`}>
+                <div className="flex">
+                  <div className={`rounded-xl px-4 py-2.5 bg-surface-raised/50 border border-border/60 ${streamedText.trimStart() ? 'max-w-[80%]' : 'w-fit'}`}>
                     {streamedText.trimStart() ? (
-                      <div className="prose-dark text-sm [&_p]:text-sm [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm">
-                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{streamedText.trimStart()}</ReactMarkdown>
+                      <div className="prose-dark text-sm [&_p]:text-sm [&_p]:my-1.5 [&_li]:text-sm [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:my-2 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_hr]:my-2 text-zinc-300">
+                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{streamedText.trimStart().replace(/<system_notification>[\s\S]*?<\/system_notification>\s*/g, '')}</ReactMarkdown>
+                        <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border/40 text-[10px] text-zinc-500">
+                          <span className="w-1 h-1 rounded-full bg-brand animate-pulse" />
+                          <span>{toolStatus || 'Thinking…'}</span>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-1.5 py-0.5">

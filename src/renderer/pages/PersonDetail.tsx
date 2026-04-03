@@ -24,6 +24,8 @@ export function PersonDetail() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
 
   // Load person data and file content
   useEffect(() => {
@@ -109,7 +111,6 @@ export function PersonDetail() {
   const handleSave = useCallback(async () => {
     if (!slug) return
     try {
-      // Reconstruct file: frontmatter + edited body
       const fmMatch = rawFileContent.match(/^---\n[\s\S]*?\n---\n*/)
       const frontmatter = fmMatch ? fmMatch[0] : ''
       const newContent = frontmatter + editValue
@@ -123,6 +124,35 @@ export function PersonDetail() {
       showError('Failed to save')
     }
   }, [slug, rawFileContent, editValue, success, showError])
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!slug || !person) return
+    try {
+      const fmMatch = rawFileContent.match(/^---\n([\s\S]*?)\n---\n*([\s\S]*)/)
+      const body = fmMatch?.[2] || bodyContent
+      const newContent = `---
+name: ${editFields.name}
+slug: ${slug}
+aliases: ${person.aliases.join(', ')}
+role: ${editFields.role}
+github: ${editFields.github}
+location: ${editFields.location}
+relationship: ${editFields.relationship}
+---
+
+# ${editFields.name}
+
+${body.replace(/^#\s+.+\n*/, '').trim()}
+`
+      await window.api.commitFile(`people/${slug}.md`, newContent, `Update profile for ${editFields.name}`)
+      setRawFileContent(newContent)
+      setPerson({ ...person, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship })
+      setIsEditingProfile(false)
+      success('Profile saved')
+    } catch {
+      showError('Failed to save profile')
+    }
+  }, [slug, person, rawFileContent, bodyContent, editFields, success, showError])
 
   const initials = person
     ? person.name.split(' ').map(n => n[0]).join('').toUpperCase()
@@ -178,6 +208,46 @@ export function PersonDetail() {
       {/* Profile header */}
       <div className="rounded-2xl border border-border/60 bg-surface">
         <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-6 py-5">
+          {isEditingProfile ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Name</label>
+                  <input value={editFields.name} onChange={e => setEditFields(f => ({ ...f, name: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Role</label>
+                  <input value={editFields.role} onChange={e => setEditFields(f => ({ ...f, role: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">GitHub</label>
+                  <input value={editFields.github} onChange={e => setEditFields(f => ({ ...f, github: e.target.value }))} placeholder="username" className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Location</label>
+                  <input value={editFields.location} onChange={e => setEditFields(f => ({ ...f, location: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Relationship</label>
+                <select value={editFields.relationship} onChange={e => setEditFields(f => ({ ...f, relationship: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40 appearance-none">
+                  <option value="">Not set</option>
+                  <option value="Direct Report">Direct Report</option>
+                  <option value="Peer">Peer</option>
+                  <option value="Skip-level">Skip-level</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Cross-functional">Cross-functional</option>
+                  <option value="Stakeholder">Stakeholder</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setIsEditingProfile(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
+                <button onClick={handleSaveProfile} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97]">
+                  <Check className="w-3.5 h-3.5" /> Save
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="flex items-start gap-5">
             {person.github ? (
               <img
@@ -191,9 +261,22 @@ export function PersonDetail() {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">
-                {person.name}
-              </h1>
+              <div className="flex items-center gap-2 group">
+                <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">
+                  {person.name}
+                </h1>
+                <button
+                  onClick={() => {
+                    setEditFields({ name: person.name, role: person.role, github: person.github, location: person.location, relationship: person.relationship })
+                    setIsEditingProfile(true)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-all"
+                  title="Edit profile"
+                  aria-label="Edit profile"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </div>
               <div className="flex items-center gap-3 mt-1.5 text-sm text-zinc-500 flex-wrap">
                 {person.role && (
                   <span className="flex items-center gap-1">
@@ -227,6 +310,7 @@ export function PersonDetail() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 
