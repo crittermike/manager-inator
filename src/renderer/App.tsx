@@ -1,4 +1,4 @@
-import { createHashRouter, RouterProvider, Navigate, Outlet } from 'react-router-dom'
+import { createHashRouter, RouterProvider, Navigate, Outlet, useParams } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { AppShell } from './components/layout/AppShell'
 import { AuthScreen } from './pages/AuthScreen'
@@ -14,12 +14,16 @@ const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ defa
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
 
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
-const People = lazy(() => import('./pages/People').then(m => ({ default: m.People })))
 const ContextDetail = lazy(() => import('./pages/ContextDetail').then(m => ({ default: m.ContextDetail })))
 const MyProfile = lazy(() => import('./pages/MyProfile').then(m => ({ default: m.MyProfile })))
 const Today = lazy(() => import('./pages/Today').then(m => ({ default: m.Today })))
 const SearchPage = lazy(() => import('./pages/Search').then(m => ({ default: m.SearchPage })))
 const Chat = lazy(() => import('./pages/Chat').then(m => ({ default: m.Chat })))
+
+function PeopleSlugRedirect() {
+  const { slug } = useParams<{ slug: string }>()
+  return <Navigate to={`/context/${encodeURIComponent(`${slug}.md`)}?dir=people`} replace />
+}
 
 function Layout() {
   return (
@@ -99,8 +103,8 @@ export default function App() {
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <Navigate to="/my-profile" replace /> },
         { path: '/settings', element: <Settings /> },
-        { path: '/people', element: <People /> },
-        { path: '/people/:slug', element: <People /> },
+        { path: '/people', element: <Navigate to="/search?tab=person" replace /> },
+        { path: '/people/:slug', element: <PeopleSlugRedirect /> },
         { path: '/context/:filename', element: <ContextDetail /> },
         { path: '/my-profile', element: <MyProfile /> },
         { path: '*', element: <Navigate to="/" replace /> }

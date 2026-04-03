@@ -98,10 +98,13 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     if (path === '/playbook') return 'The user is on the Playbook — their management cadence system with practices like weekly reflections, monthly check-ins, and skip-levels.'
     if (path === '/search') return 'The user is on the Search page. Help them find context, people, or specific information.'
     if (path === '/my-profile') return 'The user is viewing their Impact Log — a record of their wins and contributions as an engineering manager.'
-    if (path.startsWith('/context/')) return 'The user is viewing a context summary. Help them with follow-ups, action items, or analysis of the discussion.'
-    if (path.startsWith('/people/')) {
-      const slug = path.replace('/people/', '')
-      return `The user is viewing the profile for "${slug}" in their people directory.`
+    if (path.startsWith('/context/')) {
+      const decodedPath = decodeURIComponent(path.replace('/context/', ''))
+      if (decodedPath.endsWith('.md') && location.search.includes('dir=people')) {
+        const slug = decodedPath.replace('.md', '')
+        return `The user is viewing the profile for "${slug}" in their people directory.`
+      }
+      return 'The user is viewing a context summary. Help them with follow-ups, action items, or analysis of the discussion.'
     }
     return ''
   }

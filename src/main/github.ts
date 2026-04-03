@@ -682,8 +682,7 @@ export function titleCase(value: string): string {
 
 /** Title-case a meeting title and normalize "1 1" → "1-1" */
 export function formatMeetingTitle(str: string): string {
-  const fixed = str.replace(/\b1\s+1\b/g, '1-1')
-  return fixed.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+  return str.replace(/\b1\s+1\b/g, '1-1')
 }
 
 export function deriveMeetingTitleFromContent(filename: string, content: string): string {

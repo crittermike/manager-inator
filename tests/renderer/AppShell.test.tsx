@@ -76,17 +76,11 @@ describe('AppShell navigation', () => {
     })
   })
 
-  it('includes People in the sidebar navigation', async () => {
+  it('does not include People in the sidebar navigation', async () => {
     const { container, root } = await renderShell()
 
     const peopleButton = Array.from(container.querySelectorAll('button')).find(node => node.textContent?.includes('People')) as HTMLButtonElement | undefined
-    expect(peopleButton).toBeDefined()
-
-    await act(async () => {
-      peopleButton?.click()
-    })
-
-    expect(mockNavigate).toHaveBeenCalledWith('/people')
+    expect(peopleButton).toBeUndefined()
 
     await act(async () => {
       root.unmount()

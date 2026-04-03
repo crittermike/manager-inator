@@ -49,6 +49,14 @@ export function SearchPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
+  // Handle ?tab= query param (sets initial filter)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && (FILTERS as readonly string[]).includes(tabParam)) {
+      setTypeFilter(tabParam as SearchFilter)
+    }
+  }, [])
+
   useEffect(() => {
     window.api.listContexts().then(setContexts).catch(() => {})
     window.api.listPeople().then(setPeople).catch(() => {})
@@ -139,7 +147,7 @@ export function SearchPage() {
           type: 'person',
           title: p.name,
           subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-          route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`,
+          route: isReport ? `/report/${p.slug}` : `/context/${encodeURIComponent(`${p.slug}.md`)}?dir=people`,
           filename: `${p.slug}.md`,
           directory: 'people'
         })
@@ -184,7 +192,7 @@ export function SearchPage() {
           type: 'person',
           title: c.title,
           subtitle: c.snippet,
-          route: `/people/${slug}`,
+          route: `/context/${encodeURIComponent(c.filename)}?dir=people`,
           filename: c.filename,
           directory: 'people'
         })
@@ -229,7 +237,7 @@ export function SearchPage() {
             type: 'person' as const,
             title: p.name,
             subtitle: [p.role, p.location].filter(Boolean).join(' · '),
-            route: isReport ? `/report/${p.slug}` : `/people/${p.slug}`,
+            route: isReport ? `/report/${p.slug}` : `/context/${encodeURIComponent(`${p.slug}.md`)}?dir=people`,
             filename: `${p.slug}.md`,
             directory: 'people' as const,
             date: p.lastSeen,

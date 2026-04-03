@@ -65,11 +65,11 @@ speakers:
   })
 
   it('falls back to slug from filename when no frontmatter', () => {
-    expect(deriveMeetingTitleFromContent('2026-03-11-nic-1-1.md', '# Some content')).toBe('Nic 1-1')
+    expect(deriveMeetingTitleFromContent('2026-03-11-nic-1-1.md', '# Some content')).toBe('nic 1-1')
   })
 
   it('falls back to slug from filename when no date prefix', () => {
-    expect(deriveMeetingTitleFromContent('random-meeting.md', '# Some content')).toBe('Random Meeting')
+    expect(deriveMeetingTitleFromContent('random-meeting.md', '# Some content')).toBe('random meeting')
   })
 
   it('handles file with date but no slug', () => {
@@ -78,20 +78,20 @@ speakers:
 })
 
 describe('formatMeetingTitle', () => {
-  it('title-cases words', () => {
-    expect(formatMeetingTitle('nic 1 1')).toBe('Nic 1-1')
-  })
-
   it('normalizes "1 1" to "1-1"', () => {
-    expect(formatMeetingTitle('team 1 1 sync')).toBe('Team 1-1 Sync')
+    expect(formatMeetingTitle('nic 1 1')).toBe('nic 1-1')
   })
 
-  it('handles already title-cased input', () => {
+  it('normalizes "1 1" in longer strings', () => {
+    expect(formatMeetingTitle('team 1 1 sync')).toBe('team 1-1 sync')
+  })
+
+  it('preserves existing formatting', () => {
     expect(formatMeetingTitle('Nic 1-1')).toBe('Nic 1-1')
   })
 
-  it('handles plain text', () => {
-    expect(formatMeetingTitle('weekly standup')).toBe('Weekly Standup')
+  it('does not title-case text', () => {
+    expect(formatMeetingTitle('weekly standup')).toBe('weekly standup')
   })
 })
 

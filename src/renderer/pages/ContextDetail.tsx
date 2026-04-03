@@ -256,7 +256,7 @@ export function ContextDetail() {
       const person = people.find(p => p.slug === existingSlug)
       if (person) {
         const isReport = person.relationship?.toLowerCase() === 'direct report'
-        navigate(isReport ? `/report/${person.slug}` : `/people/${person.slug}`)
+        navigate(isReport ? `/report/${person.slug}` : `/context/${encodeURIComponent(`${person.slug}.md`)}?dir=people`)
       }
       return
     }
@@ -269,7 +269,7 @@ export function ContextDetail() {
       success(`Created page for ${trimmed}`)
       const freshPeople = await window.api.listPeople()
       setPeople(freshPeople)
-      navigate(`/people/${slug}`)
+      navigate(`/context/${encodeURIComponent(`${slug}.md`)}?dir=people`)
     } catch (err) {
       console.error('Failed to create person:', err)
       showError('Failed to create person page')
@@ -395,6 +395,7 @@ export function ContextDetail() {
               )}
             </div>
 
+            {dir !== 'people' && (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-zinc-400">
               {dateStr && (
                 <div className="flex items-center gap-2">
@@ -488,7 +489,7 @@ export function ContextDetail() {
                             const person = findPerson(speaker)
                             if (person) {
                               const isReport = person.relationship?.toLowerCase() === 'direct report'
-                              const route = isReport ? `/report/${person.slug}` : `/people/${person.slug}`
+                              const route = isReport ? `/report/${person.slug}` : `/context/${encodeURIComponent(`${person.slug}.md`)}?dir=people`
                               return (
                                 <button
                                   key={i}
@@ -541,9 +542,11 @@ export function ContextDetail() {
                   )}
                 </div>
             </div>
+            )}
           </div>
         </div>
         
+        {dir !== 'people' && (
         <div className="flex border-b border-border px-4">
           <button
             onClick={() => handleTabChange('summary')}
@@ -558,6 +561,7 @@ export function ContextDetail() {
             Transcript
           </button>
         </div>
+        )}
         
         <div className="px-6 py-5 relative group/content">
           <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover/content:opacity-100 transition-opacity z-10">
