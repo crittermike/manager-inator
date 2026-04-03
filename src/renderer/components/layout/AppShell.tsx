@@ -227,8 +227,7 @@ export function AppShell({ children }: AppShellProps) {
 
         {/* Footer */}
         <div className="px-3 py-3 border-t border-white/[0.06]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-zinc-700 font-mono">v{__APP_VERSION__}</span>
+          <div className="flex items-center justify-end">
             <div className="flex items-center gap-0.5 rounded-lg bg-white/[0.03] p-0.5">
               <button
                 onClick={() => setShortcutsOpen(true)}

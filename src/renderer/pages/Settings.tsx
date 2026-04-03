@@ -816,9 +816,15 @@ export function Settings() {
           </p>
           <p className="text-xs text-zinc-500 mt-1">
             AI-powered performance management for engineering managers.
-            Uses the GitHub Copilot SDK for AI features and your GitHub repo
-            as the source of truth.
           </p>
+          <a
+            href="https://github.com/crittermike/manager-inator-app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 mt-2 text-xs text-brand-light hover:text-brand transition-colors"
+          >
+            github.com/crittermike/manager-inator-app
+          </a>
         </div>
       </section>
 
