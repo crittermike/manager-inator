@@ -77,9 +77,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     return () => document.removeEventListener('keydown', handleEscape)
   }, [open, onClose])
 
-  useEffect(() => {
-    return () => { cancel() }
-  }, [cancel])
+  // Don't cancel on unmount — streaming state is shared via ChatProvider
 
   useEffect(() => {
     const el = scrollContainerRef.current

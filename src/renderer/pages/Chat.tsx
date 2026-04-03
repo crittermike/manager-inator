@@ -126,9 +126,7 @@ export function Chat() {
     return unsub
   }, [requestIdRef])
 
-  useEffect(() => {
-    return () => { cancel() }
-  }, [cancel])
+  // Don't cancel on unmount — streaming state is shared via ChatProvider
 
   useEffect(() => {
     const el = scrollContainerRef.current
