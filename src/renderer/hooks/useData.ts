@@ -56,14 +56,13 @@ export function TeamOverviewProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const load = useCallback(async (silent = false) => {
+    if (!silent) { setLoading(true); setError(null) }
     try {
       const data = await window.api.getTeamOverview()
       setOverview(data)
     } catch (e) {
-      setError((e as Error).message)
+      if (!silent) setError((e as Error).message)
     } finally {
       setLoading(false)
     }
@@ -77,13 +76,13 @@ export function TeamOverviewProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!window.api.onAiFilesChanged) return
-    const unsub = window.api.onAiFilesChanged(() => { load() })
+    const unsub = window.api.onAiFilesChanged(() => { load(true) })
     return unsub
   }, [load])
 
   useEffect(() => {
     if (!window.api.onDataFilesChanged) return
-    const unsub = window.api.onDataFilesChanged(() => { load() })
+    const unsub = window.api.onDataFilesChanged(() => { load(true) })
     return unsub
   }, [load])
 
@@ -103,16 +102,15 @@ export function useReportData(name: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const reqRef = useRef(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!name) return
     const reqId = ++reqRef.current
-    setLoading(true)
-    setError(null)
+    if (!silent) { setLoading(true); setError(null) }
     try {
       const data = await window.api.getReportData(name)
       if (reqRef.current === reqId) setReport(data)
     } catch (e) {
-      if (reqRef.current === reqId) setError((e as Error).message)
+      if (reqRef.current === reqId && !silent) setError((e as Error).message)
     } finally {
       if (reqRef.current === reqId) setLoading(false)
     }
@@ -126,13 +124,13 @@ export function useReportData(name: string | undefined) {
 
   useEffect(() => {
     if (!window.api.onAiFilesChanged) return
-    const unsub = window.api.onAiFilesChanged(() => { load() })
+    const unsub = window.api.onAiFilesChanged(() => { load(true) })
     return unsub
   }, [load])
 
   useEffect(() => {
     if (!window.api.onDataFilesChanged) return
-    const unsub = window.api.onDataFilesChanged(() => { load() })
+    const unsub = window.api.onDataFilesChanged(() => { load(true) })
     return unsub
   }, [load])
 
