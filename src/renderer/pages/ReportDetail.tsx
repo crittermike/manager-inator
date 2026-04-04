@@ -1221,7 +1221,7 @@ export function ReportDetail() {
 
       {/* ── Profile header ── */}
       <div className="rounded-2xl border border-border/60 bg-surface">
-        <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-6 py-5">
+        <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-4 py-5">
           <div className="flex items-start gap-5">
             {report.profile.github ? (
               <img src={`https://github.com/${report.profile.github}.png?size=112`} alt={report.profile.displayName} className="w-14 h-14 rounded-2xl shrink-0 object-cover ring-1 ring-brand/20" />
@@ -1295,7 +1295,7 @@ export function ReportDetail() {
       </div>
 
       {/* ── Action buttons ── */}
-      <div className="px-6 py-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 py-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative" ref={aiActionsMenuRef}>
           <button
@@ -1734,7 +1734,7 @@ export function ReportDetail() {
       {/* ── GitHub Activity Panel ── */}
       {showActivity && (
         <div className="bg-surface rounded-xl border border-border overflow-hidden animate-fade-in">
-          <div className="flex items-center justify-between px-6 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
               <span className="text-sm font-medium text-zinc-200">GitHub Activity</span>
@@ -1753,7 +1753,7 @@ export function ReportDetail() {
             </button>
           </div>
 
-          <div className="px-6 py-4 space-y-4">
+          <div className="px-4 py-4 space-y-4">
             <div className="flex items-end gap-3 flex-wrap">
               <div className="flex-1 min-w-[140px]">
                 <label className="block text-xs text-zinc-500 mb-1">From</label>
@@ -2305,7 +2305,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
 
   return (
     <div className="bg-surface rounded-xl border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-6 pt-3 pb-0">
+      <div className="flex items-center justify-between px-4 pt-3 pb-0">
         <div className="flex gap-1">
           <button
             onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
@@ -2347,7 +2347,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
         </div>
       </div>
 
-      <div className="px-6 pb-4 pt-2 animate-fade-in">
+      <div className="px-4 pb-4 pt-2 animate-fade-in">
         {editingAbout && detailsTab === 'about' ? (
           <div className="space-y-2">
             <textarea
