@@ -43,7 +43,7 @@ Grab the latest release from the [Releases page](https://github.com/crittermike/
 All your data lives in a local Git repo as plain markdown files. The app reads and writes to this repo, committing and pushing changes automatically. You can browse, edit, or back up your data outside the app anytime.
 
 ### AI features
-Powered by [GitHub Copilot](https://github.com/features/copilot). Requires the Copilot CLI extension (`gh extension install github/gh-copilot`). All AI processing happens through your existing Copilot subscription, no additional API keys needed.
+Powered by [GitHub Copilot](https://github.com/features/copilot) via the bundled Copilot SDK. All AI processing happens through your existing Copilot subscription, no additional API keys needed.
 
 ### Auto-updates
 The app checks for new versions on launch and every 4 hours. Updates download in the background and you'll see a banner when a new version is ready. Just click to restart.
@@ -53,7 +53,6 @@ The app checks for new versions on launch and every 4 hours. Updates download in
 - macOS (Windows/Linux support planned)
 - A [GitHub](https://github.com) account
 - [GitHub Copilot](https://github.com/features/copilot) subscription
-- [GitHub CLI](https://cli.github.com/) with the Copilot extension installed
 
 ## Development
 
