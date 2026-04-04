@@ -72,7 +72,7 @@ await page.addInitScript(() => {
     saveMeetingTitle: () => Promise.resolve(),
     cancelBackfill: () => Promise.resolve(),
     backfillSummaries: () => Promise.resolve(),
-    getPersonMeetings: () => Promise.resolve([]),
+    getPersonContexts: () => Promise.resolve([]),
     findPersonByName: () => Promise.resolve(null),
     aiGenerate: () => Promise.resolve(''), aiCancel: () => Promise.resolve(),
     showOpenDialog: () => Promise.resolve({ filePaths: [] }),

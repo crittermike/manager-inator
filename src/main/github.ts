@@ -967,7 +967,7 @@ export function getReportData(name: string): Report {
   let jobExpectationsRaw = ''
   try { jobExpectationsRaw = getFileContent(`reports/${name}/job-expectations.md`) } catch {}
 
-  const personMeetings = getPersonMeetings(name).map(m => m.filename).sort()
+  const personContexts = getPersonContexts(name).map(m => m.filename).sort()
 
   // Parse check-ins
   const mdCheckIns = checkInFiles.filter((f) => f.endsWith('.md') && f !== '.gitkeep').sort()
@@ -990,13 +990,13 @@ export function getReportData(name: string): Report {
   })
 
   // Parse summaries (every meeting file IS a summary)
-  const summaries: Summary[] = personMeetings.map((f) => {
+  const summaries: Summary[] = personContexts.map((f) => {
     const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
     return { date: dateMatch?.[1] || f.replace('.md', ''), content: '', keyTopics: [], actionItems: [], sentiment: '', filename: f }
   })
 
   // Parse transcripts (derived from meeting files — raw transcripts live in transcripts/processed/)
-  const transcripts: Transcript[] = personMeetings.map((f) => {
+  const transcripts: Transcript[] = personContexts.map((f) => {
     const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/)
     const date = dateMatch?.[1] || f.replace('.md', '')
     return { date, content: '', filename: f }
@@ -1004,7 +1004,7 @@ export function getReportData(name: string): Report {
 
   // Extract action items from recent meeting summaries
   const actionItems: ActionItem[] = []
-  const recentSummaries = personMeetings.sort().slice(-5)
+  const recentSummaries = personContexts.sort().slice(-5)
   for (const sf of recentSummaries) {
     try {
       const content = getFileContent(`contexts/${sf}`)
@@ -1119,7 +1119,7 @@ export function getTeamOverview(): TeamOverview {
       const profile = getReportProfile(name)
 
       // Last meeting date from contexts cache (no file I/O)
-      const meetings = getPersonMeetings(name)
+      const meetings = getPersonContexts(name)
       const lastTranscript = meetings.length > 0 ? meetings[0].date : null
       let daysGap = 999
       if (lastTranscript) {
@@ -1189,6 +1189,33 @@ let _contextsCache: {
   titleMap: Map<string, string>
 } | null = null
 
+/**
+ * Determine which person slugs a context file should be associated with.
+ * If the entry has speakers/attendees, use those (the people actually present).
+ * Otherwise fall back to the people: frontmatter (mentioned people).
+ */
+function getRelevantSlugs(entry: ContextsCacheEntry, nameToSlug: Map<string, string>): string[] {
+  if (entry.speakers.length > 0) {
+    const slugs = new Set<string>()
+    for (const speaker of entry.speakers) {
+      const slug = nameToSlug.get(speaker.toLowerCase())
+        || nameToSlug.get(speaker.split(' ')[0].toLowerCase())
+      if (slug) slugs.add(slug)
+    }
+    if (slugs.size > 0) return [...slugs]
+  }
+  return entry.people
+}
+
+let _nameToSlugCache: Map<string, string> | null = null
+
+function getNameToSlugMap(): Map<string, string> {
+  if (!_nameToSlugCache) _nameToSlugCache = buildNameToSlugMap()
+  return _nameToSlugCache
+}
+
+function invalidateNameToSlugMap(): void { _nameToSlugCache = null }
+
 function getMutableContextsCache() {
   if (!_contextsCache) throw new Error('Contexts cache not initialized')
   return _contextsCache
@@ -1227,7 +1254,8 @@ function parseContextsCacheEntry(filename: string, content: string, mtimeMs: num
 
 function syncContextEntry(cache: ReturnType<typeof getMutableContextsCache>, contextFile: string, parsed: ContextsCacheEntry, priorEntry?: ContextsCacheEntry): void {
   const previous = priorEntry || cache.entriesByFilename.get(contextFile)
-  const priorPeople = previous?.people || []
+  const nameToSlug = getNameToSlugMap()
+  const priorSlugs = previous ? getRelevantSlugs(previous, nameToSlug) : []
   const existingIndex = cache.entries.findIndex(e => e.filename === contextFile)
 
   if (existingIndex >= 0) cache.entries[existingIndex] = parsed
@@ -1239,7 +1267,7 @@ function syncContextEntry(cache: ReturnType<typeof getMutableContextsCache>, con
   cache.entriesByFilename.set(contextFile, parsed)
   cache.titleMap.set(contextFile, parsed.title)
 
-  for (const slug of priorPeople) {
+  for (const slug of priorSlugs) {
     const arr = cache.byPersonSlug.get(slug)
     if (!arr) continue
     const next = arr.filter(f => f !== contextFile)
@@ -1247,7 +1275,8 @@ function syncContextEntry(cache: ReturnType<typeof getMutableContextsCache>, con
     else cache.byPersonSlug.delete(slug)
   }
 
-  for (const slug of parsed.people) {
+  const newSlugs = getRelevantSlugs(parsed, nameToSlug)
+  for (const slug of newSlugs) {
     const arr = cache.byPersonSlug.get(slug)
     if (arr) {
       if (!arr.includes(contextFile)) arr.push(contextFile)
@@ -1266,7 +1295,9 @@ function removeContextEntry(cache: ReturnType<typeof getMutableContextsCache>, c
   cache.entriesByFilename.delete(contextFile)
   cache.titleMap.delete(contextFile)
 
-  for (const slug of existing.people) {
+  const nameToSlug = getNameToSlugMap()
+  const slugs = getRelevantSlugs(existing, nameToSlug)
+  for (const slug of slugs) {
     const arr = cache.byPersonSlug.get(slug)
     if (!arr) continue
     const next = arr.filter(f => f !== contextFile)
@@ -1347,7 +1378,10 @@ function buildNameToSlugMap(): Map<string, string> {
         const profile = getReportProfile(reportName)
         const displayName = profile.displayName || profile.name
         if (displayName) {
-          nameToSlug.set(displayName.toLowerCase(), reportName)
+          // Don't overwrite existing people/ slug — it's what people: frontmatter uses
+          if (!nameToSlug.has(displayName.toLowerCase())) {
+            nameToSlug.set(displayName.toLowerCase(), reportName)
+          }
           const firstName = displayName.split(' ')[0].toLowerCase()
           if (firstName && !nameToSlug.has(firstName)) {
             nameToSlug.set(firstName, reportName)
@@ -1376,27 +1410,19 @@ function getContextsCache() {
       const entry = parseContextsCacheEntry(f, content, lstatSync(fullPath).mtimeMs)
       entries.push(entry)
       titleMap.set(f, entry.title)
-      for (const slug of entry.people) {
-        const arr = byPersonSlug.get(slug)
-        if (arr) arr.push(f)
-        else byPersonSlug.set(slug, [f])
-      }
     } catch { /* skip */ }
   }
 
-  // Resolve speaker names to person slugs (catches people not in the people: frontmatter)
-  const nameToSlug = buildNameToSlugMap()
+  // Associate contexts with people: use attendees if available, otherwise mentioned people
+  const nameToSlug = getNameToSlugMap()
   for (const entry of entries) {
-    for (const speaker of entry.speakers) {
-      const slug = nameToSlug.get(speaker.toLowerCase())
-        || nameToSlug.get(speaker.split(' ')[0].toLowerCase())
-      if (slug) {
-        const arr = byPersonSlug.get(slug)
-        if (arr) {
-          if (!arr.includes(entry.filename)) arr.push(entry.filename)
-        } else {
-          byPersonSlug.set(slug, [entry.filename])
-        }
+    const slugs = getRelevantSlugs(entry, nameToSlug)
+    for (const slug of slugs) {
+      const arr = byPersonSlug.get(slug)
+      if (arr) {
+        if (!arr.includes(entry.filename)) arr.push(entry.filename)
+      } else {
+        byPersonSlug.set(slug, [entry.filename])
       }
     }
   }
@@ -1562,7 +1588,7 @@ export function parseSpeakers(content: string): string[] {
 // ── People ──
 
 let _peopleCache: PersonEntry[] | null = null
-function invalidatePeopleCache(): void { _peopleCache = null }
+function invalidatePeopleCache(): void { _peopleCache = null; invalidateNameToSlugMap() }
 
 export function listPeople(): PersonEntry[] {
   if (_peopleCache) return _peopleCache
@@ -1650,7 +1676,7 @@ export function listPeople(): PersonEntry[] {
   return sorted
 }
 
-export function getPersonMeetings(slug: string): { date: string; title: string; filename: string }[] {
+export function getPersonContexts(slug: string): { date: string; title: string; filename: string }[] {
   const cache = getContextsCache()
   let files = cache.byPersonSlug.get(slug) || []
 
@@ -1851,7 +1877,7 @@ export function getTeamActionItems(): TeamActionItem[] {
       }
       // Lightweight path: read only the last 5 meeting files for action items
       const profile = getReportProfile(name)
-      const meetings = getPersonMeetings(name)
+      const meetings = getPersonContexts(name)
       const recentMeetings = meetings.slice(0, 5)
       const personFirstName = (profile.displayName || profile.name || name).split(/\s+/)[0].toLowerCase()
       const managerFirstName = (getSettings().userName || '').split(/\s+/)[0].toLowerCase()

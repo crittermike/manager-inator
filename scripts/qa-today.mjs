@@ -212,7 +212,7 @@ await page.addInitScript((fixedNow) => {
     cancelBackfill: () => Promise.resolve(),
     backfillSummaries: () => Promise.resolve(),
     showOpenDialog: () => Promise.resolve({ filePaths: [] }),
-    getPersonMeetings: () => Promise.resolve([]),
+    getPersonContexts: () => Promise.resolve([]),
     findPersonByName: () => Promise.resolve(null),
   }
 }, FIXED_NOW)

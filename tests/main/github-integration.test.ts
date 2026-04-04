@@ -31,7 +31,7 @@ import {
   getReportProfile,
   listContexts,
   listPeople,
-  getPersonMeetings,
+  getPersonContexts,
   findPersonByName,
   searchContent,
   getTeamOverview,
@@ -458,22 +458,22 @@ speakers:
     })
   })
 
-  describe('getPersonMeetings', () => {
+  describe('getPersonContexts', () => {
     it('returns meetings for a person by filename match', () => {
-      const meetings = getPersonMeetings('alice-smith')
+      const meetings = getPersonContexts('alice-smith')
       const filenames = meetings.map(m => m.filename)
       expect(filenames).toContain('2026-03-11-alice-1-1.md')
       expect(filenames).toContain('2026-03-04-alice-1-1.md')
     })
 
     it('includes speaker-matched meetings', () => {
-      const meetings = getPersonMeetings('alice-smith')
+      const meetings = getPersonContexts('alice-smith')
       const filenames = meetings.map(m => m.filename)
       expect(filenames).toContain('2026-03-12-team-standup.md')
     })
 
     it('sorts by date descending', () => {
-      const meetings = getPersonMeetings('alice-smith')
+      const meetings = getPersonContexts('alice-smith')
       for (let i = 1; i < meetings.length; i++) {
         expect(meetings[i - 1].date >= meetings[i].date).toBe(true)
       }

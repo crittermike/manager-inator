@@ -299,7 +299,7 @@ export interface PersonEntry {
   relationship: string
 }
 
-// ── Meeting reference (from getPersonMeetings) ──
+// ── Context reference (from getPersonContexts) ──
 export interface MeetingRef {
   date: string
   title: string
@@ -350,7 +350,7 @@ export interface IpcApi {
   deleteFile: (path: string) => Promise<void>
   listContexts: () => Promise<ContextEntry[]>
   listPeople: () => Promise<PersonEntry[]>
-  getPersonMeetings: (slug: string) => Promise<MeetingRef[]>
+  getPersonContexts: (slug: string) => Promise<MeetingRef[]>
   findPersonByName: (name: string) => Promise<string | null>
   getImpactLog: () => Promise<string>
   listWeeklyLog: () => Promise<{ filename: string; title: string; date: string; category: string }[]>

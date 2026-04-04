@@ -17,7 +17,7 @@ import {
   deleteFile,
   listContexts,
   listPeople,
-  getPersonMeetings,
+  getPersonContexts,
   findPersonByName,
   getImpactLog,
   listWeeklyLog,
@@ -114,7 +114,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:delete-file', (_e, path) => deleteFile(path as string))
   safeHandle('github:list-contexts', () => listContexts())
   safeHandle('github:list-people', () => listPeople())
-  safeHandle('github:person-meetings', (_e, slug) => getPersonMeetings(slug as string))
+  safeHandle('github:person-meetings', (_e, slug) => getPersonContexts(slug as string))
   safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
   safeHandle('github:impact-log', () => getImpactLog())
   safeHandle('github:weekly-log', () => listWeeklyLog())

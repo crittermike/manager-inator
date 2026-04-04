@@ -100,7 +100,7 @@ await page.addInitScript(() => {
     saveMeetingTitle: () => Promise.resolve(),
     cancelBackfill: () => Promise.resolve(),
     backfillSummaries: () => Promise.resolve(),
-    getPersonMeetings: () => Promise.resolve([]),
+    getPersonContexts: () => Promise.resolve([]),
     findPersonByName: () => Promise.resolve(null),
     showOpenDialog: () => Promise.resolve({ filePaths: [] }),
     onBackfillProgress: noop, onPushStatus: noop, onAiToolStatus: noop, onNavigate: noop,

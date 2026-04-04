@@ -49,7 +49,7 @@ export function PersonDetail() {
     Promise.all([
       window.api.listPeople(),
       window.api.getFileContent(`people/${slug}.md`),
-      window.api.getPersonMeetings(slug)
+      window.api.getPersonContexts(slug)
     ])
       .then(([people, fileContent, meetingRefs]) => {
         if (!isMounted) return
