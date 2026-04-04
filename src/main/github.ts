@@ -375,6 +375,7 @@ let _gitQueue: Promise<void> = Promise.resolve()
 
 let _pushTimer: ReturnType<typeof setTimeout> | null = null
 let _pushInFlight = false
+let _hasRemote: boolean | null = null
 
 function schedulePush(cwd: string): void {
   // Debounce: wait 5s of inactivity before pushing.
@@ -392,14 +393,17 @@ function _executePush(cwd: string): void {
     return
   }
 
-  // Skip push if no remote is configured (local-only repo)
-  try {
-    const { execSync } = require('child_process')
-    const remotes = execSync('git remote', { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
-    if (!remotes) return
-  } catch {
-    return
+  // Skip push if no remote is configured (local-only repo) — cached after first check
+  if (_hasRemote === null) {
+    try {
+      const { execSync } = require('child_process')
+      const remotes = execSync('git remote', { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+      _hasRemote = !!remotes
+    } catch {
+      _hasRemote = false
+    }
   }
+  if (!_hasRemote) return
 
   _pushInFlight = true
   const child = spawn('git', ['push'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -728,8 +732,11 @@ let _prewarmComplete = false
 let _prewarmMessage = 'Starting up...'
 
 let _searchIndexCache: SearchIndexEntry[] | null = null
+let _searchIndexMap: Map<string, SearchIndexEntry> | null = null
 
-function invalidateSearchIndex(): void { _searchIndexCache = null }
+function _searchIndexKey(dir: string, filename: string): string { return `${dir}:${filename}` }
+
+function invalidateSearchIndex(): void { _searchIndexCache = null; _searchIndexMap = null }
 
 function getSearchIndex(): SearchIndexEntry[] {
   if (_searchIndexCache) return _searchIndexCache
@@ -756,6 +763,7 @@ function getSearchIndex(): SearchIndexEntry[] {
   }
 
   _searchIndexCache = entries
+  _searchIndexMap = new Map(entries.map(e => [_searchIndexKey(e.directory, e.filename), e]))
   return entries
 }
 
@@ -773,7 +781,7 @@ export function searchContent(query: string): ContentSearchResult[] {
 
     if (entry.directory === 'contexts') {
       refreshContextCacheEntry(entry.filename)
-      const refreshedEntry = _searchIndexCache?.find(item => item.directory === 'contexts' && item.filename === entry.filename) || entry
+      const refreshedEntry = _searchIndexMap?.get(_searchIndexKey('contexts', entry.filename)) || entry
       const refreshedIndex = refreshedEntry.lowered.indexOf(q)
       const snippet = extractSnippet(refreshedEntry.content, refreshedIndex === -1 ? idx : refreshedIndex, q.length)
       const name = entry.filename.replace(/\.(md|txt)$/i, '')
@@ -821,10 +829,8 @@ export function getReports(): string[] {
   const dirs = listDirectory('reports')
   _reportsCache = dirs.filter((d) => {
     if (d === '_template' || d.startsWith('.')) return false
-    // Only include directories that have a profile.md
     try {
-      readFileSync(safePath(`reports/${d}/profile.md`))
-      return true
+      return existsSync(safePath(`reports/${d}/profile.md`))
     } catch { return false }
   })
   return _reportsCache
@@ -899,9 +905,14 @@ relationship: Direct Report
 
   await commitFile(`reports/${slug}/profile.md`, reportContent, `Add direct report: ${displayName}`)
 
+  // Write people entry in same commit batch (debounced together)
   const peoplePath = safePath(`people/${slug}.md`)
   if (!existsSync(peoplePath)) {
-    await commitFile(`people/${slug}.md`, peopleContent, `Add person profile: ${displayName}`)
+    const fullPeoplePath = peoplePath
+    mkdirSync(dirname(fullPeoplePath), { recursive: true })
+    writeFileSync(fullPeoplePath, peopleContent, 'utf-8')
+    invalidateCachesForPath(`people/${slug}.md`)
+    _scheduleCommit(`people/${slug}.md`, `Add person profile: ${displayName}`, repoPath())
   }
 
   return slug
@@ -924,7 +935,7 @@ function invalidateReportCache(): void {
 function _invalidateReportsForContext(contextFile: string): void {
   if (_reportDataCache.size === 0) return
 
-  const entry = _contextsCache?.entries.find(e => e.filename === contextFile)
+  const entry = _contextsCache?.entriesByFilename.get(contextFile)
   const slugs = entry?.people || []
   let anyDeleted = false
   for (const slug of slugs) {
@@ -1278,8 +1289,8 @@ function refreshContextCacheEntry(filename: string): void {
     const parsed = parseContextsCacheEntry(filename, readFileHead(fullPath, 2048), stat.mtimeMs)
     syncContextEntry(cache, filename, parsed, priorEntry)
 
-    if (_searchIndexCache) {
-      const entry = _searchIndexCache.find(item => item.directory === 'contexts' && item.filename === filename)
+    if (_searchIndexMap) {
+      const entry = _searchIndexMap.get(_searchIndexKey('contexts', filename))
       if (entry) {
         entry.content = `${parsed.filename} ${parsed.title} ${parsed.summary}`
         entry.lowered = entry.content.toLowerCase()
@@ -1291,6 +1302,7 @@ function refreshContextCacheEntry(filename: string): void {
       removeContextEntry(cache, filename, priorEntry)
       if (_searchIndexCache) {
         _searchIndexCache = _searchIndexCache.filter(item => !(item.directory === 'contexts' && item.filename === filename))
+        _searchIndexMap?.delete(_searchIndexKey('contexts', filename))
       }
     }
   }
@@ -1653,7 +1665,7 @@ export function getPersonMeetings(slug: string): { date: string; title: string; 
 
   return files
     .map(f => {
-      const entry = cache.entries.find(e => e.filename === f)
+      const entry = cache.entriesByFilename.get(f)
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
       const filenameTitle = dateMatch?.[2]?.replace(/-/g, ' ') || name

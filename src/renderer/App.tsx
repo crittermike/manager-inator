@@ -135,25 +135,18 @@ export default function App() {
       }
     })
 
-    const pollInterval = setInterval(() => {
-      window.api.getPrewarmProgress?.().then(({ ready, message }) => {
-        if (ready) {
-          setCachesReady(true)
-          clearInterval(pollInterval)
-        } else {
-          setLoadingMessage(message)
-        }
-      }).catch(() => {})
-    }, 1000)
+    // Check immediately in case prewarm already completed before listener was registered
+    window.api.getPrewarmProgress?.().then(({ ready, message }) => {
+      if (ready) setCachesReady(true)
+      else setLoadingMessage(message)
+    }).catch(() => {})
 
     cacheTimerRef.current = setTimeout(() => {
       setCachesReady(true)
-      clearInterval(pollInterval)
     }, 60_000)
 
     return () => {
       unsub?.()
-      clearInterval(pollInterval)
       if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current)
     }
   }, [])

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 
 const STREAM_THROTTLE_MS = 150
 
@@ -94,5 +94,5 @@ export function useAI() {
     requestIdRef.current = null
   }, [])
 
-  return { streaming, streamedText, error, generate, cancel, reset, fullTextRef, requestIdRef }
+  return useMemo(() => ({ streaming, streamedText, error, generate, cancel, reset, fullTextRef, requestIdRef }), [streaming, streamedText, error, generate, cancel, reset])
 }

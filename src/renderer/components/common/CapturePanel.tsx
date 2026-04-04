@@ -207,6 +207,13 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     setSessions(prev => prev.filter(s => s.id !== id))
   }, [])
 
+  // Auto-expand when all processing finishes
+  useEffect(() => {
+    if (minimized && processingCount === 0) {
+      setMinimized(false)
+    }
+  }, [minimized, processingCount])
+
   if (!open) {
     return null
   }
@@ -222,10 +229,6 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
         <ChevronUp className="w-3 h-3" />
       </button>
     )
-  }
-
-  if (minimized && processingCount === 0) {
-    setMinimized(false)
   }
 
   const headerStatus = processingCount > 0
