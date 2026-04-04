@@ -2955,7 +2955,7 @@ function ContextDetail({
   const contextPath = `contexts/${ctx.filename}`
 
   const { content: fileContent, loading: fileLoading } = useFileContent(contextPath)
-  const { transformContent } = useAttachedImages(fileContent)
+  const { stripImageRefs, getImageUrls } = useAttachedImages(fileContent)
 
   const { processed, raw } = useMemo(() => {
     if (!fileContent) return { processed: '', raw: '' }
@@ -2972,7 +2972,8 @@ function ContextDetail({
   }, [fileContent])
 
   const displayContent = activeTab === 'processed' || !raw ? processed : raw
-  const renderedContent = transformContent(displayContent)
+  const renderedContent = stripImageRefs(displayContent)
+  const imageUrls = getImageUrls()
 
   return (
     <div className="space-y-2">
@@ -2995,6 +2996,9 @@ function ContextDetail({
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
             {renderedContent}
           </ReactMarkdown>
+          {imageUrls.map((url, i) => (
+            <img key={i} src={url} alt="Attached image" className="max-w-full rounded-lg mt-3" />
+          ))}
         </div>
       ) : (
         <p className="text-sm text-zinc-500 py-4">Unable to load content.</p>

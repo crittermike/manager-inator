@@ -28,7 +28,7 @@ export function ContextDetail() {
   
   const [activeTab, setActiveTab] = useState<'summary' | 'transcript'>('summary')
   const [transcriptContent, setTranscriptContent] = useState<string | null>(null)
-  const { transformContent } = useAttachedImages(rawContent)
+  const { stripImageRefs, getImageUrls } = useAttachedImages(rawContent)
   
   const [isEditingContent, setIsEditingContent] = useState(false)
   const [editContentValue, setEditContentValue] = useState('')
@@ -661,16 +661,22 @@ export function ContextDetail() {
             ) : (
               <div className="prose-dark max-w-none">
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
-                  transformContent(content)
+                  stripImageRefs(content)
                 }</ReactMarkdown>
+                {getImageUrls().map((url, i) => (
+                  <img key={i} src={url} alt="Attached image" className="max-w-full rounded-lg mt-3" />
+                ))}
               </div>
             )
           ) : (
             transcriptContent ? (
               <div className="prose-dark max-w-none">
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
-                  transformContent(transcriptContent)
+                  stripImageRefs(transcriptContent)
                 }</ReactMarkdown>
+                {getImageUrls().map((url, i) => (
+                  <img key={i} src={url} alt="Attached image" className="max-w-full rounded-lg mt-3" />
+                ))}
               </div>
             ) : (
               <p className="text-zinc-500 italic text-sm">No raw content found in this file.</p>
