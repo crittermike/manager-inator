@@ -259,6 +259,14 @@ export function ReportDetail() {
     try {
       await window.api.deleteFile(deleteTarget)
       toast.success('File deleted successfully')
+      // Optimistically remove the deleted entry from local state
+      if (report && deleteTarget.startsWith('contexts/')) {
+        const deletedFilename = deleteTarget.replace('contexts/', '')
+        setReport(prev => prev ? {
+          ...prev,
+          contextNotes: prev.contextNotes.filter(c => c.filename !== deletedFilename)
+        } : prev)
+      }
       refresh()
       setViewingContent(null)
       setIsEditingContent(false)
@@ -267,7 +275,7 @@ export function ReportDetail() {
     } finally {
       setDeleteTarget(null)
     }
-  }, [deleteTarget, refresh, toast])
+  }, [deleteTarget, report, setReport, refresh, toast])
 
   const handleSaveContent = useCallback(async (path: string, newContent: string) => {
     try {
