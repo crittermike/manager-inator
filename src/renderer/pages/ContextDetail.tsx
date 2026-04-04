@@ -592,7 +592,7 @@ export function ContextDetail() {
             onClick={() => handleTabChange('transcript')}
             className={`text-sm px-4 py-2 -mb-px transition-colors border-b-2 ${activeTab === 'transcript' ? 'text-zinc-100 border-brand' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}
           >
-            Transcript
+            Raw
           </button>
         </div>
         
@@ -642,7 +642,7 @@ export function ContextDetail() {
             <button
               onClick={handleDownloadContent}
               className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
-              title={activeTab === 'summary' ? "Download as markdown" : "Download transcript"}
+              title={activeTab === 'summary' ? "Download as markdown" : "Download raw content"}
               aria-label={activeTab === 'summary' ? "Download as markdown" : "Download transcript"}
             >
               <Download className="w-4 h-4" />
