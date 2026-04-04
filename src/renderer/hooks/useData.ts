@@ -107,18 +107,16 @@ export function useReportData(name: string | undefined) {
   const [loading, setLoading] = useState(() => !(name && _rendererReportCache.has(name)))
   const [error, setError] = useState<string | null>(null)
   const reqRef = useRef(0)
-  const hasDataRef = useRef(_rendererReportCache.has(name ?? ''))
 
   const load = useCallback(async (silent = false) => {
     if (!name) return
     const reqId = ++reqRef.current
-    if (!silent && !hasDataRef.current) { setLoading(true); setError(null) }
+    if (!silent) { setLoading(true); setError(null) }
     try {
       const data = await window.api.getReportData(name)
       if (reqRef.current === reqId) {
         setReport(data)
         _rendererReportCache.set(name, data)
-        hasDataRef.current = true
         setLoading(false)
       }
     } catch (e) {
@@ -135,11 +133,13 @@ export function useReportData(name: string | undefined) {
     const cached = _rendererReportCache.get(name)
     if (cached) {
       setReport(cached)
+      setError(null)
       setLoading(false)
-      hasDataRef.current = true
       // Still refresh silently to pick up any changes
       load(true)
     } else {
+      setReport(null)
+      setLoading(true)
       load()
     }
   }, [name]) // eslint-disable-line react-hooks/exhaustive-deps
