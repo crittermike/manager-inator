@@ -1049,7 +1049,7 @@ export function ReportDetail() {
       entries.push({
         id: `checkin-${c.date}`,
         type: 'checkin',
-        date: c.updatedAt || (c.date + '-15'),
+        date: c.date + '-15',
         title: `Monthly check-in — ${c.date}`,
         preview: c.accomplishments.length > 0 ? c.accomplishments[0] : '',
         data: c
