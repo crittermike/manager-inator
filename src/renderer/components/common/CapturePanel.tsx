@@ -302,7 +302,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               value={content}
               onChange={e => setContent(e.target.value)}
               onPaste={handlePaste}
-              placeholder={sourceHint === 'feedback' ? 'e.g. "Chanakya did great presenting the architecture proposal — clear, concise, anticipated questions well"' : 'Paste a meeting transcript, Slack thread, GitHub discussion, email, or any content…'}
+              placeholder={sourceHint === 'feedback' ? `e.g. "${reports[0]?.displayName || 'Alex'} did great presenting the architecture proposal — clear, concise, anticipated questions well"` : 'Paste a meeting transcript, Slack thread, GitHub discussion, email, or any content…'}
               className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-brand/50 focus:ring-1 focus:ring-brand/20 outline-none transition-colors resize-none min-h-[220px] max-h-[420px]"
             />
             {images.length > 0 && (
