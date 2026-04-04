@@ -1734,7 +1734,7 @@ export function ReportDetail() {
       {/* ── GitHub Activity Panel ── */}
       {showActivity && (
         <div className="bg-surface rounded-xl border border-border overflow-hidden animate-fade-in">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
               <span className="text-sm font-medium text-zinc-200">GitHub Activity</span>
@@ -1753,7 +1753,7 @@ export function ReportDetail() {
             </button>
           </div>
 
-          <div className="p-4 space-y-4">
+          <div className="px-6 py-4 space-y-4">
             <div className="flex items-end gap-3 flex-wrap">
               <div className="flex-1 min-w-[140px]">
                 <label className="block text-xs text-zinc-500 mb-1">From</label>
@@ -2305,7 +2305,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
 
   return (
     <div className="bg-surface rounded-xl border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-4 pt-3 pb-0">
+      <div className="flex items-center justify-between px-6 pt-3 pb-0">
         <div className="flex gap-1">
           <button
             onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
@@ -2347,7 +2347,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
         </div>
       </div>
 
-      <div className="px-4 pb-4 pt-2 animate-fade-in">
+      <div className="px-6 pb-4 pt-2 animate-fade-in">
         {editingAbout && detailsTab === 'about' ? (
           <div className="space-y-2">
             <textarea
