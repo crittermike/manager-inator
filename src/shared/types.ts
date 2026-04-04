@@ -127,7 +127,7 @@ export interface Report {
   transcripts: Transcript[]
   actionItems: ActionItem[]
   feedback: FeedbackEntry[]
-  reviews: { period: string; content: string }[]
+  reviews: { period: string; title: string; content: string }[]
   preps: PrepEntry[]
   contextNotes: ContextNote[]
   jobExpectations: string

@@ -1066,7 +1066,7 @@ export function ReportDetail() {
         id: `review-${r.period}`,
         type: 'review',
         date: `${year}-${isH2 ? '12' : '06'}-30`,
-        title: `Performance review — ${r.period}`,
+        title: r.title || `Performance review — ${r.period}`,
         preview: r.content.slice(0, 120).replace(/[#*_]/g, '') + '…',
         data: r
       })

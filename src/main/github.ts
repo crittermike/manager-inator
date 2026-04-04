@@ -1054,9 +1054,11 @@ export function getReportData(name: string): Report {
     const period = f.replace('.md', '')
     try {
       const content = getFileContent(`reports/${name}/reviews/${f}`)
-      return { period, content }
+      const titleMatch = content.match(/^#\s+(.+)$/m)
+      const title = titleMatch?.[1]?.trim() || `Performance review — ${period}`
+      return { period, title, content }
     } catch {
-      return { period, content: '' }
+      return { period, title: `Performance review — ${period}`, content: '' }
     }
   })
 
