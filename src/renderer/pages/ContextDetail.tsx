@@ -524,10 +524,13 @@ export function ContextDetail() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <div className="flex flex-wrap gap-2">
-                        {speakers.length === 0 ? (
+                        {speakers.filter(s => !(currentUserName && s.toLowerCase() === currentUserName.toLowerCase())).length === 0 ? (
                           <span className="text-zinc-500 italic">No attendees recorded</span>
                         ) : (
                           speakers.map((speaker, i) => {
+                            // Skip the current user — you already know you were there
+                            const isCurrentUser = currentUserName && speaker.toLowerCase() === currentUserName.toLowerCase()
+                            if (isCurrentUser) return null
                             const person = findPerson(speaker)
                             if (person) {
                               const isReport = person.relationship?.toLowerCase() === 'direct report'
@@ -543,15 +546,6 @@ export function ContextDetail() {
                                   ) : null}
                                   {person.name}
                                 </button>
-                              )
-                            }
-                            // Don't offer to create a page for the current user
-                            const isCurrentUser = currentUserName && speaker.toLowerCase() === currentUserName.toLowerCase()
-                            if (isCurrentUser) {
-                              return (
-                                <span key={i} className="px-2 py-0.5 rounded-md bg-zinc-800/30 text-zinc-400">
-                                  {speaker}
-                                </span>
                               )
                             }
                             return (
