@@ -114,7 +114,8 @@ export function ContextDetail() {
         }
         
         if (extractedSpeakers.length === 0) {
-          const inlineMatch = rawContent.match(/\*\*Attendees:?\*\*:?\s*(.+)$/im)
+          // Match **Attendees:** or **Participants:** (bold markdown)
+          const inlineMatch = rawContent.match(/\*\*(?:Attendees|Participants):?\*\*:?\s*(.+)$/im)
           if (inlineMatch) {
             const raw = inlineMatch[1]
             const names: string[] = []
@@ -136,12 +137,54 @@ export function ContextDetail() {
         }
         
         if (extractedSpeakers.length === 0) {
-          const headingMatch = rawContent.match(/##\s*Attendees\s*\n((?:[-*]\s+.*\n?)+)/i)
+          // Match plain "Participants:" or "Attendees:" at start of line (not bold)
+          const plainMatch = rawContent.match(/^(?:Participants|Attendees):?\s*(.+)$/im)
+          if (plainMatch) {
+            const raw = plainMatch[1]
+            const names: string[] = []
+            let current = ''
+            let depth = 0
+            for (const ch of raw) {
+              if (ch === '(') depth++
+              else if (ch === ')') depth--
+              else if (ch === ',' && depth === 0) {
+                if (current.trim()) names.push(current.trim())
+                current = ''
+                continue
+              }
+              current += ch
+            }
+            if (current.trim()) names.push(current.trim())
+            extractedSpeakers = names.map(cleanAttendeeName)
+          }
+        }
+        
+        if (extractedSpeakers.length === 0) {
+          const headingMatch = rawContent.match(/##\s*(?:Attendees|Participants)\s*\n((?:[-*]\s+.*\n?)+)/i)
           if (headingMatch) {
             extractedSpeakers = headingMatch[1].split('\n')
               .map(line => line.replace(/^[-*]\s+/, '').trim())
               .filter(Boolean)
               .map(cleanAttendeeName)
+          }
+        }
+        
+        // Last resort: extract speaker names from transcript speaker labels (e.g., "Speaker Name: ...")
+        if (extractedSpeakers.length === 0) {
+          const rawContentSection = rawContent.match(/\n## Raw content\s*\n([\s\S]*)/)
+          const textToScan = rawContentSection ? rawContentSection[1] : rawContent
+          const speakerLabelPattern = /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*):\s+\S/gm
+          const found = new Set<string>()
+          let m
+          while ((m = speakerLabelPattern.exec(textToScan)) !== null) {
+            const name = m[1]
+            // Skip common false positives (markdown headings content, field labels)
+            if (!['Summary', 'Note', 'Notes', 'Action', 'Actions', 'Context', 'Date', 'Title', 'Status', 'Description', 'Background', 'Outcome', 'Decision', 'Follow'].includes(name)) {
+              found.add(name)
+            }
+          }
+          if (found.size > 0 && found.size <= 20) {
+            extractedSpeakers = [...found]
           }
         }
         

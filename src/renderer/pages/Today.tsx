@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, memo } from 'react'
+import { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamOverview, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
@@ -933,6 +933,8 @@ export function Today() {
 
   const [teamActivity, setTeamActivity] = useState<TeamMemberActivity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [activitySummaryPending, setActivitySummaryPending] = useState(false)
+  const activitySummaryAttempted = useRef(false)
   const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
   const [activityExpanded, setActivityExpanded] = useState(true)
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({})
@@ -1044,6 +1046,9 @@ export function Today() {
     const hasActivity = data.some(m => m.items.length > 0)
     if (!hasActivity && data.every(m => !m.error)) return
 
+    activitySummaryAttempted.current = true
+    setActivitySummaryPending(true)
+
     let recentContext: Record<string, { date: string; source: string; title: string; summary: string }[]> = {}
     try {
       recentContext = await window.api.getRecentTeamContext(7)
@@ -1083,19 +1088,21 @@ export function Today() {
         dateLabel
       })
       setActivitySummary(result)
+      setActivitySummaryPending(false)
       // Cache by date
       const todayKey = format(new Date(), 'yyyy-MM-dd')
       localStorage.setItem(`activity-summary-${todayKey}`, result)
     } catch (err) {
       console.error('[Activity Summary] AI generation failed:', err)
+      setActivitySummaryPending(false)
     }
   }, [activityAI, ptoReports])
 
   useEffect(() => {
-    if (teamActivity.length > 0 && !activitySummary && !activityAI.streaming) {
+    if (teamActivity.length > 0 && !activitySummary && !activityAI.streaming && !activitySummaryPending && !activitySummaryAttempted.current) {
       generateActivitySummary(teamActivity)
     }
-  }, [teamActivity, activitySummary, activityAI.streaming, generateActivitySummary])
+  }, [teamActivity, activitySummary, activityAI.streaming, activitySummaryPending, generateActivitySummary])
 
   useEffect(() => {
     if (teamActivity.length === 0) return
@@ -1676,10 +1683,10 @@ export function Today() {
                     <div className="prose-dark text-sm">
                       <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{activitySummary}</ReactMarkdown>
                     </div>
-                  ) : activityLoading ? (
+                  ) : activityLoading || activitySummaryPending ? (
                     <div className="flex items-center gap-2 text-sm text-zinc-500 py-4">
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Loading activity data...
+                      {activityLoading ? 'Loading activity data...' : 'Preparing summary...'}
                     </div>
                   ) : (
                     <div className="text-sm text-zinc-500 py-4">
