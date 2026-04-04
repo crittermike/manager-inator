@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { TeamOverviewProvider, SettingsProvider } from './hooks/useData'
 import { ActiveFileProvider } from './hooks/useActiveFile'
 import { ChatProvider } from './hooks/useChatSessions'
+import appIcon from '../../resources/icon.png'
 
 const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
@@ -59,9 +60,7 @@ function LoadingScreen({ message }: { message: string }) {
     <div className="h-screen w-screen flex items-center justify-center bg-[#0a0a0c]">
       <div className="flex flex-col items-center gap-8 max-w-xs w-full animate-fade-in">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center shadow-lg shadow-brand/20">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          </div>
+          <img src={appIcon} alt="" className="w-10 h-10 rounded-xl shadow-lg shadow-brand/20" />
           <span className="text-2xl font-bold text-zinc-100 tracking-tight">Manager-inator</span>
         </div>
         <div className="w-full space-y-3">
