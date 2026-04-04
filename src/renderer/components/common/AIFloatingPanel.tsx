@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useChatSessions, type Message } from '../../hooks/useChatSessions'
 import { useActiveFile } from '../../hooks/useActiveFile'
+import { useTeamOverview } from '../../hooks/useData'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -32,6 +33,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const location = useLocation()
   const navigate = useNavigate()
   const { activeFile } = useActiveFile()
+  const { overview } = useTeamOverview()
   const {
     sessions, activeId, activeSession, messages, setActiveId,
     updateSession, deleteSession, newChat, sendMessage,
@@ -201,12 +203,13 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const getSuggestions = (): string[] => {
     const path = location.pathname
     if (path.startsWith('/report/')) {
-      const name = path.replace('/report/', '')
+      const slug = path.replace('/report/', '')
+      const displayName = overview?.reports?.find(r => r.name === slug)?.displayName || slug
       return [
-        `Give me a TL;DR on ${name}`,
-        `Help me prep for my 1:1 with ${name}`,
-        `Draft feedback for ${name}`,
-        `What should I watch for with ${name}?`
+        `Give me a TL;DR on ${displayName}`,
+        `Help me prep for my 1:1 with ${displayName}`,
+        `Draft feedback for ${displayName}`,
+        `What should I watch for with ${displayName}?`
       ]
     }
     if (path === '/my-profile') {
