@@ -37,13 +37,6 @@ Grab the latest release from the [Releases page](https://github.com/crittermike/
 - **Apple Silicon (M1/M2/M3/M4):** `Manager-inator-x.x.x-arm64.dmg`
 - **Intel Mac:** `Manager-inator-x.x.x-x64.dmg`
 
-### Setup
-
-1. **Sign in with GitHub** — OAuth device flow, no passwords stored
-2. **Create or connect a data repo** — A private GitHub repo where your management data lives (plain markdown files, version-controlled)
-3. **Add your direct reports** — Name and GitHub username, that's it
-4. **Optional: Add a GitHub PAT** — Enables team activity tracking (PRs, issues, reviews). Fine-grained token with read-only org access.
-
 ## How it works
 
 ### Data storage
