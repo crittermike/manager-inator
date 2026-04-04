@@ -1013,7 +1013,7 @@ export function ReportDetail() {
         type: 'context',
         date: ctx.date,
         title,
-        preview: ctx.tags.length > 0 ? ctx.tags.join(', ') : sourceLabel,
+        preview: ctx.summary ? (ctx.summary.length > 120 ? ctx.summary.slice(0, 120) + '…' : ctx.summary) : '',
         data: ctx,
         source: ctx.source
       })
@@ -1039,7 +1039,7 @@ export function ReportDetail() {
         type: 'checkin',
         date: c.updatedAt || (c.date + '-15'),
         title: `Monthly check-in — ${c.date}`,
-        preview: c.accomplishments.length > 0 ? c.accomplishments[0] : 'Check-in on file',
+        preview: c.accomplishments.length > 0 ? c.accomplishments[0] : '',
         data: c
       })
     }
@@ -2815,7 +2815,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
           </span>
           <div className="flex-1 min-w-0">
             <span className="text-sm text-zinc-300 block">{entry.title}</span>
-            {!expanded && (
+            {!expanded && entry.preview && (
               <span className="text-xs text-zinc-500 truncate block mt-0.5">{entry.preview}</span>
             )}
           </div>
