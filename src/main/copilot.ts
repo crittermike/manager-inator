@@ -466,7 +466,7 @@ Classify it and extract structured data. Return ONLY valid JSON (no markdown fen
 
 Required JSON shape:
 {
-  "source": "slack" | "github" | "email" | "meeting" | "other",
+  "source": "slack" | "github" | "email" | "meeting" | "feedback" | "other",
   "summary": "2-3 sentence summary of the content",
   "detailed_summary": "A thorough markdown summary. For meetings: key topics discussed, decisions made, wins, challenges, sentiment. For Slack/email: main thread of discussion, conclusions reached, open questions. Use bullet points and short paragraphs. This should be useful months later when reviewing what happened.",
   "tags": ["relevant", "tags"],
@@ -511,7 +511,7 @@ Rules:
 - "impact" should capture evidence of MY impact as the manager: decisions I made or influenced, people I coached or unblocked, problems I solved, process improvements I drove, cross-team coordination I facilitated, recognition I received. Format each as "Short title: description" — do NOT include dates in the text (dates are added automatically by the app).
 - "resolved_action_items" should identify any items from the EXISTING OPEN ITEMS list below that this content indicates have been completed, addressed, or are no longer relevant. Only include items where the content provides clear evidence they were resolved. Use the EXACT original_text from the open items list.
 
-${context.sourceHint ? `The user indicated this is from: ${context.sourceHint}` : ''}
+${context.sourceHint === 'feedback' ? `The user explicitly indicated this is FEEDBACK about their direct reports. Treat the entire content as feedback observations. Extract at least one feedback entry for any direct report mentioned. If the person isn't named explicitly, try to identify them from context. Set source to "feedback".` : context.sourceHint ? `The user indicated this is from: ${context.sourceHint}` : ''}
 
 ${context.openActionItems ? `EXISTING OPEN ACTION ITEMS (check if any were resolved by this content):\n${context.openActionItems}\n` : ''}
 CONTENT:

@@ -19,6 +19,7 @@ const SOURCE_LABELS: Record<ContextSource, string> = {
   github: 'GitHub',
   email: 'Email',
   meeting: 'Meeting',
+  feedback: 'Feedback',
   other: 'Note'
 }
 

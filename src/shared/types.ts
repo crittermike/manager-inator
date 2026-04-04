@@ -101,7 +101,7 @@ export interface CustomPractice {
 // ── Captured context note ──
 export interface ContextNote {
   date: string // YYYY-MM-DD
-  source: 'slack' | 'github' | 'email' | 'meeting' | 'other'
+  source: 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other'
   title: string // display title (from YAML frontmatter or derived from filename)
   summary: string
   tags: string[]

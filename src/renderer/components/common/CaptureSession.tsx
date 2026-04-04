@@ -14,10 +14,10 @@ import {
 const REMARK_PLUGINS = [remarkGfm]
 
 type SessionState = 'processing' | 'saved' | 'editing' | 'error'
-type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'other' | ''
+type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other' | ''
 
 interface ClassifiedResult {
-  source: 'slack' | 'github' | 'email' | 'meeting' | 'other'
+  source: 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other'
   summary: string
   detailed_summary: string
   tags: string[]
@@ -129,14 +129,18 @@ export function CaptureSession({
     const fileContent = frontmatter + body
 
     try {
-      const filepath = `contexts/${baseFilename}`
-      await window.api.commitFile(
-        filepath,
-        fileContent,
-        `Capture: ${classified.summary.slice(0, 60)}`
-      )
-
-      setSavedFilepath(filepath)
+      // For feedback-only captures, skip creating a context file
+      const isFeedbackOnly = sourceHint === 'feedback' && classified.feedback.length > 0
+      
+      if (!isFeedbackOnly) {
+        const filepath = `contexts/${baseFilename}`
+        await window.api.commitFile(
+          filepath,
+          fileContent,
+          `Capture: ${classified.summary.slice(0, 60)}`
+        )
+        setSavedFilepath(filepath)
+      }
 
       const savePromises: Promise<void>[] = []
 
@@ -153,7 +157,8 @@ export function CaptureSession({
           existing = await window.api.getFileContent(feedbackLogPath)
         } catch { }
 
-        const entry = `### ${today}\n**Type:** ${fb.type}\n**Source:** ${classified.source} (captured)\n\n${fb.content}\n`
+        const sourceLabel = classified.source === 'feedback' ? 'direct observation' : `${classified.source} (captured)`
+        const entry = `### ${today}\n**Type:** ${fb.type}\n**Source:** ${sourceLabel}\n\n${fb.content}\n`
         const updated = existing ? `${entry}\n---\n\n${existing}` : entry
 
         savePromises.push(
