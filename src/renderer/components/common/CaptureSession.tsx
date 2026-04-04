@@ -18,6 +18,7 @@ type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other
 
 interface ClassifiedResult {
   source: 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other'
+  title: string
   summary: string
   detailed_summary: string
   tags: string[]
@@ -89,7 +90,8 @@ export function CaptureSession({
   const autoSave = useCallback(async (classified: ClassifiedResult, confirmedResolved?: Record<number, boolean>) => {
     const today = format(new Date(), 'yyyy-MM-dd')
     const sourceSlug = classified.source || 'capture'
-    const summarySlug = slugify(classified.summary.split(' ').slice(0, 5).join(' ') || 'captured-content')
+    const title = classified.title || classified.summary.split('.')[0] || 'Captured content'
+    const summarySlug = slugify(title.split(' ').slice(0, 5).join(' ') || 'captured-content')
     const baseFilename = `${today}-${sourceSlug}-${summarySlug}.md`
 
     const peopleSlugs: string[] = []
@@ -106,7 +108,7 @@ export function CaptureSession({
       '---',
       `date: ${today}`,
       `source: ${classified.source}`,
-      `title: ${classified.summary.replace(/\n/g, ' ')}`,
+      `title: ${title.replace(/\n/g, ' ')}`,
       `summary: ${classified.summary.replace(/\n/g, ' ')}`,
       `tags: ${classified.tags.join(', ')}`,
       peopleYaml,
@@ -137,7 +139,7 @@ export function CaptureSession({
         await window.api.commitFile(
           filepath,
           fileContent,
-          `Capture: ${classified.summary.slice(0, 60)}`
+          `Capture: ${title.slice(0, 60)}`
         )
         setSavedFilepath(filepath)
       }

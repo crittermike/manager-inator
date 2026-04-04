@@ -467,6 +467,7 @@ Classify it and extract structured data. Return ONLY valid JSON (no markdown fen
 Required JSON shape:
 {
   "source": "slack" | "github" | "email" | "meeting" | "feedback" | "other",
+  "title": "Short 3-8 word title, like a calendar event name",
   "summary": "2-3 sentence summary of the content",
   "detailed_summary": "A thorough markdown summary. For meetings: key topics discussed, decisions made, wins, challenges, sentiment. For Slack/email: main thread of discussion, conclusions reached, open questions. Use bullet points and short paragraphs. This should be useful months later when reviewing what happened.",
   "tags": ["relevant", "tags"],
@@ -505,6 +506,7 @@ Rules:
 - For "person" fields, use the exact name from my reports list when possible
 - If no feedback, action items, or impact exist, use empty arrays
 - "source" should be inferred from the content format (slack threads have timestamps and usernames, github has PR/issue references, meeting transcripts have speaker turns, etc.)
+- "title" is a very short label (3-8 words) like a calendar event name. Examples: "EPD weekly planning", "1:1 with Jennifer", "CSRA email notification bug", "Sprint retro"
 - "summary" is a short 2-3 sentence overview for metadata
 - "detailed_summary" is a thorough, structured markdown summary that captures the substance of the content. Write it so someone reading it months later can understand what happened without reading the raw content. Include specific names, decisions, and outcomes.
 - "key_context" should capture strategic information, decisions, or context that would be useful when writing future performance reviews or check-ins
