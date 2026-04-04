@@ -132,9 +132,10 @@ describe('SetupScreen github-org step', () => {
 
     await navigateToGithubOrgStep(container)
 
-    const link = container.querySelector('a[href*="github.com/settings/tokens"]') as HTMLAnchorElement | null
+    const link = container.querySelector('a[href*="github.com"]') as HTMLAnchorElement | null
     expect(link).not.toBeNull()
     expect(link?.textContent).toContain('Create a fine-grained token')
+    expect(link?.getAttribute('href')).toContain('personal-access-tokens')
 
     await act(async () => {
       root.unmount()
@@ -145,6 +146,14 @@ describe('SetupScreen github-org step', () => {
     const { container, root } = await renderSetupScreen()
 
     await navigateToGithubOrgStep(container)
+
+    // Clear the default org name so the skip button appears
+    const orgNameInput = container.querySelectorAll('input')[0] as HTMLInputElement
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(orgNameInput, '')
+      orgNameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
 
     const skipButton = Array.from(container.querySelectorAll('button'))
       .find(b => b.textContent?.includes('Skip for now')) as HTMLButtonElement | undefined
@@ -202,13 +211,20 @@ describe('SetupScreen github-org step', () => {
 
     await navigateToGithubOrgStep(container)
 
+    // Clear the default org name so the skip button appears
+    const orgNameInput = container.querySelectorAll('input')[0] as HTMLInputElement
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(orgNameInput, '')
+      orgNameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
     // Skip button should be visible when both fields empty
     let skipButton = Array.from(container.querySelectorAll('button'))
       .find(b => b.textContent?.includes('Skip for now'))
     expect(skipButton).toBeDefined()
 
     // Enter org name
-    const orgNameInput = container.querySelectorAll('input')[0] as HTMLInputElement
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
       setter?.call(orgNameInput, 'my-org')

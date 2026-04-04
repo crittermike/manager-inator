@@ -5,6 +5,7 @@ import { useActiveFile } from '../hooks/useActiveFile'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
+import { useListNavigation } from '../hooks/useListNavigation'
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -1109,6 +1110,18 @@ export function ReportDetail() {
     return streamEntries.filter(e => (e.pinned && activeFilter === 'action') || e.type === activeFilter)
   }, [streamEntries, activeFilter])
 
+  // ── j/k list navigation ──
+  const navEnabled = !showAI && !isEditingContent && !viewingContent && !showPtoModal
+  const handleNavSelect = useCallback((index: number) => {
+    const entry = filteredEntries[index]
+    if (entry) toggleExpanded(entry.id)
+  }, [filteredEntries, toggleExpanded])
+  const { getItemProps: getNavProps } = useListNavigation({
+    itemCount: filteredEntries.length,
+    onSelect: handleNavSelect,
+    enabled: navEnabled,
+  })
+
   // Sync expanded entry content to AI context (for check-ins, reviews, etc.)
   useEffect(() => {
     if (viewingContent) return // File viewer has its own sync
@@ -2045,7 +2058,7 @@ export function ReportDetail() {
               ? (entry.data as ActionItem[]).some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
               : false
             return (
-              <div key={entry.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
+              <div key={entry.id} {...getNavProps(idx)} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
               <StreamEntryCard
                 key={entry.id}
                 entry={entry}

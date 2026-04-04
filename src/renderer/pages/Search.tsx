@@ -271,6 +271,29 @@ export function SearchPage() {
     }
   }, [selectedIndex])
 
+  // j/k navigation when focus is outside the search input
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const count = filteredResults.length
+      if (count === 0) return
+
+      if (e.key === 'j') {
+        e.preventDefault()
+        setSelectedIndex(prev => (prev < count - 1 ? prev + 1 : 0))
+      } else if (e.key === 'k') {
+        e.preventDefault()
+        setSelectedIndex(prev => (prev > 0 ? prev - 1 : count - 1))
+      } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < count) {
+        e.preventDefault()
+        handleResultClick(filteredResults[selectedIndex])
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [filteredResults, selectedIndex])
+
   const handleResultClick = (r: SearchResult) => {
     if (r.directory === 'contexts' && r.filename) {
       navigate(`/context/${encodeURIComponent(r.filename)}?dir=contexts`)

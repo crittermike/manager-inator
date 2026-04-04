@@ -127,7 +127,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Sidebar */}
       <aside className="w-64 bg-gradient-to-b from-zinc-900 to-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
         {/* Title bar drag region — sits below traffic lights */}
-        <div className="drag-region pt-14 pb-3 px-3">
+        <div className="drag-region pt-8 pb-3 px-3">
         </div>
 
         {/* Nav items */}

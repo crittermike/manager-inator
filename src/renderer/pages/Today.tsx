@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useEffect, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamOverview, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
+import { useListNavigation } from '../hooks/useListNavigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -1327,6 +1328,30 @@ export function Today() {
 
   const activeSections = sections.filter(s => itemsBySection[s].length > 0)
 
+  // Flat list of visible items for j/k navigation
+  const visibleItemIds = useMemo(() => {
+    const ids: string[] = []
+    for (const section of activeSections) {
+      if (expandedSections.has(section)) {
+        for (const item of itemsBySection[section]) {
+          ids.push(item.id)
+        }
+      }
+    }
+    return ids
+  }, [activeSections, expandedSections, itemsBySection])
+
+  const handleNavSelect = useCallback((index: number) => {
+    const itemId = visibleItemIds[index]
+    if (itemId) handleToggleExpandedItem(itemId)
+  }, [visibleItemIds, handleToggleExpandedItem])
+
+  const { getItemProps: getTodayNavProps } = useListNavigation({
+    itemCount: visibleItemIds.length,
+    onSelect: handleNavSelect,
+    enabled: !expandedItem,
+  })
+
   return (
     <div
       className="max-w-4xl mx-auto space-y-6 animate-fade-in relative"
@@ -1729,8 +1754,11 @@ export function Today() {
 
             {isExpanded && (
               <div className="border-t border-border/50 animate-slide-down">
-                {sectionItems.map((item, idx) => (
-                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
+                {sectionItems.map((item, idx) => {
+                  const navIdx = visibleItemIds.indexOf(item.id)
+                  const navProps = navIdx >= 0 ? getTodayNavProps(navIdx) : {}
+                  return (
+                  <div key={item.id} {...navProps} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
                     <TimelineRow
                       item={item}
                       isItemExpanded={expandedItem === item.id}
@@ -1750,7 +1778,8 @@ export function Today() {
                       teamActions={filteredTeamActions}
                     />
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1786,8 +1815,11 @@ export function Today() {
 
             {isExpanded && (
               <div className="border-t border-border/50 animate-slide-down">
-                {sectionItems.map((item, idx) => (
-                  <div key={item.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
+                {sectionItems.map((item, idx) => {
+                  const navIdx = visibleItemIds.indexOf(item.id)
+                  const navProps = navIdx >= 0 ? getTodayNavProps(navIdx) : {}
+                  return (
+                  <div key={item.id} {...navProps} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
                     <TimelineRow
                       item={item}
                       isItemExpanded={expandedItem === item.id}
@@ -1807,7 +1839,8 @@ export function Today() {
                       teamActions={filteredTeamActions}
                     />
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
