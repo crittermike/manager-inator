@@ -658,17 +658,25 @@ export function ContextDetail() {
               />
             ) : (
               <div className="prose-dark max-w-none">
-                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
+                  settings?.repoPath
+                    ? content.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](file://${settings.repoPath}/${p.trim()})`)
+                    : content
+                }</ReactMarkdown>
               </div>
             )
           ) : (
-            <pre className="font-mono text-sm text-zinc-300 whitespace-pre-wrap">
-              {transcriptContent ? (
-                transcriptContent
-              ) : (
-                <span className="text-zinc-500 italic font-sans">No raw transcript found in this file.</span>
-              )}
-            </pre>
+            transcriptContent ? (
+              <div className="prose-dark max-w-none">
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
+                  settings?.repoPath
+                    ? transcriptContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](file://${settings.repoPath}/${p.trim()})`)
+                    : transcriptContent
+                }</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-zinc-500 italic text-sm">No raw content found in this file.</p>
+            )
           )}
         </div>
       </div>
