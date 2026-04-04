@@ -143,19 +143,19 @@ app.whenReady().then(() => {
   setupIpcHandlers()
 
   // Register custom protocol to serve repo files (images, etc.)
-  protocol.registerBufferProtocol('repo-file', (request, callback) => {
+  protocol.handle('repo-file', (request) => {
     try {
       const { getSettings } = require('./store')
       const repoPath = getSettings().repoPath
-      if (!repoPath) { callback({ statusCode: 404 }); return }
-      const relativePath = decodeURIComponent(request.url.replace('repo-file://', ''))
+      if (!repoPath) return new Response('Not found', { status: 404 })
+      const relativePath = decodeURIComponent(request.url.replace(/^repo-file:\/\/\/?/, ''))
       const fullPath = join(repoPath, relativePath)
       const data = readFileSync(fullPath)
       const ext = relativePath.split('.').pop()?.toLowerCase() || ''
       const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
-      callback({ mimeType: mimeTypes[ext] || 'application/octet-stream', data })
+      return new Response(data, { headers: { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' } })
     } catch {
-      callback({ statusCode: 404 })
+      return new Response('Not found', { status: 404 })
     }
   })
 
