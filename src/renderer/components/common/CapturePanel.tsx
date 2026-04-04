@@ -273,13 +273,6 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
         <div className="bg-surface border border-border rounded-xl p-3 space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-[11px] text-zinc-500 uppercase tracking-wider">New capture</div>
-            <button
-              onClick={() => textareaRef.current?.focus()}
-              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] border border-border rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-surface-raised transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              New Capture
-            </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {SOURCE_OPTIONS.map(opt => (
