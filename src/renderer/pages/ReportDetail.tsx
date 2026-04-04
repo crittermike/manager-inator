@@ -44,8 +44,9 @@ import {
   GitPullRequest,
   Loader2,
   Upload,
-  MoreHorizontal,
-  UserMinus
+  MoreVertical,
+  UserMinus,
+  Maximize2
 } from 'lucide-react'
 import { GitHubMark } from '../components/common/GitHubMark'
 import { getCheckInContext } from '../utils/checkin'
@@ -1122,6 +1123,23 @@ export function ReportDetail() {
     enabled: navEnabled,
   })
 
+  // ── Expand to full view ──
+  const handleExpand = useCallback((entry: StreamEntry) => {
+    if (entry.type === 'context') {
+      const ctx = entry.data as { filename: string }
+      navigate(`/context/${encodeURIComponent(ctx.filename)}?dir=contexts`)
+    } else if (entry.type === 'checkin') {
+      const c = entry.data as { date: string }
+      navigate(`/context/${encodeURIComponent(c.date + '.md')}?dir=reports/${name}/check-ins/monthly`)
+    } else if (entry.type === 'review') {
+      const r = entry.data as { period: string }
+      navigate(`/context/${encodeURIComponent(r.period + '.md')}?dir=reports/${name}/reviews`)
+    } else if (entry.type === 'prep') {
+      const p = entry.data as { date: string }
+      navigate(`/context/${encodeURIComponent(p.date + '.md')}?dir=reports/${name}/preps`)
+    }
+  }, [navigate, name])
+
   // Sync expanded entry content to AI context (for check-ins, reviews, etc.)
   useEffect(() => {
     if (viewingContent) return // File viewer has its own sync
@@ -1347,7 +1365,7 @@ export function ReportDetail() {
                       aria-expanded={showMoreMenu}
                       className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] rounded-lg transition-colors"
                     >
-                      <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
+                      <MoreVertical className="w-4 h-4" aria-hidden="true" />
                     </button>
 
                     {showMoreMenu && (
@@ -2083,6 +2101,7 @@ export function ReportDetail() {
                 onCancelEdit={() => setIsEditingContent(false)}
                 onUpdateFeedback={handleUpdateFeedback}
                 onDeleteFeedback={handleDeleteFeedback}
+                onExpand={['context', 'checkin', 'review', 'prep'].includes(entry.type) ? handleExpand : undefined}
               />
               </div>
             )
@@ -2702,6 +2721,7 @@ interface StreamEntryCardProps {
   onCancelEdit: () => void
   onUpdateFeedback: (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>
   onDeleteFeedback: (entryIndex: number) => Promise<void>
+  onExpand?: (entry: StreamEntry) => void
 }
 
 const StreamEntryCard = memo(function StreamEntryCard({
@@ -2726,7 +2746,8 @@ const StreamEntryCard = memo(function StreamEntryCard({
   onSaveContent,
   onCancelEdit,
   onUpdateFeedback,
-  onDeleteFeedback
+  onDeleteFeedback,
+  onExpand
 }: StreamEntryCardProps) {
   const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
     context: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Context' },
@@ -2838,6 +2859,16 @@ const StreamEntryCard = memo(function StreamEntryCard({
                 </button>
                 <div className="w-px h-4 bg-border mx-1" />
               </>
+            )}
+            {onExpand && (
+              <button
+                onClick={() => onExpand(entry)}
+                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                aria-label="Open full view"
+                title="Open full view"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
             )}
             <button
               onClick={handleHeaderEdit}

@@ -49,6 +49,26 @@ const mockReport: Report = {
   jobExpectations: ''
 }
 
+// Report with a context entry for expand button testing
+const mockReportWithContext: Report = {
+  ...mockReport,
+  contextNotes: [{
+    date: '2026-03-15',
+    source: 'meeting',
+    title: 'Weekly sync',
+    summary: 'Discussed roadmap priorities.',
+    tags: [],
+    people: [],
+    content: '',
+    filename: '2026-03-15-weekly-sync.md'
+  }],
+  reviews: [{
+    period: 'fy26-h1',
+    content: '# Performance review\n\nGreat quarter.',
+    title: 'FY26 H1 Review'
+  }]
+}
+
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ name: 'chanakya-valluri' }),
   useNavigate: () => mockNavigate,
@@ -982,5 +1002,91 @@ describe('ReportDetail More actions menu', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+})
+
+describe('ReportDetail expand button', () => {
+  it('navigates to full view for context entries', async () => {
+    const origContextNotes = mockReport.contextNotes
+    const origReviews = mockReport.reviews
+    mockReport.contextNotes = [{
+      date: '2026-03-15',
+      source: 'meeting' as const,
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap priorities.',
+      tags: [],
+      people: [],
+      content: '',
+      filename: '2026-03-15-weekly-sync.md'
+    }]
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<ReportDetail />)
+    })
+
+    // Click the context entry to expand it
+    const contextEntry = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Weekly sync'))
+    expect(contextEntry).toBeDefined()
+
+    await act(async () => { contextEntry?.click() })
+
+    // Find the expand button (Maximize2 icon, aria-label="Open full view")
+    const expandBtn = container.querySelector('button[aria-label="Open full view"]') as HTMLButtonElement
+    expect(expandBtn).not.toBeNull()
+
+    await act(async () => { expandBtn.click() })
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/context/2026-03-15-weekly-sync.md?dir=contexts'
+    )
+
+    await act(async () => { root.unmount() })
+    container.remove()
+    mockReport.contextNotes = origContextNotes
+    mockReport.reviews = origReviews
+  })
+
+  it('navigates to full view for review entries', async () => {
+    const origReviews = mockReport.reviews
+    mockReport.reviews = [{
+      period: 'fy26-h1',
+      content: '# Performance review\n\nGreat quarter.',
+      title: 'FY26 H1 Review'
+    }]
+    mockUseFileContent.mockReturnValue({ content: '# Review content', loading: false })
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<ReportDetail />)
+    })
+
+    // Click the review entry to expand it
+    const reviewEntry = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('FY26 H1 Review'))
+    expect(reviewEntry).toBeDefined()
+
+    await act(async () => { reviewEntry?.click() })
+
+    const expandBtn = container.querySelector('button[aria-label="Open full view"]') as HTMLButtonElement
+    expect(expandBtn).not.toBeNull()
+
+    await act(async () => { expandBtn.click() })
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/context/fy26-h1.md?dir=reports/chanakya-valluri/reviews'
+    )
+
+    await act(async () => { root.unmount() })
+    container.remove()
+    mockReport.reviews = origReviews
   })
 })

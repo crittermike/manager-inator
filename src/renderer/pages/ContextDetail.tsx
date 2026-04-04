@@ -400,7 +400,7 @@ export function ContextDetail() {
         <div className="px-6 py-5 border-b border-border bg-surface-raised/30">
           <div className="flex flex-col gap-4">
             <div className="flex items-start justify-between gap-4">
-              {isEditingTitle ? (
+              {isEditingTitle && dir === 'contexts' ? (
                 <div className="flex items-center gap-2 flex-1">
                   <input
                     type="text"
@@ -425,6 +425,7 @@ export function ContextDetail() {
               ) : (
                 <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-3 group">
                   {title}
+                  {dir === 'contexts' && (
                   <button
                     onClick={() => {
                       setEditTitleValue(title)
@@ -436,10 +437,12 @@ export function ContextDetail() {
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
+                  )}
                 </h1>
               )}
             </div>
 
+            {dir === 'contexts' && (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-zinc-400">
               {dateStr && (
                 <div className="flex items-center gap-2">
@@ -570,7 +573,7 @@ export function ContextDetail() {
                           setEditingSpeakersList([...speakers])
                           setIsEditingSpeakers(true)
                         }}
-                        className="opacity-0 group-hover/speakers:opacity-100 p-1 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all"
+                        className={`${dir === 'contexts' ? 'opacity-0 group-hover/speakers:opacity-100' : 'hidden'} p-1 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded-lg transition-all`}
                         title="Edit attendees"
                         aria-label="Edit attendees"
                       >
@@ -580,9 +583,11 @@ export function ContextDetail() {
                   )}
                 </div>
             </div>
+            )}
           </div>
         </div>
         
+        {dir === 'contexts' && (
         <div className="flex border-b border-border px-4">
           <button
             onClick={() => handleTabChange('summary')}
@@ -597,23 +602,24 @@ export function ContextDetail() {
             Raw
           </button>
         </div>
+        )}
         
         <div className="px-6 py-5 relative group/content">
           <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover/content:opacity-100 transition-opacity z-10">
-            {activeTab === 'summary' && !isEditingContent && (
+            {(dir !== 'contexts' || activeTab === 'summary') && !isEditingContent && (
               <button
                 onClick={() => {
                   setEditContentValue(rawContent || content || '')
                   setIsEditingContent(true)
                 }}
                 className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
-                title="Edit summary"
-                aria-label="Edit summary"
+                title="Edit content"
+                aria-label="Edit content"
               >
                 <Pencil className="w-4 h-4" />
               </button>
             )}
-            {activeTab === 'summary' && isEditingContent && (
+            {(dir !== 'contexts' || activeTab === 'summary') && isEditingContent && (
               <>
                 <button
                   onClick={handleSaveContent}
@@ -651,7 +657,24 @@ export function ContextDetail() {
             </button>
           </div>
           
-          {activeTab === 'summary' ? (
+          {dir !== 'contexts' ? (
+            isEditingContent ? (
+              <textarea
+                value={editContentValue}
+                onChange={e => setEditContentValue(e.target.value)}
+                className="w-full min-h-[400px] bg-surface border border-border rounded-lg p-4 text-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand/20 resize-y"
+              />
+            ) : (
+              <div className="prose-dark max-w-none">
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
+                  stripImageRefs(rawContent || content)
+                }</ReactMarkdown>
+                {getImageUrls().map((url, i) => (
+                  <img key={i} src={url} alt="Attached image" className="max-w-full rounded-lg mt-3" />
+                ))}
+              </div>
+            )
+          ) : activeTab === 'summary' ? (
             isEditingContent ? (
               <textarea
                 value={editContentValue}
