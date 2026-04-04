@@ -36,16 +36,18 @@
     "mac": {
       "icon": "resources/icon.icns",
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "target": ["dmg", "zip"],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "dmg": {
+      "title": "Manager-inator",
       "window": {
-        "width": 540,
-        "height": 380
+        "width": 500,
+        "height": 340
       },
       "contents": [
-        { "x": 140, "y": 180 },
-        { "x": 400, "y": 180, "type": "link", "path": "/Applications" }
+        { "x": 130, "y": 160 },
+        { "x": 370, "y": 160, "type": "link", "path": "/Applications" }
       ]
     },
     "files": [
