@@ -2952,6 +2952,7 @@ function ContextDetail({
   const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string; title: string }
   const tags = ctx.tags || []
   const contextPath = `contexts/${ctx.filename}`
+  const { settings } = useSettings()
 
   const { content: fileContent, loading: fileLoading } = useFileContent(contextPath)
 
@@ -2968,6 +2969,11 @@ function ContextDetail({
     }
     return { processed: cleaned, raw: '' }
   }, [fileContent])
+
+  const displayContent = activeTab === 'processed' || !raw ? processed : raw
+  const renderedContent = settings?.repoPath
+    ? displayContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](file://${settings.repoPath}/${p.trim()})`)
+    : displayContent
 
   return (
     <div className="space-y-2">
@@ -2988,7 +2994,7 @@ function ContextDetail({
       ) : fileContent ? (
         <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
-            {activeTab === 'processed' || !raw ? processed : raw}
+            {renderedContent}
           </ReactMarkdown>
         </div>
       ) : (
