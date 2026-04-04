@@ -245,9 +245,10 @@ export function invalidateCachesForPath(filePath: string): void {
   if (p.startsWith('contexts/')) {
     const contextFile = p.replace('contexts/', '')
     if (_contextsCache && contextFile.endsWith('.md')) {
+      // Invalidate report caches BEFORE refreshing (which may remove the entry)
+      _invalidateReportsForContext(contextFile)
       refreshContextCacheEntry(contextFile)
       invalidatePeopleCache()
-      _invalidateReportsForContext(contextFile)
     } else if (!_contextsCache) {
     } else {
       _contextsCache = null
