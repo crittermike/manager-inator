@@ -285,6 +285,7 @@ async function _commitFileImpl(path: string, content: string, message: string): 
   writeFileSync(fullPath, content, 'utf-8')
 
   invalidateCachesForPath(path)
+  _notifyFilesChanged(path)
 
   const rp = repoPath()
   _scheduleCommit(path, message, rp)
@@ -296,6 +297,7 @@ async function _commitBinaryFileImpl(path: string, base64Data: string, message: 
   writeFileSync(fullPath, Buffer.from(base64Data, 'base64'))
 
   invalidateCachesForPath(path)
+  _notifyFilesChanged(path)
 
   const rp = repoPath()
   _scheduleCommit(path, message, rp)
@@ -443,9 +445,26 @@ async function _deleteFileImpl(path: string): Promise<void> {
   unlinkSync(fullPath)
 
   invalidateCachesForPath(path)
+  _notifyFilesChanged(path)
 
   const rp = repoPath()
   _scheduleCommit(path, `Delete file: ${path}`, rp)
+}
+
+// Debounced notification to renderer when files change
+let _filesChangedTimer: ReturnType<typeof setTimeout> | null = null
+let _pendingChangedPaths: string[] = []
+
+function _notifyFilesChanged(path: string): void {
+  _pendingChangedPaths.push(path)
+  if (_filesChangedTimer) clearTimeout(_filesChangedTimer)
+  _filesChangedTimer = setTimeout(() => {
+    _filesChangedTimer = null
+    const paths = _pendingChangedPaths
+    _pendingChangedPaths = []
+    const win = BrowserWindow.getAllWindows()[0]
+    safeSend(win, 'data:files-changed', { paths })
+  }, 500)
 }
 
 // ── Parsing helpers ──

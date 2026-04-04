@@ -383,6 +383,7 @@ export interface IpcApi {
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void
   onAiFilesChanged: (cb: (data: { requestId: string; files: string[] }) => void) => () => void
+  onDataFilesChanged?: (cb: (data: { paths: string[] }) => void) => () => void
 
   // AI
   aiGenerate: (

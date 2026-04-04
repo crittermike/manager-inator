@@ -99,6 +99,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('ai:files-changed', handler)
     return () => ipcRenderer.removeListener('ai:files-changed', handler)
   },
+  onDataFilesChanged: (cb: (data: { paths: string[] }) => void) => {
+    const handler = (_event: unknown, data: { paths: string[] }) => cb(data)
+    ipcRenderer.on('data:files-changed', handler)
+    return () => ipcRenderer.removeListener('data:files-changed', handler)
+  },
 
   // AI
   aiGenerate: async (

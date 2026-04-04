@@ -81,6 +81,12 @@ export function TeamOverviewProvider({ children }: { children: ReactNode }) {
     return unsub
   }, [load])
 
+  useEffect(() => {
+    if (!window.api.onDataFilesChanged) return
+    const unsub = window.api.onDataFilesChanged(() => { load() })
+    return unsub
+  }, [load])
+
   const value = useMemo(() => ({ overview, loading, error, refresh }), [overview, loading, error, refresh])
   return createElement(TeamOverviewContext.Provider, { value }, children)
 }
@@ -121,6 +127,12 @@ export function useReportData(name: string | undefined) {
   useEffect(() => {
     if (!window.api.onAiFilesChanged) return
     const unsub = window.api.onAiFilesChanged(() => { load() })
+    return unsub
+  }, [load])
+
+  useEffect(() => {
+    if (!window.api.onDataFilesChanged) return
+    const unsub = window.api.onDataFilesChanged(() => { load() })
     return unsub
   }, [load])
 
