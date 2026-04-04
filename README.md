@@ -37,16 +37,6 @@ Grab the latest release from the [Releases page](https://github.com/crittermike/
 - **Apple Silicon (M1/M2/M3/M4):** `Manager-inator-x.x.x-arm64.dmg`
 - **Intel Mac:** `Manager-inator-x.x.x-x64.dmg`
 
-### First launch (macOS)
-
-The app is not yet code-signed, so macOS will block it on first open. Run this once in Terminal:
-
-```bash
-xattr -cr /Applications/Manager-inator.app
-```
-
-Then open the app normally.
-
 ### Setup
 
 1. **Sign in with GitHub** — OAuth device flow, no passwords stored
