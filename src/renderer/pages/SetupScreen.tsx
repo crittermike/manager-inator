@@ -13,7 +13,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
   const [repoPath, setRepoPath] = useState('')
   const [userName, setUserName] = useState('')
   const [userGithub, setUserGithub] = useState('')
-  const [githubOrgName, setGithubOrgName] = useState('')
+  const [githubOrgName, setGithubOrgName] = useState('github')
   const [githubOrgToken, setGithubOrgToken] = useState('')
   const [showToken, setShowToken] = useState(false)
   const [error, setError] = useState('')
@@ -310,7 +310,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                 </button>
               </div>
               <div className="mt-2.5 space-y-1.5 text-xs text-zinc-500">
-                <p>This token lets the app read your team's activity (PRs, issues, discussions). It is stored locally and never sent anywhere except the GitHub API.</p>
+                <p>This token lets the app read your team's activity (PRs, issues, discussions). It is stored locally, encrypted on disk, and never sent anywhere except the GitHub API.</p>
                 <p className="text-zinc-600">
                   <strong className="text-zinc-500">Create a fine-grained PAT under your organization</strong> (not your personal account) with <strong className="text-zinc-500">read-only</strong> access to:
                 </p>
