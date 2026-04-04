@@ -2971,9 +2971,7 @@ function ContextDetail({
   }, [fileContent])
 
   const displayContent = activeTab === 'processed' || !raw ? processed : raw
-  const renderedContent = settings?.repoPath
-    ? displayContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](file://${settings.repoPath}/${p.trim()})`)
-    : displayContent
+  const renderedContent = displayContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](repo-file://${p.trim()})`)
 
   return (
     <div className="space-y-2">

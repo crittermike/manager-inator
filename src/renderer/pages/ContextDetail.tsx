@@ -659,9 +659,7 @@ export function ContextDetail() {
             ) : (
               <div className="prose-dark max-w-none">
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
-                  settings?.repoPath
-                    ? content.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](file://${settings.repoPath}/${p.trim()})`)
-                    : content
+                  content.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](repo-file://${p.trim()})`)
                 }</ReactMarkdown>
               </div>
             )
@@ -669,9 +667,7 @@ export function ContextDetail() {
             transcriptContent ? (
               <div className="prose-dark max-w-none">
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
-                  settings?.repoPath
-                    ? transcriptContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](file://${settings.repoPath}/${p.trim()})`)
-                    : transcriptContent
+                  transcriptContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](repo-file://${p.trim()})`)
                 }</ReactMarkdown>
               </div>
             ) : (

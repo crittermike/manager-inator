@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Menu, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, protocol, session, shell } from 'electron'
 import { join } from 'path'
+import { readFileSync } from 'fs'
 import pkg from 'electron-updater'
 const { autoUpdater } = pkg
 import { setupIpcHandlers } from './ipc'
@@ -132,7 +133,7 @@ app.whenReady().then(() => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: https://github.com https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: repo-file: https://github.com https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
           ]
         }
       })
@@ -140,6 +141,23 @@ app.whenReady().then(() => {
   }
 
   setupIpcHandlers()
+
+  // Register custom protocol to serve repo files (images, etc.)
+  protocol.registerBufferProtocol('repo-file', (request, callback) => {
+    try {
+      const { getSettings } = require('./store')
+      const repoPath = getSettings().repoPath
+      if (!repoPath) { callback({ statusCode: 404 }); return }
+      const relativePath = decodeURIComponent(request.url.replace('repo-file://', ''))
+      const fullPath = join(repoPath, relativePath)
+      const data = readFileSync(fullPath)
+      const ext = relativePath.split('.').pop()?.toLowerCase() || ''
+      const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+      callback({ mimeType: mimeTypes[ext] || 'application/octet-stream', data })
+    } catch {
+      callback({ statusCode: 404 })
+    }
+  })
 
   app.setAboutPanelOptions({
     applicationName: 'Manager-inator',
