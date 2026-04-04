@@ -204,20 +204,21 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
     const path = location.pathname
     if (path.startsWith('/report/')) {
       const slug = path.replace('/report/', '')
-      const displayName = overview?.reports?.find(r => r.name === slug)?.displayName || slug
+      const report = overview?.reports?.find(r => r.name === slug)
+      const firstName = (report?.displayName || slug).split(' ')[0]
       return [
-        `Give me a TL;DR on ${displayName}`,
-        `Help me prep for my 1:1 with ${displayName}`,
-        `Draft feedback for ${displayName}`,
-        `What should I watch for with ${displayName}?`
+        `Give me a TL;DR on ${firstName}`,
+        `Help me prep for my 1:1 with ${firstName}`,
+        `Draft feedback for ${firstName}`,
+        `Create a GitHub issue to follow up with ${firstName} on...`
       ]
     }
     if (path === '/my-profile') {
       return [
         'Summarize my impact this quarter',
-        'What themes stand out?',
         'Help me write a self-review',
-        'What areas could I grow in?'
+        'What areas could I grow in?',
+        'Draft a team update email'
       ]
     }
     if (path === '/playbook') {
@@ -229,17 +230,18 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
       ]
     }
     if (path === '/') {
+      const firstName = overview?.reports?.[0]?.displayName?.split(' ')[0]
       return [
         'What should I focus on today?',
-        'Help me prioritize my to-do list',
-        'Draft a team update email',
-        'Any patterns I should worry about?'
+        firstName ? `Comment on ${firstName}'s latest PR with my feedback` : 'Draft a team update email',
+        'Any patterns I should worry about?',
+        'Create a GitHub issue for...'
       ]
     }
     return [
       'How is my team doing?',
       'Help me prep for 1:1s',
-      'Draft some feedback',
+      'Create a GitHub issue for...',
       'What should I focus on today?'
     ]
   }
