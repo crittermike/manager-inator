@@ -98,22 +98,26 @@ export function useTeamOverview(): TeamOverviewContextValue {
   return ctx
 }
 
+// Renderer-side report cache — avoids IPC round-trip on back-navigation
+const _rendererReportCache = new Map<string, Report>()
+
 export function useReportData(name: string | undefined) {
-  const [report, setReport] = useState<Report | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Initialize from renderer cache if available — instant, no IPC
+  const [report, setReport] = useState<Report | null>(() => (name ? _rendererReportCache.get(name) ?? null : null))
+  const [loading, setLoading] = useState(() => !(name && _rendererReportCache.has(name)))
   const [error, setError] = useState<string | null>(null)
   const reqRef = useRef(0)
-  const hasDataRef = useRef(false)
+  const hasDataRef = useRef(_rendererReportCache.has(name ?? ''))
 
   const load = useCallback(async (silent = false) => {
     if (!name) return
     const reqId = ++reqRef.current
-    // Only show loading skeleton on first ever load, not on navigation between cached reports
     if (!silent && !hasDataRef.current) { setLoading(true); setError(null) }
     try {
       const data = await window.api.getReportData(name)
       if (reqRef.current === reqId) {
         setReport(data)
+        _rendererReportCache.set(name, data)
         hasDataRef.current = true
         setLoading(false)
       }
@@ -125,11 +129,24 @@ export function useReportData(name: string | undefined) {
     }
   }, [name])
 
+  // On name change, show cached data instantly then refresh in background
+  useEffect(() => {
+    if (!name) return
+    const cached = _rendererReportCache.get(name)
+    if (cached) {
+      setReport(cached)
+      setLoading(false)
+      hasDataRef.current = true
+      // Still refresh silently to pick up any changes
+      load(true)
+    } else {
+      load()
+    }
+  }, [name]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const refresh = useCallback(async () => {
     await load()
   }, [load])
-
-  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     if (!window.api.onAiFilesChanged) return
@@ -139,9 +156,12 @@ export function useReportData(name: string | undefined) {
 
   useEffect(() => {
     if (!window.api.onDataFilesChanged) return
-    const unsub = window.api.onDataFilesChanged(() => { load(true) })
+    const unsub = window.api.onDataFilesChanged(() => {
+      if (name) _rendererReportCache.delete(name)
+      load(true)
+    })
     return unsub
-  }, [load])
+  }, [load, name])
 
   return { report, setReport, loading, error, load, refresh }
 }
