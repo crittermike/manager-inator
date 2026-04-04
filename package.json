@@ -40,10 +40,7 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}",
-      "notarize": {
-        "teamId": "Q22YPK3M83"
-      }
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "dmg": {
       "title": "Manager-inator"
