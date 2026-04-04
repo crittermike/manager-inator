@@ -55,12 +55,14 @@ export function TeamOverviewProvider({ children }: { children: ReactNode }) {
   const [overview, setOverview] = useState<TeamOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const hasDataRef = useRef(false)
 
   const load = useCallback(async (silent = false) => {
-    if (!silent) { setLoading(true); setError(null) }
+    if (!silent && !hasDataRef.current) { setLoading(true); setError(null) }
     try {
       const data = await window.api.getTeamOverview()
       setOverview(data)
+      hasDataRef.current = true
     } catch (e) {
       if (!silent) setError((e as Error).message)
     } finally {
@@ -101,18 +103,25 @@ export function useReportData(name: string | undefined) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const reqRef = useRef(0)
+  const hasDataRef = useRef(false)
 
   const load = useCallback(async (silent = false) => {
     if (!name) return
     const reqId = ++reqRef.current
-    if (!silent) { setLoading(true); setError(null) }
+    // Only show loading skeleton on first ever load, not on navigation between cached reports
+    if (!silent && !hasDataRef.current) { setLoading(true); setError(null) }
     try {
       const data = await window.api.getReportData(name)
-      if (reqRef.current === reqId) setReport(data)
+      if (reqRef.current === reqId) {
+        setReport(data)
+        hasDataRef.current = true
+        setLoading(false)
+      }
     } catch (e) {
-      if (reqRef.current === reqId && !silent) setError((e as Error).message)
-    } finally {
-      if (reqRef.current === reqId) setLoading(false)
+      if (reqRef.current === reqId) {
+        if (!silent) setError((e as Error).message)
+        setLoading(false)
+      }
     }
   }, [name])
 
