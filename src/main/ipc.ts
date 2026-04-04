@@ -201,7 +201,7 @@ export function setupIpcHandlers(): void {
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
-      properties: opts.properties as Array<'openFile' | 'openDirectory' | 'multiSelections'>,
+      properties: opts.properties as Array<'openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory'>,
       title: opts.title
     })
     if (result.canceled || result.filePaths.length === 0) return null

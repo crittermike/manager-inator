@@ -424,7 +424,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               <button
                 type="button"
                 onClick={async () => {
-                  const result = await window.api.showOpenDialog({ properties: ['openDirectory'], title: isCreate ? 'Select folder for your data' : 'Select repo folder' })
+                  const result = await window.api.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: isCreate ? 'Select folder for your data' : 'Select repo folder' })
                   if (result) setRepoPath(result)
                 }}
                 className="flex items-center gap-1.5 px-3 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors no-drag shrink-0"

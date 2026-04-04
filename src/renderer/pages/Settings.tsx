@@ -376,7 +376,7 @@ export function Settings() {
             />
             <button
               onClick={async () => {
-                const result = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'Select repo folder' })
+                const result = await window.api.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: 'Select repo folder' })
                 if (result) setRepoPathVal(result)
               }}
               className="px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-surface-raised/70 border border-border/70 rounded-lg transition-colors whitespace-nowrap"
@@ -390,7 +390,7 @@ export function Settings() {
               <p className="text-xs text-danger">{repoPathError}</p>
               <button
                 onClick={async () => {
-                  const result = await window.api.showOpenDialog({ properties: ['openDirectory'], title: 'Select repo folder' })
+                  const result = await window.api.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: 'Select repo folder' })
                   if (result) { setRepoPathVal(result); setRepoPathError('') }
                 }}
                 className="text-xs text-brand-light hover:text-brand transition-colors underline underline-offset-2"
