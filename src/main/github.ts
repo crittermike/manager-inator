@@ -120,7 +120,10 @@ export function getFilesContentBulk(paths: string[]): Record<string, string> {
 }
 
 export function getFileBase64(path: string): string {
-  return readFileSync(safePath(path)).toString('base64')
+  const fullPath = safePath(path)
+  const data = readFileSync(fullPath)
+  console.log(`[getFileBase64] Read ${data.length} bytes from ${path}`)
+  return data.toString('base64')
 }
 
 export function isGitRepo(absolutePath: string): boolean {

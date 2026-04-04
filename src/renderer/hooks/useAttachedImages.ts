@@ -38,7 +38,9 @@ export function useAttachedImages(content: string | null) {
   const transformContent = useCallback((text: string): string => {
     return text.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => {
       const url = imageDataUrls[p.trim()]
-      return url ? `![Attached image](${url})` : ''
+      if (url) return `![Attached image](${url})`
+      // Image not loaded yet — show placeholder text instead of broken img
+      return '*Loading image…*'
     })
   }, [imageDataUrls])
 
