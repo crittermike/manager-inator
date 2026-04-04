@@ -818,12 +818,12 @@ export function Settings() {
             AI-powered performance management for engineering managers.
           </p>
           <a
-            href="https://github.com/crittermike/manager-inator-app"
+            href="https://github.com/crittermike/manager-inator"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 mt-2 text-xs text-brand-light hover:text-brand transition-colors"
           >
-            github.com/crittermike/manager-inator-app
+            github.com/crittermike/manager-inator
           </a>
         </div>
       </section>
