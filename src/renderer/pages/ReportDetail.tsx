@@ -1254,6 +1254,145 @@ export function ReportDetail() {
                 >
                   <Pencil className="w-4 h-4" aria-hidden="true" />
                 </button>
+                <div className="flex-1" />
+                {/* Generate + More menu in header */}
+                <div className="flex items-center gap-2">
+                  <div className="relative" ref={aiActionsMenuRef}>
+                    <button
+                      onClick={() => setShowAiActionsMenu(prev => !prev)}
+                      disabled={streaming || aiLoading}
+                      aria-label="Generate"
+                      aria-haspopup="menu"
+                      aria-expanded={showAiActionsMenu}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Sparkles className="w-4 h-4" aria-hidden="true" />
+                      Generate
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showAiActionsMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+
+                    {showAiActionsMenu && (
+                      <div
+                        role="menu"
+                        aria-label="Generate menu"
+                        className="absolute right-0 top-full z-20 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
+                      >
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowAiActionsMenu(false)
+                            void handlePrepOneOnOne()
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                        >
+                          <ClipboardList className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                          (Weekly) 1:1 prep
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowAiActionsMenu(false)
+                            void handleGenerateCheckIn()
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                        >
+                          <CheckSquare className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                          (Monthly) Performance check-in
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowAiActionsMenu(false)
+                            void handleGenerateReview()
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                        >
+                          <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                          (6 months) Performance review
+                        </button>
+                        <div className="my-1 h-px bg-border" role="separator" />
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowAiActionsMenu(false)
+                            handleOpenActivity()
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                        >
+                          <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                          GitHub activity summary
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative" ref={moreMenuRef}>
+                    <button
+                      onClick={() => setShowMoreMenu(prev => !prev)}
+                      aria-label="More actions"
+                      aria-haspopup="menu"
+                      aria-expanded={showMoreMenu}
+                      className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.06] rounded-lg transition-colors"
+                    >
+                      <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
+                    </button>
+
+                    {showMoreMenu && (
+                      <div
+                        role="menu"
+                        aria-label="More actions menu"
+                        className="absolute right-0 top-full z-20 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
+                      >
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowMoreMenu(false)
+                            setAddingReview(true)
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                        >
+                          <BookOpen className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                          Add past review
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowMoreMenu(false)
+                            refresh()
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
+                        >
+                          <RefreshCw className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                          Refresh data
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowMoreMenu(false)
+                            handleTogglePto()
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-overlay ${
+                            isOnPto ? 'text-amber-300' : 'text-zinc-300 hover:text-zinc-100'
+                          }`}
+                        >
+                          <Plane className={`w-4 h-4 ${isOnPto ? 'text-amber-400' : 'text-zinc-400'}`} aria-hidden="true" />
+                          {isOnPto ? 'Clear PTO' : 'Mark PTO'}
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowMoreMenu(false)
+                            setShowDeactivateConfirm(true)
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 transition-colors hover:bg-surface-overlay"
+                        >
+                          <UserMinus className="w-4 h-4" aria-hidden="true" />
+                          Deactivate
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
           {/* Identity facts inline */}
           <div className="flex items-center gap-3 mt-1.5 text-sm text-zinc-500 flex-wrap">
@@ -1306,180 +1445,6 @@ export function ReportDetail() {
       </div>
       </div>
 
-      {/* ── Action buttons ── */}
-      <div className="px-4 py-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative" ref={aiActionsMenuRef}>
-          <button
-            onClick={() => setShowAiActionsMenu(prev => !prev)}
-            disabled={streaming || aiLoading}
-            aria-label="Generate"
-            aria-haspopup="menu"
-            aria-expanded={showAiActionsMenu}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Sparkles className="w-4 h-4" aria-hidden="true" />
-            Generate
-            <ChevronDown className={`w-4 h-4 transition-transform ${showAiActionsMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
-          </button>
-
-          {showAiActionsMenu && (
-            <div
-              role="menu"
-              aria-label="Generate menu"
-              className="absolute left-0 top-full z-20 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
-            >
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowAiActionsMenu(false)
-                  void handlePrepOneOnOne()
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              >
-                <ClipboardList className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                (Weekly) 1:1 prep
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowAiActionsMenu(false)
-                  void handleGenerateCheckIn()
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              >
-                <CheckSquare className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                (Monthly) Performance check-in
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowAiActionsMenu(false)
-                  void handleGenerateReview()
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              >
-                <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                (6 months) Performance review
-              </button>
-              <div className="my-1 h-px bg-border" role="separator" />
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowAiActionsMenu(false)
-                  handleOpenActivity()
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              >
-                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                GitHub activity summary
-              </button>
-            </div>
-          )}
-          </div>
-
-          <div className="relative" ref={addMenuRef}>
-            <button
-              onClick={() => setShowAddMenu(prev => !prev)}
-              aria-label="Add"
-              aria-haspopup="menu"
-              aria-expanded={showAddMenu}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] shadow-lg shadow-brand/10"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-              Add
-              <ChevronDown className={`w-4 h-4 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
-            </button>
-
-            {showAddMenu && (
-              <div
-                role="menu"
-                aria-label="Add menu"
-                className="absolute left-0 top-full z-20 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
-              >
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setShowAddMenu(false)
-                    setAddingFeedback(true)
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-                >
-                  <MessageSquare className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                  Feedback
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setShowAddMenu(false)
-                    setAddingReview(true)
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-                >
-                  <BookOpen className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                  Past review
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="relative" ref={moreMenuRef}>
-          <button
-            onClick={() => setShowMoreMenu(prev => !prev)}
-            aria-label="More actions"
-            aria-haspopup="menu"
-            aria-expanded={showMoreMenu}
-            className="p-2 text-zinc-500 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
-          >
-            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
-          </button>
-
-          {showMoreMenu && (
-            <div
-              role="menu"
-              aria-label="More actions menu"
-              className="absolute right-0 top-full z-20 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-2xl shadow-black/30"
-            >
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  refresh()
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100"
-              >
-                <RefreshCw className="w-4 h-4 text-zinc-400" aria-hidden="true" />
-                Refresh data
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  handleTogglePto()
-                }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-overlay ${
-                  isOnPto ? 'text-amber-300' : 'text-zinc-300 hover:text-zinc-100'
-                }`}
-              >
-                <Plane className={`w-4 h-4 ${isOnPto ? 'text-amber-400' : 'text-zinc-400'}`} aria-hidden="true" />
-                {isOnPto ? 'Clear PTO' : 'Mark PTO'}
-              </button>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  setShowDeactivateConfirm(true)
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-400 transition-colors hover:bg-surface-overlay"
-              >
-                <UserMinus className="w-4 h-4" aria-hidden="true" />
-                Deactivate
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
       </div>
 
       {addingReview && (

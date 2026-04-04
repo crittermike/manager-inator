@@ -601,16 +601,15 @@ describe('ReportDetail monthly check-in workflow', () => {
       expect(container.textContent).toContain('Strong half.')
       expect(container.textContent).not.toContain('View full review')
 
-      // Open the "Add" dropdown, then click "Review"
-      const addDropdown = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.includes('Add') && b.getAttribute('aria-haspopup') === 'menu') as HTMLButtonElement | undefined
+      // Open the "More actions" menu, then click "Add past review"
+      const moreDropdown = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement | undefined
 
       await act(async () => {
-        addDropdown?.click()
+        moreDropdown?.click()
       })
 
       const addReviewMenuItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-        .find(b => b.textContent?.includes('Past review')) as HTMLButtonElement | undefined
+        .find(b => b.textContent?.includes('Add past review')) as HTMLButtonElement | undefined
 
       await act(async () => {
         addReviewMenuItem?.click()
@@ -740,7 +739,7 @@ describe('ReportDetail monthly check-in workflow', () => {
   })
 })
 
-describe('ReportDetail Add dropdown', () => {
+describe('ReportDetail More actions menu', () => {
   beforeEach(() => {
     Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
       configurable: true,
@@ -778,103 +777,46 @@ describe('ReportDetail Add dropdown', () => {
     })
   })
 
-  it('shows an Add dropdown with Feedback and Review menu items', async () => {
+  it('shows Add past review in the More actions menu', async () => {
     const { container, root } = await renderReportDetail()
 
-    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement | null
-    expect(addTrigger).not.toBeNull()
-    expect(addTrigger?.textContent).toContain('Add')
+    const moreTrigger = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement | null
+    expect(moreTrigger).not.toBeNull()
 
     await act(async () => {
-      addTrigger?.click()
+      moreTrigger?.click()
     })
 
-    const menu = container.querySelector('[role="menu"][aria-label="Add menu"]')
+    const menu = container.querySelector('[role="menu"][aria-label="More actions menu"]')
     expect(menu).not.toBeNull()
-    expect(menu?.textContent).toContain('Feedback')
-    expect(menu?.textContent).toContain('Past review')
+    expect(menu?.textContent).toContain('Add past review')
 
     await act(async () => {
       root.unmount()
     })
   })
 
-  it('opens feedback form from the Add dropdown', async () => {
+  it('opens review form from More actions menu', async () => {
     const { container, root } = await renderReportDetail()
 
-    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement
+    const moreTrigger = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement
     await act(async () => {
-      addTrigger.click()
-    })
-
-    const feedbackItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-      .find(b => b.textContent?.includes('Feedback')) as HTMLButtonElement
-
-    await act(async () => {
-      feedbackItem?.click()
-    })
-
-    // Menu should close
-    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
-    // Feedback form should be visible
-    expect(container.textContent).toContain('Positive')
-
-    await act(async () => {
-      root.unmount()
-    })
-  })
-
-  it('opens review form from the Add dropdown', async () => {
-    const { container, root } = await renderReportDetail()
-
-    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement
-    await act(async () => {
-      addTrigger.click()
+      moreTrigger.click()
     })
 
     const reviewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-      .find(b => b.textContent?.includes('Past review')) as HTMLButtonElement
+      .find(b => b.textContent?.includes('Add past review')) as HTMLButtonElement
 
     await act(async () => {
       reviewItem?.click()
     })
 
     // Menu should close
-    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
+    expect(container.querySelector('[role="menu"][aria-label="More actions menu"]')).toBeNull()
     // Review form should be visible (period input placeholder)
     const inputs = container.querySelectorAll('input')
     const periodInput = Array.from(inputs).find(input => (input as HTMLInputElement).placeholder === '2026-H1')
     expect(periodInput).toBeDefined()
-
-    await act(async () => {
-      root.unmount()
-    })
-  })
-
-  it('closes Add dropdown on outside click and Escape', async () => {
-    const { container, root } = await renderReportDetail()
-
-    const addTrigger = container.querySelector('button[aria-label="Add"]') as HTMLButtonElement
-
-    await act(async () => {
-      addTrigger.click()
-    })
-    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).not.toBeNull()
-
-    await act(async () => {
-      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    })
-    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
-
-    await act(async () => {
-      addTrigger.click()
-    })
-    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).not.toBeNull()
-
-    await act(async () => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    })
-    expect(container.querySelector('[role="menu"][aria-label="Add menu"]')).toBeNull()
 
     await act(async () => {
       root.unmount()
@@ -987,16 +929,15 @@ describe('ReportDetail More actions menu', () => {
   it('sanitizes review period string when saving', async () => {
     const { container, root } = await renderReportDetail()
 
-    // Open the "Add" dropdown, then click "Review"
-    const addDropdown = Array.from(container.querySelectorAll('button'))
-      .find(b => b.textContent?.includes('Add') && b.getAttribute('aria-haspopup') === 'menu') as HTMLButtonElement | undefined
+    // Open the "More actions" menu, then click "Add past review"
+    const moreDropdown = container.querySelector('button[aria-label="More actions"]') as HTMLButtonElement | undefined
 
     await act(async () => {
-      addDropdown?.click()
+      moreDropdown?.click()
     })
 
     const addReviewMenuItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-      .find(b => b.textContent?.includes('Past review')) as HTMLButtonElement | undefined
+      .find(b => b.textContent?.includes('Add past review')) as HTMLButtonElement | undefined
 
     await act(async () => {
       addReviewMenuItem?.click()
