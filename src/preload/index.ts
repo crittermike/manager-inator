@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   getReportData: (name: string) => ipcRenderer.invoke('github:report-data', name),
   getTeamOverview: () => ipcRenderer.invoke('github:team-overview'),
   getFileContent: (path: string) => ipcRenderer.invoke('github:file-content', path),
+  getFileBase64: (path: string) => ipcRenderer.invoke('github:file-base64', path),
   getFilesContentBulk: (paths: string[]) => ipcRenderer.invoke('github:get-files-bulk', paths),
   commitFile: (path: string, content: string, message: string) =>
     ipcRenderer.invoke('github:commit-file', path, content, message),

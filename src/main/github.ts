@@ -119,6 +119,10 @@ export function getFilesContentBulk(paths: string[]): Record<string, string> {
   return result
 }
 
+export function getFileBase64(path: string): string {
+  return readFileSync(safePath(path)).toString('base64')
+}
+
 export function isGitRepo(absolutePath: string): boolean {
   try {
     return existsSync(join(absolutePath, '.git'))

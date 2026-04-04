@@ -11,6 +11,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import type { ActionItem, FeedbackEntry, PrepEntry, PersonActivityResult } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
+import { useAttachedImages } from '../hooks/useAttachedImages'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import {
   ArrowLeft,
@@ -2952,9 +2953,9 @@ function ContextDetail({
   const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string; title: string }
   const tags = ctx.tags || []
   const contextPath = `contexts/${ctx.filename}`
-  const { settings } = useSettings()
 
   const { content: fileContent, loading: fileLoading } = useFileContent(contextPath)
+  const { transformContent } = useAttachedImages(fileContent)
 
   const { processed, raw } = useMemo(() => {
     if (!fileContent) return { processed: '', raw: '' }
@@ -2971,7 +2972,7 @@ function ContextDetail({
   }, [fileContent])
 
   const displayContent = activeTab === 'processed' || !raw ? processed : raw
-  const renderedContent = displayContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](repo-file://${p.trim()})`)
+  const renderedContent = transformContent(displayContent)
 
   return (
     <div className="space-y-2">

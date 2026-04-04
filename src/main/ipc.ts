@@ -11,6 +11,7 @@ import {
   getTeamOverview,
   getFileContent,
   getFilesContentBulk,
+  getFileBase64,
   commitFile,
   commitBinaryFile,
   commitAiModifiedFiles,
@@ -104,6 +105,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:report-data', (_e, name) => getReportData(name as string))
   safeHandle('github:team-overview', () => getTeamOverview())
   safeHandle('github:file-content', (_e, path) => getFileContent(path as string))
+  safeHandle('github:file-base64', (_e, path) => getFileBase64(path as string))
   safeHandle('github:get-files-bulk', (_e, paths) => getFilesContentBulk(paths as string[]))
   safeHandle('github:commit-file', (_e, path, content, message) =>
     commitFile(path as string, content as string, message as string)

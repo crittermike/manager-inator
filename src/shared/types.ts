@@ -343,6 +343,7 @@ export interface IpcApi {
   getReportData: (name: string) => Promise<Report>
   getTeamOverview: () => Promise<TeamOverview>
   getFileContent: (path: string) => Promise<string>
+  getFileBase64: (path: string) => Promise<string>
   getFilesContentBulk: (paths: string[]) => Promise<Record<string, string>>
   commitFile: (path: string, content: string, message: string) => Promise<void>
   commitBinaryFile: (path: string, base64Data: string, message: string) => Promise<void>

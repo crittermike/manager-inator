@@ -9,6 +9,7 @@ import { cleanSummaryContent } from '../utils/cleanSummary'
 import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
 import { useSettings } from '../hooks/useData'
+import { useAttachedImages } from '../hooks/useAttachedImages'
 
 export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
@@ -27,6 +28,7 @@ export function ContextDetail() {
   
   const [activeTab, setActiveTab] = useState<'summary' | 'transcript'>('summary')
   const [transcriptContent, setTranscriptContent] = useState<string | null>(null)
+  const { transformContent } = useAttachedImages(rawContent)
   
   const [isEditingContent, setIsEditingContent] = useState(false)
   const [editContentValue, setEditContentValue] = useState('')
@@ -659,7 +661,7 @@ export function ContextDetail() {
             ) : (
               <div className="prose-dark max-w-none">
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
-                  content.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](repo-file://${p.trim()})`)
+                  transformContent(content)
                 }</ReactMarkdown>
               </div>
             )
@@ -667,7 +669,7 @@ export function ContextDetail() {
             transcriptContent ? (
               <div className="prose-dark max-w-none">
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{
-                  transcriptContent.replace(/\[Attached image:\s*(.*?)\]/g, (_m, p) => `![](repo-file://${p.trim()})`)
+                  transformContent(transcriptContent)
                 }</ReactMarkdown>
               </div>
             ) : (
