@@ -60,7 +60,7 @@ function LoadingScreen({ message }: { message: string }) {
     <div className="h-screen w-screen flex items-center justify-center bg-[#0a0a0c]">
       <div className="flex flex-col items-center gap-8 max-w-xs w-full animate-fade-in">
         <div className="flex items-center gap-3">
-          <img src={appIcon} alt="" className="w-10 h-10 rounded-xl shadow-lg shadow-brand/20" />
+          <img src={appIcon} alt="" className="w-10 h-10 rounded-xl shadow-[0_4px_20px_rgba(255,255,255,0.15)]" />
           <span className="text-2xl font-bold text-zinc-100 tracking-tight">Manager-inator</span>
         </div>
         <div className="w-full space-y-3">
