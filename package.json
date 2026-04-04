@@ -1,7 +1,7 @@
 {
   "name": "manager-inator",
   "productName": "Manager-inator",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "main": "out/main/index.mjs",
   "scripts": {
     "postinstall": "node scripts/patch-electron-dev.mjs",
@@ -36,8 +36,14 @@
     "mac": {
       "icon": "resources/icon.icns",
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"],
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "notarize": {
+        "teamId": "Q22YPK3M83"
+      }
     },
     "dmg": {
       "title": "Manager-inator"

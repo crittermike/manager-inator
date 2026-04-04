@@ -1,405 +1,88 @@
-# Manager-inator App
+# Manager-inator
 
-An AI-native Electron desktop app for engineering managers. Surfaces what needs your attention right now — overdue items, upcoming 1:1 prep, unprocessed transcripts — and lets you act on everything in place. Backed by a local Git repo as the source of truth and powered by the GitHub Copilot SDK for AI features.
+An AI-powered desktop app that helps engineering managers stay on top of everything — 1:1 prep, performance check-ins, feedback tracking, team activity, and more. Think of it as your management operating system.
 
----
+## Why Manager-inator?
 
-## Architecture overview
+Engineering management involves a lot of context-switching and bookkeeping. You're tracking feedback for five people, prepping for tomorrow's 1:1, writing a performance review, and trying to remember what happened in last week's skip-level — all while actually doing your job.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Electron Main Process                     │
-│                                                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
-│  │ github.ts│  │copilot.ts│  │  auth.ts  │  │  store.ts  │  │
-│  │ (data)   │  │ (AI)     │  │ (OAuth)   │  │ (settings) │  │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────┬──────┘  │
-│       └──────────────┴─────────────┴──────────────┘         │
-│                         ipc.ts                               │
-│                           │                                  │
-├───────────────────────────┼──────────────────────────────────┤
-│                    preload/index.ts                          │
-│                    (context bridge)                           │
-├───────────────────────────┼──────────────────────────────────┤
-│                  Electron Renderer Process                    │
-│                                                             │
-│  ┌─────────┐  ┌──────────────────────────────────────────┐  │
-│  │ AppShell│  │              Pages                        │  │
-│  │(sidebar)│  │ Today · ReportDetail · Search            │  │
-│  │         │  │ CapturePanel · Settings                   │  │
-│  └─────────┘  └──────────────────────────────────────────┘  │
-│                                                             │
-│  Hooks: useAuth · useData · useAI                           │
-│  Stack: React 19 · React Router · Tailwind CSS 4            │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                   Local Git Repository
-              (manager-inator data repo)
-```
+Manager-inator keeps all of that in one place and uses AI to do the heavy lifting:
 
-### Key design decisions
+- **Never walk into a 1:1 unprepared.** The app generates prep docs based on recent meetings, open action items, and pending feedback — then reminds you the morning of.
+- **Performance reviews write themselves.** Monthly check-ins build up over time so review season is a synthesis exercise, not a memory test.
+- **Feedback is captured in the moment.** Drop in a note from a Slack thread, a PR review, or a meeting — it's tagged to the right person automatically.
+- **Meeting transcripts become actionable.** Paste or drop a transcript and the AI extracts summaries, action items, feedback, and impact evidence in one pass.
+- **Your data stays yours.** Everything is stored locally in a Git repo you control — plain markdown files, fully portable, no vendor lock-in.
 
-- **Local filesystem, not GitHub API.** All reads use `fs.readFileSync` for instant access. No network latency for navigation.
-- **Git for writes.** File changes go through `writeFileSync` → `git add` → `git commit` → `git push` (push is fire-and-forget async).
-- **Write-only cache invalidation.** All data caches persist until the app itself writes a file. No polling, no TTL expiry. First load populates caches; subsequent navigation is instant.
-- **Copilot SDK for AI.** Uses `@github/copilot-sdk` with the user's existing `gh copilot` CLI authentication. Supports streaming responses.
-- **Markdown as data format.** Profiles, summaries, check-ins, and feedback are all markdown files with optional YAML frontmatter. Humans and AI agents can both read/write them.
+## What it looks like
 
----
+### Today view
+Your daily dashboard. Shows what needs attention right now: overdue 1:1s, upcoming prep, unprocessed transcripts, management cadence items (quarterly planning, team health checks, sprint retros). Everything is actionable in place — no "check this off" busywork.
 
-## Tech stack
+### Direct report pages
+A single scrollable page per person with their full history: 1:1 summaries, feedback log, check-ins, performance reviews, action items, and GitHub activity. Generate any artifact inline — prep, check-in, review — with full context from everything you've captured.
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Electron (via electron-vite) |
-| Frontend | React 19, TypeScript, Tailwind CSS 4 |
-| Routing | react-router-dom (HashRouter) |
-| AI | @github/copilot-sdk, @github/copilot |
-| Markdown | react-markdown + remark-gfm |
-| Icons | lucide-react |
-| Storage | electron-store (encrypted) |
-| Build | electron-vite (Vite-based) |
-
----
-
-## Getting started
-
-### Prerequisites
-
-- Node.js 18+
-- GitHub CLI (`gh`) with Copilot extension installed and authenticated
-- A local clone of the data repo (e.g., `manager-inator`)
-
-### Install and run
-
-```bash
-npm install
-npm run dev        # Development with hot reload
-npm run build      # Production build
-npm run preview    # Run production build locally
-```
-
-### First launch
-
-1. **Authenticate** — The app uses GitHub OAuth device flow. You'll get a code to enter at github.com/login/device.
-2. **Set repo path** — Point the app to your local clone of the data repo.
-3. **Done** — The Today view loads with your action items.
-
----
-
-## Data model
-
-All data lives in a local Git repository. The app reads from and writes to this repo.
-
-### Directory structure (data repo)
-
-```
-├── reports/
-│   └── {name}/                    # One per direct report
-│       ├── profile.md             # Role, GitHub handle, meeting day, location (YAML frontmatter)
-│       ├── job-expectations.md    # Role expectations, competencies (used as AI context)
-│       ├── DASHBOARD.md           # Per-report status dashboard
-│       ├── check-ins/
-│       │   ├── monthly/YYYY-MM.md # Private monthly check-ins
-│       │   └── shared/YYYY-MM.md  # Shared versions for the employee
-│       ├── feedback/log.md        # Feedback entries
-│       ├── reviews/               # Performance reviews (YYYY-H1.md or YYYY-H2.md)
-│       └── prep/YYYY-MM-DD.md     # 1:1 prep documents
-├── meetings/
-│   └── YYYY-MM-DD-slug.md         # AI-generated summaries (YAML frontmatter)
-├── transcripts/
-│   └── processed/
-│       └── YYYY-MM-DD-slug.txt    # Original raw transcripts
-├── people/
-│   └── firstname-lastname.md      # Profiles for anyone (not just reports)
-├── impact-log.md                  # Manager's impact evidence log
-└── settings.md                    # Dropdown options for roles/relationships
-```
-
-**Key convention**: Every `.md` file in `meetings/` is a processed summary. Raw transcripts are stored separately in `transcripts/processed/`. There is no `-summary.md` suffix — the meeting file itself is the summary.
-
-### YAML frontmatter conventions
-
-**Meeting summaries** (`meetings/*.md`):
-```yaml
----
-title: Nic 1-1           # Optional display title override
-speakers:
-  - Jane Smith
-  - Nic Daantos
----
-```
-
-**People profiles** (`people/*.md`):
-```yaml
----
-name: Nic Daantos
-slug: nic-daantos
-aliases: Nick
-role: Software Engineer
-github: nicdaantos
-location: North Carolina
-relationship: Direct Report
----
-```
-
-### Person-to-meeting matching
-
-The app associates people with meetings through two mechanisms:
-
-1. **Filename segment matching** — The meeting slug is split by `-` and each segment is compared to the person's slug first part. E.g., person `nic-daantos` → first segment `nic` → matches `2026-03-11-nic-1-1.md`.
-2. **Speaker frontmatter** — Meeting files list speakers in YAML frontmatter. The app parses these and matches by full name or first name against the person's name and aliases.
-
-Both are used together. Filename matching is fast (no file reads); speaker matching catches cases where a person appears in a meeting but isn't in the filename (e.g., team meetings).
-
----
-
-## Main process modules
-
-### `src/main/github.ts` — Data layer
-
-The core data module. All filesystem reads and Git writes happen here.
-
-**Key exports:**
-| Function | Purpose |
-|----------|---------|
-| `getReports()` | Lists report directories (those with `profile.md`) |
-| `getReportData(name)` | Full report: profile, check-ins, transcripts, action items, feedback, reviews |
-| `getTeamOverview()` | Team data: all reports with status indicators |
-| `listMeetings()` | All meetings with title overrides from frontmatter |
-| `listPeople()` | All people profiles with meeting counts |
-| `getPersonMeetings(slug)` | Meetings associated with a specific person |
-| `findPersonByName(name)` | Fuzzy lookup: exact → alias → first name match |
-| `commitFile(path, content, msg)` | Write + git add + commit + async push |
-| `saveMeetingTitle(filename, title)` | Save title override to YAML frontmatter |
-| `toggleActionItem(sourceFile, sourceLine)` | Toggle checkbox in source meeting file |
-| `getTeamActionItems()` | All open action items across all reports |
-| `getImpactLog()` | Read manager's impact log |
-| `getSettingsOptions()` | Parse dropdown options from `settings.md` |
-| `preWarmCaches()` | Pre-populate all caches at startup |
-
-**Caching architecture:**
-- `_meetingsCache` — File listing + speaker map + title map. Built once, invalidated on any `commitFile`.
-- `_reportDataCache` — Per-report data (Map). Invalidated on writes.
-- `_teamOverviewCache` — Team overview data. Invalidated on writes.
-- `_peopleCache` — People list with meeting counts. Invalidated on writes.
-
-All caches are **write-invalidated only** — no time-based expiry. Since the app controls all writes to the repo, there's no stale data risk.
-
-`getReportData(name)` now reads review file bodies from `reports/{name}/reviews/*.md`, so `report.reviews[].content` is populated instead of containing empty strings.
-
-**Load vs. Refresh pattern** (in `useData.ts` hooks):
-- `load()` — reads from caches without clearing. Used on page mount for instant navigation.
-- `refresh()` — clears caches first, then reloads. Used only on explicit user "Refresh" action.
-
-### `src/main/copilot.ts` — AI integration
-
-Uses `@github/copilot-sdk` with the user's existing GitHub Copilot CLI authentication.
-
-**How it works:**
-1. Finds the `copilot` CLI binary (checks `which copilot`, then common paths)
-2. Creates a `CopilotClient` with `useLoggedInUser: true`
-3. For each generation, creates a session with model + system prompt
-4. Listens for `assistant.message_delta` (streaming) and `assistant.message` (complete) events
-5. Streams chunks to the renderer via IPC
-
-**System prompt** includes:
-- Manager context (performance management focus)
-- Name corrections (Nick→Nic, gas→GHAS, Akash→Aakash, etc.)
-- Writing style rules (no em dashes, sentence case, casual tone)
-- Pronoun preferences (Tara uses they/them)
-
-**Available AI actions:**
-
-| Action | Purpose |
-|--------|---------|
-| `summarize-meeting` | Generate summary with YAML speaker frontmatter |
-| `extract-action-items` | Pull checkbox-formatted action items |
-| `extract-feedback` | Find feedback about direct reports |
-| `extract-impact` | Extract manager impact evidence |
-| `generate-checkin` | Monthly performance check-in |
-| `generate-review` | Semi-annual performance review draft |
-| `prep-one-on-one` | Interactive prep doc with checkboxes |
-| `chat` | Free-form conversation |
-
-**Prompt context notes:**
-- Monthly check-ins do **not** read from a dedicated goals file.
-- Goal-related context currently comes from a mix of the profile About section, `job-expectations.md`, previous monthly check-ins, recent 1:1/context notes, and action items.
-- Prior performance review text is now available to the app because review bodies are loaded into `report.reviews[].content` by the data layer.
-
-**Model configuration:**
-- Default model stored in electron-store (default: `gpt-4.1`)
-- Model IDs use dashes not dots: `claude-opus-4-6` not `claude-opus-4.6`
-- Configurable in Settings page
-
-### `src/main/auth.ts` — GitHub OAuth
-
-Device code flow (no browser redirect needed):
-1. App requests a device code from GitHub
-2. User enters code at github.com/login/device
-3. App polls until authorized
-4. Token stored encrypted in electron-store
-
-**OAuth App Client ID:** `Ov23ctu9WlUlp4aqg2qi`
-**Scope:** `repo`
-
-### `src/main/store.ts` — Encrypted settings
-
-Uses `electron-store` with encryption key `manager-inator-v1`.
-
-**Stored fields:**
-- `githubToken` — OAuth access token
-- `repoPath` — Local filesystem path to data repo
-- `defaultModel` — AI model ID (default: `gpt-4.1`)
-- Cadence settings (check-in frequency, sprint length, end-of-week day, etc.)
-
-### `src/main/ipc.ts` — IPC bridge
-
-All IPC channels:
-
-```
-auth:status, auth:start, auth:poll, auth:logout
-settings:get, settings:save
-github:reports, github:profile, github:report-data, github:team-overview
-github:file-content, github:commit-file
-github:list-meetings, github:list-people, github:person-meetings, github:find-person
-github:impact-log, github:settings-options
-github:save-meeting-title, github:toggle-action-item
-github:team-action-items
-github:clear-caches, github:cancel-backfill
-ai:generate (streams chunks via ai:chunk event), ai:cancel
-ai:backfill-summaries (streams progress via ai:backfill-progress event)
-```
-
----
-
-## Renderer pages
-
-### Today (`/`)
-
-The main screen. A sequential timeline of actionable items ordered by priority, driven by the management playbook cadence. Four sections:
-
-1. **Overdue (red)** — 1:1s more than 14 days old, stale action items (2+ days), overdue feedback, overdue check-ins
-2. **Before your next 1:1 (yellow)** — Upcoming 1:1 prep for today, tomorrow, and 2 days out. Inline prep generation with interactive checkboxes. Sprint start/end prompts. Management cadence items (weekly priorities, reflections, skip-level, peer sync, quarterly planning, semi-annual reviews)
-3. **Inbox (green)** — Unprocessed meeting transcripts. Each expands inline for AI processing (summary, action items, feedback, impact extraction)
-4. **Done today (collapsed)** — Completed items, auto-tracked per day via localStorage
-
-Every item is actionable in-place. Supports drag-and-drop transcript upload (.txt/.md files).
-
-### Report Detail (`/report/:name`)
-
-Single scrollable page per person with:
-- **Profile header** — Name, role, GitHub handle, meeting day, location
-- **Key facts bar** — Last 1:1, next 1:1, open action items, days since last feedback
-- **Quick actions** — Prep 1:1, generate check-in, generate review, add feedback, add review (all expand inline)
-- **About section** — Editable notes about the person (collapsible)
-- **Job expectations** — Editable role expectations used as AI context (collapsible)
-- **Filter bar** — Clickable type tags (All, 1:1s, Feedback, Actions, Check-ins, Reviews)
-- **Unified activity stream** — Reverse-chronological feed of all activity. Open action items pinned to top.
-
-Notable workflow details:
-- Generating a **monthly performance check-in** auto-saves it immediately to `reports/{name}/check-ins/monthly/YYYY-MM.md`.
-- Monthly check-ins target the intended reporting month (for example, generating on April 1 produces the March check-in).
-- Check-ins expand inline and support edit + delete.
-- Performance reviews expand inline and support full CRUD directly in `ReportDetail`.
-
-Context-aware entry: arriving from Today with a `?filter=` param pre-selects the relevant filter.
-
-### Search (`/search`)
-
-Find meetings and people by keyword. Features:
-- Full-text search across meeting titles, filenames, and people profiles
-- Inline meeting viewer (no page navigation needed)
-- Recent meetings list shown when no search query
-- Deep-linkable via `?meeting=` query param
+### AI chat
+A persistent AI assistant that knows your team context. Ask it to draft talking points, summarize trends, or brainstorm approaches. Available as a floating panel on every page or as a full-screen chat.
 
 ### Capture panel
+Drop in content from anywhere — meeting transcripts, Slack threads, emails, GitHub discussions — and the AI processes it into structured artifacts (summaries, action items, feedback, impact evidence).
 
-Meeting transcripts and other context are processed through the global capture panel, which you can open from the File menu, UI entry points, or `Cmd/Ctrl+Shift+N`.
+## Installation
 
-Typical flow:
-1. **Paste or drop content** — Add a meeting transcript, Slack thread, GitHub discussion, email, or other manager context
-2. **Choose the context type** — Helps the AI label and route the content correctly
-3. **AI processing** — Extract summaries, action items, feedback, and impact where relevant
-4. **Save in place** — Commits the processed outputs to the local repo and invalidates only the affected caches
+### Download
 
-### Settings (`/settings`)
+Grab the latest release from the [Releases page](https://github.com/crittermike/manager-inator/releases):
 
-- AI model picker
-- Repo path configuration
-- Management cadence settings (check-in frequency, feedback reminder days, sprint length, sprint start date, end-of-week day)
+- **Apple Silicon (M1/M2/M3/M4):** `Manager-inator-x.x.x-arm64.dmg`
+- **Intel Mac:** `Manager-inator-x.x.x-x64.dmg`
 
-### Other pages (accessible but not in primary nav)
+### First launch (macOS)
 
-- **Impact Log** (`/impact`) — Manager's evidence log with quick-add and AI summarize
-- **Playbook** (`/playbook`) — Management practices timeline and practice library
+The app is not yet code-signed, so macOS will block it on first open. Run this once in Terminal:
 
----
-
-## Design system
-
-Dark theme with purple accent. Custom CSS variables in `globals.css`:
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--color-brand` | `#8b5cf6` | Primary actions, active states |
-| `--color-brand-light` | `#a78bfa` | Text on dark backgrounds |
-| `--color-surface` | `#18181b` | Card backgrounds |
-| `--color-surface-raised` | `#27272a` | Elevated surfaces |
-| `--color-border` | `#3f3f46` | Default borders |
-| `--color-success` | `#22c55e` | Positive states |
-| `--color-warning` | `#f59e0b` | Warning states |
-| `--color-danger` | `#ef4444` | Error states |
-
-Custom `.prose-dark` class handles markdown rendering with appropriate dark-mode colors for headings, paragraphs, lists, tables, blockquotes, and code blocks.
-
-AI floating panel available on every screen via bottom-right button. Context-aware (knows which page/person you're on).
-
----
-
-## Type definitions (`src/shared/types.ts`)
-
-```typescript
-ReportProfile    // name, displayName, role, team, github, startDate, meetingDay, location, about
-CheckIn          // date, content, accomplishments, concerns
-Summary          // date, content, keyTopics, actionItems, sentiment
-Transcript       // date, content
-ActionItem       // text, owner, completed, sourceFile, sourceLine, sourceLineNumber
-TeamActionItem   // extends ActionItem with reportName, displayName
-FeedbackEntry    // date, type (positive/constructive/mixed), source, context, content
-CadenceSettings  // checkInFrequency, feedbackReminderDays, sprintLengthWeeks, endOfWeekDay, sprintStartDate
-Report           // aggregate: profile + checkIns + summaries + transcripts + actionItems + feedback + reviews(with content) + jobExpectations
-TeamOverview     // reports: ReportStatus[], attentionItems, lastUpdated
-ReportStatus     // name, displayName, lastOneOnOne, daysGap, openActionItems, status, meetingDay, lastCheckIn, lastFeedback
-AppSettings      // hasToken, repoPath, defaultModel, cadence settings, aiCustomInstructions
-MeetingEntry     // date, title, filename
-PersonEntry      // name, slug, aliases, meetingCount, lastSeen, role, github, location, relationship
+```bash
+xattr -cr /Applications/Manager-inator.app
 ```
 
----
+Then open the app normally.
 
-## Known quirks and gotchas
+### Setup
 
-- **Copilot SDK must be bundled** by Vite, not externalized — `vscode-jsonrpc` has ESM resolution issues otherwise. `electron-store` and `electron` must be externalized.
-- **Model IDs use dashes** not dots: `claude-opus-4-6` not `claude-opus-4.6`. Old values in electron-store get normalized at runtime.
-- **`electron-store`** can corrupt if the process is force-killed mid-write. Normal quit (Cmd+Q) is fine.
-- **Git push** is fire-and-forget (detached process). If remote has diverged, it silently fails. Run `git pull` manually if needed.
-- **YAML frontmatter** format varies across AI-generated files. Some have proper `---` YAML blocks, some have the YAML inside markdown code fences. The `stripFrontmatter` and `parseSpeakers` functions handle both cases.
-- **The `listFiles` and `listDirectory` functions** use `readdirSync` with `withFileTypes: true` to avoid per-file `statSync` calls.
-- **Load vs. Refresh**: Page mount uses `load()` (no cache clear) for instant navigation. Only the explicit "Refresh" button calls `refresh()` which clears caches. This prevents slow re-loads on every tab switch.
+1. **Sign in with GitHub** — OAuth device flow, no passwords stored
+2. **Create or connect a data repo** — A private GitHub repo where your management data lives (plain markdown files, version-controlled)
+3. **Add your direct reports** — Name and GitHub username, that's it
+4. **Optional: Add a GitHub PAT** — Enables team activity tracking (PRs, issues, reviews). Fine-grained token with read-only org access.
 
----
+## How it works
+
+### Data storage
+All your data lives in a local Git repo as plain markdown files. The app reads and writes to this repo, committing and pushing changes automatically. You can browse, edit, or back up your data outside the app anytime.
+
+### AI features
+Powered by [GitHub Copilot](https://github.com/features/copilot). Requires the Copilot CLI extension (`gh extension install github/gh-copilot`). All AI processing happens through your existing Copilot subscription — no additional API keys needed.
+
+### Auto-updates
+The app checks for new versions on launch and every 4 hours. Updates download in the background and you'll see a banner when a new version is ready — just click to restart.
+
+## Prerequisites
+
+- macOS (Windows/Linux support planned)
+- A [GitHub](https://github.com) account
+- [GitHub Copilot](https://github.com/features/copilot) subscription
+- [GitHub CLI](https://cli.github.com/) with the Copilot extension installed
 
 ## Development
 
-```bash
-npm run dev          # Dev mode with hot reload
-npm run build        # Production build to out/
-npm run preview      # Run production build
-npm run typecheck    # TypeScript validation (tsc --noEmit)
+See [AGENTS.md](AGENTS.md) for architecture details, development setup, and contribution guidelines.
 
-# Manual launch of production build
-npx electron out/main/index.mjs
+```bash
+npm install
+npm run dev          # Dev mode with hot reload
+npm run build        # Production build
+npx vitest run       # Run tests
 ```
 
-The app pre-warms all caches 500ms after window creation, so the first navigation after launch is fast.
+## License
+
+Private — not open source.
