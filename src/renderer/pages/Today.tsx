@@ -1274,6 +1274,16 @@ export function Today() {
     return parts.join(' · ') || 'All clear'
   }, [totalActive, itemsBySection])
 
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
+    localStorage.getItem('onboarding-dismissed') === 'true'
+  )
+  const showOnboarding = !onboardingDismissed && (!overview || overview.reports.length === 0)
+
+  const dismissOnboarding = useCallback(() => {
+    setOnboardingDismissed(true)
+    localStorage.setItem('onboarding-dismissed', 'true')
+  }, [])
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
@@ -1307,16 +1317,6 @@ export function Today() {
       </div>
     )
   }
-
-  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
-    localStorage.getItem('onboarding-dismissed') === 'true'
-  )
-  const showOnboarding = !onboardingDismissed && (!overview || overview.reports.length === 0)
-
-  const dismissOnboarding = useCallback(() => {
-    setOnboardingDismissed(true)
-    localStorage.setItem('onboarding-dismissed', 'true')
-  }, [])
 
   const activeSections = sections.filter(s => itemsBySection[s].length > 0)
 

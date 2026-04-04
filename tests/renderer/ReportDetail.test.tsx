@@ -168,9 +168,9 @@ describe('ReportDetail AI actions menu', () => {
 
     const menu = container.querySelector('[role="menu"][aria-label="Generate menu"]')
     expect(menu).not.toBeNull()
-    expect(menu?.textContent).toContain('1:1 prep')
-    expect(menu?.textContent).toContain('Monthly performance check-in')
-    expect(menu?.textContent).toContain('Bi-annual performance review')
+    expect(menu?.textContent).toContain('(Weekly) 1:1 prep')
+    expect(menu?.textContent).toContain('(Monthly) Performance check-in')
+    expect(menu?.textContent).toContain('(6 months) Performance review')
     expect(menu?.textContent).toContain('GitHub activity summary')
 
     await act(async () => {
@@ -210,7 +210,7 @@ describe('ReportDetail AI actions menu', () => {
       trigger.click()
     })
 
-    const prepButton = getButtonByText(container, '1:1 prep')
+    const prepButton = getButtonByText(container, '(Weekly) 1:1 prep')
     expect(prepButton).not.toBeNull()
 
     await act(async () => {
@@ -404,7 +404,7 @@ describe('ReportDetail monthly check-in workflow', () => {
     })
 
     const genButton = Array.from(container.querySelectorAll('button[role="menuitem"]'))
-      .find(b => b.textContent?.includes('Monthly performance check-in')) as HTMLButtonElement | undefined
+      .find(b => b.textContent?.includes('(Monthly) Performance check-in')) as HTMLButtonElement | undefined
 
     expect(genButton).toBeDefined()
 
@@ -610,7 +610,7 @@ describe('ReportDetail monthly check-in workflow', () => {
       })
 
       const addReviewMenuItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-        .find(b => b.textContent?.includes('Review')) as HTMLButtonElement | undefined
+        .find(b => b.textContent?.includes('Past review')) as HTMLButtonElement | undefined
 
       await act(async () => {
         addReviewMenuItem?.click()
@@ -792,7 +792,7 @@ describe('ReportDetail Add dropdown', () => {
     const menu = container.querySelector('[role="menu"][aria-label="Add menu"]')
     expect(menu).not.toBeNull()
     expect(menu?.textContent).toContain('Feedback')
-    expect(menu?.textContent).toContain('Review')
+    expect(menu?.textContent).toContain('Past review')
 
     await act(async () => {
       root.unmount()
@@ -833,7 +833,7 @@ describe('ReportDetail Add dropdown', () => {
     })
 
     const reviewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-      .find(b => b.textContent?.includes('Review')) as HTMLButtonElement
+      .find(b => b.textContent?.includes('Past review')) as HTMLButtonElement
 
     await act(async () => {
       reviewItem?.click()
@@ -996,7 +996,7 @@ describe('ReportDetail More actions menu', () => {
     })
 
     const addReviewMenuItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
-      .find(b => b.textContent?.includes('Review')) as HTMLButtonElement | undefined
+      .find(b => b.textContent?.includes('Past review')) as HTMLButtonElement | undefined
 
     await act(async () => {
       addReviewMenuItem?.click()
