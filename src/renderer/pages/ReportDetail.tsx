@@ -266,10 +266,13 @@ export function ReportDetail() {
           ...prev,
           contextNotes: prev.contextNotes.filter(c => c.filename !== deletedFilename)
         } : prev)
+      } else {
+        // For non-context deletions, do a full refresh
+        refresh()
       }
-      refresh()
       setViewingContent(null)
       setIsEditingContent(false)
+      setExpandedItems(prev => { const next = new Set(prev); next.delete(`context-${deleteTarget.replace('contexts/', '')}`); return next })
     } catch (err) {
       toast.error('Failed to delete file')
     } finally {
