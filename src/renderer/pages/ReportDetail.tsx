@@ -1061,11 +1061,11 @@ export function ReportDetail() {
       // Parse period to get a sortable date
       const yearMatch = r.period.match(/(\d{4})/)
       const year = yearMatch ? yearMatch[1] : '2024'
-      const isH2 = r.period.includes('H2')
+      const isH2 = r.period.toLowerCase().includes('h2')
       entries.push({
         id: `review-${r.period}`,
         type: 'review',
-        date: `${year}-${isH2 ? '12' : '06'}-30`,
+        date: `${year}-${isH2 ? '07' : '01'}-15`,
         title: r.title || `Performance review — ${r.period}`,
         preview: r.content.slice(0, 120).replace(/[#*_]/g, '') + '…',
         data: r
@@ -2796,7 +2796,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
               <span className="text-xs text-zinc-500 truncate block mt-0.5">{entry.preview}</span>
             )}
           </div>
-          {!entry.pinned && entry.type !== 'checkin' && (
+          {!entry.pinned && entry.type !== 'checkin' && entry.type !== 'review' && (
             <span className="text-xs text-zinc-600 shrink-0">{formatDate(entry.date)}</span>
           )}
           {expanded ? (
