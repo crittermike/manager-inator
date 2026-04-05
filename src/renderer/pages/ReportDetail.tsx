@@ -1209,7 +1209,7 @@ export function ReportDetail() {
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-4 p-8 bg-surface-raised/50 rounded-2xl border border-border max-w-sm">
           <div className="w-12 h-12 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
-            <AlertCircle className="w-6 h-6 text-zinc-500" />
+            <AlertCircle className="w-6 h-6 text-zinc-500" aria-hidden="true" />
           </div>
           <div>
             <h3 className="text-sm font-medium text-zinc-300 mb-1">{error || 'We looked everywhere but couldn\'t find this report 🕵️'}</h3>
@@ -1219,7 +1219,7 @@ export function ReportDetail() {
             onClick={() => navigate('/')}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-zinc-200 bg-surface hover:bg-surface-overlay rounded-lg border border-border transition-colors"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
             Back to Today
           </button>
         </div>
@@ -1911,8 +1911,8 @@ export function ReportDetail() {
                                   </div>
                                   {hasDetails && (
                                     isExpanded
-                                      ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500 mt-1 shrink-0" />
-                                      : <ChevronRight className="w-3.5 h-3.5 text-zinc-500 mt-1 shrink-0" />
+                      ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500 mt-1 shrink-0" aria-hidden="true" />
+                      : <ChevronRight className="w-3.5 h-3.5 text-zinc-500 mt-1 shrink-0" aria-hidden="true" />
                                   )}
                                 </button>
                                 {isExpanded && hasDetails && (
@@ -2300,7 +2300,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
           onClick={() => { setDetailsTab('about'); setDetailsCollapsed(false) }}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
         >
-          <ChevronRight className="w-3 h-3" />
+          <ChevronRight className="w-3 h-3" aria-hidden="true" />
           About
         </button>
         <span className="text-zinc-700">·</span>
@@ -2308,7 +2308,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
           onClick={() => { setDetailsTab('expectations'); setDetailsCollapsed(false) }}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
         >
-          <ChevronRight className="w-3 h-3" />
+          <ChevronRight className="w-3 h-3" aria-hidden="true" />
           Expectations
         </button>
       </div>
@@ -2354,7 +2354,7 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
             aria-expanded={true}
             aria-label="Collapse details"
           >
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -2546,7 +2546,7 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
           disabled={rewriting || streaming || !feedbackDraft.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
+          {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
           {rewriting ? 'Rewriting...' : 'AI rewrite'}
         </button>
         <button
@@ -2691,7 +2691,7 @@ function InlineEditor({ initialContent, onSave, onCancel }: { initialContent: st
           disabled={isSaving || content === initialContent}
           className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-dark text-white text-sm rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
-          {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
+          {isSaving ? <div className="w-4 h-4 border-2 border-white/20 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" aria-hidden="true" />}
           Save
         </button>
       </div>
@@ -2870,7 +2870,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
                 aria-label="Open full view"
                 title="Open full view"
               >
-                <Maximize2 className="w-3.5 h-3.5" />
+                <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
             <button
@@ -2878,7 +2878,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
               className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
               aria-label="Edit"
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
             {confirmDelete ? (
               <span className="flex items-center gap-1.5 text-xs">
@@ -2892,7 +2892,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
                 className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
                 aria-label="Delete"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -2946,7 +2946,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
                       className="absolute top-0 right-0 p-1.5 rounded-lg bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/content:opacity-100 transition-opacity"
                       aria-label="Copy"
                     >
-                      {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? <Check className="w-3.5 h-3.5 text-success" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
                     </button>
                     <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
                       <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(fileContent)}</ReactMarkdown>
@@ -3087,7 +3087,7 @@ function FeedbackDetail({ entry, editing, onStopEditing, onUpdate }: {
             disabled={saving || !draft.trim()}
             className="flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-dark text-white text-sm rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-4 h-4" aria-hidden="true" />
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

@@ -288,9 +288,9 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
         onClick={() => setMinimized(false)}
         className="absolute bottom-20 right-6 flex items-center gap-2 px-3 py-2 bg-brand/20 border border-brand/30 rounded-full text-xs text-brand-light hover:bg-brand/30 transition-colors z-20 animate-scale-in"
       >
-        <Loader2 className="w-3 h-3 animate-spin" />
+        <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
         {processingCount} {processingCount === 1 ? 'capture processing…' : 'captures processing…'}
-        <ChevronUp className="w-3 h-3" />
+        <ChevronUp className="w-3 h-3" aria-hidden="true" />
       </button>
     )
   }
@@ -298,24 +298,24 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   const totalSessions = sessions.length
   const headerStatus = processingCount > 0
     ? <span className="text-[10px] text-brand-light flex items-center gap-1">
-        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+        <Loader2 className="w-2.5 h-2.5 animate-spin" aria-hidden="true" />
         {totalSessions > 1 ? `${savedCount + errorCount}/${totalSessions} done` : 'Processing'}
       </span>
     : editingCount > 0
-      ? <span className="text-[10px] text-amber-400 flex items-center gap-1"><Pencil className="w-2.5 h-2.5" />{editingCount} editing</span>
+      ? <span className="text-[10px] text-amber-400 flex items-center gap-1"><Pencil className="w-2.5 h-2.5" aria-hidden="true" />{editingCount} editing</span>
       : errorCount > 0 && savedCount > 0
-        ? <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Check className="w-2.5 h-2.5 text-success" />{savedCount} saved<span className="text-danger ml-1">{errorCount} failed</span></span>
+        ? <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Check className="w-2.5 h-2.5 text-success" aria-hidden="true" />{savedCount} saved<span className="text-danger ml-1">{errorCount} failed</span></span>
         : errorCount > 0
-          ? <span className="text-[10px] text-danger flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5" />{errorCount} error{errorCount > 1 ? 's' : ''}</span>
+          ? <span className="text-[10px] text-danger flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" />{errorCount} error{errorCount > 1 ? 's' : ''}</span>
           : savedCount > 0
-            ? <span className="text-[10px] text-success flex items-center gap-1"><Check className="w-2.5 h-2.5" />{savedCount} saved</span>
+            ? <span className="text-[10px] text-success flex items-center gap-1"><Check className="w-2.5 h-2.5" aria-hidden="true" />{savedCount} saved</span>
             : null
 
   return (
     <div className="absolute bottom-20 right-6 w-[560px] max-w-[calc(100vw-18rem-3rem)] max-h-[calc(100vh-8rem)] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
-          <ClipboardPaste className="w-4 h-4 text-brand" />
+          <ClipboardPaste className="w-4 h-4 text-brand" aria-hidden="true" />
           <span className="text-sm font-medium text-zinc-200">Capture</span>
           {headerStatus}
         </div>
@@ -327,7 +327,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               title="Minimize"
               aria-label="Minimize"
             >
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
           <button
@@ -335,7 +335,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-lg transition-colors"
             aria-label="Close capture panel"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -364,7 +364,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             {isDraggingFiles && (
               <div className="absolute inset-0 z-10 bg-brand/10 border-2 border-dashed border-brand/50 rounded-lg flex items-center justify-center">
                 <div className="text-center">
-                  <FileUp className="w-8 h-8 text-brand-light mx-auto mb-2" />
+                  <FileUp className="w-8 h-8 text-brand-light mx-auto mb-2" aria-hidden="true" />
                   <p className="text-sm font-medium text-brand-light">Drop files to process</p>
                   <p className="text-xs text-zinc-500 mt-1">.txt and .md files</p>
                 </div>
@@ -392,7 +392,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-zinc-800 border border-border rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
                       aria-label={`Remove image ${img.filename}`}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3 h-3" aria-hidden="true" />
                     </button>
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[9px] text-zinc-300 px-1 py-0.5 rounded-b-lg truncate">
                       {img.filename}
@@ -422,7 +422,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 border border-border hover:border-zinc-600 rounded-lg transition-colors"
                 title="Import transcript files"
               >
-                <FileUp className="w-3 h-3" />
+                <FileUp className="w-3 h-3" aria-hidden="true" />
                 Import files
               </button>
               <button
@@ -430,7 +430,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                 disabled={!content.trim() && images.length === 0}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-3 h-3" aria-hidden="true" />
                 Capture
                 <kbd className="ml-1 text-[9px] opacity-50 font-sans">Cmd+Enter</kbd>
               </button>

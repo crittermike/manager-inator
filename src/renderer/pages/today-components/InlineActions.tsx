@@ -78,7 +78,7 @@ export function InlineActions({
   if (localActions.length === 0) {
     return (
       <div className="py-4 px-1 text-center">
-        <CheckCircle2 className="w-6 h-6 text-emerald-500/60 mx-auto mb-2" />
+        <CheckCircle2 className="w-6 h-6 text-emerald-500/60 mx-auto mb-2" aria-hidden="true" />
         <p className="text-sm text-zinc-400">All caught up!</p>
         <button onClick={onDone} className="text-xs text-brand-light hover:text-brand mt-2 transition-colors">
           Dismiss
@@ -122,8 +122,8 @@ export function InlineActions({
                     className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-surface-overlay transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     aria-label={`Snooze action item: ${a.text}`}
                   >
-                    <Clock className="w-3 h-3" />
-                    <ChevronDown className="w-2.5 h-2.5" />
+                    <Clock className="w-3 h-3" aria-hidden="true" />
+                    <ChevronDown className="w-2.5 h-2.5" aria-hidden="true" />
                   </button>
                 )}
               </div>

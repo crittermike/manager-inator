@@ -1038,7 +1038,7 @@ export function Playbook() {
         </div>
         <div className="bg-surface rounded-xl border border-border p-12 text-center space-y-4">
           <div className="w-16 h-16 mx-auto rounded-full bg-surface-raised flex items-center justify-center">
-            <BookOpen className="w-8 h-8 text-zinc-600" />
+            <BookOpen className="w-8 h-8 text-zinc-600" aria-hidden="true" />
           </div>
           <h2 className="text-lg font-medium text-zinc-200">Your playbook is waiting</h2>
           <p className="text-sm text-zinc-500 max-w-md mx-auto">
@@ -1131,9 +1131,9 @@ export function Playbook() {
                                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all hover:brightness-110 bg-zinc-500/5 text-zinc-500 border-zinc-500/20"
                                 >
                                   {isRhythmExpanded ? (
-                                    <ChevronDown className="w-3 h-3 shrink-0" />
+                                    <ChevronDown className="w-3 h-3 shrink-0" aria-hidden="true" />
                                   ) : (
-                                    <ChevronRight className="w-3 h-3 shrink-0" />
+                                    <ChevronRight className="w-3 h-3 shrink-0" aria-hidden="true" />
                                   )}
                                   <span>Weekly rhythm</span>
                                   <span className="opacity-60">({weeklyBaseline.length})</span>
@@ -1272,7 +1272,7 @@ export function Playbook() {
                                     onClick={() => handleUnsnooze(practice.id)}
                                     className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-amber-500/20 text-amber-400 transition-colors"
                                   >
-                                    <Bell className="w-3 h-3" />
+                                    <Bell className="w-3 h-3" aria-hidden="true" />
                                     <span className="text-[10px] font-bold uppercase tracking-wider">Unsnooze</span>
                                   </button>
                                 </div>
@@ -1293,11 +1293,11 @@ export function Playbook() {
                             <div className="flex items-start gap-4 shrink-0">
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
                                 <button onClick={() => setEditingPracticeId(practice.id)} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Edit practice" aria-label="Edit practice">
-                                  <Pencil className="w-3.5 h-3.5" />
+                                  <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                                 </button>
                                 <div className="relative inline-block">
                                   <button onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setSnoozePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right }); setSnoozeOpenId(practice.id); }} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Snooze practice" aria-label="Snooze practice">
-                                    <BellOff className="w-3.5 h-3.5" />
+                                    <BellOff className="w-3.5 h-3.5" aria-hidden="true" />
                                   </button>
                                   {snoozeOpenId === practice.id && snoozePos && (
                                     <>
@@ -1313,7 +1313,7 @@ export function Playbook() {
                                 </div>
                                 {isCustom && (
                                   <button onClick={() => handleDeleteCustom(practice.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors" title="Delete practice" aria-label="Delete practice">
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                                   </button>
                                 )}
                               </div>
@@ -1342,7 +1342,7 @@ export function Playbook() {
                                     onClick={(e) => { e.stopPropagation(); handleMarkComplete(practice.id) }}
                                     className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium text-emerald-400/80 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
                                   >
-                                    <CheckCircle2 className="w-3 h-3" />
+                                    <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
                                     Done
                                   </button>
                                   )}
@@ -1394,7 +1394,7 @@ export function Playbook() {
                 onClick={() => setIsAddingPractice(true)}
                 className="w-full flex items-center justify-center gap-2 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl p-4 text-zinc-400 hover:text-zinc-200 transition-colors"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
                 <span className="text-sm font-medium">Add a practice</span>
               </button>
             ) : (

@@ -195,11 +195,11 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors mb-8"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           Back
         </button>
         <div className="bg-surface rounded-xl border border-border p-8 text-center">
-          <Users className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+          <Users className="w-12 h-12 text-zinc-600 mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-lg font-medium text-zinc-200 mb-2">Person not found</h2>
           <p className="text-sm text-zinc-500">This person's file may have been moved or deleted.</p>
         </div>
@@ -248,7 +248,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
               <div className="flex justify-end gap-2">
                 <button onClick={() => setIsEditingProfile(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
                 <button onClick={handleSaveProfile} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97]">
-                  <Check className="w-3.5 h-3.5" /> Save
+                  <Check className="w-3.5 h-3.5" aria-hidden="true" /> Save
                 </button>
               </div>
             </div>
@@ -279,7 +279,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                   title="Edit profile"
                   aria-label="Edit profile"
                 >
-                  <Pencil className="w-4 h-4" />
+                  <Pencil className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex items-center gap-3 mt-1.5 text-sm text-zinc-500 flex-wrap">
@@ -333,7 +333,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
               title="Edit notes"
               aria-label="Edit notes"
             >
-              <Pencil className="w-4 h-4" />
+              <Pencil className="w-4 h-4" aria-hidden="true" />
             </button>
           ) : (
             <div className="flex items-center gap-1">
@@ -343,7 +343,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 title="Save (⌘S)"
                 aria-label="Save notes"
               >
-                <Check className="w-4 h-4" />
+                <Check className="w-4 h-4" aria-hidden="true" />
               </button>
               <button
                 onClick={() => setIsEditing(false)}
@@ -351,7 +351,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 title="Cancel"
                 aria-label="Cancel editing"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           )}

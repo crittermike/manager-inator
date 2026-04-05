@@ -378,7 +378,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                   className="absolute top-1.5 right-1.5 p-0.5 rounded bg-surface-raised/80 text-zinc-500 hover:text-zinc-200 opacity-0 group-hover/msg:opacity-100 transition-opacity"
                   aria-label="Copy"
                 >
-                  {copiedIdx === i ? <Check className="w-2.5 h-2.5 text-success" /> : <Copy className="w-2.5 h-2.5" />}
+                  {copiedIdx === i ? <Check className="w-2.5 h-2.5 text-success" aria-hidden="true" /> : <Copy className="w-2.5 h-2.5" aria-hidden="true" />}
                 </button>
               )}
               {msg.role === 'assistant' ? (
@@ -438,7 +438,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
         {activeFile && (
           <div className="flex items-center gap-2 mb-2 px-1">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-brand/10 text-brand-light text-[11px] font-medium">
-              <FileText className="w-3 h-3" />
+              <FileText className="w-3 h-3" aria-hidden="true" />
               {activeFile.title}
             </div>
             <span className="text-[10px] text-zinc-600">attached as context</span>

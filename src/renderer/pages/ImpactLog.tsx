@@ -225,7 +225,7 @@ export function ImpactLog() {
                   aria-label="Copy summary"
                   title="Copy summary"
                 >
-                  {copiedSummary ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedSummary ? <Check className="w-3.5 h-3.5 text-success" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
                 </button>
               )}
               {streaming && (

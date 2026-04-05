@@ -376,16 +376,16 @@ export function CaptureSession({
           className="flex-1 min-w-0 text-left flex items-center gap-2"
         >
           {state === 'processing' ? (
-            <Loader2 className="w-3.5 h-3.5 text-brand animate-spin shrink-0" />
+            <Loader2 className="w-3.5 h-3.5 text-brand animate-spin shrink-0" aria-hidden="true" />
           ) : state === 'saved' ? (
-            <Check className="w-3.5 h-3.5 text-success shrink-0" />
+            <Check className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" />
           ) : state === 'editing' ? (
-            <Pencil className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <Pencil className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
           ) : (
-            <AlertCircle className="w-3.5 h-3.5 text-danger shrink-0" />
+            <AlertCircle className="w-3.5 h-3.5 text-danger shrink-0" aria-hidden="true" />
           )}
           <div className="min-w-0">
-            {fileName && <div className="text-[10px] text-zinc-500 truncate mb-0.5 flex items-center gap-1"><FileText className="w-3 h-3 shrink-0" />{fileName}</div>}
+            {fileName && <div className="text-[10px] text-zinc-500 truncate mb-0.5 flex items-center gap-1"><FileText className="w-3 h-3 shrink-0" aria-hidden="true" />{fileName}</div>}
             <div className="text-xs text-zinc-200 truncate">{summaryText}</div>
             <div className="mt-0.5 text-[10px] text-zinc-500">
               {state === 'processing' ? 'Processing' : state === 'saved' ? 'Saved' : state === 'editing' ? 'Editing' : 'Error'}
@@ -408,7 +408,7 @@ export function CaptureSession({
             title="Dismiss"
             aria-label="Dismiss"
           >
-            <X className="w-3 h-3" />
+            <X className="w-3 h-3" aria-hidden="true" />
           </button>
         )}
         <button
@@ -416,7 +416,7 @@ export function CaptureSession({
           className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-md transition-colors"
           title={expanded ? 'Collapse' : 'Expand'}
         >
-          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
         </button>
       </div>
 
@@ -425,7 +425,7 @@ export function CaptureSession({
           {state === 'processing' && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" aria-hidden="true" />
                 Analyzing content…
               </div>
               {streamedText && (
@@ -502,7 +502,7 @@ export function CaptureSession({
               {result.resolved_action_items && result.resolved_action_items.length > 0 && (
                 <div className="space-y-1.5">
                   <span className="text-[10px] font-medium text-emerald-500/80 uppercase tracking-wider flex items-center gap-1">
-                    <Check className="w-2.5 h-2.5" />
+                    <Check className="w-2.5 h-2.5" aria-hidden="true" />
                     Resolved action items
                   </span>
                   <p className="text-[10px] text-zinc-600">
@@ -554,15 +554,15 @@ export function CaptureSession({
                   onClick={handleEdit}
                   className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
                 >
-                  <Pencil className="w-3 h-3" />
+                  <Pencil className="w-3 h-3" aria-hidden="true" />
                   Edit
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
                   className="flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors"
                 >
-                  <Trash2 className="w-3 h-3" />
-                  Delete
+<Trash2 className="w-3 h-3" aria-hidden="true" />
+                   Delete
                 </button>
               </div>
             </div>
@@ -597,7 +597,7 @@ export function CaptureSession({
           {state === 'error' && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs text-danger">
-                <AlertCircle className="w-3.5 h-3.5" />
+                <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
                 {saveError || 'Something went wrong'}
               </div>
               <div className="flex items-center gap-3">
@@ -605,7 +605,7 @@ export function CaptureSession({
                   onClick={handleProcess}
                   className="flex items-center gap-1 text-xs text-brand-light hover:text-brand transition-colors"
                 >
-                  <Sparkles className="w-3 h-3" />
+                  <Sparkles className="w-3 h-3" aria-hidden="true" />
                   Retry
                 </button>
                 <button

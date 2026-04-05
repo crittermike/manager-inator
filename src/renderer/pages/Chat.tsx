@@ -289,7 +289,7 @@ export function Chat() {
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 rounded-lg transition-colors"
                 aria-label="Clear search"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -475,7 +475,7 @@ export function Chat() {
                           aria-label="Save as note"
                           title="Save as context note"
                         >
-                          {savedIdx === i ? <Check className="w-3 h-3 text-success" /> : <Save className="w-3 h-3" />}
+                          {savedIdx === i ? <Check className="w-3 h-3 text-success" aria-hidden="true" /> : <Save className="w-3 h-3" aria-hidden="true" />}
                         </button>
                         <button
                           onClick={async () => {
@@ -487,7 +487,7 @@ export function Chat() {
                           className="p-1 rounded-md bg-surface border border-border text-zinc-500 hover:text-zinc-200 shadow-sm"
                           aria-label="Copy"
                         >
-                          {copiedIdx === i ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                          {copiedIdx === i ? <Check className="w-3 h-3 text-success" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                         </button>
                       </div>
                     )}

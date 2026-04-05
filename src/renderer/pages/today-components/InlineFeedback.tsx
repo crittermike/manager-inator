@@ -120,7 +120,7 @@ export function InlineFeedback({
           disabled={rewriting || streaming || !draft.trim()}
           className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
           {rewriting ? 'Rewriting…' : 'AI rewrite'}
         </button>
         <button

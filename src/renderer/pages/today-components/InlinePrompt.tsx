@@ -364,7 +364,7 @@ export function InlinePrompt({
   if (phase === 'loading') {
     return (
       <div className="flex items-center gap-3 py-4 px-1">
-        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
+        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" aria-hidden="true" />
         <span className="text-sm text-zinc-500">Loading...</span>
       </div>
     )
@@ -382,14 +382,14 @@ export function InlinePrompt({
             onClick={handleStartEdit}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
           >
-            <Pencil className="w-3.5 h-3.5" />
+            <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
             Edit
           </button>
           <button
             onClick={handleRegenerate}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
             Regenerate
           </button>
           <button
@@ -397,7 +397,7 @@ export function InlinePrompt({
             disabled={deleting}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400/70 hover:text-red-400 bg-surface-raised hover:bg-red-500/10 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
             {deleting ? 'Deleting...' : 'Delete'}
           </button>
           <button onClick={onCancel} className="ml-auto px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -405,7 +405,7 @@ export function InlinePrompt({
           </button>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
-          <FolderOpen className="w-3 h-3" />
+          <FolderOpen className="w-3 h-3" aria-hidden="true" />
           Saved to {config.savePath()} — also on the Management Log tab in your profile
         </div>
       </div>
@@ -429,14 +429,14 @@ export function InlinePrompt({
             disabled={saving || !editDraft.trim()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
           >
-            <Check className="w-3.5 h-3.5" />
+            <Check className="w-3.5 h-3.5" aria-hidden="true" />
             {saving ? 'Saving...' : 'Save'}
           </button>
           <button
             onClick={() => { setEditing(false); setEditDraft('') }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
             Cancel
           </button>
         </div>
@@ -450,7 +450,7 @@ export function InlinePrompt({
       {promptType === 'weekly-reflection' && weeklyGoals && (
         <div className="bg-surface-raised/50 border border-border/50 rounded-lg p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Target className="w-3.5 h-3.5 text-brand-light" />
+            <Target className="w-3.5 h-3.5 text-brand-light" aria-hidden="true" />
             <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">This week's goals</span>
           </div>
           <ul className="space-y-1">
@@ -474,7 +474,7 @@ export function InlinePrompt({
           disabled={!text.trim() || saving}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
-          <Save className="w-4 h-4" />
+          <Save className="w-4 h-4" aria-hidden="true" />
           {saving ? 'Saving...' : 'Save'}
         </button>
         <button
@@ -482,7 +482,7 @@ export function InlinePrompt({
           disabled={suggesting || streaming}
           className="flex items-center gap-1.5 px-3 py-2 text-sm bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
         >
-          {suggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {suggesting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Sparkles className="w-4 h-4" aria-hidden="true" />}
           {suggesting ? 'Thinking...' : 'AI draft'}
         </button>
         <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -490,7 +490,7 @@ export function InlinePrompt({
         </button>
       </div>
       <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
-        <FolderOpen className="w-3 h-3" />
+        <FolderOpen className="w-3 h-3" aria-hidden="true" />
         Will save to {config.savePath()} — find it later on the Management Log tab in your profile
       </div>
     </div>

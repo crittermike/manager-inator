@@ -376,11 +376,11 @@ export function ContextDetail() {
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors mb-8"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           Back
         </button>
         <div className="bg-surface rounded-xl border border-border p-8 text-center">
-          <FileText className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+          <FileText className="w-12 h-12 text-zinc-600 mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-lg font-medium text-zinc-200 mb-2">Content not found 📋</h2>
           <p className="text-sm text-zinc-500">This content may have been moved or deleted.</p>
         </div>
@@ -394,7 +394,7 @@ export function ContextDetail() {
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors mb-6"
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         Back
       </button>
 
@@ -421,7 +421,7 @@ export function ContextDetail() {
                     title="Save title"
                     aria-label="Save title"
                   >
-                    <Check className="w-5 h-5" />
+                    <Check className="w-5 h-5" aria-hidden="true" />
                   </button>
                 </div>
               ) : (
@@ -437,7 +437,7 @@ export function ContextDetail() {
                     title="Edit title"
                     aria-label="Edit title"
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </button>
                   )}
                 </h1>
@@ -448,13 +448,13 @@ export function ContextDetail() {
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-zinc-400">
               {dateStr && (
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="w-4 h-4" aria-hidden="true" />
                   <span>{dateStr}</span>
                 </div>
               )}
               
               <div className="flex items-center gap-2 relative group/speakers">
-                  <Users className="w-4 h-4" />
+                  <Users className="w-4 h-4" aria-hidden="true" />
                   
                   {isEditingSpeakers ? (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -466,7 +466,7 @@ export function ContextDetail() {
                             className="hover:text-danger hover:bg-danger/10 rounded-full p-0.5 transition-colors"
                             aria-label={`Remove ${speaker}`}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3" aria-hidden="true" />
                           </button>
                         </span>
                       ))}
@@ -517,7 +517,7 @@ export function ContextDetail() {
                         title="Save attendees"
                         aria-label="Save attendees"
                       >
-                        <Check className="w-4 h-4" />
+                        <Check className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
                         onClick={() => {
@@ -528,7 +528,7 @@ export function ContextDetail() {
                         title="Cancel"
                         aria-label="Cancel editing attendees"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   ) : (
@@ -567,7 +567,7 @@ export function ContextDetail() {
                                   title={`Create page for ${speaker}`}
                                   aria-label={`Create page for ${speaker}`}
                                 >
-                                  <UserPlus className="w-3 h-3" />
+                                  <UserPlus className="w-3 h-3" aria-hidden="true" />
                                 </button>
                               </span>
                             )
@@ -583,7 +583,7 @@ export function ContextDetail() {
                         title="Edit attendees"
                         aria-label="Edit attendees"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   )}
@@ -622,7 +622,7 @@ export function ContextDetail() {
                 title="Edit content"
                 aria-label="Edit content"
               >
-                <Pencil className="w-4 h-4" />
+                <Pencil className="w-4 h-4" aria-hidden="true" />
               </button>
             )}
             {(dir !== 'contexts' || activeTab === 'summary') && isEditingContent && (
@@ -633,7 +633,7 @@ export function ContextDetail() {
                   title="Save changes"
                   aria-label="Save changes"
                 >
-                  <Check className="w-4 h-4" />
+                  <Check className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => setIsEditingContent(false)}
@@ -641,7 +641,7 @@ export function ContextDetail() {
                   title="Cancel editing"
                   aria-label="Cancel editing"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </>
             )}
@@ -651,7 +651,7 @@ export function ContextDetail() {
               title="Copy content"
               aria-label="Copy content"
             >
-              {copiedContent ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+              {copiedContent ? <Check className="w-4 h-4 text-success" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
             </button>
             <button
               onClick={handleDownloadContent}
@@ -659,7 +659,7 @@ export function ContextDetail() {
               title={activeTab === 'summary' ? "Download as markdown" : "Download raw content"}
               aria-label={activeTab === 'summary' ? "Download as markdown" : "Download transcript"}
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
           

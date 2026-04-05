@@ -113,7 +113,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
             className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-surface-raised transition-colors"
             aria-label="Close"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -219,7 +219,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
             disabled={saving || !name.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
             {saving ? 'Adding...' : 'Add report'}
           </button>
         </div>

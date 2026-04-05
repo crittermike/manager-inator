@@ -560,7 +560,7 @@ export function Settings() {
               </div>
               {hasGithubOrgToken && (
                 <span className="text-xs text-success flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Token configured
+                  <Check className="w-3 h-3" aria-hidden="true" /> Token configured
                 </span>
               )}
             </div>
@@ -579,7 +579,7 @@ export function Settings() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
                 aria-label={showOrgToken ? "Hide token" : "Show token"}
               >
-                {showOrgToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showOrgToken ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
               </button>
             </div>
             <p className="text-xs text-zinc-600 mt-2">

@@ -225,7 +225,7 @@ export function AppShell({ children }: AppShellProps) {
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-500 hover:text-brand-light hover:bg-brand/10 transition-colors no-drag group"
               >
                 <div className="w-6 h-6 rounded-full flex items-center justify-center bg-zinc-800 group-hover:bg-brand/15 transition-colors">
-                  <Plus className="w-3.5 h-3.5 text-zinc-600 group-hover:text-brand-light transition-colors" />
+                  <Plus className="w-3.5 h-3.5 text-zinc-600 group-hover:text-brand-light transition-colors" aria-hidden="true" />
                 </div>
                 <span>Add your first report</span>
               </button>

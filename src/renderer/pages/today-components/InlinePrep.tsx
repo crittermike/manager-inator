@@ -297,7 +297,7 @@ export function InlinePrep({
   if (phase === 'loading') {
     return (
       <div className="flex items-center gap-3 py-4 px-1">
-        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
+        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" aria-hidden="true" />
         <span className="text-sm text-zinc-500">Loading context...</span>
       </div>
     )
@@ -308,9 +308,9 @@ export function InlinePrep({
       <div className="space-y-3 py-4 px-1 animate-shimmer rounded-lg">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Sparkles className="w-4 h-4 text-brand" />
+            <Sparkles className="w-4 h-4 text-brand" aria-hidden="true" />
             <div className="absolute inset-0 animate-ping">
-              <Sparkles className="w-4 h-4 text-brand opacity-30" />
+              <Sparkles className="w-4 h-4 text-brand opacity-30" aria-hidden="true" />
             </div>
           </div>
           <span className="text-sm text-zinc-300">Generating prep notes...</span>
@@ -353,14 +353,14 @@ export function InlinePrep({
               disabled={saving || !editDraft.trim()}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={handleCancelEdit}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
               Cancel
             </button>
           </>
@@ -370,14 +370,14 @@ export function InlinePrep({
               onClick={handleStartEdit}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
               Edit
             </button>
             <button
               onClick={handleRegenerate}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97]"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               Regenerate
             </button>
             <button
@@ -385,7 +385,7 @@ export function InlinePrep({
               disabled={deleting}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400/70 hover:text-red-400 bg-surface-raised hover:bg-red-500/10 rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
               {deleting ? 'Deleting...' : 'Delete'}
             </button>
             <button onClick={onCancel} className="ml-auto px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">

@@ -142,7 +142,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         <div className="w-full max-w-lg px-8 animate-fade-in">
           <div className="flex flex-col items-center mb-10">
             <div className="w-16 h-16 rounded-2xl bg-brand/20 flex items-center justify-center mb-4">
-              <Zap className="w-8 h-8 text-brand" />
+              <Zap className="w-8 h-8 text-brand" aria-hidden="true" />
             </div>
             <h1 className="text-2xl font-bold text-zinc-100">Welcome to Manager-inator</h1>
             <p className="text-sm text-zinc-500 mt-2 text-center max-w-sm">
@@ -156,13 +156,13 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               className="flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 transition-all text-left group no-drag"
             >
               <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center shrink-0 group-hover:bg-brand/20 transition-colors">
-                <FolderGit2 className="w-6 h-6 text-brand-light" />
+                <FolderGit2 className="w-6 h-6 text-brand-light" aria-hidden="true" />
               </div>
               <div className="flex-1">
                 <h2 className="text-sm font-semibold text-zinc-200">Connect existing repo</h2>
                 <p className="text-xs text-zinc-500 mt-0.5">I already have a Manager-inator data repo cloned locally</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-brand-light transition-colors shrink-0" />
+              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-brand-light transition-colors shrink-0" aria-hidden="true" />
             </button>
 
             <button
@@ -170,13 +170,13 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               className="flex items-center gap-4 p-5 bg-surface rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/70 transition-all text-left group no-drag"
             >
               <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-colors">
-                <FolderPlus className="w-6 h-6 text-emerald-400" />
+                <FolderPlus className="w-6 h-6 text-emerald-400" aria-hidden="true" />
               </div>
               <div className="flex-1">
                 <h2 className="text-sm font-semibold text-zinc-200">Start fresh</h2>
                 <p className="text-xs text-zinc-500 mt-0.5">Create a new data repo from scratch — I'll set up the folder structure for you</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors shrink-0" />
+              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 transition-colors shrink-0" aria-hidden="true" />
             </button>
           </div>
 
@@ -196,7 +196,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         <div className="w-full max-w-md px-8 animate-fade-in">
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-brand/20 flex items-center justify-center mb-4">
-              <User className="w-8 h-8 text-brand" />
+              <User className="w-8 h-8 text-brand" aria-hidden="true" />
             </div>
             <h1 className="text-2xl font-bold text-zinc-100">About you</h1>
             <p className="text-sm text-zinc-500 mt-1 text-center">
@@ -245,7 +245,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               ) : (
                 <>
                   Next
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </>
               )}
             </button>
@@ -267,7 +267,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         <div className="w-full max-w-md px-8 animate-fade-in">
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-brand/20 flex items-center justify-center mb-4">
-              <KeyRound className="w-8 h-8 text-brand" />
+              <KeyRound className="w-8 h-8 text-brand" aria-hidden="true" />
             </div>
             <h1 className="text-2xl font-bold text-zinc-100">GitHub Organization</h1>
             <p className="text-sm text-zinc-500 mt-1 text-center max-w-sm">
@@ -308,7 +308,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 no-drag"
                   aria-label={showToken ? 'Hide token' : 'Show token'}
                 >
-                  {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showToken ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                 </button>
               </div>
               <div className="mt-2.5 space-y-1.5 text-xs text-zinc-500">
@@ -331,7 +331,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 mt-2 text-xs text-brand-light hover:text-brand transition-colors no-drag"
               >
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLink className="w-3 h-3" aria-hidden="true" />
                 Create a fine-grained token {githubOrgName.trim() ? `for ${githubOrgName.trim()}` : 'on GitHub'}
               </a>
             </div>
@@ -349,9 +349,9 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Zap className="w-4 h-4" />
+                    <Zap className="w-4 h-4" aria-hidden="true" />
                     {githubOrgName.trim() || githubOrgToken.trim() ? 'Save & get started' : 'Get started'}
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </>
                 )}
               </button>
@@ -360,7 +360,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
                   onClick={onComplete}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors no-drag"
                 >
-                  <SkipForward className="w-4 h-4" />
+                  <SkipForward className="w-4 h-4" aria-hidden="true" />
                   Skip for now — I'll set this up later
                 </button>
               )}
@@ -386,7 +386,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
           onClick={() => { setMode('choose'); setError(''); setRepoPath('') }}
           className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-6 no-drag"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           Back
         </button>
 
@@ -395,8 +395,8 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             isCreate ? 'bg-emerald-500/20' : 'bg-brand/20'
           }`}>
             {isCreate
-              ? <FolderPlus className="w-8 h-8 text-emerald-400" />
-              : <FolderGit2 className="w-8 h-8 text-brand" />
+              ? <FolderPlus className="w-8 h-8 text-emerald-400" aria-hidden="true" />
+              : <FolderGit2 className="w-8 h-8 text-brand" aria-hidden="true" />
             }
           </div>
           <h1 className="text-2xl font-bold text-zinc-100">
@@ -453,9 +453,9 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <>
-                {isCreate ? <FolderPlus className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+                {isCreate ? <FolderPlus className="w-4 h-4" aria-hidden="true" /> : <Zap className="w-4 h-4" aria-hidden="true" />}
                 {isCreate ? 'Create & connect' : 'Connect repo'}
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </>
             )}
           </button>

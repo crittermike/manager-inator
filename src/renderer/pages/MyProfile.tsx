@@ -246,7 +246,7 @@ export function MyProfile() {
               : 'text-zinc-500 border-transparent hover:text-zinc-300'
           }`}
         >
-          <Trophy className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+          <Trophy className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" aria-hidden="true" />
           Impact Log
         </button>
         <button
@@ -259,7 +259,7 @@ export function MyProfile() {
               : 'text-zinc-500 border-transparent hover:text-zinc-300'
           }`}
         >
-          <FileText className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+          <FileText className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" aria-hidden="true" />
           Management Log
         </button>
       </div>
@@ -473,7 +473,7 @@ export function MyProfile() {
 
           {!weeklyLogLoading && weeklyLogEntries.length === 0 && (
             <div className="bg-surface rounded-xl border border-border p-8 text-center space-y-3">
-              <FolderOpen className="w-8 h-8 text-zinc-600 mx-auto" />
+              <FolderOpen className="w-8 h-8 text-zinc-600 mx-auto" aria-hidden="true" />
               <p className="text-sm text-zinc-500">No management log entries yet.</p>
               <p className="text-xs text-zinc-600">
                 Entries are created when you complete items on the Today page — weekly priorities, reflections, OKR drafts, team health checks, and more.
@@ -489,12 +489,12 @@ export function MyProfile() {
                   onClick={() => openEntry(entry)}
                   className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
                 >
-                  <FileText className="w-4 h-4 text-zinc-500 shrink-0" />
+                  <FileText className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-zinc-200 truncate">{entry.title}</div>
                     <div className="text-xs text-zinc-600">{entry.category} · {entry.date}</div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 shrink-0" aria-hidden="true" />
                 </button>
               ))}
             </div>
@@ -529,7 +529,7 @@ export function MyProfile() {
                       disabled={saving}
                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50"
                     >
-                      <Save className="w-4 h-4" />
+                      <Save className="w-4 h-4" aria-hidden="true" />
                       {saving ? 'Saving...' : 'Save'}
                     </button>
                     <button
@@ -550,12 +550,12 @@ export function MyProfile() {
                       onClick={() => { setEntryEditDraft(entryContent); setEditingEntry(true) }}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-3.5 h-3.5" aria-hidden="true" />
                       Edit
                     </button>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
-                    <FolderOpen className="w-3 h-3" />
+                    <FolderOpen className="w-3 h-3" aria-hidden="true" />
                     weekly-log/{selectedEntry.filename}
                   </div>
                 </div>

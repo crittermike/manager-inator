@@ -1407,7 +1407,7 @@ export function Today() {
               className="p-1 text-zinc-600 hover:text-zinc-400 transition-colors"
               aria-label="Dismiss onboarding"
             >
-              <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
           <div className="space-y-2">
@@ -1416,20 +1416,20 @@ export function Today() {
               className="w-full flex items-center gap-3 p-3 bg-surface/50 rounded-xl border border-border hover:border-brand/30 hover:bg-surface-raised/50 transition-all text-left group"
             >
               <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center shrink-0 group-hover:bg-brand/20 transition-colors">
-                <UserPlus className="w-4 h-4 text-brand-light" />
+                <UserPlus className="w-4 h-4 text-brand-light" aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-sm text-zinc-200">Add your direct reports</span>
                 <span className="text-xs text-zinc-600 block">Add the people you manage</span>
               </div>
-              {overview && overview.reports.length > 0 && <Check className="w-4 h-4 text-success shrink-0" />}
+              {overview && overview.reports.length > 0 && <Check className="w-4 h-4 text-success shrink-0" aria-hidden="true" />}
             </button>
             <button
               onClick={() => navigate('/settings')}
               className="w-full flex items-center gap-3 p-3 bg-surface/50 rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/50 transition-all text-left group"
             >
               <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
-                <SettingsIcon className="w-4 h-4 text-zinc-400" />
+                <SettingsIcon className="w-4 h-4 text-zinc-400" aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-sm text-zinc-200">Configure settings</span>
@@ -1443,7 +1443,7 @@ export function Today() {
               className="w-full flex items-center gap-3 p-3 bg-surface/50 rounded-xl border border-border hover:border-zinc-600 hover:bg-surface-raised/50 transition-all text-left group"
             >
               <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center shrink-0 group-hover:bg-zinc-700/50 transition-colors">
-                <ClipboardPaste className="w-4 h-4 text-zinc-400" />
+                <ClipboardPaste className="w-4 h-4 text-zinc-400" aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-sm text-zinc-200">Capture your first context</span>
@@ -1527,7 +1527,7 @@ export function Today() {
                 title={showRawActivity ? 'Refresh activity' : 'Regenerate summary'}
                 aria-label={showRawActivity ? 'Refresh activity' : 'Regenerate summary'}
               >
-                <RefreshCw className={`w-4 h-4 ${(activityLoading || activityAI.streaming) ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${(activityLoading || activityAI.streaming) ? 'animate-spin' : ''}`} aria-hidden="true" />
               </button>
               {activityExpanded
                 ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
@@ -1597,8 +1597,8 @@ export function Today() {
                             
                             {!isEmpty && !member.error && (
                               isMemberExpanded 
-                                ? <ChevronDown className="w-4 h-4 text-zinc-600" /> 
-                                : <ChevronRight className="w-4 h-4 text-zinc-600" />
+                ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
+                : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
                             )}
                           </div>
                         </div>
@@ -1627,11 +1627,11 @@ export function Today() {
                                   >
                                     <div className="mt-0.5 shrink-0">
                                       {item.type === 'pr' ? (
-                                        <GitPullRequest className="w-4 h-4 text-purple-400" />
+                                        <GitPullRequest className="w-4 h-4 text-purple-400" aria-hidden="true" />
                                       ) : item.type === 'discussion' ? (
-                                        <MessageSquare className="w-4 h-4 text-blue-400" />
+                                        <MessageSquare className="w-4 h-4 text-blue-400" aria-hidden="true" />
                                       ) : (
-                                        <CircleDot className="w-4 h-4 text-zinc-400" />
+                                        <CircleDot className="w-4 h-4 text-zinc-400" aria-hidden="true" />
                                       )}
                                     </div>
                                       <div className="flex-1 min-w-0">
@@ -1664,8 +1664,8 @@ export function Today() {
                                     <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                                       {hasComments && (
                                         isExpanded
-                                          ? <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />
-                                          : <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
+                ? <ChevronDown className="w-3.5 h-3.5 text-zinc-600" aria-hidden="true" />
+                : <ChevronRight className="w-3.5 h-3.5 text-zinc-600" aria-hidden="true" />
                                       )}
                                       <button
                                         className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
@@ -1673,7 +1673,7 @@ export function Today() {
                                         aria-label="Open on GitHub"
                                         onClick={(e) => { e.stopPropagation(); window.open(item.url, '_blank') }}
                                       >
-                                        <Eye className="w-3.5 h-3.5" />
+                                        <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                                       </button>
                                     </div>
                                   </div>
@@ -1725,7 +1725,7 @@ export function Today() {
                     </div>
                   ) : activityLoading || activitySummaryPending ? (
                     <div className="flex items-center gap-2 text-sm text-zinc-500 py-4">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
                       {activityLoading ? 'Loading activity data...' : 'Preparing summary...'}
                     </div>
                   ) : (
@@ -1953,7 +1953,7 @@ const TimelineRow = memo(function TimelineRow({
                 aria-label="View in Playbook"
                 title="View in Playbook"
               >
-                <BookOpen className="w-3.5 h-3.5" />
+                  <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
             {item.actionLabel && item.actionType === 'navigate' && (
@@ -1986,7 +1986,7 @@ const TimelineRow = memo(function TimelineRow({
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-brand/10 text-brand-light hover:bg-brand/20 rounded-lg transition-all active:scale-[0.97] shadow-sm shadow-brand/5"
               >
-                <Sparkles className="w-3 h-3" />
+                <Sparkles className="w-3 h-3" aria-hidden="true" />
                 {item.actionLabel}
               </button>
             )}
@@ -1999,7 +1999,7 @@ const TimelineRow = memo(function TimelineRow({
               aria-label="Mark done"
               title="Mark done"
             >
-              <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -2014,7 +2014,7 @@ const TimelineRow = memo(function TimelineRow({
               aria-label="View in Playbook"
               title="View in Playbook"
             >
-              <BookOpen className="w-3.5 h-3.5" />
+              <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         )}
