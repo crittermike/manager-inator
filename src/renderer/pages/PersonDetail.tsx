@@ -162,7 +162,8 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
       setPerson({ ...person, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship })
       setIsEditingProfile(false)
       success('Profile saved')
-    } catch {
+    } catch (e) {
+      console.error('Failed to save profile:', e)
       showError('Failed to save profile')
     }
   }, [slug, person, rawFileContent, bodyContent, editFields, success, showError])

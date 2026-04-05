@@ -47,7 +47,8 @@ export function InlinePrep({
         `Save 1:1 prep for ${reportName} on ${today}`
       )
       return true
-    } catch {
+    } catch (e) {
+      console.error('Failed to save prep:', e)
       return false
     }
   }, [prepPath, reportName, today])
@@ -129,7 +130,7 @@ export function InlinePrep({
         }
       }
       crossMentions = mentions.join('\n\n---\n\n')
-    } catch { /* non-critical */ }
+    } catch (e) { console.debug('Cross-meeting mentions unavailable:', e) }
     if (!mountedRef.current) return
 
     let githubActivityText: string | undefined
@@ -165,7 +166,7 @@ export function InlinePrep({
         }
         githubActivityText = sections.join('\n')
       }
-    } catch { /* non-critical */ }
+    } catch (e) { console.debug('GitHub activity fetch unavailable:', e) }
     if (!mountedRef.current) return
 
     try {
@@ -193,7 +194,8 @@ export function InlinePrep({
           }
         }
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to generate prep:', e)
       if (mountedRef.current) {
         const fallback = fullTextRef.current
         if (fallback) {
@@ -234,7 +236,8 @@ export function InlinePrep({
           setReportData(data)
           doGenerate(data)
         }
-      } catch {
+      } catch (e) {
+        console.error('Failed to load report data for regeneration:', e)
         toast.error('Failed to load report data')
       }
     }
@@ -289,7 +292,8 @@ export function InlinePrep({
       await window.api.deleteFile(prepPath)
       toast.success('Prep deleted')
       onDone()
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete prep:', e)
       toast.error('Failed to delete prep')
     } finally {
       setDeleting(false)

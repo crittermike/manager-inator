@@ -54,7 +54,7 @@ export async function getCheckInContext(report: Report, name: string, now = new 
       }
       githubActivityText = sections.join('\n\n')
     }
-  } catch { /* monthly activity unavailable is non-fatal */ }
+  } catch (e) { console.debug('Monthly GitHub activity unavailable:', e) }
 
   try {
     const enriched = await window.api.fetchActivityForPerson(name, startDate, endDate)
@@ -77,7 +77,7 @@ export async function getCheckInContext(report: Report, name: string, now = new 
         githubActivityText = (githubActivityText || '') + enrichedSection
       }
     }
-  } catch { /* content enrichment unavailable is non-fatal */ }
+  } catch (e) { console.debug('Content enrichment unavailable:', e) }
 
   const context = {
     reportName: report.profile.displayName,

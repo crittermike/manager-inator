@@ -19,7 +19,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       const s = await window.api.getSettings()
       setSettings(s)
-    } catch { /* ignore */ } finally {
+    } catch (e) { console.debug('Failed to load settings:', e) } finally {
       setLoading(false)
     }
   }, [])

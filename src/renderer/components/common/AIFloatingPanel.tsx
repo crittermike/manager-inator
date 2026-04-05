@@ -159,7 +159,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
           }
           activityContext = lines.join('\n')
         }
-      } catch { /* non-fatal */ }
+      } catch (e) { console.debug('Activity context unavailable:', e) }
     }
 
     const fullContext = [contextHint, activityContext, fileContext].filter(Boolean).join('\n\n')

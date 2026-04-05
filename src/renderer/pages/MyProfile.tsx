@@ -72,7 +72,8 @@ export function MyProfile() {
     try {
       const data = await window.api.getImpactLog()
       setContent(data)
-    } catch {
+    } catch (e) {
+      console.debug('Impact log not found, using default:', e)
       setContent('# Impact log\n\n_No entries yet._')
     } finally {
       setLoading(false)
@@ -84,7 +85,8 @@ export function MyProfile() {
     try {
       const entries = await window.api.listWeeklyLog()
       setWeeklyLogEntries(entries)
-    } catch {
+    } catch (e) {
+      console.debug('Failed to load weekly log entries:', e)
       setWeeklyLogEntries([])
     } finally {
       setWeeklyLogLoading(false)
@@ -98,7 +100,8 @@ export function MyProfile() {
     try {
       const data = await window.api.getFileContent(`weekly-log/${entry.filename}`)
       setEntryContent(data)
-    } catch {
+    } catch (e) {
+      console.error('Failed to load weekly log entry:', e)
       setEntryContent('_Failed to load file._')
     } finally {
       setEntryLoading(false)
@@ -127,7 +130,8 @@ export function MyProfile() {
       setEntryContent(entryEditDraft)
       setEditingEntry(false)
       toast.success('Updated')
-    } catch {
+    } catch (e) {
+      console.error('Failed to save weekly log entry:', e)
       toast.error('Failed to save')
     } finally {
       setSaving(false)

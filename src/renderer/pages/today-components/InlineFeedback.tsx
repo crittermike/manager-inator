@@ -36,7 +36,8 @@ export function InlineFeedback({
     try {
       const result = await generate('rewrite-feedback', { feedback: draft, feedbackType: type })
       if (result) setDraft(result)
-    } catch {
+    } catch (e) {
+      console.error('AI rewrite failed:', e)
       toast.error('AI rewrite failed')
     } finally {
       setRewriting(false)
@@ -64,7 +65,7 @@ export function InlineFeedback({
       let existing = ''
       try {
         existing = await window.api.getFileContent(feedbackLogPath)
-      } catch { /* file may not exist */ }
+      } catch (e) { console.debug('Feedback log file may not exist:', e) }
       const entry = `### ${today}\n**Type:** ${type}\n\n${draft.trim()}\n`
       const updated = existing ? `${entry}\n---\n\n${existing}` : entry
       await window.api.commitFile(

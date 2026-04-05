@@ -105,8 +105,9 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
            } else {
              consecutiveErrorsRef.current = 0
            }
-         } catch {
-           const next = consecutiveErrorsRef.current + 1
+          } catch (e) {
+            console.debug('Auth polling error:', e)
+            const next = consecutiveErrorsRef.current + 1
            consecutiveErrorsRef.current = next
            if (next >= 5 && !unmountedRef.current) {
              clearTimeout(timeoutId)

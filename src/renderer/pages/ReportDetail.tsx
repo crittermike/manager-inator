@@ -373,7 +373,7 @@ export function ReportDetail() {
         return ''
       })
       crossMentions = mentionResults.filter(Boolean).slice(0, 5).join('\n\n---\n\n')
-    } catch { /* non-critical */ }
+    } catch (e) { console.debug('Cross-meeting mentions unavailable:', e) }
     if (!mountedRef.current) return
 
     let githubActivityText: string | undefined
@@ -409,7 +409,7 @@ export function ReportDetail() {
         }
         githubActivityText = sections.join('\n')
       }
-    } catch { /* GitHub activity fetch is non-critical */ }
+    } catch (e) { console.debug('GitHub activity fetch is non-critical:', e) }
     if (!mountedRef.current) return
 
     let result = ''
@@ -453,7 +453,8 @@ export function ReportDetail() {
             : [newPrep, ...prev.preps]
           return { ...prev, preps }
         })
-      } catch {
+      } catch (e) {
+        console.error('Failed to auto-save prep:', e)
         toast.error('Failed to auto-save prep')
       } finally {
         setAiSaving(false)
@@ -505,15 +506,17 @@ export function ReportDetail() {
               : [newCheckIn, ...prev.checkIns]
             return { ...prev, checkIns }
           })
-        } catch {
-          toast.error('Failed to auto-save check-in')
-        } finally {
+      } catch (e) {
+        console.error('Failed to auto-save check-in:', e)
+        toast.error('Failed to auto-save check-in')
+      } finally {
           setAiSaving(false)
         }
       } else {
         setAiContent('_Failed to generate check-in. Try clicking Regenerate._')
       }
-    } catch {
+    } catch (e) {
+      console.error('Failed to generate check-in:', e)
       if (!mountedRef.current) return
     } finally {
       if (mountedRef.current) setAiLoading(false)
@@ -588,7 +591,7 @@ export function ReportDetail() {
         }
         githubActivityText = sections.join('\n\n')
       }
-    } catch { /* non-critical */ }
+    } catch (e) { console.debug('GitHub activity for review is non-critical:', e) }
     if (!mountedRef.current) return
 
     let result = ''
@@ -624,7 +627,8 @@ export function ReportDetail() {
       setAiContent('_Failed to generate review. Try clicking Regenerate._')
     }
     setAiLoading(false)
-    } catch {
+    } catch (e) {
+      console.error('Failed to generate review:', e)
       if (!mountedRef.current) return
       setAiContent('_Failed to load data for review. Try again._')
       setAiLoading(false)
@@ -906,7 +910,8 @@ export function ReportDetail() {
         newFeedback[entryIndex] = { ...newFeedback[entryIndex], content: newContent, type: newType }
         return { ...prev, feedback: newFeedback }
       })
-    } catch {
+    } catch (e) {
+      console.error('Failed to update feedback:', e)
       toast.error('Failed to update feedback')
     }
   }, [name, toast])
@@ -920,7 +925,8 @@ export function ReportDetail() {
         if (!prev) return prev
         return { ...prev, feedback: prev.feedback.filter((_, i) => i !== entryIndex) }
       })
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete feedback:', e)
       toast.error('Failed to delete feedback')
     }
   }, [name, toast])
@@ -960,7 +966,8 @@ export function ReportDetail() {
             try {
               await window.api.toggleActionItem(a.sourceFile!, a.sourceLineNumber!)
               optimisticToggleAction(a.sourceFile!, a.sourceLineNumber!)
-            } catch {
+            } catch (e) {
+              console.error('Failed to undo action item:', e)
               toast.error('Failed to undo')
             }
           }
@@ -989,7 +996,8 @@ export function ReportDetail() {
         setPtoReports(next)
         refreshSettings()
         toast.success(`${report.profile.displayName} marked back from PTO`)
-      } catch {
+      } catch (e) {
+        console.error('Failed to update PTO status:', e)
         toast.error('Failed to update PTO status')
       }
       return
@@ -1016,7 +1024,8 @@ export function ReportDetail() {
       refreshSettings()
       toast.success(`${report.profile.displayName} marked on PTO until ${parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
       setShowPtoModal(false)
-    } catch {
+    } catch (e) {
+      console.error('Failed to save PTO status:', e)
       toast.error('Failed to update PTO status')
     }
   }, [name, report, ptoReports, toast, ptoInput, refreshSettings])
@@ -1033,7 +1042,8 @@ export function ReportDetail() {
       toast.success(`${report?.profile.displayName ?? name} deactivated`)
       setShowDeactivateConfirm(false)
       navigate('/')
-    } catch {
+    } catch (e) {
+      console.error('Failed to deactivate report:', e)
       toast.error('Failed to deactivate report')
     }
   }, [name, report, toast, refreshSettings, navigate])
@@ -2485,7 +2495,8 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
     try {
       const result = await generate('rewrite-feedback', { feedback: feedbackDraft, feedbackType })
       if (result) setFeedbackDraft(result)
-    } catch {
+    } catch (e) {
+      console.error('AI rewrite failed:', e)
       toast.error('AI rewrite failed')
     } finally {
       setRewriting(false)
@@ -2502,7 +2513,7 @@ function InlineFeedbackForm({ name, report, toast, refresh, onClose }: {
       let existing = ''
       try {
         existing = await window.api.getFileContent(feedbackLogPath)
-      } catch { /* file may not exist */ }
+      } catch (e) { console.debug('Feedback log file may not exist:', e) }
       const entry = `### ${today}\n**Type:** ${feedbackType}\n\n${feedbackDraft.trim()}\n`
       const updated = existing ? `${entry}\n---\n\n${existing}` : entry
       await window.api.commitFile(
@@ -2613,7 +2624,8 @@ function InlineReviewForm({ name, report, toast, refresh, onClose }: {
       toast.success('Review saved')
       onClose()
       refresh()
-    } catch {
+    } catch (e) {
+      console.error('Failed to save review:', e)
       toast.error('Failed to save review')
     } finally {
       setSavingReview(false)
@@ -2680,7 +2692,8 @@ function InlineEditor({ initialContent, onSave, onCancel }: { initialContent: st
     setSaveError(false)
     try {
       await onSave(content)
-    } catch {
+    } catch (e) {
+      console.error('Failed to save:', e)
       setSaveError(true)
     } finally {
       setIsSaving(false)
@@ -3287,7 +3300,7 @@ function PrepDetail({ entry, name }: { entry: PrepStreamEntry; name: string }) {
         const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
         window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => console.error('Failed to toggle action item', err))
       }
-    } catch { }
+    } catch (e) { console.error('Failed to toggle prep checkbox:', e) }
   }, [content, prepPath, name])
 
   const lines = content.split('\n')

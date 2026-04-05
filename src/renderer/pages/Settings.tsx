@@ -157,7 +157,8 @@ export function Settings() {
           await window.api.saveSettings(allSettings)
           await window.api.getReports()
           setRepoPathError('')
-        } catch {
+        } catch (e) {
+          console.error('Repo path validation failed:', e)
           setRepoPathError('Invalid repo path — no reports found at that location')
           await window.api.saveSettings({ repoPath: savedRepoPath, defaultModel: savedModel, checkInFrequency: savedCheckInFreq, feedbackReminderDays: savedFeedbackDays, staleActionDays: savedStaleActionDays, sprintLengthWeeks: savedSprintLength, endOfWeekDay: savedEndOfWeekDay, snippetDay: savedSnippetDay, sprintStartDate: savedSprintStartDate, aiCustomInstructions: savedCustomInstructions, githubOrgName: savedGithubOrgName, userName: savedUserName, userGithub: savedUserGithub })
           setSaving(false)
@@ -212,7 +213,8 @@ export function Settings() {
       await window.api.saveSettings({ deactivatedReports: next })
       setDeactivatedReports(next)
       toast.success(`${reportName} reactivated`)
-    } catch {
+    } catch (e) {
+      console.error('Failed to reactivate report:', e)
       toast.error('Failed to reactivate report')
     }
   }

@@ -21,7 +21,7 @@ function loadSessions(): ChatSession[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+  } catch (e) { console.debug('Failed to parse chat sessions from localStorage:', e); return [] }
 }
 
 function saveSessions(sessions: ChatSession[]): void {
@@ -143,7 +143,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages: [...s.messages, { role: 'assistant' as const, content: response.trim() }],
         updatedAt: new Date().toISOString()
       } : s))
-    } catch {
+    } catch (e) {
+      console.error('Chat AI response failed:', e)
       const partial = ai.fullTextRef.current?.trim()
       setSessions(prev => prev.map(s => s.id === sessionId ? {
         ...s,

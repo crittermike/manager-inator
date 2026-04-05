@@ -47,7 +47,8 @@ export function ImpactLog() {
     try {
       const data = await window.api.getImpactLog()
       setContent(data)
-    } catch {
+    } catch (e) {
+      console.debug('Impact log not found, using default:', e)
       setContent('# Impact log\n\n_No entries yet. Start tracking your wins — you deserve the credit._')
     } finally {
       setLoading(false)

@@ -298,7 +298,8 @@ export function InlinePrompt({
         await window.api.commitFile(config.savePath(), content, config.commitMsg())
         setPhase('review')
       }
-    } catch {
+    } catch (e) {
+      console.error('AI suggestion failed:', e)
       toast.error('AI suggestion failed')
     } finally {
       setSuggesting(false)
@@ -314,7 +315,8 @@ export function InlinePrompt({
       toast.success('Saved')
       setPhase('review')
       setEditing(false)
-    } catch {
+    } catch (e) {
+      console.error('Failed to save:', e)
       toast.error('Failed to save')
     } finally {
       setSaving(false)
@@ -329,7 +331,8 @@ export function InlinePrompt({
       setText(editDraft.trim() + '\n')
       setEditing(false)
       toast.success('Updated')
-    } catch {
+    } catch (e) {
+      console.error('Failed to save edit:', e)
       toast.error('Failed to save')
     } finally {
       setSaving(false)
@@ -342,7 +345,8 @@ export function InlinePrompt({
       await window.api.deleteFile(config.savePath())
       toast.success('Deleted')
       onDone()
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete:', e)
       toast.error('Failed to delete')
     } finally {
       setDeleting(false)

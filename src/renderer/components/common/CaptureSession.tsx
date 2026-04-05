@@ -159,7 +159,7 @@ export function CaptureSession({
         let existing = ''
         try {
           existing = await window.api.getFileContent(feedbackLogPath)
-        } catch { }
+        } catch (e) { console.debug('Feedback log file may not exist:', e) }
 
         const sourceLabel = classified.source === 'feedback' ? 'direct observation' : `${classified.source} (captured)`
         const entry = `### ${today}\n**Type:** ${fb.type}\n**Source:** ${sourceLabel}\n\n${fb.content}\n`
@@ -180,7 +180,7 @@ export function CaptureSession({
         let existingImpact = ''
         try {
           existingImpact = await window.api.getFileContent(IMPACT_LOG_PATH)
-        } catch { }
+        } catch (e) { console.debug('Impact log file may not exist:', e) }
         const date = new Date().toISOString().split('T')[0]
         const impactEntries = classified.impact.map(i => `- ${i.text}`).join('\n')
         const entry = `### ${date}\n\n${impactEntries}`
@@ -259,7 +259,7 @@ export function CaptureSession({
           openActionItemsText = lines.join('\n')
         }
       }
-    } catch { }
+    } catch (e) { console.debug('Failed to load open action items:', e) }
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (!mountedRef.current) return
@@ -282,7 +282,8 @@ export function CaptureSession({
           if (!parsed.resolved_action_items) {
             parsed.resolved_action_items = []
           }
-        } catch {
+        } catch (e) {
+          console.error('Failed to parse AI classification JSON:', e)
           if (attempt < MAX_RETRIES) {
             reset()
             continue
@@ -328,7 +329,8 @@ export function CaptureSession({
       setEditContent(fileContent)
       setState('editing')
       setExpanded(true)
-    } catch {
+    } catch (e) {
+      console.error('Failed to load file for editing:', e)
       toast.error('Failed to load file for editing')
     }
   }, [savedFilepath, toast])
@@ -343,7 +345,8 @@ export function CaptureSession({
       )
       toast.success('Changes saved')
       setState('saved')
-    } catch {
+    } catch (e) {
+      console.error('Failed to save changes:', e)
       toast.error('Failed to save changes')
     }
   }, [savedFilepath, editContent, toast])
@@ -354,7 +357,8 @@ export function CaptureSession({
       await window.api.deleteFile(savedFilepath)
       toast.success('Context deleted')
       onRemove(id)
-    } catch {
+    } catch (e) {
+      console.error('Failed to delete context:', e)
       toast.error('Failed to delete context')
     }
   }, [id, onRemove, savedFilepath, toast])

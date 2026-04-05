@@ -115,7 +115,8 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         if (!valid) {
           setTokenWarning('Token could not be validated — it may not work. You can update it later in Settings.')
         }
-      } catch {
+      } catch (e) {
+        console.debug('Token validation failed (network/IPC issue):', e)
         // Validation failed (network/IPC issue) — proceed anyway
       }
     }

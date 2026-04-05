@@ -55,7 +55,8 @@ export function InlineActions({
         !(item.sourceFile === a.sourceFile && item.sourceLineNumber === a.sourceLineNumber)
       ))
       toast.success('Action item completed')
-    } catch {
+    } catch (e) {
+      console.error('Failed to toggle action item:', e)
       toast.error('Failed to toggle action item')
     } finally {
       setTogglingItems(prev => { const s = new Set(prev); s.delete(toggleKey); return s })

@@ -864,7 +864,8 @@ export function Today() {
       const todayKey = format(new Date(), 'yyyy-MM-dd')
       const stored = localStorage.getItem(`today-done-${todayKey}`)
       return stored ? new Set(JSON.parse(stored)) : new Set()
-    } catch {
+    } catch (e) {
+      console.debug('Failed to parse localStorage done IDs:', e)
       return new Set()
     }
    })
@@ -948,7 +949,7 @@ export function Today() {
     try {
       const todayKey = format(new Date(), 'yyyy-MM-dd')
       return localStorage.getItem(`activity-summary-${todayKey}`) || ''
-    } catch { return '' }
+    } catch (e) { console.debug('Failed to parse activity summary from localStorage:', e); return '' }
   })
   const [showRawActivity, setShowRawActivity] = useState(false)
   const activityAI = useAI()
@@ -1055,7 +1056,7 @@ export function Today() {
     let recentContext: Record<string, { date: string; source: string; title: string; summary: string }[]> = {}
     try {
       recentContext = await window.api.getRecentTeamContext(7)
-    } catch { /* context unavailable is non-fatal */ }
+    } catch (e) { console.debug('Recent team context unavailable:', e) }
 
     const now = new Date()
     const activityText = data.map(member => {
@@ -1210,7 +1211,8 @@ export function Today() {
         }
         return item
       }))
-    } catch {
+    } catch (e) {
+      console.error('Failed to toggle action item:', e)
       toast.error('Failed to toggle action item')
       throw new Error('Failed to toggle action item')
     }
