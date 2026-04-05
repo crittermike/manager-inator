@@ -77,7 +77,7 @@ describe('silent error swallowing prevention', () => {
     { file: 'pages/ReportDetail.tsx', pattern: 'AI rewrite failed' },
     { file: 'pages/ReportDetail.tsx', pattern: 'Feedback log file may not exist' },
     { file: 'pages/ReportDetail.tsx', pattern: 'Failed to save review' },
-    { file: 'pages/ReportDetail.tsx', pattern: 'Failed to toggle prep checkbox' },
+    { file: 'components/report/StreamEntryCard.tsx', pattern: 'Failed to toggle prep checkbox' },
     { file: 'pages/Today.tsx', pattern: 'Failed to parse localStorage done IDs' },
     { file: 'pages/Today.tsx', pattern: 'Failed to parse activity summary from localStorage' },
     { file: 'pages/Today.tsx', pattern: 'Recent team context unavailable' },
