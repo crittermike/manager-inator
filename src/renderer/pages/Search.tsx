@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import type { ContentSearchResult, ContextEntry, ContextSource, PersonEntry } from '../../shared/types'
 import { GitHubMark } from '../components/common/GitHubMark'
 
@@ -66,31 +67,44 @@ export function SearchPage() {
     window.api.listPeople().then(setPeople).catch(err => console.error('Failed to load people', err))
   }, [])
 
+  const debouncedQuery = useDebouncedValue(query, 300)
+
+  // Reset selection when query changes (immediate, not debounced)
   useEffect(() => {
     setSelectedIndex(-1)
+  }, [query])
 
-    if (!query.trim()) {
+  // Perform search when debounced query changes
+  useEffect(() => {
+    if (!debouncedQuery.trim()) {
       setContentResults([])
       setIsSearching(false)
       return
     }
 
     setIsSearching(true)
-    const timer = window.setTimeout(() => {
-      window.api.searchContent(query)
-        .then(res => {
+    let cancelled = false
+
+    window.api.searchContent(debouncedQuery)
+      .then(res => {
+        if (!cancelled) {
           setContentResults(res)
           setIsSearching(false)
-        })
-        .catch((err) => {
-          console.error('Failed to search content:', err)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to search content:', err)
+        if (!cancelled) {
           setContentResults([])
           setIsSearching(false)
-        })
-    }, 300)
+        }
+      })
 
-    return () => window.clearTimeout(timer)
-  }, [query])
+    return () => { cancelled = true }
+  }, [debouncedQuery])
+
+  // Show searching indicator while query is ahead of debounced query
+  const isPendingDebounce = query.trim() !== '' && query !== debouncedQuery
 
   // Handle ?meeting= query param (opens inline viewer)
   useEffect(() => {
@@ -368,15 +382,22 @@ export function SearchPage() {
             placeholder="Search Slack, GitHub, email, meetings, notes, people..."
             className="w-full pl-12 pr-4 py-3.5 bg-surface border border-border rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 text-sm transition-all"
             autoFocus
+            role="combobox"
+            aria-expanded={filteredResults.length > 0}
+            aria-controls="search-results"
+            aria-activedescendant={selectedIndex >= 0 ? `search-result-${selectedIndex}` : undefined}
+            aria-autocomplete="list"
           />
         </div>
 
-        {isSearching && query.trim() && (
-          <div className="flex items-center gap-2 text-xs text-zinc-500 px-1">
-            <div className="w-3 h-3 border-2 border-brand/40 border-t-brand rounded-full animate-spin" />
-            Searching...
-          </div>
-        )}
+        <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
+          {(isSearching || isPendingDebounce) && query.trim() && (
+            <div className="flex items-center gap-2 text-xs text-zinc-500 px-1">
+              <div className="w-3 h-3 border-2 border-brand/40 border-t-brand rounded-full animate-spin" aria-hidden="true" />
+              Searching…
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-border/60 bg-zinc-900/40 p-1.5">
           {FILTERS.map(filter => {
@@ -429,10 +450,13 @@ export function SearchPage() {
             </div>
           )}
           {!query.trim() && typeFilter === 'person' ? (
-            <div ref={resultsContainerRef} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div ref={resultsContainerRef} id="search-results" role="listbox" aria-busy={isSearching || isPendingDebounce} aria-label="Search results" className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {filteredResults.map((r, i) => (
                 <button
                   key={r.filename || i}
+                  id={`search-result-${i}`}
+                  role="option"
+                  aria-selected={selectedIndex === i}
                   data-search-result={i}
                   onClick={() => handleResultClick(r)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${
@@ -460,10 +484,13 @@ export function SearchPage() {
               ))}
             </div>
           ) : (
-            <div ref={resultsContainerRef} className="space-y-1.5">
+            <div ref={resultsContainerRef} id="search-results" role="listbox" aria-busy={isSearching || isPendingDebounce} aria-label="Search results" className="space-y-1.5">
               {filteredResults.map((r, i) => (
                 <button
                   key={`${r.type}-${r.route || r.filename}-${i}`}
+                  id={`search-result-${i}`}
+                  role="option"
+                  aria-selected={selectedIndex === i}
                   data-search-result={i}
                   onClick={() => handleResultClick(r)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left hover:bg-surface-raised/70 hover:shadow-md hover:shadow-black/10 transition-all duration-150 group border ${

@@ -256,3 +256,237 @@ describe('SearchPage source filters', () => {
     })
   })
 })
+
+describe('SearchPage accessibility', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true,
+      value: true,
+      writable: true
+    })
+    document.body.innerHTML = ''
+    mockNavigate.mockReset()
+    mockSetSearchParams.mockReset()
+    currentSearchParams = new URLSearchParams()
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        listContexts: vi.fn().mockResolvedValue([
+          { date: '2026-03-20', source: 'meeting', title: 'Weekly sync', filename: '2026-03-20-weekly-sync.md', processed: true }
+        ]),
+        listPeople: vi.fn().mockResolvedValue([
+          { slug: 'alice-smith', name: 'Alice Smith', role: 'Senior Engineer', location: 'Remote', aliases: ['Ali'], relationship: 'Direct Report', meetingCount: 2, lastSeen: '2026-03-20', github: '' }
+        ]),
+        searchContent: vi.fn().mockResolvedValue([
+          { filename: '2026-03-18-slack-unblock.md', directory: 'contexts', title: 'Slack unblock', snippet: 'A Slack thread about a blocker', date: '2026-03-18', source: 'slack' },
+          { filename: '2026-03-20-weekly-sync.md', directory: 'contexts', title: 'Weekly sync', snippet: 'Meeting notes', date: '2026-03-20', source: 'meeting' }
+        ])
+      }
+    })
+  })
+
+  it('search input has combobox role and aria-controls pointing to results', async () => {
+    const { container, root } = await renderSearchPage()
+
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(input.getAttribute('role')).toBe('combobox')
+    expect(input.getAttribute('aria-controls')).toBe('search-results')
+    expect(input.getAttribute('aria-autocomplete')).toBe('list')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('results container has listbox role and aria-label', async () => {
+    currentSearchParams = new URLSearchParams('q=slack')
+    const { container, root } = await renderSearchPage()
+    await waitForSearch()
+
+    const listbox = container.querySelector('#search-results')
+    expect(listbox).not.toBeNull()
+    expect(listbox!.getAttribute('role')).toBe('listbox')
+    expect(listbox!.getAttribute('aria-label')).toBe('Search results')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('result items have option role and aria-selected', async () => {
+    currentSearchParams = new URLSearchParams('q=slack')
+    const { container, root } = await renderSearchPage()
+    await waitForSearch()
+
+    const options = container.querySelectorAll('[role="option"]')
+    expect(options.length).toBeGreaterThan(0)
+
+    for (const option of Array.from(options)) {
+      expect(option.getAttribute('aria-selected')).toBe('false')
+    }
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('arrow key navigation updates aria-selected and aria-activedescendant', async () => {
+    currentSearchParams = new URLSearchParams('q=slack')
+    const { container, root } = await renderSearchPage()
+    await waitForSearch()
+
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(input.getAttribute('aria-activedescendant')).toBeNull()
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    })
+
+    expect(input.getAttribute('aria-activedescendant')).toBe('search-result-0')
+    const firstOption = container.querySelector('#search-result-0')
+    expect(firstOption?.getAttribute('aria-selected')).toBe('true')
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    })
+
+    expect(input.getAttribute('aria-activedescendant')).toBe('search-result-1')
+    const secondOption = container.querySelector('#search-result-1')
+    expect(secondOption?.getAttribute('aria-selected')).toBe('true')
+    expect(firstOption?.getAttribute('aria-selected')).toBe('false')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('aria-expanded reflects whether results are visible', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        listContexts: vi.fn().mockResolvedValue([]),
+        listPeople: vi.fn().mockResolvedValue([]),
+        searchContent: vi.fn().mockResolvedValue([
+          { filename: '2026-03-18-slack-unblock.md', directory: 'contexts', title: 'Slack unblock', snippet: 'A Slack thread about a blocker', date: '2026-03-18', source: 'slack' }
+        ])
+      }
+    })
+
+    const { container, root } = await renderSearchPage()
+
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, 'slack')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await waitForSearch()
+
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('searching indicator is wrapped in an aria-live region', async () => {
+    currentSearchParams = new URLSearchParams('q=slack')
+    const { container, root } = await renderSearchPage()
+
+    const liveRegion = container.querySelector('[aria-live]')
+    expect(liveRegion).not.toBeNull()
+    expect(liveRegion!.getAttribute('aria-atomic')).toBe('true')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('results container has aria-busy while searching', async () => {
+    currentSearchParams = new URLSearchParams('q=test')
+
+    let resolveSearch: (value: unknown[]) => void
+    const searchPromise = new Promise<unknown[]>(resolve => { resolveSearch = resolve })
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        listContexts: vi.fn().mockResolvedValue([
+          { date: '2026-03-20', source: 'meeting', title: 'test meeting', filename: 'test-meeting.md', processed: true }
+        ]),
+        listPeople: vi.fn().mockResolvedValue([]),
+        searchContent: vi.fn().mockReturnValue(searchPromise)
+      }
+    })
+
+    const { container, root } = await renderSearchPage()
+
+    // Title-match results appear immediately, so listbox renders
+    // After debounce fires, searchContent is called and aria-busy should be true
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 350))
+    })
+
+    const listbox = container.querySelector('#search-results')
+    if (listbox) {
+      expect(listbox.getAttribute('aria-busy')).toBe('true')
+    }
+
+    // Resolve search and verify aria-busy clears
+    await act(async () => {
+      resolveSearch!([])
+      await Promise.resolve()
+    })
+
+    const listboxAfter = container.querySelector('#search-results')
+    if (listboxAfter) {
+      expect(listboxAfter.getAttribute('aria-busy')).toBe('false')
+    }
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('uses useDebouncedValue — searchContent is not called immediately on keystroke', async () => {
+    const searchContent = vi.fn().mockResolvedValue([])
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        listContexts: vi.fn().mockResolvedValue([]),
+        listPeople: vi.fn().mockResolvedValue([]),
+        searchContent
+      }
+    })
+
+    const { container, root } = await renderSearchPage()
+    searchContent.mockClear()
+
+    const input = container.querySelector('input') as HTMLInputElement
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(input, 'hello')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    // Immediately after typing, searchContent should NOT be called
+    expect(searchContent).not.toHaveBeenCalled()
+
+    // After debounce delay, it should fire
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 350))
+    })
+
+    expect(searchContent).toHaveBeenCalledWith('hello')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('people browse view uses listbox with option roles', async () => {
+    const { container, root } = await renderSearchPage()
+
+    // Click People filter to show browse view
+    const peopleFilter = getButtonByText(container, 'People')
+    await act(async () => { peopleFilter?.click() })
+
+    const listbox = container.querySelector('#search-results')
+    expect(listbox).not.toBeNull()
+    expect(listbox!.getAttribute('role')).toBe('listbox')
+
+    const options = container.querySelectorAll('[role="option"]')
+    expect(options.length).toBeGreaterThan(0)
+    expect(options[0].textContent).toContain('Alice Smith')
+
+    await act(async () => { root.unmount() })
+  })
+})
