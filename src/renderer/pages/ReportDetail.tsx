@@ -11,7 +11,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
-import type { ActionItem, FeedbackEntry, PrepEntry, PersonActivityResult } from '../../shared/types'
+import type { ActionItem, CheckIn, ContextNote, FeedbackEntry, PrepEntry, PersonActivityResult } from '../../shared/types'
 import { cleanSummaryContent } from '../utils/cleanSummary'
 import { useAttachedImages } from '../hooks/useAttachedImages'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
@@ -56,16 +56,46 @@ import { getCheckInContext } from '../utils/checkin'
 
 type StreamFilter = 'all' | 'context' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
 
-interface StreamEntry {
+interface StreamEntryBase {
   id: string
-  type: 'context' | 'feedback' | 'action' | 'checkin' | 'review' | 'prep'
   date: string
   title: string
   preview: string
-  data: unknown
   pinned?: boolean
   source?: string
 }
+
+interface ContextStreamEntry extends StreamEntryBase {
+  type: 'context'
+  data: ContextNote
+}
+
+interface FeedbackStreamEntry extends StreamEntryBase {
+  type: 'feedback'
+  data: FeedbackEntry & { _index: number }
+}
+
+interface ActionStreamEntry extends StreamEntryBase {
+  type: 'action'
+  data: ActionItem[]
+}
+
+interface CheckinStreamEntry extends StreamEntryBase {
+  type: 'checkin'
+  data: CheckIn
+}
+
+interface ReviewStreamEntry extends StreamEntryBase {
+  type: 'review'
+  data: { period: string; title: string; content: string }
+}
+
+interface PrepStreamEntry extends StreamEntryBase {
+  type: 'prep'
+  data: PrepEntry
+}
+
+type StreamEntry = ContextStreamEntry | FeedbackStreamEntry | ActionStreamEntry | CheckinStreamEntry | ReviewStreamEntry | PrepStreamEntry
 
 // ── Helpers ──
 
@@ -1128,17 +1158,13 @@ export function ReportDetail() {
   // ── Expand to full view ──
   const handleExpand = useCallback((entry: StreamEntry) => {
     if (entry.type === 'context') {
-      const ctx = entry.data as { filename: string }
-      navigate(`/context/${encodeURIComponent(ctx.filename)}?dir=contexts`)
+      navigate(`/context/${encodeURIComponent(entry.data.filename)}?dir=contexts`)
     } else if (entry.type === 'checkin') {
-      const c = entry.data as { date: string }
-      navigate(`/context/${encodeURIComponent(c.date + '.md')}?dir=reports/${name}/check-ins/monthly`)
+      navigate(`/context/${encodeURIComponent(entry.data.date + '.md')}?dir=reports/${name}/check-ins/monthly`)
     } else if (entry.type === 'review') {
-      const r = entry.data as { period: string }
-      navigate(`/context/${encodeURIComponent(r.period + '.md')}?dir=reports/${name}/reviews`)
+      navigate(`/context/${encodeURIComponent(entry.data.period + '.md')}?dir=reports/${name}/reviews`)
     } else if (entry.type === 'prep') {
-      const p = entry.data as { date: string }
-      navigate(`/context/${encodeURIComponent(p.date + '.md')}?dir=reports/${name}/preps`)
+      navigate(`/context/${encodeURIComponent(entry.data.date + '.md')}?dir=reports/${name}/preps`)
     }
   }, [navigate, name])
 
@@ -1151,17 +1177,13 @@ export function ReportDetail() {
     if (!entry) return
     // Only sync types that have meaningful file content
     if (entry.type === 'checkin') {
-      const c = entry.data as { date: string }
-      setActiveFile({ path: `reports/${name}/check-ins/monthly/${c.date}.md`, title: entry.title, content: '' })
+      setActiveFile({ path: `reports/${name}/check-ins/monthly/${entry.data.date}.md`, title: entry.title, content: '' })
     } else if (entry.type === 'review') {
-      const r = entry.data as { period: string; content: string }
-      if (r.content) setActiveFile({ path: `reports/${name}/reviews/${r.period}.md`, title: entry.title, content: r.content })
+      if (entry.data.content) setActiveFile({ path: `reports/${name}/reviews/${entry.data.period}.md`, title: entry.title, content: entry.data.content })
     } else if (entry.type === 'context') {
-      const ctx = entry.data as { filename: string; summary: string }
-      setActiveFile({ path: `contexts/${ctx.filename}`, title: entry.title, content: ctx.summary || '' })
+      setActiveFile({ path: `contexts/${entry.data.filename}`, title: entry.title, content: entry.data.summary || '' })
     } else if (entry.type === 'feedback') {
-      const f = entry.data as { content: string; date: string }
-      setActiveFile({ path: '', title: entry.title, content: f.content })
+      setActiveFile({ path: '', title: entry.title, content: entry.data.content })
     }
   }, [expandedItems, streamEntries, viewingContent, name, setActiveFile])
 
@@ -2075,7 +2097,7 @@ export function ReportDetail() {
         ) : (
           filteredEntries.map((entry, idx) => {
             const toggleKey = entry.type === 'action'
-              ? (entry.data as ActionItem[]).some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
+              ? entry.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
               : false
             return (
               <div key={entry.id} {...getNavProps(idx)} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
@@ -2778,10 +2800,10 @@ const StreamEntryCard = memo(function StreamEntryCard({
   // Compute file path for all entry types that use file-based storage
   const entryPath = useMemo(() => {
     switch (entry.type) {
-      case 'context': return `contexts/${(entry.data as any).filename}`
-      case 'checkin': return `reports/${name}/check-ins/monthly/${(entry.data as any).date}.md`
-      case 'review': return `reports/${name}/reviews/${(entry.data as any).period}.md`
-      case 'prep': return `reports/${name}/prep/${(entry.data as any).date}.md`
+      case 'context': return `contexts/${entry.data.filename}`
+      case 'checkin': return `reports/${name}/check-ins/monthly/${entry.data.date}.md`
+      case 'review': return `reports/${name}/reviews/${entry.data.period}.md`
+      case 'prep': return `reports/${name}/prep/${entry.data.date}.md`
       default: return ''
     }
   }, [entry.type, entry.data, name])
@@ -2807,7 +2829,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
 
   const handleHeaderDelete = useCallback(() => {
     if (entry.type === 'feedback') {
-      onDeleteFeedback((entry.data as FeedbackEntry & { _index: number })._index)
+      onDeleteFeedback(entry.data._index)
     } else {
       onDeleteContent(entryPath)
     }
@@ -2970,10 +2992,10 @@ function ContextDetail({
   entry, 
   activeTab,
 }: { 
-  entry: StreamEntry; 
+  entry: ContextStreamEntry; 
   activeTab: 'processed' | 'raw';
 }) {
-  const ctx = entry.data as unknown as { date: string; source: string; summary: string; tags: string[]; content: string; filename: string; title: string }
+  const ctx = entry.data
   const tags = ctx.tags || []
   const contextPath = `contexts/${ctx.filename}`
 
@@ -3031,12 +3053,12 @@ function ContextDetail({
 }
 
 function FeedbackDetail({ entry, editing, onStopEditing, onUpdate }: { 
-  entry: StreamEntry; 
+  entry: FeedbackStreamEntry; 
   editing: boolean;
   onStopEditing: () => void;
   onUpdate: (entryIndex: number, newContent: string, newType: FeedbackEntry['type']) => Promise<void>;
 }) {
-  const f = entry.data as FeedbackEntry & { _index: number }
+  const f = entry.data
   const [draft, setDraft] = useState(f.content)
   const [draftType, setDraftType] = useState<FeedbackEntry['type']>(f.type)
   const [saving, setSaving] = useState(false)
@@ -3111,8 +3133,8 @@ function FeedbackDetail({ entry, editing, onStopEditing, onUpdate }: {
   )
 }
 
-function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntry; onToggleAction: (a: ActionItem) => void; isToggling: boolean }) {
-  const actions = entry.data as ActionItem[]
+function ActionDetail({ entry, onToggleAction, isToggling }: { entry: ActionStreamEntry; onToggleAction: (a: ActionItem) => void; isToggling: boolean }) {
+  const actions = entry.data
 
   return (
     <div className="space-y-1 max-h-72 overflow-y-auto">
@@ -3141,13 +3163,13 @@ function ActionDetail({ entry, onToggleAction, isToggling }: { entry: StreamEntr
 }
 
 function CheckinDetail({ entry, name, editing, onStopEditing, onSave }: {
-  entry: StreamEntry;
+  entry: CheckinStreamEntry;
   name: string;
   editing: boolean;
   onStopEditing: () => void;
   onSave: (path: string, content: string) => Promise<void>;
 }) {
-  const c = entry.data as { date: string; accomplishments: string[] }
+  const c = entry.data
   const checkinPath = `reports/${name}/check-ins/monthly/${c.date}.md`
   const { content, loading } = useFileContent(checkinPath)
 
@@ -3195,13 +3217,13 @@ function CheckinDetail({ entry, name, editing, onStopEditing, onSave }: {
 }
 
 function ReviewDetail({ entry, name, editing, onStopEditing, onSave }: {
-  entry: StreamEntry
+  entry: ReviewStreamEntry
   name: string
   editing: boolean
   onStopEditing: () => void
   onSave: (path: string, content: string) => Promise<void>
 }) {
-  const r = entry.data as { period: string; content: string }
+  const r = entry.data
   const reviewPath = `reports/${name}/reviews/${r.period}.md`
   const { content, loading } = useFileContent(reviewPath)
 
@@ -3241,8 +3263,8 @@ function ReviewDetail({ entry, name, editing, onStopEditing, onSave }: {
   )
 }
 
-function PrepDetail({ entry, name }: { entry: StreamEntry; name: string }) {
-  const p = entry.data as PrepEntry
+function PrepDetail({ entry, name }: { entry: PrepStreamEntry; name: string }) {
+  const p = entry.data
   const prepPath = `reports/${name}/prep/${p.date}.md`
   const [content, setContent] = useState(p.content)
 

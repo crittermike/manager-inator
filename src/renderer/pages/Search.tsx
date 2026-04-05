@@ -13,6 +13,7 @@ interface SearchResult {
   date?: string
   filename?: string
   directory?: 'contexts' | 'reports' | 'people' | 'notes'
+  _github?: string
 }
 
 const SOURCE_LABELS: Record<ContextSource, string> = {
@@ -439,9 +440,9 @@ export function SearchPage() {
                       : 'border-transparent'
                   }`}
                 >
-                  {(r as any)._github ? (
+                  {r._github ? (
                     <img
-                      src={`https://github.com/${(r as any)._github}.png?size=64`}
+                      src={`https://github.com/${r._github}.png?size=64`}
                       alt=""
                       className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                     />
