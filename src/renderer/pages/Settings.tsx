@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast } from '../components/common/Toast'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -32,6 +33,7 @@ const fieldClass = 'w-full px-4 py-2.5 bg-zinc-950/70 shadow-inner shadow-black/
 const textFieldClass = `${fieldClass} placeholder-zinc-600`
 
 export function Settings() {
+  useDocumentTitle('Settings')
   const { user, logout } = useAuth()
   const toast = useToast()
   const [repoPathVal, setRepoPathVal] = useState('')

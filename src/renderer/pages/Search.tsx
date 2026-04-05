@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon, User, Calendar, FileText } from 'lucide-react'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type { ContentSearchResult, ContextEntry, ContextSource, PersonEntry } from '../../shared/types'
 import { GitHubMark } from '../components/common/GitHubMark'
 
@@ -38,6 +39,7 @@ function getSearchResultKey(result: SearchResult): string {
 }
 
 export function SearchPage() {
+  useDocumentTitle('Search')
   const [query, setQuery] = useState('')
   const [contexts, setContexts] = useState<ContextEntry[]>([])
   const [people, setPeople] = useState<PersonEntry[]>([])

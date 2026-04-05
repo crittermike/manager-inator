@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTeamOverview, useSettings } from '../hooks/useData'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useSearchParams } from 'react-router-dom'
 import { format, addDays, getDay, getDate, getMonth, differenceInDays } from 'date-fns'
 import type { CadenceSettings, ReportStatus, CadenceType, CustomPractice, DayOfWeek, CheckInFrequency, PracticeSchedule } from '../../shared/types'
@@ -778,6 +779,7 @@ function CustomPracticeForm({
 }
 
 export function Playbook() {
+  useDocumentTitle('Playbook')
   const { overview, loading, refresh } = useTeamOverview()
   const toast = useToast()
   const [searchParams] = useSearchParams()

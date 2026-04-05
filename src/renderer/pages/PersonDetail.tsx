@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -17,6 +18,7 @@ export function PersonDetail() {
   const { setActiveFile } = useActiveFile()
 
   const [person, setPerson] = useState<PersonEntry | null>(null)
+  useDocumentTitle(person?.name ?? slug)
   const [bodyContent, setBodyContent] = useState('')
   const [rawFileContent, setRawFileContent] = useState('')
   const [meetings, setMeetings] = useState<MeetingRef[]>([])

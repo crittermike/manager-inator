@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { getDay, format, getMonth, getDate } from 'date-fns'
 import type { ReportStatus, ContextEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { formatActivityCounts } from '../utils/activitySuggestions'
@@ -837,6 +838,7 @@ function computeTimelineItems(
 }
 
 export function Today() {
+  useDocumentTitle('Today')
   const { overview, loading, error, refresh } = useTeamOverview()
   const { settings } = useSettings()
   const navigate = useNavigate()

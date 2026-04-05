@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useChatSessions, type ChatSession, type Message } from '../hooks/useChatSessions'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useSettings } from '../hooks/useData'
 import { AVAILABLE_MODELS, DEFAULT_MODEL } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
@@ -85,6 +86,7 @@ const SUGGESTIONS = [
 ]
 
 export function Chat() {
+  useDocumentTitle('Chat')
   const { settings } = useSettings()
   const {
     sessions, activeId, activeSession, messages, setActiveId,

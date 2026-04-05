@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X, Copy, Download, UserPlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -34,6 +35,7 @@ export function ContextDetail() {
   const [editContentValue, setEditContentValue] = useState('')
   
   const [title, setTitle] = useState('')
+  useDocumentTitle(title || filename)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
   

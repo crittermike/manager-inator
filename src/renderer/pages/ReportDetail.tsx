@@ -2,6 +2,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useReportData, useFileContent, useSettings } from '../hooks/useData'
 import { useAI } from '../hooks/useAI'
 import { useActiveFile } from '../hooks/useActiveFile'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -78,6 +79,7 @@ export function ReportDetail() {
   const { streaming, streamedText, generate, cancel, reset, fullTextRef } = useAI()
   const { setActiveFile } = useActiveFile()
   const toast = useToast()
+  useDocumentTitle(report?.profile?.displayName ?? name)
   const mountedRef = useRef(true)
   const aiPanelRef = useRef<HTMLDivElement>(null)
 

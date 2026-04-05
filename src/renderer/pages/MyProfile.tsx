@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAI } from '../hooks/useAI'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast } from '../components/common/Toast'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -28,6 +29,7 @@ import {
 type ProfileTab = 'impact' | 'weekly-log'
 
 export function MyProfile() {
+  useDocumentTitle('My Profile')
   const [tab, setTab] = useState<ProfileTab>('impact')
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
