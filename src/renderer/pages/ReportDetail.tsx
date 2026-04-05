@@ -58,14 +58,23 @@ type StreamFilter = 'all' | 'context' | 'feedback' | 'action' | 'checkin' | 'rev
 
 // ── Helpers ──
 
-function getTimeGroup(dateStr: string): string {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const date = new Date(dateStr + 'T00:00:00')
+/** DST-safe day grouping using UTC day numbers to avoid 23h/25h day issues */
+export function getTimeGroup(dateStr: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return 'Older'
+  const parts = dateStr.split('-')
+  const year = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10) - 1
+  const day = parseInt(parts[2], 10)
+  const date = new Date(year, month, day)
   if (isNaN(date.getTime())) return 'Older'
-  const diffMs = today.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays <= 0) return 'Today'
+
+  const now = new Date()
+  const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  const dateUTC = Date.UTC(year, month, day)
+  const diffDays = Math.round((todayUTC - dateUTC) / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'Upcoming'
+  if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
   if (diffDays <= 7) return 'This week'
   if (diffDays <= 30) return 'This month'
@@ -2091,14 +2100,13 @@ export function ReportDetail() {
               return (
                 <div key={entry.id}>
                   {showHeader && (
-                    <div className={`flex items-center gap-3 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-6'} mb-2`}>
+                    <div className={`flex items-center gap-3 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-6'} mb-2`} role="heading" aria-level={3}>
                       <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{group}</span>
-                      <div className="flex-1 h-px bg-border" />
+                      <hr className="flex-1 border-0 h-px bg-border" aria-hidden="true" />
                     </div>
                   )}
                   <div {...getNavProps(idx)} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
                   <StreamEntryCard
-                    key={entry.id}
                     entry={entry}
                     expanded={expandedItems.has(entry.id)}
                     onToggle={toggleExpanded}
