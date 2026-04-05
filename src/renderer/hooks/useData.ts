@@ -176,7 +176,7 @@ export function useFileContent(path: string | null) {
     setLoading(true)
     window.api.getFileContent(path)
       .then(data => { if (!stale) setContent(data) })
-      .catch(() => { if (!stale) setContent(null) })
+      .catch((err) => { console.error('Failed to load file content:', err); if (!stale) setContent(null) })
       .finally(() => { if (!stale) setLoading(false) })
     return () => { stale = true }
   }, [path])

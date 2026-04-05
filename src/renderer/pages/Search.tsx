@@ -82,7 +82,8 @@ export function SearchPage() {
           setContentResults(res)
           setIsSearching(false)
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('Failed to search content:', err)
           setContentResults([])
           setIsSearching(false)
         })

@@ -46,6 +46,13 @@ describe('silent error swallowing prevention', () => {
     { file: 'pages/Today.tsx', pattern: 'Failed to save activity snapshot' },
     { file: 'pages/Today.tsx', pattern: 'Failed to save snoozed action items' },
     { file: 'pages/Today.tsx', pattern: 'Failed to refresh today bootstrap' },
+    { file: 'pages/Search.tsx', pattern: 'Failed to search content' },
+    { file: 'pages/Settings.tsx', pattern: 'Failed to load settings' },
+    { file: 'pages/today-components/InlinePrompt.tsx', pattern: 'Failed to load existing content' },
+    { file: 'App.tsx', pattern: 'Failed to load settings' },
+    { file: 'pages/today-components/InlinePrep.tsx', pattern: 'Failed to load existing prep' },
+    { file: 'pages/today-components/InlinePrep.tsx', pattern: 'Failed to load report data' },
+    { file: 'hooks/useData.ts', pattern: 'Failed to load file content' },
   ]
 
   for (const { file, pattern } of filesToCheck) {
@@ -54,4 +61,17 @@ describe('silent error swallowing prevention', () => {
       expect(content).toContain(pattern)
     })
   }
+
+  it('no renderer files have catch blocks that silently swallow errors', () => {
+    const violations: string[] = []
+    const silentCatchPattern = /\.catch\(\s*\(\s*\)\s*=>\s*\{/g
+    for (const file of rendererFiles) {
+      const content = readFileSync(join(rendererDir, file), 'utf-8')
+      if (silentCatchPattern.test(content)) {
+        violations.push(file)
+      }
+      silentCatchPattern.lastIndex = 0
+    }
+    expect(violations).toEqual([])
+  })
 })

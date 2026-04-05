@@ -116,7 +116,8 @@ export default function App() {
         .then((s: { repoPath?: string }) => {
           setHasRepo(!!s.repoPath)
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('Failed to load settings:', err)
           setHasRepo(false)
         })
     }

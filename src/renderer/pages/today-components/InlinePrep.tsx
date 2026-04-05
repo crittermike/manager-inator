@@ -66,18 +66,20 @@ export function InlinePrep({
           window.api.getReportData(reportName).then(data => {
             if (!mountedRef.current) return
             setReportData(data)
-          }).catch(() => {
+          }).catch((err) => {
+            console.error('Failed to load report data:', err)
             toast.error('Failed to load report data')
             onCancel()
           })
         }
       })
-      .catch(() => {
-        // File doesn't exist — load report data to generate
+      .catch((err) => {
+        console.error('Failed to load existing prep:', err)
         window.api.getReportData(reportName).then(data => {
           if (!mountedRef.current) return
           setReportData(data)
-        }).catch(() => {
+        }).catch((err2) => {
+          console.error('Failed to load report data:', err2)
           toast.error('Failed to load report data')
           onCancel()
         })

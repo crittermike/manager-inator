@@ -126,7 +126,8 @@ export function Settings() {
         setDeactivatedReports(s.deactivatedReports || [])
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Failed to load settings:', err)
         setLoading(false)
       })
   }, [])
