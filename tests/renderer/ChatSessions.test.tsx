@@ -353,3 +353,99 @@ describe('ChatProvider / useChatSessions', () => {
     act(() => { root.unmount() })
   })
 })
+
+describe('sendMessage model passing', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+      configurable: true, value: true, writable: true,
+    })
+    localStorage.clear()
+    document.body.innerHTML = ''
+    mockGenerate.mockClear()
+    mockReset.mockClear()
+    mockGenerate.mockResolvedValue('AI response')
+  })
+
+  function renderWithProvider(onRender: (ctx: ReturnType<typeof useChatSessions>) => void) {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+    act(() => {
+      root.render(
+        <ChatProvider>
+          <TestConsumer onRender={onRender} />
+        </ChatProvider>
+      )
+    })
+    return { container, root }
+  }
+
+  it('passes session model to generate when model is set', async () => {
+    let ctx!: ReturnType<typeof useChatSessions>
+    const { root } = renderWithProvider(c => { ctx = c })
+
+    // Set a model on the active session
+    act(() => {
+      ctx.updateSession(ctx.activeId, s => ({ ...s, model: 'gpt-5.4' }))
+    })
+
+    await act(async () => {
+      await ctx.sendMessage('hello')
+    })
+
+    expect(mockGenerate).toHaveBeenCalledWith('chat', expect.objectContaining({
+      model: 'gpt-5.4',
+      message: 'hello',
+    }))
+
+    act(() => { root.unmount() })
+  })
+
+  it('does not include model key when session has no model set', async () => {
+    let ctx!: ReturnType<typeof useChatSessions>
+    const { root } = renderWithProvider(c => { ctx = c })
+
+    await act(async () => {
+      await ctx.sendMessage('hello')
+    })
+
+    const callArgs = mockGenerate.mock.calls[0][1]
+    expect(callArgs).not.toHaveProperty('model')
+    expect(callArgs.message).toBe('hello')
+
+    act(() => { root.unmount() })
+  })
+
+  it('uses updated model after switching mid-conversation', async () => {
+    let ctx!: ReturnType<typeof useChatSessions>
+    const { root } = renderWithProvider(c => { ctx = c })
+
+    // Send first message with default (no model)
+    await act(async () => {
+      await ctx.sendMessage('first message')
+    })
+
+    expect(mockGenerate).toHaveBeenLastCalledWith('chat', expect.not.objectContaining({
+      model: expect.anything(),
+    }))
+
+    // Switch model
+    act(() => {
+      ctx.updateSession(ctx.activeId, s => ({ ...s, model: 'claude-sonnet-4.5' }))
+    })
+
+    mockGenerate.mockClear()
+
+    // Send second message — should now use new model
+    await act(async () => {
+      await ctx.sendMessage('second message')
+    })
+
+    expect(mockGenerate).toHaveBeenCalledWith('chat', expect.objectContaining({
+      model: 'claude-sonnet-4.5',
+      message: 'second message',
+    }))
+
+    act(() => { root.unmount() })
+  })
+})

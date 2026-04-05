@@ -1,5 +1,5 @@
 import { CopilotClient, approveAll } from '@github/copilot-sdk'
-import { getSettings } from './store'
+import { getSettings, getToken } from './store'
 import { spawn } from 'child_process'
 import { join } from 'path'
 
@@ -32,12 +32,26 @@ export interface CopilotMessage {
 }
 
 let client: CopilotClient | null = null
+let clientToken: string | null = null
 
 type CopilotSession = Awaited<ReturnType<CopilotClient['createSession']>>
 const activeSessions = new Map<string, { session: CopilotSession; cancelled: boolean }>()
 
 async function getClient(): Promise<CopilotClient> {
+  const token = getToken()
+  if (!token) {
+    throw new Error('Not authenticated — please sign in via Settings')
+  }
+
+  // Reset client if token changed (e.g. re-auth)
+  if (client && clientToken !== token) {
+    try { await client.stop() } catch {}
+    client = null
+    clientToken = null
+  }
+
   if (!client) {
+
     let cliPath: string | undefined
     try {
       cliPath = await new Promise<string>((resolve, reject) => {
@@ -64,10 +78,12 @@ async function getClient(): Promise<CopilotClient> {
     console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
     client = new CopilotClient({
       ...(cliPath ? { cliPath } : {}),
-      useLoggedInUser: true,
+      githubToken: token,
+      useLoggedInUser: false,
       autoStart: false
     } as ConstructorParameters<typeof CopilotClient>[0])
     await client.start()
+    clientToken = token
     console.log('[Copilot SDK] Client started')
   }
   return client
@@ -281,6 +297,7 @@ export async function stopClient(): Promise<void> {
   if (client) {
     try { await client.stop() } catch {}
     client = null
+    clientToken = null
   }
 }
 

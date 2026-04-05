@@ -6,14 +6,18 @@ vi.mock('../../src/main/store', () => ({
     repoPath: '/tmp/test-repo',
     defaultModel: 'gpt-4.1',
     aiCustomInstructions: ''
-  }))
+  })),
+  getToken: vi.fn(() => 'ghp_test-token-abc123')
 }))
 
-import { buildMessages, type CopilotMessage } from '../../src/main/copilot'
-import { getSettings } from '../../src/main/store'
+import { buildMessages, aiGenerate, aiCancel, stopClient, type CopilotMessage } from '../../src/main/copilot'
+import { getSettings, getToken } from '../../src/main/store'
 
 const mockedGetSettings = vi.mocked(getSettings)
+const mockedGetToken = vi.mocked(getToken)
 const mockedCreateSession = vi.spyOn(CopilotClient.prototype, 'createSession')
+const mockedStart = vi.spyOn(CopilotClient.prototype, 'start')
+const mockedStop = vi.spyOn(CopilotClient.prototype, 'stop')
 
 describe('buildMessages', () => {
   beforeEach(() => {
@@ -28,6 +32,7 @@ describe('buildMessages', () => {
       userName: '',
       userGithub: ''
     })
+    mockedGetToken.mockReturnValue('ghp_test-token-abc123')
     mockedCreateSession.mockResolvedValue({
       on: () => () => {},
       sendAndWait: async () => ({ data: { content: '' } }),
@@ -254,7 +259,7 @@ describe('buildMessages', () => {
   })
 
   it('passes an explicit chat model override to createSession', async () => {
-    const { aiGenerate } = await import('../../src/main/copilot')
+    await stopClient()
 
     await aiGenerate(
       'chat',
@@ -264,9 +269,164 @@ describe('buildMessages', () => {
         model: 'gpt-5.4'
       },
       () => {},
-      'req-123'
+      'req-model-override'
     )
 
     expect(mockedCreateSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-5.4' }))
+  })
+})
+
+describe('getClient authentication', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await stopClient()
+    mockedGetSettings.mockReturnValue({
+      repoPath: '/tmp/test-repo',
+      defaultModel: 'gpt-4.1',
+      aiCustomInstructions: '',
+      githubToken: null,
+      repoOwner: '',
+      repoName: '',
+      userName: '',
+      userGithub: ''
+    })
+    mockedGetToken.mockReturnValue('ghp_test-token-abc123')
+    mockedCreateSession.mockResolvedValue({
+      on: () => () => {},
+      sendAndWait: async () => ({ data: { content: '' } }),
+      disconnect: async () => {},
+      abort: async () => {}
+    } as unknown as Awaited<ReturnType<CopilotClient['createSession']>>)
+    // Reset spies after stopClient() so beforeEach stop isn't counted
+    mockedStart.mockClear()
+    mockedStop.mockClear()
+  })
+
+  it('throws when no auth token is available', async () => {
+    mockedGetToken.mockReturnValue(null)
+
+    await expect(
+      aiGenerate('chat', { message: 'hi', history: [] }, () => {}, 'req-no-token')
+    ).rejects.toThrow('Not authenticated')
+  })
+
+  it('starts client and creates session with valid token', async () => {
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-token-check'
+    )
+
+    expect(mockedStart).toHaveBeenCalled()
+    expect(mockedCreateSession).toHaveBeenCalled()
+  })
+
+  it('reuses cached client for subsequent calls', async () => {
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-first'
+    )
+
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-second'
+    )
+
+    expect(mockedStart).toHaveBeenCalledTimes(1)
+  })
+
+  it('resets client when token changes between calls', async () => {
+    mockedGetToken.mockReturnValue('ghp_token-A')
+
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-tokenA'
+    )
+
+    expect(mockedStart).toHaveBeenCalledTimes(1)
+
+    mockedGetToken.mockReturnValue('ghp_token-B')
+
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-tokenB'
+    )
+
+    expect(mockedStop).toHaveBeenCalledTimes(1)
+    expect(mockedStart).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not reset client when token stays the same', async () => {
+    mockedGetToken.mockReturnValue('ghp_stable-token')
+
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-stable1'
+    )
+
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-stable2'
+    )
+
+    expect(mockedStop).not.toHaveBeenCalled()
+    expect(mockedStart).toHaveBeenCalledTimes(1)
+  })
+
+  it('stopClient clears cached client so next call creates a new one', async () => {
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-before-stop'
+    )
+
+    expect(mockedStart).toHaveBeenCalledTimes(1)
+
+    await stopClient()
+
+    await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-after-stop'
+    )
+
+    expect(mockedStart).toHaveBeenCalledTimes(2)
+  })
+
+  it('strips system notification tags from response', async () => {
+    mockedCreateSession.mockResolvedValue({
+      on: () => () => {},
+      sendAndWait: async () => ({
+        data: { content: 'Hello <system_notification>internal</system_notification> world' }
+      }),
+      disconnect: async () => {},
+      abort: async () => {}
+    } as unknown as Awaited<ReturnType<CopilotClient['createSession']>>)
+
+    const result = await aiGenerate(
+      'generate-checkin',
+      { reportName: 'Nic', month: '2026-03', displayName: 'Nic', monthName: 'March 2026' },
+      () => {},
+      'req-strip'
+    )
+
+    expect(result.content).not.toContain('system_notification')
+    expect(result.content).toContain('Hello')
+    expect(result.content).toContain('world')
   })
 })

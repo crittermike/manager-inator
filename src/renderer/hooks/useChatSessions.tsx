@@ -132,9 +132,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     ai.reset()
 
     try {
+      const activeSession = sessions.find(s => s.id === sessionId)
       const response = await ai.generate('chat', {
         message: text,
-        history: (sessions.find(s => s.id === sessionId)?.messages || []).map(m => ({ role: m.role, content: m.content })),
+        history: (activeSession?.messages || []).map(m => ({ role: m.role, content: m.content })),
+        ...(activeSession?.model ? { model: activeSession.model } : {}),
         ...(context ? { pageContext: context } : {})
       })
 
