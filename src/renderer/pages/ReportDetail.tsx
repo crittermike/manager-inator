@@ -2113,10 +2113,10 @@ export function ReportDetail() {
 
       {/* ── PTO Modal ── */}
       {showPtoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="pto-dialog-title">
           <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-zinc-100">PTO return date</h3>
+              <h3 id="pto-dialog-title" className="text-lg font-bold text-zinc-100">PTO return date</h3>
               <button
                 onClick={() => setShowPtoModal(false)}
                 className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-surface-raised"
@@ -2186,9 +2186,9 @@ export function ReportDetail() {
 
       {/* ── Deactivate Confirmation ── */}
       {showDeactivateConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="deactivate-dialog-title">
           <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
-            <h3 className="text-lg font-bold text-zinc-100 mb-2">Deactivate {report?.profile.displayName}?</h3>
+            <h3 id="deactivate-dialog-title" className="text-lg font-bold text-zinc-100 mb-2">Deactivate {report?.profile.displayName}?</h3>
             <p className="text-sm text-zinc-400 mb-4">
               They&#39;ll be hidden from the sidebar and Today page. Their data will be preserved and you can reactivate them anytime from Settings.
             </p>

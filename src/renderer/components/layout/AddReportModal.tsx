@@ -92,6 +92,9 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-report-dialog-title"
       onClick={handleClose}
       onKeyDown={handleKeyDown}
     >
@@ -102,7 +105,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-border/70 bg-gradient-to-r from-white/[0.03] to-transparent">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-100">Add direct report</h2>
+            <h2 id="add-report-dialog-title" className="text-sm font-semibold text-zinc-100">Add direct report</h2>
             <p className="mt-1 text-xs text-zinc-500">Create the profile now, fill in anything else later.</p>
           </div>
           <button

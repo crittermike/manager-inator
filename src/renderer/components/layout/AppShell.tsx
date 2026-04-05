@@ -332,14 +332,14 @@ export function AppShell({ children }: AppShellProps) {
       />
 
       {shortcutsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShortcutsOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="shortcuts-dialog-title" onClick={() => setShortcutsOpen(false)}>
           <div className="absolute inset-0 bg-black/50 animate-backdrop-fade" />
           <div
             className="relative bg-zinc-900 border border-border rounded-2xl shadow-2xl shadow-black/50 w-full max-w-sm p-6 animate-fade-up"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-sm font-semibold text-zinc-200">Keyboard shortcuts</h2>
+              <h2 id="shortcuts-dialog-title" className="text-sm font-semibold text-zinc-200">Keyboard shortcuts</h2>
               <button
                 onClick={() => setShortcutsOpen(false)}
                 className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-surface-raised transition-colors"
