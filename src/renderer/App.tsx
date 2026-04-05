@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { TeamOverviewProvider, SettingsProvider } from './hooks/useData'
 import { ActiveFileProvider } from './hooks/useActiveFile'
 import { ChatProvider } from './hooks/useChatSessions'
+import { useDocumentTitle } from './hooks/useDocumentTitle'
 import appIcon from '../../resources/icon.png'
 import tieIcon from '../../resources/tie.png'
 
@@ -54,6 +55,7 @@ const LOADING_STEPS = [
 ]
 
 function LoadingScreen({ message }: { message: string }) {
+  useDocumentTitle('Loading')
   const stepIndex = LOADING_STEPS.indexOf(message)
   const progress = stepIndex >= 0 ? ((stepIndex + 1) / LOADING_STEPS.length) * 100 : 5
 

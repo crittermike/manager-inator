@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Zap, ArrowRight, FolderGit2, FolderOpen, FolderPlus, ArrowLeft, User, ExternalLink, Eye, EyeOff, KeyRound, SkipForward } from 'lucide-react'
 import { GitHubMark } from '../components/common/GitHubMark'
 
@@ -9,6 +10,7 @@ interface SetupScreenProps {
 type Mode = 'choose' | 'connect' | 'create' | 'identity' | 'github-org'
 
 export function SetupScreen({ onComplete }: SetupScreenProps) {
+  useDocumentTitle('Setup')
   const [mode, setMode] = useState<Mode>('choose')
   const [repoPath, setRepoPath] = useState('')
   const [userName, setUserName] = useState('')

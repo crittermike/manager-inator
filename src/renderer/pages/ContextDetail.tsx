@@ -35,7 +35,8 @@ export function ContextDetail() {
   const [editContentValue, setEditContentValue] = useState('')
   
   const [title, setTitle] = useState('')
-  useDocumentTitle(title || filename)
+  const decodedFilename = filename ? decodeURIComponent(filename) : ''
+  useDocumentTitle(title || decodedFilename)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
   
@@ -48,7 +49,6 @@ export function ContextDetail() {
   const [showSpeakerDropdown, setShowSpeakerDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   
-  const decodedFilename = filename ? decodeURIComponent(filename) : ''
   const dateStr = decodedFilename.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || ''
 
   const [copiedContent, setCopiedContent] = useState(false)

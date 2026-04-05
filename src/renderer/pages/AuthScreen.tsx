@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Zap, Copy, Check, ExternalLink, AlertCircle } from 'lucide-react'
 import { GitHubMark } from '../components/common/GitHubMark'
 
@@ -8,6 +9,7 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
+  useDocumentTitle('Sign In')
   const { login, poll } = useAuth()
   const [step, setStep] = useState<'idle' | 'waiting' | 'error'>('idle')
   const [userCode, setUserCode] = useState('')
