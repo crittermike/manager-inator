@@ -64,13 +64,20 @@ describe('silent error swallowing prevention', () => {
 
   it('no renderer files have catch blocks that silently swallow errors', () => {
     const violations: string[] = []
-    const silentCatchPattern = /\.catch\(\s*\(\s*\)\s*=>\s*\{/g
+    const patterns = [
+      /\.catch\(\s*\(\s*\)\s*=>\s*\{/g,
+      /\.catch\(\s*_\s*=>\s*\{/g,
+      /\bcatch\s*\([^)]*\)\s*\{\s*\}/g,
+    ]
     for (const file of rendererFiles) {
       const content = readFileSync(join(rendererDir, file), 'utf-8')
-      if (silentCatchPattern.test(content)) {
-        violations.push(file)
+      for (const pattern of patterns) {
+        if (pattern.test(content)) {
+          violations.push(file)
+          break
+        }
+        pattern.lastIndex = 0
       }
-      silentCatchPattern.lastIndex = 0
     }
     expect(violations).toEqual([])
   })

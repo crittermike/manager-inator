@@ -35,6 +35,7 @@ export function KeyboardShortcutsDialog({ open, onClose }: KeyboardShortcutsDial
 
   useEffect(() => {
     if (!open) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
     closeButtonRef.current?.focus()
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -44,7 +45,10 @@ export function KeyboardShortcutsDialog({ open, onClose }: KeyboardShortcutsDial
       }
     }
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
   }, [open])
 
   if (!open) return null
