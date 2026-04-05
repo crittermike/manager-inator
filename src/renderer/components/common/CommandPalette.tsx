@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamOverview } from '../../hooks/useData'
 import type { PersonEntry } from '../../../shared/types'
@@ -45,33 +45,35 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
     }
   }, [open, people.length])
 
-  const pages: PaletteItem[] = [
+  const pages: PaletteItem[] = useMemo(() => [
     { id: 'today', label: 'Today', path: '/', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'playbook', label: 'Playbook', path: '/playbook', icon: <BookOpen className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'search', label: 'Search', path: '/search', icon: <Search className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
     { id: 'settings', label: 'Settings', path: '/settings', icon: <Settings className="w-4 h-4" aria-hidden="true" />, section: 'Pages' },
-  ]
+  ], [])
 
-  const reportItems: PaletteItem[] = reports.map(r => ({
+  const reportItems: PaletteItem[] = useMemo(() => reports.map(r => ({
     id: `report-${r.name}`,
     label: r.displayName,
     path: `/report/${r.name}`,
     icon: <User className="w-4 h-4" aria-hidden="true" />,
     section: 'Direct reports',
-  }))
+  })), [reports])
 
-  const reportNames = new Set(reports.map(r => r.displayName.toLowerCase()))
-  const peopleItems: PaletteItem[] = people
-    .filter(p => !reportNames.has(p.name.toLowerCase()))
-    .map(p => ({
-      id: `person-${p.slug}`,
-      label: p.name,
-      path: `/search?q=${encodeURIComponent(p.name)}`,
-      icon: <User className="w-4 h-4" aria-hidden="true" />,
-      section: 'People',
-    }))
+  const peopleItems: PaletteItem[] = useMemo(() => {
+    const reportNames = new Set(reports.map(r => r.displayName.toLowerCase()))
+    return people
+      .filter(p => !reportNames.has(p.name.toLowerCase()))
+      .map(p => ({
+        id: `person-${p.slug}`,
+        label: p.name,
+        path: `/search?q=${encodeURIComponent(p.name)}`,
+        icon: <User className="w-4 h-4" aria-hidden="true" />,
+        section: 'People',
+      }))
+  }, [reports, people])
 
-  const actionItems: PaletteItem[] = [
+  const actionItems: PaletteItem[] = useMemo(() => [
     {
       id: 'action-capture',
       label: 'Capture context',
@@ -88,9 +90,9 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
       action: onOpenAI,
       subtitle: 'Chat with your AI assistant'
     }
-  ]
+  ], [onOpenCapture, onOpenAI])
 
-  const quickActionItems: PaletteItem[] = reports.flatMap(r => [
+  const quickActionItems: PaletteItem[] = useMemo(() => reports.flatMap(r => [
     {
       id: `action-prep-${r.name}`,
       label: `Prep 1:1 with ${r.displayName}`,
@@ -105,15 +107,19 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
       icon: <MessageSquare className="w-4 h-4" aria-hidden="true" />,
       section: 'Quick actions'
     }
-  ])
+  ]), [reports])
 
-  const allItems = [...pages, ...reportItems, ...peopleItems, ...actionItems, ...quickActionItems]
+  const allItems = useMemo(
+    () => [...pages, ...reportItems, ...peopleItems, ...actionItems, ...quickActionItems],
+    [pages, reportItems, peopleItems, actionItems, quickActionItems]
+  )
 
-  const filtered = query.trim()
-    ? allItems.filter(item =>
-        item.label.toLowerCase().includes(query.toLowerCase())
-      )
-    : allItems
+  const filtered = useMemo(
+    () => query.trim()
+      ? allItems.filter(item => item.label.toLowerCase().includes(query.toLowerCase()))
+      : allItems,
+    [query, allItems]
+  )
 
   const handleSelect = useCallback((item: PaletteItem) => {
     if (item.action) {
@@ -176,9 +182,26 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
     }
   }
 
-  if (!open) return null
+  const sections = useMemo(
+    () => [...new Set(filtered.map(item => item.section))],
+    [filtered]
+  )
 
-  const sections = [...new Set(filtered.map(item => item.section))]
+  const flatItems = useMemo(() => {
+    const result: PaletteItem[] = []
+    for (const section of sections) {
+      for (const item of filtered) {
+        if (item.section === section) result.push(item)
+      }
+    }
+    return result
+  }, [filtered, sections])
+
+  const activeDescendantId = highlightIndex >= 0 && highlightIndex < flatItems.length
+    ? `palette-option-${flatItems[highlightIndex].id}`
+    : undefined
+
+  if (!open) return null
 
   return (
     <div
@@ -202,6 +225,11 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
             onKeyDown={handleKeyDown}
             placeholder="Search pages and people..."
             aria-label="Search pages and people"
+            role="combobox"
+            aria-expanded={filtered.length > 0}
+            aria-controls="palette-listbox"
+            aria-activedescendant={activeDescendantId}
+            aria-autocomplete="list"
             className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
           />
           <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 bg-surface-raised border border-border rounded">
@@ -209,7 +237,14 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
           </kbd>
         </div>
 
-        <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {filtered.length === 0 && query.trim()
+            ? `No results for ${query}`
+            : `${filtered.length} result${filtered.length === 1 ? '' : 's'} available`
+          }
+        </div>
+
+        <div ref={listRef} id="palette-listbox" role="listbox" aria-label="Command palette results" className="max-h-80 overflow-y-auto py-2">
           {filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-zinc-500">
               No results for &ldquo;{query}&rdquo;
@@ -223,19 +258,22 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
                 globalOffset += filtered.filter(item => item.section === s).length
               }
               return (
-                <div key={section}>
-                  <div className="px-4 py-1.5 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+                <div key={section} role="group" aria-label={section}>
+                  <div className="px-4 py-1.5 text-[11px] font-medium text-zinc-500 uppercase tracking-wider" aria-hidden="true">
                     {section}
                   </div>
                   {sectionItems.map((item, localIdx) => {
                     const globalIdx = globalOffset + localIdx
                     return (
-                      <button
+                      <div
                         key={item.id}
+                        id={`palette-option-${item.id}`}
+                        role="option"
+                        aria-selected={globalIdx === highlightIndex}
                         data-palette-item
                         onClick={() => handleSelect(item)}
                         onMouseEnter={() => setHighlightIndex(globalIdx)}
-                        className={`w-full flex ${item.subtitle ? 'items-start' : 'items-center'} gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        className={`w-full flex ${item.subtitle ? 'items-start' : 'items-center'} gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors ${
                           globalIdx === highlightIndex
                             ? 'bg-brand/15 text-brand-light'
                             : 'text-zinc-300 hover:bg-surface-raised'
@@ -250,7 +288,7 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
                             </span>
                           )}
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
