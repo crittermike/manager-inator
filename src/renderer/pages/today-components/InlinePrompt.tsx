@@ -250,7 +250,7 @@ export function InlinePrompt({
           .map(l => l.replace(/^-\s*/, '').trim())
         if (lines.length > 0) setWeeklyGoals(lines)
       })
-      .catch(() => {})
+      .catch(err => console.error('Failed to load weekly priorities', err))
   }, [promptType])
 
   useEffect(() => {

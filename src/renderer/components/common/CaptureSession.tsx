@@ -209,7 +209,7 @@ export function CaptureSession({
             resolvePromises.push(
               window.api.resolveAndToggleActionItem(slug, resolved.original_text)
                 .then(() => {})
-                .catch(() => {})
+                .catch(err => console.error(`Failed to resolve action item for ${slug}`, err))
             )
           }
         }

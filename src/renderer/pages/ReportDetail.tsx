@@ -683,7 +683,7 @@ export function ReportDetail() {
         lines[lineIndex] = line.replace('- [ ] ', '- [x] ')
         if (name) {
           const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
-          window.api.resolveAndToggleActionItem(name, checkboxText).catch(() => {})
+          window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => console.error('Failed to toggle action item', err))
         }
       } else if (line.includes('- [x] ')) {
         lines[lineIndex] = line.replace('- [x] ', '- [ ] ')
@@ -3262,7 +3262,7 @@ function PrepDetail({ entry, name }: { entry: StreamEntry; name: string }) {
       await window.api.commitFile(prepPath, updated, `Toggle prep checkbox for ${name}`)
       if (wasUnchecked) {
         const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
-        window.api.resolveAndToggleActionItem(name, checkboxText).catch(() => {})
+        window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => console.error('Failed to toggle action item', err))
       }
     } catch { }
   }, [content, prepPath, name])

@@ -61,8 +61,8 @@ export function SearchPage() {
   }, [])
 
   useEffect(() => {
-    window.api.listContexts().then(setContexts).catch(() => {})
-    window.api.listPeople().then(setPeople).catch(() => {})
+    window.api.listContexts().then(setContexts).catch(err => console.error('Failed to load contexts', err))
+    window.api.listPeople().then(setPeople).catch(err => console.error('Failed to load people', err))
   }, [])
 
   useEffect(() => {

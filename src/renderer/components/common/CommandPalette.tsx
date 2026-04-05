@@ -41,7 +41,7 @@ export function CommandPalette({ onOpenCapture, onOpenAI }: CommandPaletteProps)
 
   useEffect(() => {
     if (open && people.length === 0) {
-      window.api.listPeople().then(setPeople).catch(() => {})
+      window.api.listPeople().then(setPeople).catch(err => console.error('Failed to load people for command palette', err))
     }
   }, [open, people.length])
 

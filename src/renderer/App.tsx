@@ -125,7 +125,7 @@ export default function App() {
   useEffect(() => {
     if (authenticated && hasRepo) {
       // Trigger prewarm now that the renderer is ready to receive progress events
-      window.api.startPrewarm?.().catch(() => {})
+      window.api.startPrewarm?.().catch(err => console.error('Failed to start prewarm', err))
     }
   }, [authenticated, hasRepo])
 
@@ -141,7 +141,7 @@ export default function App() {
     window.api.getPrewarmProgress?.().then(({ ready, message }) => {
       if (ready) setCachesReady(true)
       else setLoadingMessage(message)
-    }).catch(() => {})
+    }).catch(err => console.error('Failed to get prewarm progress', err))
 
     cacheTimerRef.current = setTimeout(() => {
       setCachesReady(true)

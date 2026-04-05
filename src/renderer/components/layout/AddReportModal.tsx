@@ -26,7 +26,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
 
   useEffect(() => {
     if (open) {
-      window.api.getSettingsOptions().then(opts => setRoles(opts.roles)).catch(() => {})
+      window.api.getSettingsOptions().then(opts => setRoles(opts.roles)).catch(err => console.error('Failed to load role options', err))
       setTimeout(() => nameRef.current?.focus(), 100)
     }
   }, [open])

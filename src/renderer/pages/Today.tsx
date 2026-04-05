@@ -982,7 +982,7 @@ export function Today() {
     window.api.getTodayBootstrap().then(({ contexts: c, teamActionItems: ta }) => {
       setContexts(c)
       setTeamActions(ta)
-    }).catch(() => {})
+    }).catch(err => console.error('Failed to load today bootstrap', err))
   }, [])
 
   useEffect(() => {
@@ -1026,7 +1026,7 @@ export function Today() {
         map[r.name] = !!result[`reports/${r.name}/prep/${today}.md`]
       }
       setPrepExistsMap(map)
-    }).catch(() => {})
+    }).catch(err => console.error('Failed to check prep files', err))
   }, [overview])
   const fetchTeamActivity = useCallback(async () => {
     if (!hasGithubOrgToken) return
@@ -1123,7 +1123,7 @@ export function Today() {
 
     const membersWithActivity = teamActivity.filter(m => m.items.length > 0 && !m.error)
     for (const member of membersWithActivity) {
-      window.api.saveActivitySnapshot(member.reportName, sinceKey, todayKey).catch(() => {})
+      window.api.saveActivitySnapshot(member.reportName, sinceKey, todayKey).catch(err => console.error(`Failed to save activity snapshot for ${member.reportName}`, err))
     }
   }, [teamActivity])
 
@@ -1243,7 +1243,7 @@ export function Today() {
   const handleSnoozeAction = useCallback((actionKey: string, untilDate: string) => {
     setSnoozedActionItems(prev => {
       const next = { ...prev, [actionKey]: untilDate }
-      window.api.saveSettings({ snoozedActionItems: next }).catch(() => {})
+      window.api.saveSettings({ snoozedActionItems: next }).catch(err => console.error('Failed to save snoozed action items', err))
       return next
     })
   }, [])
@@ -1385,7 +1385,7 @@ export function Today() {
     window.api.getTodayBootstrap().then(({ contexts: c, teamActionItems: ta }) => {
       setContexts(c)
       setTeamActions(ta)
-    }).catch(() => {})
+    }).catch(err => console.error('Failed to refresh today bootstrap', err))
             if (hasGithubOrgToken) fetchTeamActivity()
           }}
           className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] rounded-lg transition-colors"
