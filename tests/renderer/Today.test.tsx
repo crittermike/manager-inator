@@ -52,6 +52,7 @@ const mockSettings: AppSettings = {
   practiceCompletions: {},
   practiceSchedules: {},
   snoozedActionItems: {},
+  snoozedItems: {},
   ptoReports: {},
   deactivatedReports: [],
   hasGithubOrgToken: true,
@@ -686,5 +687,95 @@ describe('Today activity snapshot date range', () => {
     await act(async () => {
       root.unmount()
     })
+  })
+})
+
+describe('Timeline item snooze', () => {
+  it('shows snooze button (clock icon) on timeline items', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<Today />)
+    })
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+    // Find any snooze button
+    const snoozeBtn = container.querySelector('button[aria-label="Snooze"]')
+    expect(snoozeBtn).not.toBeNull()
+
+    await act(async () => { root.unmount() })
+    container.remove()
+  })
+
+  it('shows snooze dropdown with time options when clicked', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<Today />)
+    })
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+    // Click the snooze button
+    const snoozeBtn = container.querySelector('button[aria-label="Snooze"]') as HTMLButtonElement
+    expect(snoozeBtn).not.toBeNull()
+
+    await act(async () => { snoozeBtn.click() })
+
+    // Dropdown should appear with options
+    const text = container.textContent || ''
+    expect(text).toContain('Later today')
+    expect(text).toContain('Tomorrow')
+    expect(text).toContain('Next week')
+
+    await act(async () => { root.unmount() })
+    container.remove()
+  })
+
+  it('hides item and shows undo toast when snoozed', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<Today />)
+    })
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+
+    // Count initial snooze buttons (= number of snoozable items)
+    const initialSnoozeBtns = container.querySelectorAll('button[aria-label="Snooze"]').length
+    expect(initialSnoozeBtns).toBeGreaterThan(0)
+
+    // Click snooze on first item
+    const snoozeBtn = container.querySelector('button[aria-label="Snooze"]') as HTMLButtonElement
+    await act(async () => { snoozeBtn.click() })
+
+    // Click "Tomorrow"
+    const tomorrowBtn = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent === 'Tomorrow') as HTMLButtonElement
+    expect(tomorrowBtn).not.toBeNull()
+    await act(async () => { tomorrowBtn.click() })
+
+    // Should have called toast.success with undo
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Snoozed until tomorrow',
+      undefined,
+      expect.objectContaining({ label: 'Undo' })
+    )
+
+    // Should have fewer snooze buttons now (item hidden)
+    const afterSnoozeBtns = container.querySelectorAll('button[aria-label="Snooze"]').length
+    expect(afterSnoozeBtns).toBeLessThan(initialSnoozeBtns)
+
+    // Should have saved to settings
+    expect((window as any).api.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ snoozedItems: expect.any(Object) })
+    )
+
+    await act(async () => { root.unmount() })
+    container.remove()
   })
 })

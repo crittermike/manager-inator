@@ -194,6 +194,7 @@ export interface AppSettings {
   practiceCompletions: Record<string, string>
   practiceSchedules: Record<string, PracticeSchedule>
   snoozedActionItems: Record<string, string>
+  snoozedItems: Record<string, string>
   ptoReports: Record<string, string>
   deactivatedReports: string[]
   hasGithubOrgToken: boolean
