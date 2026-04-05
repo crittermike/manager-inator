@@ -194,6 +194,7 @@ export function AppShell({ children }: AppShellProps) {
                   <button
                     key={r.name}
                     onClick={() => navigate(path)}
+                    aria-current={active ? 'page' : undefined}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all no-drag group ${
                       active
                         ? 'bg-white/[0.08] text-zinc-100 font-medium shadow-sm'
@@ -253,6 +254,7 @@ export function AppShell({ children }: AppShellProps) {
               </button>
               <button
                 onClick={() => navigate('/my-profile')}
+                aria-current={location.pathname === '/my-profile' ? 'page' : undefined}
                 className={`p-1.5 rounded-md transition-colors no-drag ${
                   location.pathname === '/my-profile'
                     ? 'text-brand-light bg-brand/15'
@@ -264,6 +266,7 @@ export function AppShell({ children }: AppShellProps) {
               </button>
               <button
                 onClick={() => navigate('/settings')}
+                aria-current={location.pathname === '/settings' ? 'page' : undefined}
                 className={`p-1.5 rounded-md transition-colors no-drag ${
                   location.pathname === '/settings'
                     ? 'text-brand-light bg-brand/15'
