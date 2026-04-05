@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react'
 import { X, AlertCircle, CheckCircle2, Info, AlertTriangle } from 'lucide-react'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
@@ -62,10 +62,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     warning,
   }), [addToast, success, error, info, warning])
 
+  const hasUrgent = toasts.some(t => t.type === 'error' || t.type === 'warning')
+
   return (
     <ToastContext.Provider value={contextValue}>
       {children}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none" role="status" aria-live="polite">
+      <div
+        className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"
+        role={hasUrgent ? 'alert' : 'status'}
+        aria-live={hasUrgent ? 'assertive' : 'polite'}
+        aria-atomic="true"
+      >
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onRemove={() => removeToast(toast.id)} />
         ))}
@@ -76,19 +83,46 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function ToastItem({ toast, onRemove }: { toast: ToastMessage; onRemove: () => void }) {
   const [isExiting, setIsExiting] = useState(false)
+  const pausedRef = useRef(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsExiting(true)
-      setTimeout(onRemove, 300)
-    }, toast.duration || 4000)
-    return () => clearTimeout(timer)
+  const duration = toast.action
+    ? Math.max(toast.duration || 4000, 8000)
+    : (toast.duration || 4000)
+
+  const startExit = useCallback(() => {
+    setIsExiting(true)
+    exitTimerRef.current = setTimeout(onRemove, 300)
   }, [onRemove])
 
-  const handleManualClose = () => {
-    setIsExiting(true)
-    setTimeout(onRemove, 300)
-  }
+  useEffect(() => {
+    const schedule = () => {
+      timerRef.current = setTimeout(() => {
+        if (!pausedRef.current) startExit()
+      }, duration)
+    }
+    schedule()
+    return () => {
+      clearTimeout(timerRef.current)
+      clearTimeout(exitTimerRef.current)
+    }
+  }, [duration, startExit])
+
+  const handlePause = useCallback(() => {
+    pausedRef.current = true
+    clearTimeout(timerRef.current)
+  }, [])
+
+  const handleResume = useCallback(() => {
+    pausedRef.current = false
+    timerRef.current = setTimeout(startExit, 2000)
+  }, [startExit])
+
+  const handleManualClose = useCallback(() => {
+    clearTimeout(timerRef.current)
+    startExit()
+  }, [startExit])
 
   const icons = {
     success: <CheckCircle2 className="w-5 h-5 text-success" aria-hidden="true" />,
@@ -126,6 +160,8 @@ function ToastItem({ toast, onRemove }: { toast: ToastMessage; onRemove: () => v
         {toast.action && (
           <button
             onClick={() => { toast.action!.onClick(); handleManualClose() }}
+            onFocus={handlePause}
+            onBlur={handleResume}
             className="mt-1.5 text-xs font-medium text-brand-light hover:text-brand transition-colors"
           >
             {toast.action.label}
