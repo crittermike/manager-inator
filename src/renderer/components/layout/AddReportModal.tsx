@@ -136,7 +136,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ComboInput
               value={role}
               onChange={setRole}
@@ -158,7 +158,7 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="report-github" className="block text-xs text-zinc-500 mb-1">GitHub username</label>
               <input

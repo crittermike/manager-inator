@@ -231,7 +231,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
         <div className="bg-gradient-to-r from-brand/[0.06] via-transparent to-transparent px-6 py-5">
           {isEditingProfile ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Name</label>
                   <input value={editFields.name} onChange={e => setEditFields(f => ({ ...f, name: e.target.value }))} className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-brand/40" />

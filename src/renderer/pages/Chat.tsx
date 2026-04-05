@@ -438,7 +438,7 @@ export function Chat() {
               <p className="text-sm text-zinc-500 mb-8 max-w-md">
                 I have access to your data repo and can read meeting notes, feedback logs, check-ins, and more. Ask me anything about your team.
               </p>
-              <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
                 {SUGGESTIONS.map(s => (
                   <button
                     key={s}
