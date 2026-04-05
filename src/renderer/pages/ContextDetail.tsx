@@ -464,6 +464,7 @@ export function ContextDetail() {
                           <button
                             onClick={() => handleRemoveSpeaker(speaker)}
                             className="hover:text-danger hover:bg-danger/10 rounded-full p-0.5 transition-colors"
+                            aria-label={`Remove ${speaker}`}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -514,6 +515,7 @@ export function ContextDetail() {
                         onClick={handleSaveSpeakers}
                         className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors ml-1"
                         title="Save attendees"
+                        aria-label="Save attendees"
                       >
                         <Check className="w-4 h-4" />
                       </button>
@@ -524,6 +526,7 @@ export function ContextDetail() {
                         }}
                         className="p-1.5 text-zinc-400 hover:bg-zinc-800/50 rounded-lg transition-colors"
                         title="Cancel"
+                        aria-label="Cancel editing attendees"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -562,6 +565,7 @@ export function ContextDetail() {
                                   onClick={() => handleCreateSpeakerPerson(speaker)}
                                   className="p-0.5 text-zinc-500 hover:text-brand-light hover:bg-brand/10 rounded transition-colors"
                                   title={`Create page for ${speaker}`}
+                                  aria-label={`Create page for ${speaker}`}
                                 >
                                   <UserPlus className="w-3 h-3" />
                                 </button>

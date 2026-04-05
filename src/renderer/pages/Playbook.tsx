@@ -1292,11 +1292,11 @@ export function Playbook() {
 
                             <div className="flex items-start gap-4 shrink-0">
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
-                                <button onClick={() => setEditingPracticeId(practice.id)} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Edit practice">
+                                <button onClick={() => setEditingPracticeId(practice.id)} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Edit practice" aria-label="Edit practice">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <div className="relative inline-block">
-                                  <button onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setSnoozePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right }); setSnoozeOpenId(practice.id); }} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Snooze practice">
+                                  <button onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setSnoozePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right }); setSnoozeOpenId(practice.id); }} className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-md transition-colors" title="Snooze practice" aria-label="Snooze practice">
                                     <BellOff className="w-3.5 h-3.5" />
                                   </button>
                                   {snoozeOpenId === practice.id && snoozePos && (
@@ -1312,7 +1312,7 @@ export function Playbook() {
                                   )}
                                 </div>
                                 {isCustom && (
-                                  <button onClick={() => handleDeleteCustom(practice.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors" title="Delete practice">
+                                  <button onClick={() => handleDeleteCustom(practice.id)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors" title="Delete practice" aria-label="Delete practice">
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 )}
@@ -1352,6 +1352,7 @@ export function Playbook() {
                                 onClick={() => handleToggleDisabled(practice.id)}
                                 className={`relative w-9 h-5 rounded-full transition-colors duration-200 ease-in-out shrink-0 mt-0.5 ${!isDisabled ? 'bg-brand' : 'bg-zinc-700'}`}
                                 title={isDisabled ? "Enable practice" : "Disable practice"}
+                                aria-label={isDisabled ? "Enable practice" : "Disable practice"}
                               >
                                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${!isDisabled ? 'translate-x-4 bg-white' : 'translate-x-0 bg-zinc-500'}`} />
                               </button>

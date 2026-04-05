@@ -406,6 +406,7 @@ export function CaptureSession({
             onClick={() => onRemove(id)}
             className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised rounded-md transition-colors"
             title="Dismiss"
+            aria-label="Dismiss"
           >
             <X className="w-3 h-3" />
           </button>

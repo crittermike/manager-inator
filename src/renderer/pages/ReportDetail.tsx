@@ -2120,6 +2120,7 @@ export function ReportDetail() {
               <button
                 onClick={() => setShowPtoModal(false)}
                 className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-surface-raised"
+                aria-label="Close PTO modal"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>

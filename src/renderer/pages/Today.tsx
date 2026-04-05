@@ -1670,6 +1670,7 @@ export function Today() {
                                       <button
                                         className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
                                         title="Open on GitHub"
+                                        aria-label="Open on GitHub"
                                         onClick={(e) => { e.stopPropagation(); window.open(item.url, '_blank') }}
                                       >
                                         <Eye className="w-3.5 h-3.5" />
