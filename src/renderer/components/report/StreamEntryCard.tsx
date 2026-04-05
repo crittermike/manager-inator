@@ -17,6 +17,7 @@ import {
   Check,
   Copy,
   X,
+  RefreshCw,
 } from 'lucide-react'
 
 // ── Types ──
@@ -117,6 +118,22 @@ function InlineEditor({ initialContent, onSave, onCancel }: { initialContent: st
   )
 }
 
+function ContentLoadError({ label, onRetry }: { label?: string; onRetry: () => void }) {
+  return (
+    <div className="flex items-center gap-3 py-4">
+      <p className="text-sm text-zinc-500">Unable to load {label || 'content'}.</p>
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-surface-raised hover:bg-surface-raised/80 border border-border rounded-lg transition-colors"
+        aria-label={`Retry loading ${label || 'content'}`}
+      >
+        <RefreshCw className="w-3 h-3" aria-hidden="true" />
+        Retry
+      </button>
+    </div>
+  )
+}
+
 // ── Stream Entry Card ──
 
 export interface StreamEntryCardProps {
@@ -132,6 +149,8 @@ export interface StreamEntryCardProps {
   viewingTitle: string | null
   fileContent: string | null
   fileLoading: boolean
+  fileError: boolean
+  onRetryContent: () => void
   onCloseContent: () => void
   onCopyContent: (text: string) => void
   copied: boolean
@@ -158,6 +177,8 @@ export const StreamEntryCard = memo(function StreamEntryCard({
   viewingTitle,
   fileContent,
   fileLoading,
+  fileError,
+  onRetryContent,
   onCloseContent,
   onCopyContent,
   copied,
@@ -372,7 +393,7 @@ export const StreamEntryCard = memo(function StreamEntryCard({
                   </div>
                 )
               ) : (
-                <p className="text-sm text-zinc-500">Unable to load content.</p>
+                <ContentLoadError onRetry={onRetryContent} />
               )}
             </div>
           )}
@@ -395,7 +416,7 @@ function ContextDetail({
   const tags = ctx.tags || []
   const contextPath = `contexts/${ctx.filename}`
 
-  const { content: fileContent, loading: fileLoading } = useFileContent(contextPath)
+  const { content: fileContent, loading: fileLoading, reload } = useFileContent(contextPath)
   const { stripImageRefs, getImageUrls } = useAttachedImages(fileContent)
 
   const { processed, raw } = useMemo(() => {
@@ -442,7 +463,7 @@ function ContextDetail({
           ))}
         </div>
       ) : (
-        <p className="text-sm text-zinc-500 py-4">Unable to load content.</p>
+        <ContentLoadError onRetry={reload} />
       )}
     </div>
   )
@@ -567,7 +588,7 @@ function CheckinDetail({ entry, name, editing, onStopEditing, onSave }: {
 }) {
   const c = entry.data
   const checkinPath = `reports/${name}/check-ins/monthly/${c.date}.md`
-  const { content, loading } = useFileContent(checkinPath)
+  const { content, loading, reload } = useFileContent(checkinPath)
 
   if (loading) {
     return (
@@ -606,7 +627,7 @@ function CheckinDetail({ entry, name, editing, onStopEditing, onSave }: {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">Unable to load check-in content.</p>
+        <ContentLoadError label="check-in" onRetry={reload} />
       )}
     </div>
   )
@@ -621,7 +642,7 @@ function ReviewDetail({ entry, name, editing, onStopEditing, onSave }: {
 }) {
   const r = entry.data
   const reviewPath = `reports/${name}/reviews/${r.period}.md`
-  const { content, loading } = useFileContent(reviewPath)
+  const { content, loading, reload } = useFileContent(reviewPath)
 
   if (loading) {
     return (
@@ -653,7 +674,7 @@ function ReviewDetail({ entry, name, editing, onStopEditing, onSave }: {
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(reviewContent)}</ReactMarkdown>
         </div>
       ) : (
-        <p className="text-sm text-zinc-500">Unable to load review content.</p>
+        <ContentLoadError label="review" onRetry={reload} />
       )}
     </div>
   )

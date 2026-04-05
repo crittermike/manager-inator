@@ -169,17 +169,25 @@ export function useReportData(name: string | undefined) {
 export function useFileContent(path: string | null) {
   const [content, setContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
 
-  useEffect(() => {
-    if (!path) { setContent(null); setLoading(false); return }
+  const load = useCallback(() => {
+    if (!path) { setContent(null); setLoading(false); setError(false); return }
     let stale = false
     setLoading(true)
+    setError(false)
     window.api.getFileContent(path)
       .then(data => { if (!stale) setContent(data) })
-      .catch((err) => { console.debug('File content not available:', err); if (!stale) setContent(null) })
+      .catch((err) => { console.debug('File content not available:', err); if (!stale) { setContent(null); setError(true) } })
       .finally(() => { if (!stale) setLoading(false) })
     return () => { stale = true }
   }, [path])
 
-  return { content, loading }
+  useEffect(() => {
+    return load()
+  }, [load])
+
+  const reload = useCallback(() => { load() }, [load])
+
+  return { content, loading, error, reload }
 }

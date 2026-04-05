@@ -164,7 +164,7 @@ export function ReportDetail() {
   // Content viewing & editing
   const [viewingContent, setViewingContent] = useState<{ id: string; path: string; title: string } | null>(null)
   const [isEditingContent, setIsEditingContent] = useState(false)
-  const { content: fileContent, loading: fileLoading } = useFileContent(viewingContent?.path ?? null)
+  const { content: fileContent, loading: fileLoading, error: fileError, reload: retryContent } = useFileContent(viewingContent?.path ?? null)
 
   // Sync viewed file to AI context
   useEffect(() => {
@@ -2143,6 +2143,8 @@ export function ReportDetail() {
                     viewingTitle={viewingContent?.title ?? null}
                     fileContent={fileContent}
                     fileLoading={fileLoading}
+                    fileError={fileError}
+                    onRetryContent={retryContent}
                     onCloseContent={handleCloseContent}
                     onCopyContent={handleCopy}
                     copied={copied}
