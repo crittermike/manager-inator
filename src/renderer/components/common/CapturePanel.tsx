@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useTeamOverview } from '../../hooks/useData'
-import { ClipboardPaste, X, ChevronDown, ChevronUp, Plus, Loader2, Check, AlertCircle, Pencil } from 'lucide-react'
+import { ClipboardPaste, X, ChevronDown, ChevronUp, Plus, Loader2, Check, AlertCircle, Pencil, FileUp } from 'lucide-react'
 import { CaptureSession } from './CaptureSession'
 
 type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other' | ''
@@ -22,6 +22,7 @@ interface SessionItem {
   sourceHint: SourceHint
   status: SessionState
   imagePaths?: string[]
+  fileName?: string
 }
 
 interface AttachedImage {
@@ -40,8 +41,10 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
   const [minimized, setMinimized] = useState(false)
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [images, setImages] = useState<AttachedImage[]>([])
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const processingCount = useMemo(
     () => sessions.filter(s => s.status === 'processing').length,
@@ -139,11 +142,55 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     }
   }, [])
 
+  const createSessionsFromFiles = useCallback((files: File[]) => {
+    const textFiles = Array.from(files).filter(f =>
+      f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown') || f.type === 'text/plain'
+    )
+    if (textFiles.length === 0) return
+
+    const readers = textFiles.map(file => {
+      return new Promise<{ name: string; content: string }>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve({ name: file.name, content: reader.result as string })
+        reader.onerror = () => resolve({ name: file.name, content: '' })
+        reader.readAsText(file)
+      })
+    })
+
+    Promise.all(readers).then(results => {
+      const newSessions = results
+        .filter(r => r.content.trim().length > 0)
+        .map(r => ({
+          id: crypto.randomUUID(),
+          content: r.content.trim(),
+          sourceHint: sourceHint as SourceHint,
+          status: 'processing' as SessionState,
+          fileName: r.name,
+        }))
+      if (newSessions.length > 0) {
+        setSessions(prev => [...newSessions, ...prev])
+      }
+    })
+  }, [sourceHint])
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
-    for (const file of files) {
+    setIsDraggingFiles(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    const imageFiles = files.filter(f => f.type.startsWith('image/'))
+    const textFiles = files.filter(f =>
+      f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown') || f.type === 'text/plain'
+    )
+
+    // Handle text files as bulk captures
+    if (textFiles.length > 0) {
+      createSessionsFromFiles(textFiles)
+    }
+
+    // Handle image files as attachments (existing behavior)
+    for (const file of imageFiles) {
       const reader = new FileReader()
       reader.onload = async () => {
         const dataUrl = reader.result as string
@@ -156,12 +203,28 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
       }
       reader.readAsDataURL(file)
     }
-  }, [])
+  }, [createSessionsFromFiles])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsDraggingFiles(true)
   }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingFiles(false)
+  }, [])
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      createSessionsFromFiles(Array.from(files))
+    }
+    // Reset input so the same files can be selected again
+    e.target.value = ''
+  }, [createSessionsFromFiles])
 
   const handleCreateSession = useCallback(() => {
     if (!content.trim() && images.length === 0) return
@@ -232,15 +295,21 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     )
   }
 
+  const totalSessions = sessions.length
   const headerStatus = processingCount > 0
-    ? <span className="text-[10px] text-brand-light">{processingCount} processing</span>
+    ? <span className="text-[10px] text-brand-light flex items-center gap-1">
+        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+        {totalSessions > 1 ? `${savedCount + errorCount}/${totalSessions} done` : 'Processing'}
+      </span>
     : editingCount > 0
       ? <span className="text-[10px] text-amber-400 flex items-center gap-1"><Pencil className="w-2.5 h-2.5" />{editingCount} editing</span>
-      : errorCount > 0
-        ? <span className="text-[10px] text-danger flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5" />{errorCount} error{errorCount > 1 ? 's' : ''}</span>
-        : savedCount > 0
-          ? <span className="text-[10px] text-success flex items-center gap-1"><Check className="w-2.5 h-2.5" />{savedCount} saved</span>
-          : null
+      : errorCount > 0 && savedCount > 0
+        ? <span className="text-[10px] text-zinc-400 flex items-center gap-1"><Check className="w-2.5 h-2.5 text-success" />{savedCount} saved<span className="text-danger ml-1">{errorCount} failed</span></span>
+        : errorCount > 0
+          ? <span className="text-[10px] text-danger flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5" />{errorCount} error{errorCount > 1 ? 's' : ''}</span>
+          : savedCount > 0
+            ? <span className="text-[10px] text-success flex items-center gap-1"><Check className="w-2.5 h-2.5" />{savedCount} saved</span>
+            : null
 
   return (
     <div className="absolute bottom-20 right-6 w-[560px] max-w-[calc(100vw-18rem-3rem)] max-h-[calc(100vh-8rem)] bg-zinc-950 border border-border rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden z-20 animate-scale-in">
@@ -289,7 +358,16 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               </button>
             ))}
           </div>
-          <div onDrop={handleDrop} onDragOver={handleDragOver}>
+          <div onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} className="relative">
+            {isDraggingFiles && (
+              <div className="absolute inset-0 z-10 bg-brand/10 border-2 border-dashed border-brand/50 rounded-lg flex items-center justify-center">
+                <div className="text-center">
+                  <FileUp className="w-8 h-8 text-brand-light mx-auto mb-2" />
+                  <p className="text-sm font-medium text-brand-light">Drop files to process</p>
+                  <p className="text-xs text-zinc-500 mt-1">.txt and .md files</p>
+                </div>
+              </div>
+            )}
             <textarea
               ref={textareaRef}
               value={content}
@@ -322,18 +400,38 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             )}
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-zinc-600">
-              AI will classify, extract feedback, and auto-save.
-            </p>
-            <button
-              onClick={handleCreateSession}
-              disabled={!content.trim() && images.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-3 h-3" />
-              Capture
-              <kbd className="ml-1 text-[9px] opacity-50 font-sans">Cmd+Enter</kbd>
-            </button>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-zinc-600">
+                AI will classify, extract feedback, and auto-save.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.markdown,text/plain"
+                multiple
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 border border-border hover:border-zinc-600 rounded-lg transition-colors"
+                title="Import transcript files"
+              >
+                <FileUp className="w-3 h-3" />
+                Import files
+              </button>
+              <button
+                onClick={handleCreateSession}
+                disabled={!content.trim() && images.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-dark rounded-lg transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-3 h-3" />
+                Capture
+                <kbd className="ml-1 text-[9px] opacity-50 font-sans">Cmd+Enter</kbd>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -344,6 +442,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             initialContent={session.content}
             sourceHint={session.sourceHint}
             imagePaths={session.imagePaths}
+            fileName={session.fileName}
             reports={reports}
             onStatusChange={handleStatusChange}
             onRemove={handleRemoveSession}
