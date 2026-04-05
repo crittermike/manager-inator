@@ -86,4 +86,47 @@ describe('AppShell navigation', () => {
       root.unmount()
     })
   })
+
+  it('navigates back on Cmd+[', async () => {
+    const { root } = await renderShell()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '[', metaKey: true }))
+    })
+
+    expect(mockNavigate).toHaveBeenCalledWith(-1)
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('navigates forward on Cmd+]', async () => {
+    const { root } = await renderShell()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: ']', metaKey: true }))
+    })
+
+    expect(mockNavigate).toHaveBeenCalledWith(1)
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('does not navigate back/forward when Shift is held', async () => {
+    const { root } = await renderShell()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '[', metaKey: true, shiftKey: true }))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: ']', metaKey: true, shiftKey: true }))
+    })
+
+    expect(mockNavigate).not.toHaveBeenCalled()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })

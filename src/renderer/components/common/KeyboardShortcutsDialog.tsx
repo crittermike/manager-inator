@@ -12,6 +12,8 @@ const shortcuts = {
     ['Cmd Shift N', 'Capture'],
     ['Cmd ,', 'Settings'],
     ['Cmd 1-4', 'Switch views'],
+    ['Cmd [', 'Go back'],
+    ['Cmd ]', 'Go forward'],
     ['Cmd Shift M', 'Show / hide app (global)'],
     ['Cmd Enter', 'Submit / save'],
     ['?', 'Show shortcuts'],

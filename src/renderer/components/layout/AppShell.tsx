@@ -114,13 +114,20 @@ export function AppShell({ children }: AppShellProps) {
         e.preventDefault()
         setShortcutsOpen(prev => !prev)
       }
-      // ⌘+1/2/3/4 for sidebar navigation
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1
         if (navItems[idx]) {
           e.preventDefault()
           navigate(navItems[idx].path)
         }
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === '[') {
+        e.preventDefault()
+        navigate(-1)
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === ']') {
+        e.preventDefault()
+        navigate(1)
       }
     }
     document.addEventListener('keydown', handleShortcut)
