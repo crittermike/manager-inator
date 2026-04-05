@@ -8,7 +8,7 @@ import { formatDate } from '../utils/formatDate'
 import { FormattedDate } from '../components/common/FormattedDate'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { useListNavigation } from '../hooks/useListNavigation'
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -99,6 +99,30 @@ export function ReportDetail() {
   // Stream filter state
   const initialFilter = (searchParams.get('filter') as StreamFilter) || 'all'
   const [activeFilter, setActiveFilter] = useState<StreamFilter>(initialFilter)
+
+  // Animation replay: toggle off/on to restart CSS animations without remounting
+  const [animating, setAnimating] = useState(true)
+  const prevFilterRef = useRef(activeFilter)
+  const rafRef = useRef<{ outer: number; inner: number }>({ outer: 0, inner: 0 })
+  useLayoutEffect(() => {
+    if (prevFilterRef.current !== activeFilter) {
+      prevFilterRef.current = activeFilter
+      cancelAnimationFrame(rafRef.current.outer)
+      cancelAnimationFrame(rafRef.current.inner)
+      setAnimating(false)
+      rafRef.current.outer = requestAnimationFrame(() => {
+        rafRef.current.inner = requestAnimationFrame(() => {
+          setAnimating(true)
+        })
+      })
+    }
+  }, [activeFilter])
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(rafRef.current.outer)
+      cancelAnimationFrame(rafRef.current.inner)
+    }
+  }, [])
 
   // Expanded item tracking
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
@@ -2041,7 +2065,7 @@ export function ReportDetail() {
       {/* ── Activity Stream ── */}
       <div className="space-y-2">
         {filteredEntries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
             <div className="w-12 h-12 rounded-full bg-surface-raised flex items-center justify-center mb-4">
               <Filter className="w-6 h-6 text-zinc-500" aria-hidden="true" />
             </div>
@@ -2105,7 +2129,7 @@ export function ReportDetail() {
                       <hr className="flex-1 border-0 h-px bg-border" aria-hidden="true" />
                     </div>
                   )}
-                  <div {...getNavProps(idx)} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
+                  <div {...getNavProps(idx)} className={animating ? 'animate-fade-up' : ''} style={animating ? { animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' } : undefined}>
                   <StreamEntryCard
                     entry={entry}
                     expanded={expandedItems.has(entry.id)}

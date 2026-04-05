@@ -1090,3 +1090,114 @@ describe('ReportDetail expand button', () => {
     mockReport.reviews = origReviews
   })
 })
+
+describe('ReportDetail filter switching preserves state', () => {
+  it('preserves expanded entry state when switching filter tabs', async () => {
+    const origFeedback = mockReport.feedback
+    mockReport.feedback = [
+      { date: '2026-03-20', type: 'positive', content: 'Great work on the deployment.', source: 'direct' },
+      { date: '2026-03-18', type: 'constructive', content: 'Needs improvement on code reviews.', source: 'direct' }
+    ]
+
+    const origContextNotes = mockReport.contextNotes
+    mockReport.contextNotes = [{
+      date: '2026-03-15',
+      source: 'meeting',
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap priorities.',
+      tags: [],
+      people: [],
+      content: '',
+      filename: '2026-03-15-weekly-sync.md'
+    }]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const feedbackEntry = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Great work on the deployment')) as HTMLButtonElement | undefined
+      expect(feedbackEntry).toBeDefined()
+
+      await act(async () => { feedbackEntry?.click() })
+
+      const expandedBtn = Array.from(container.querySelectorAll('button[aria-expanded="true"]'))
+        .find(b => b.textContent?.includes('Great work on the deployment'))
+      expect(expandedBtn).not.toBeNull()
+
+      const feedbackFilter = getButtonByText(container, 'Feedback 2')
+      expect(feedbackFilter).not.toBeNull()
+      await act(async () => { feedbackFilter?.click() })
+
+      const allFilter = getButtonByText(container, 'All')
+      expect(allFilter).not.toBeNull()
+      await act(async () => { allFilter?.click() })
+
+      const stillExpanded = Array.from(container.querySelectorAll('button[aria-expanded="true"]'))
+        .find(b => b.textContent?.includes('Great work on the deployment'))
+      expect(stillExpanded).not.toBeNull()
+
+      await act(async () => { root.unmount() })
+    } finally {
+      mockReport.feedback = origFeedback
+      mockReport.contextNotes = origContextNotes
+    }
+  })
+
+  it('preserves inline editing state and draft text across filter switch', async () => {
+    const origFeedback = mockReport.feedback
+    mockReport.feedback = [
+      { date: '2026-03-20', type: 'positive', content: 'Great work on the deployment.', source: 'direct' }
+    ]
+
+    const origContextNotes = mockReport.contextNotes
+    mockReport.contextNotes = [{
+      date: '2026-03-15',
+      source: 'meeting',
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap priorities.',
+      tags: [],
+      people: [],
+      content: '',
+      filename: '2026-03-15-weekly-sync.md'
+    }]
+
+    try {
+      const { container, root } = await renderReportDetail()
+
+      const feedbackEntry = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.includes('Great work on the deployment')) as HTMLButtonElement | undefined
+      expect(feedbackEntry).toBeDefined()
+      await act(async () => { feedbackEntry?.click() })
+
+      const editBtn = container.querySelector('button[aria-label="Edit"]') as HTMLButtonElement | null
+      expect(editBtn).not.toBeNull()
+      await act(async () => { editBtn?.click() })
+
+      const textarea = container.querySelector('textarea') as HTMLTextAreaElement | null
+      expect(textarea).not.toBeNull()
+
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+        setter?.call(textarea, 'My unsaved draft')
+        textarea?.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+      })
+
+      const feedbackFilter = getButtonByText(container, 'Feedback 1')
+      expect(feedbackFilter).not.toBeNull()
+      await act(async () => { feedbackFilter?.click() })
+
+      const allFilter = getButtonByText(container, 'All')
+      expect(allFilter).not.toBeNull()
+      await act(async () => { allFilter?.click() })
+
+      const textareaAfter = container.querySelector('textarea') as HTMLTextAreaElement | null
+      expect(textareaAfter).not.toBeNull()
+      expect(textareaAfter?.value).toBe('My unsaved draft')
+
+      await act(async () => { root.unmount() })
+    } finally {
+      mockReport.feedback = origFeedback
+      mockReport.contextNotes = origContextNotes
+    }
+  })
+})
