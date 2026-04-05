@@ -1733,7 +1733,13 @@ export function Today() {
                     </div>
                   ) : (
                     <div className="text-sm text-zinc-500 py-4">
-                      No activity data available. Click refresh to load.
+                      No activity data available.{' '}
+                      <button
+                        onClick={fetchTeamActivity}
+                        className="text-brand-light hover:text-brand underline transition-colors"
+                      >
+                        Refresh
+                      </button>
                     </div>
                   )}
                 </div>

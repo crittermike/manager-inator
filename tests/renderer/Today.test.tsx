@@ -628,4 +628,63 @@ describe('Today activity snapshot date range', () => {
       root.unmount()
     })
   })
+
+  it('shows inline Refresh button when no activity data is available', async () => {
+    const getTeamActivity = vi.fn().mockResolvedValue([
+      { reportName: 'alice-smith', displayName: 'Alice Smith', githubUsername: 'alicesmith', error: null, items: [] }
+    ])
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getTodayBootstrap: vi.fn().mockResolvedValue({ contexts: [], teamActionItems: [] }),
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        getTeamActivity,
+        getRecentTeamContext: vi.fn().mockResolvedValue({}),
+        saveActivitySnapshot: vi.fn().mockResolvedValue(undefined),
+        saveSettings: vi.fn().mockResolvedValue(undefined),
+        toggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getReportData: vi.fn().mockResolvedValue({
+          profile: { displayName: 'Alice Smith' },
+          checkIns: [],
+          transcripts: [],
+          feedback: [],
+          reviews: [],
+          actionItems: [],
+          summaries: [],
+          contextNotes: []
+        }),
+        aiGenerate: vi.fn().mockResolvedValue('Mock generated check-in'),
+        commitFile: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+
+    const { container, root } = await renderToday()
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    })
+
+    const noActivityText = Array.from(container.querySelectorAll('div')).find(
+      d => d.textContent?.includes('No activity data available')
+    )
+    expect(noActivityText).toBeDefined()
+
+    const refreshBtn = Array.from(container.querySelectorAll('button')).find(
+      btn => btn.textContent === 'Refresh' && btn.closest('div')?.textContent?.includes('No activity data available')
+    )
+    expect(refreshBtn).toBeDefined()
+    expect(refreshBtn?.textContent).toBe('Refresh')
+
+    getTeamActivity.mockClear()
+    await act(async () => {
+      refreshBtn?.click()
+    })
+
+    expect(getTeamActivity).toHaveBeenCalled()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
 })
