@@ -58,6 +58,21 @@ type StreamFilter = 'all' | 'context' | 'feedback' | 'action' | 'checkin' | 'rev
 
 // ── Helpers ──
 
+function getTimeGroup(dateStr: string): string {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const date = new Date(dateStr + 'T00:00:00')
+  if (isNaN(date.getTime())) return 'Older'
+  const diffMs = today.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays <= 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays <= 7) return 'This week'
+  if (diffDays <= 30) return 'This month'
+  if (diffDays <= 90) return 'Last 3 months'
+  return 'Older'
+}
+
 // ── Main Component ──
 
 export function ReportDetail() {
@@ -2064,41 +2079,55 @@ export function ReportDetail() {
             )}
           </div>
         ) : (
-          filteredEntries.map((entry, idx) => {
-            const toggleKey = entry.type === 'action'
-              ? entry.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
-              : false
-            return (
-              <div key={entry.id} {...getNavProps(idx)} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
-              <StreamEntryCard
-                key={entry.id}
-                entry={entry}
-                expanded={expandedItems.has(entry.id)}
-                onToggle={toggleExpanded}
-                name={name!}
-                onViewContent={handleViewContent}
-                onToggleAction={handleToggleAction}
-                isToggling={toggleKey}
-                isViewing={viewingContent?.id === entry.id}
-                viewingPath={viewingContent?.path ?? null}
-                viewingTitle={viewingContent?.title ?? null}
-                fileContent={fileContent}
-                fileLoading={fileLoading}
-                onCloseContent={handleCloseContent}
-                onCopyContent={handleCopy}
-                copied={copied}
-                isEditing={isEditingContent}
-                onEditContent={handleEditContent}
-                onDeleteContent={handleDeleteContent}
-                onSaveContent={handleSaveContent}
-                onCancelEdit={() => setIsEditingContent(false)}
-                onUpdateFeedback={handleUpdateFeedback}
-                onDeleteFeedback={handleDeleteFeedback}
-                onExpand={['context', 'checkin', 'review', 'prep'].includes(entry.type) ? handleExpand : undefined}
-              />
-              </div>
-            )
-          })
+          (() => {
+            let lastGroup = ''
+            return filteredEntries.map((entry, idx) => {
+              const toggleKey = entry.type === 'action'
+                ? entry.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
+                : false
+              const group = entry.pinned ? '' : getTimeGroup(entry.date)
+              const showHeader = group && group !== lastGroup
+              if (showHeader) lastGroup = group
+              return (
+                <div key={entry.id}>
+                  {showHeader && (
+                    <div className={`flex items-center gap-3 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-6'} mb-2`}>
+                      <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{group}</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                  )}
+                  <div {...getNavProps(idx)} className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' }}>
+                  <StreamEntryCard
+                    key={entry.id}
+                    entry={entry}
+                    expanded={expandedItems.has(entry.id)}
+                    onToggle={toggleExpanded}
+                    name={name!}
+                    onViewContent={handleViewContent}
+                    onToggleAction={handleToggleAction}
+                    isToggling={toggleKey}
+                    isViewing={viewingContent?.id === entry.id}
+                    viewingPath={viewingContent?.path ?? null}
+                    viewingTitle={viewingContent?.title ?? null}
+                    fileContent={fileContent}
+                    fileLoading={fileLoading}
+                    onCloseContent={handleCloseContent}
+                    onCopyContent={handleCopy}
+                    copied={copied}
+                    isEditing={isEditingContent}
+                    onEditContent={handleEditContent}
+                    onDeleteContent={handleDeleteContent}
+                    onSaveContent={handleSaveContent}
+                    onCancelEdit={() => setIsEditingContent(false)}
+                    onUpdateFeedback={handleUpdateFeedback}
+                    onDeleteFeedback={handleDeleteFeedback}
+                    onExpand={['context', 'checkin', 'review', 'prep'].includes(entry.type) ? handleExpand : undefined}
+                  />
+                  </div>
+                </div>
+              )
+            })
+          })()
         )}
       </div>
 
