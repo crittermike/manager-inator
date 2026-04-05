@@ -48,6 +48,12 @@ export function AppShell({ children }: AppShellProps) {
   const ptoReports = settings?.ptoReports ?? {}
   const deactivatedReports = settings?.deactivatedReports ?? []
   const isChatRoute = location.pathname === '/chat'
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // Scroll main content to top on route change
+  useEffect(() => {
+    contentRef.current?.scrollTo(0, 0)
+  }, [location.pathname])
 
   // Auto-close AI popup when navigating to the full Chat page
   useEffect(() => {
@@ -275,7 +281,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Main content */}
       <main id="main-content" className="flex-1 overflow-hidden relative bg-zinc-950">
         {/* Drag region for the rest of the title bar */}
-        <div className={`${isChatRoute ? 'h-full' : 'h-full pt-14'} overflow-y-auto ${isChatRoute ? '' : 'px-8 pb-8'}`}>
+        <div ref={contentRef} className={`${isChatRoute ? 'h-full' : 'h-full pt-14'} overflow-y-auto ${isChatRoute ? '' : 'px-8 pb-8'}`}>
           {children}
         </div>
 
