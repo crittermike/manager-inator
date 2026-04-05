@@ -74,7 +74,7 @@ export function InlinePrep({
         }
       })
       .catch((err) => {
-        console.error('Failed to load existing prep:', err)
+        console.debug('No existing prep file:', err)
         window.api.getReportData(reportName).then(data => {
           if (!mountedRef.current) return
           setReportData(data)

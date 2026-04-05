@@ -237,7 +237,7 @@ export function InlinePrompt({
         }
       })
       .catch((err) => {
-        console.error('Failed to load existing content:', err)
+        console.debug('No existing content found:', err)
         if (mountedRef.current) setPhase('editing')
       })
   }, [config])

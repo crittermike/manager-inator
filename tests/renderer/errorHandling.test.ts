@@ -48,11 +48,11 @@ describe('silent error swallowing prevention', () => {
     { file: 'pages/Today.tsx', pattern: 'Failed to refresh today bootstrap' },
     { file: 'pages/Search.tsx', pattern: 'Failed to search content' },
     { file: 'pages/Settings.tsx', pattern: 'Failed to load settings' },
-    { file: 'pages/today-components/InlinePrompt.tsx', pattern: 'Failed to load existing content' },
+    { file: 'pages/today-components/InlinePrompt.tsx', pattern: 'No existing content found' },
     { file: 'App.tsx', pattern: 'Failed to load settings' },
-    { file: 'pages/today-components/InlinePrep.tsx', pattern: 'Failed to load existing prep' },
+    { file: 'pages/today-components/InlinePrep.tsx', pattern: 'No existing prep file' },
     { file: 'pages/today-components/InlinePrep.tsx', pattern: 'Failed to load report data' },
-    { file: 'hooks/useData.ts', pattern: 'Failed to load file content' },
+    { file: 'hooks/useData.ts', pattern: 'File content not available' },
   ]
 
   for (const { file, pattern } of filesToCheck) {
