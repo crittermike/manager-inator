@@ -724,7 +724,7 @@ export function ReportDetail() {
         lines[lineIndex] = line.replace('- [ ] ', '- [x] ')
         if (name) {
           const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
-          window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => console.error('Failed to toggle action item', err))
+          window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => { console.error('Failed to toggle action item', err); toast.error('Failed to toggle action item') })
         }
       } else if (line.includes('- [x] ')) {
         lines[lineIndex] = line.replace('- [x] ', '- [ ] ')

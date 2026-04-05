@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { ComboInput } from '../common/ComboInput'
+import { useToast } from '../common/Toast'
 import type { CreateReportFields } from '../../../shared/types'
 
 interface AddReportModalProps {
@@ -23,10 +24,11 @@ export function AddReportModal({ open, onClose, onCreated }: AddReportModalProps
   const [error, setError] = useState<string | null>(null)
   const [roles, setRoles] = useState<string[]>([])
   const nameRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
 
   useEffect(() => {
     if (open) {
-      window.api.getSettingsOptions().then(opts => setRoles(opts.roles)).catch(err => console.error('Failed to load role options', err))
+      window.api.getSettingsOptions().then(opts => setRoles(opts.roles)).catch(err => { console.error('Failed to load role options', err); toast.error('Failed to load role options') })
       setTimeout(() => nameRef.current?.focus(), 100)
     }
   }, [open])

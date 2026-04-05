@@ -79,7 +79,10 @@ export function ContextDetail() {
   }, [content, transcriptContent, activeTab, decodedFilename, success])
 
   useEffect(() => {
-    window.api.listPeople().then(setPeople).catch(console.error)
+    window.api.listPeople().then(setPeople).catch(err => {
+      console.error('Failed to load people for context page', err)
+      showError('Failed to load people')
+    })
   }, [])
 
   useEffect(() => {

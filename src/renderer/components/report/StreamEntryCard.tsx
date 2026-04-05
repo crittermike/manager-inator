@@ -6,6 +6,7 @@ import type { ActionItem, CheckIn, FeedbackEntry, PrepEntry, ContextNote } from 
 import { cleanSummaryContent } from '../../utils/cleanSummary'
 import { useFileContent } from '../../hooks/useData'
 import { useAttachedImages } from '../../hooks/useAttachedImages'
+import { useToast } from '../common/Toast'
 import { FormattedDate } from '../common/FormattedDate'
 import {
   ChevronDown,
@@ -684,6 +685,7 @@ function PrepDetail({ entry, name }: { entry: PrepStreamEntry; name: string }) {
   const p = entry.data
   const prepPath = `reports/${name}/prep/${p.date}.md`
   const [content, setContent] = useState(p.content)
+  const toast = useToast()
 
   const handleCheckboxToggle = useCallback(async (lineIndex: number) => {
     const lines = content.split('\n')
@@ -702,9 +704,9 @@ function PrepDetail({ entry, name }: { entry: PrepStreamEntry; name: string }) {
       await window.api.commitFile(prepPath, updated, `Toggle prep checkbox for ${name}`)
       if (wasUnchecked) {
         const checkboxText = line.replace(/^(\s*)- \[ \]\s*/, '')
-        window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => console.error('Failed to toggle action item', err))
+        window.api.resolveAndToggleActionItem(name, checkboxText).catch(err => { console.error('Failed to toggle action item', err); toast.error('Failed to toggle action item') })
       }
-    } catch (e) { console.error('Failed to toggle prep checkbox:', e) }
+    } catch (e) { console.error('Failed to toggle prep checkbox:', e); toast.error('Failed to save prep checkbox') }
   }, [content, prepPath, name])
 
   const lines = content.split('\n')

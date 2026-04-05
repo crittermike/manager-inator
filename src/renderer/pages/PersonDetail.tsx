@@ -38,7 +38,7 @@ export function PersonDetail() {
     window.api.getSettingsOptions().then(opts => {
       setRoleOptions(opts.roles)
       setRelationshipOptions(opts.relationships)
-    }).catch(err => console.error('Failed to load settings options', err))
+    }).catch(err => { console.error('Failed to load settings options', err); showError('Failed to load settings options') })
   }, [])
 
   // Load person data and file content

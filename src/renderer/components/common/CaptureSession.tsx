@@ -201,19 +201,22 @@ export function CaptureSession({
       }
 
       if (classified.resolved_action_items && classified.resolved_action_items.length > 0 && confirmedResolved) {
-        const resolvePromises: Promise<void>[] = []
+        const resolvePromises: Promise<boolean>[] = []
         for (let i = 0; i < classified.resolved_action_items.length; i++) {
           if (!confirmedResolved[i]) continue
           const resolved = classified.resolved_action_items[i]
           for (const slug of peopleSlugs) {
             resolvePromises.push(
               window.api.resolveAndToggleActionItem(slug, resolved.original_text)
-                .then(() => {})
-                .catch(err => console.error(`Failed to resolve action item for ${slug}`, err))
+                .then(() => true)
+                .catch(err => { console.error(`Failed to resolve action item for ${slug}`, err); return false })
             )
           }
         }
-        await Promise.all(resolvePromises)
+        const results = await Promise.all(resolvePromises)
+        if (results.some(r => !r)) {
+          toast.error('Some action items failed to resolve')
+        }
       }
 
       if (mountedRef.current) {

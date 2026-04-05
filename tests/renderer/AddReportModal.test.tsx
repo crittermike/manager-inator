@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AddReportModal } from '../../src/renderer/components/layout/AddReportModal'
+import { ToastProvider } from '../../src/renderer/components/common/Toast'
 
 const mockOnClose = vi.fn()
 const mockOnCreated = vi.fn()
@@ -14,7 +15,7 @@ async function renderModal(open = true) {
   const root = ReactDOM.createRoot(container)
 
   await act(async () => {
-    root.render(<AddReportModal open={open} onClose={mockOnClose} onCreated={mockOnCreated} />)
+    root.render(<ToastProvider><AddReportModal open={open} onClose={mockOnClose} onCreated={mockOnCreated} /></ToastProvider>)
   })
 
   await act(async () => {

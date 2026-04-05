@@ -251,7 +251,7 @@ export function InlinePrompt({
           .map(l => l.replace(/^-\s*/, '').trim())
         if (lines.length > 0) setWeeklyGoals(lines)
       })
-      .catch(err => console.error('Failed to load weekly priorities', err))
+      .catch(err => { console.error('Failed to load weekly priorities', err); toast.error('Failed to load weekly priorities') })
   }, [promptType])
 
   useEffect(() => {
