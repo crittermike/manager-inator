@@ -1350,7 +1350,7 @@ export function Playbook() {
 
                               <button
                                 onClick={() => handleToggleDisabled(practice.id)}
-                                className={`relative w-9 h-5 rounded-full transition-colors duration-200 ease-in-out focus:outline-none shrink-0 mt-0.5 ${!isDisabled ? 'bg-brand' : 'bg-zinc-700'}`}
+                                className={`relative w-9 h-5 rounded-full transition-colors duration-200 ease-in-out shrink-0 mt-0.5 ${!isDisabled ? 'bg-brand' : 'bg-zinc-700'}`}
                                 title={isDisabled ? "Enable practice" : "Disable practice"}
                               >
                                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${!isDisabled ? 'translate-x-4 bg-white' : 'translate-x-0 bg-zinc-500'}`} />

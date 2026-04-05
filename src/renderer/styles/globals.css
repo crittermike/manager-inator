@@ -87,6 +87,20 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade-up { animation: fade-up 0.28s ease-out; }
 
+/* Keyboard focus rings — only visible on keyboard navigation, not mouse clicks */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Text inputs already have custom focus borders — suppress the ring */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable]:focus-visible {
+  outline: none;
+}
+
 .nav-focused { outline: 1px solid rgba(59, 130, 246, 0.5); border-radius: 0.75rem; }
 
 @media (prefers-reduced-motion: reduce) {
