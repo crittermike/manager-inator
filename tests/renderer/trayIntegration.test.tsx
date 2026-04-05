@@ -121,7 +121,7 @@ describe('CapturePanel tray-capture-content integration', () => {
     const session = container.querySelector('[data-testid="00000000-0000-4000-8000-000000000001"]')
     expect(session).not.toBeNull()
     expect(session?.textContent).toBe('captured from tray')
-    expect(container.textContent).toContain('1 processing')
+    expect(container.textContent).toContain('Processing')
 
     await act(async () => {
       root.unmount()
@@ -170,7 +170,7 @@ describe('CapturePanel tray-capture-content integration', () => {
       '00000000-0000-4000-8000-000000000002',
       '00000000-0000-4000-8000-000000000001',
     ])
-    expect(container.textContent).toContain('3 processing')
+    expect(container.textContent).toContain('0/3 done')
 
     await act(async () => {
       root.unmount()

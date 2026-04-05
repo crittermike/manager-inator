@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Loader2, Check, AlertCircle, Sparkles,
-  Pencil, Trash2, ChevronDown, ChevronUp, X
+  Pencil, Trash2, ChevronDown, ChevronUp, X, FileText
 } from 'lucide-react'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -48,6 +48,7 @@ export function CaptureSession({
   initialContent,
   sourceHint,
   imagePaths,
+  fileName,
   reports,
   onStatusChange,
   onRemove,
@@ -56,6 +57,7 @@ export function CaptureSession({
   initialContent: string
   sourceHint: SourceHint
   imagePaths?: string[]
+  fileName?: string
   reports: ReportSummary[]
   onStatusChange: (id: string, status: SessionState) => void
   onRemove: (id: string) => void
@@ -383,6 +385,7 @@ export function CaptureSession({
             <AlertCircle className="w-3.5 h-3.5 text-danger shrink-0" />
           )}
           <div className="min-w-0">
+            {fileName && <div className="text-[10px] text-zinc-500 truncate mb-0.5 flex items-center gap-1"><FileText className="w-3 h-3 shrink-0" />{fileName}</div>}
             <div className="text-xs text-zinc-200 truncate">{summaryText}</div>
             <div className="mt-0.5 text-[10px] text-zinc-500">
               {state === 'processing' ? 'Processing' : state === 'saved' ? 'Saved' : state === 'editing' ? 'Editing' : 'Error'}
