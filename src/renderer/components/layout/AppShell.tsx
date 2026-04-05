@@ -10,11 +10,11 @@ import {
   UserCircle,
   ClipboardPaste,
   Keyboard,
-  X,
   Plus
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useToast } from '../common/Toast'
+import { KeyboardShortcutsDialog } from '../common/KeyboardShortcutsDialog'
 import { AddReportModal } from './AddReportModal'
 
 const CommandPalette = lazy(() => import('../common/CommandPalette').then(m => ({ default: m.CommandPalette })))
@@ -340,89 +340,7 @@ export function AppShell({ children }: AppShellProps) {
         onCreated={handleReportCreated}
       />
 
-      {shortcutsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="shortcuts-dialog-title" onClick={() => setShortcutsOpen(false)}>
-          <div className="absolute inset-0 bg-black/50 animate-backdrop-fade" />
-          <div
-            className="relative bg-zinc-900 border border-border rounded-2xl shadow-2xl shadow-black/50 w-full max-w-sm p-6 animate-fade-up"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2 id="shortcuts-dialog-title" className="text-sm font-semibold text-zinc-200">Keyboard shortcuts</h2>
-              <button
-                onClick={() => setShortcutsOpen(false)}
-                className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-surface-raised transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">General</h3>
-                <div className="space-y-1.5">
-                  {[
-                    ['Cmd K', 'Search'],
-                    ['Cmd Shift N', 'Capture'],
-                    ['Cmd ,', 'Settings'],
-                    ['Cmd 1-4', 'Switch views'],
-                    ['Cmd Shift M', 'Show / hide app (global)'],
-                    ['Cmd Enter', 'Submit / save'],
-                    ['?', 'Show shortcuts'],
-                  ].map(([keys, label]) => (
-                    <div key={label} className="flex items-center justify-between py-1">
-                      <span className="text-sm text-zinc-400">{label}</span>
-                      <div className="flex items-center gap-1">
-                        {keys!.split(' ').map((k, i) => (
-                          <kbd key={i} className="text-[11px] font-mono bg-zinc-800 border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded min-w-[24px] text-center">{k}</kbd>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Chat</h3>
-                <div className="space-y-1.5">
-                  {[
-                    ['Cmd N', 'New chat'],
-                    ['Cmd Shift E', 'Export chat'],
-                  ].map(([keys, label]) => (
-                    <div key={label} className="flex items-center justify-between py-1">
-                      <span className="text-sm text-zinc-400">{label}</span>
-                      <div className="flex items-center gap-1">
-                        {keys!.split(' ').map((k, i) => (
-                          <kbd key={i} className="text-[11px] font-mono bg-zinc-800 border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded min-w-[24px] text-center">{k}</kbd>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Lists</h3>
-                <div className="space-y-1.5">
-                  {[
-                    ['j', 'Next item'],
-                    ['k', 'Previous item'],
-                    ['Enter', 'Expand / select'],
-                    ['Esc', 'Clear focus'],
-                  ].map(([keys, label]) => (
-                    <div key={label} className="flex items-center justify-between py-1">
-                      <span className="text-sm text-zinc-400">{label}</span>
-                      <div className="flex items-center gap-1">
-                        {keys!.split(' ').map((k, i) => (
-                          <kbd key={i} className="text-[11px] font-mono bg-zinc-800 border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded min-w-[24px] text-center">{k}</kbd>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <KeyboardShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
