@@ -26,9 +26,9 @@ interface AppShellProps {
 }
 
 const navItems = [
-  { path: '/', icon: Sun, label: 'Today', shortcut: null },
-  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: null },
-  { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: null },
+  { path: '/', icon: Sun, label: 'Today', shortcut: 'Cmd+1' },
+  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: 'Cmd+2' },
+  { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: 'Cmd+3' },
   { path: '/search', icon: Search, label: 'Search', shortcut: 'Cmd+K' }
 ]
 
@@ -108,10 +108,18 @@ export function AppShell({ children }: AppShellProps) {
         e.preventDefault()
         setShortcutsOpen(prev => !prev)
       }
+      // ⌘+1/2/3/4 for sidebar navigation
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '4') {
+        const idx = parseInt(e.key) - 1
+        if (navItems[idx]) {
+          e.preventDefault()
+          navigate(navItems[idx].path)
+        }
+      }
     }
     document.addEventListener('keydown', handleShortcut)
     return () => document.removeEventListener('keydown', handleShortcut)
-  }, [toggleCapture])
+  }, [toggleCapture, navigate])
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-zinc-950 text-zinc-100">
@@ -370,6 +378,26 @@ export function AppShell({ children }: AppShellProps) {
                   {[
                     ['Cmd N', 'New chat'],
                     ['Cmd Shift E', 'Export chat'],
+                  ].map(([keys, label]) => (
+                    <div key={label} className="flex items-center justify-between py-1">
+                      <span className="text-sm text-zinc-400">{label}</span>
+                      <div className="flex items-center gap-1">
+                        {keys!.split(' ').map((k, i) => (
+                          <kbd key={i} className="text-[11px] font-mono bg-zinc-800 border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded min-w-[24px] text-center">{k}</kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Lists</h3>
+                <div className="space-y-1.5">
+                  {[
+                    ['j', 'Next item'],
+                    ['k', 'Previous item'],
+                    ['Enter', 'Expand / select'],
+                    ['Esc', 'Clear focus'],
                   ].map(([keys, label]) => (
                     <div key={label} className="flex items-center justify-between py-1">
                       <span className="text-sm text-zinc-400">{label}</span>

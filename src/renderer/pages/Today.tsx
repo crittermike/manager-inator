@@ -1228,7 +1228,11 @@ export function Today() {
     setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
     setExpandedItem(null)
     setPrepExistsMap(prev => ({ ...prev, [reportName]: true }))
-  }, [])
+    toast.success('Done ✓', undefined, {
+      label: 'Undo',
+      onClick: () => { setDoneIds(prev => { const next = new Set(prev); next.delete(itemId); return next }) }
+    })
+  }, [toast])
 
   const handlePrepCancel = useCallback((_reportName: string) => {
     setExpandedItem(null)
@@ -1246,12 +1250,20 @@ export function Today() {
     setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
     setExpandedItem(null)
     refresh()
-  }, [refresh])
+    toast.success('Done ✓', undefined, {
+      label: 'Undo',
+      onClick: () => { setDoneIds(prev => { const next = new Set(prev); next.delete(itemId); return next }) }
+    })
+  }, [refresh, toast])
 
   const handlePromptDone = useCallback((itemId: string) => {
     setDoneIds(prev => { const next = new Set(prev); next.add(itemId); return next })
     setExpandedItem(null)
-  }, [])
+    toast.success('Done ✓', undefined, {
+      label: 'Undo',
+      onClick: () => { setDoneIds(prev => { const next = new Set(prev); next.delete(itemId); return next }) }
+    })
+  }, [toast])
 
   const toggleSection = useCallback((section: TimelineSection) => {
     setExpandedSections(prev => {
