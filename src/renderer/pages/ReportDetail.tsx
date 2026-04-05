@@ -1164,7 +1164,7 @@ export function ReportDetail() {
     } else if (entry.type === 'review') {
       navigate(`/context/${encodeURIComponent(entry.data.period + '.md')}?dir=reports/${name}/reviews`)
     } else if (entry.type === 'prep') {
-      navigate(`/context/${encodeURIComponent(entry.data.date + '.md')}?dir=reports/${name}/preps`)
+      navigate(`/context/${encodeURIComponent(entry.data.date + '.md')}?dir=reports/${name}/prep`)
     }
   }, [navigate, name])
 
