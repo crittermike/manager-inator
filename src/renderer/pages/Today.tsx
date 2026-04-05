@@ -13,6 +13,7 @@ import type { ReportStatus, ContextEntry, CadenceSettings, TeamActionItem, Custo
 import { formatActivityCounts } from '../utils/activitySuggestions'
 import { matchesMeetingDay } from '../utils/meetingDay'
 import { formatRelativeDate } from '../utils/formatDate'
+import { FormattedDate } from '../components/common/FormattedDate'
 
 import {
   AlertCircle,
@@ -1643,7 +1644,7 @@ export function Today() {
                                         <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400">
                                           <span className="truncate">{item.repo}</span>
                                           <span>·</span>
-                                          <span>{formatRelativeDate(new Date(item.updatedAt)).toLowerCase()}</span>
+                                          <FormattedDate date={new Date(item.updatedAt)} transform={t => t.toLowerCase()} />
                                         <span>·</span>
                                         <span className={
                                           item.state === 'open' ? 'text-emerald-400' :

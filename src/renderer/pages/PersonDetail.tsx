@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { FormattedDate } from '../components/common/FormattedDate'
 import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -392,7 +393,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
               >
                 <Calendar className="w-4 h-4 text-zinc-600 shrink-0" aria-hidden="true" />
-                <span className="text-sm text-zinc-500 shrink-0 w-24">{m.date}</span>
+                <FormattedDate date={m.date} className="text-sm text-zinc-500 shrink-0 w-24" />
                 <span className="text-sm text-zinc-300 truncate group-hover:text-zinc-100 transition-colors">
                   {m.title || m.filename.replace(/\.md$/, '')}
                 </span>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAI } from '../hooks/useAI'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { FormattedDate } from '../components/common/FormattedDate'
 import { useToast } from '../components/common/Toast'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -496,7 +497,7 @@ export function MyProfile() {
                   <FileText className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-zinc-200 truncate">{entry.title}</div>
-                    <div className="text-xs text-zinc-600">{entry.category} · {entry.date}</div>
+                    <div className="text-xs text-zinc-600">{entry.category} · <FormattedDate date={entry.date} /></div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 shrink-0" aria-hidden="true" />
                 </button>

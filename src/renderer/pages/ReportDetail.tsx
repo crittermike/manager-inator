@@ -5,6 +5,7 @@ import { useActiveFile } from '../hooks/useActiveFile'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast } from '../components/common/Toast'
 import { formatDate } from '../utils/formatDate'
+import { FormattedDate } from '../components/common/FormattedDate'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { useListNavigation } from '../hooks/useListNavigation'
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
@@ -2869,7 +2870,7 @@ const StreamEntryCard = memo(function StreamEntryCard({
             )}
           </div>
           {!entry.pinned && entry.type !== 'checkin' && entry.type !== 'review' && (
-            <span className="text-xs text-zinc-600 shrink-0">{formatDate(entry.date)}</span>
+            <FormattedDate date={entry.date} className="text-xs text-zinc-600 shrink-0" />
           )}
           {expanded ? (
             <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
@@ -3134,7 +3135,7 @@ function FeedbackDetail({ entry, editing, onStopEditing, onUpdate }: {
     <div className="space-y-2">
       <div className="prose-dark text-sm leading-relaxed"><ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={{ p: ({ children }) => <p className="text-zinc-300 my-1">{children}</p> }}>{f.content}</ReactMarkdown></div>
       <div className="flex items-center gap-3 text-xs text-zinc-500">
-        <span>{formatDate(f.date)}</span>
+        <FormattedDate date={f.date} />
         {f.source && <span>from {f.source}</span>}
         {f.context && (
           <a href={f.context} target="_blank" rel="noopener noreferrer" className="text-brand-light hover:text-brand">
