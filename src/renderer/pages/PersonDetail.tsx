@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { FormattedDate } from '../components/common/FormattedDate'
-import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X } from 'lucide-react'
+import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -32,7 +32,7 @@ export function PersonDetail() {
   const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
   const [roleOptions, setRoleOptions] = useState<string[]>([])
   const [relationshipOptions, setRelationshipOptions] = useState<string[]>([])
-
+  const [saving, setSaving] = useState(false)
   // Load autocomplete options
   useEffect(() => {
     window.api.getSettingsOptions().then(opts => {
@@ -124,6 +124,7 @@ export function PersonDetail() {
 
   const handleSave = useCallback(async () => {
     if (!slug) return
+    setSaving(true)
     try {
       const fmMatch = rawFileContent.match(/^---\n[\s\S]*?\n---\n*/)
       const frontmatter = fmMatch ? fmMatch[0] : ''
@@ -136,11 +137,14 @@ export function PersonDetail() {
     } catch (err) {
       console.error('Failed to save:', err)
       showError('Failed to save')
+    } finally {
+      setSaving(false)
     }
   }, [slug, rawFileContent, editValue, success, showError])
 
   const handleSaveProfile = useCallback(async () => {
     if (!slug || !person) return
+    setSaving(true)
     try {
       const fmMatch = rawFileContent.match(/^---\n([\s\S]*?)\n---\n*([\s\S]*)/)
       const body = fmMatch?.[2] || bodyContent
@@ -166,6 +170,8 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
     } catch (e) {
       console.error('Failed to save profile:', e)
       showError('Failed to save profile')
+    } finally {
+      setSaving(false)
     }
   }, [slug, person, rawFileContent, bodyContent, editFields, success, showError])
 
@@ -249,8 +255,8 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
               </div>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setIsEditingProfile(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
-                <button onClick={handleSaveProfile} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97]">
-                  <Check className="w-3.5 h-3.5" aria-hidden="true" /> Save
+                <button onClick={handleSaveProfile} disabled={saving} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none">
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Check className="w-3.5 h-3.5" aria-hidden="true" />} {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </div>
@@ -341,11 +347,12 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
             <div className="flex items-center gap-1">
               <button
                 onClick={handleSave}
-                className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors"
+                disabled={saving}
+                className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                 title="Save (⌘S)"
                 aria-label="Save notes"
               >
-                <Check className="w-4 h-4" aria-hidden="true" />
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Check className="w-4 h-4" aria-hidden="true" />}
               </button>
               <button
                 onClick={() => setIsEditing(false)}

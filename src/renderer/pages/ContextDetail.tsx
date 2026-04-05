@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X, Copy, Download, UserPlus } from 'lucide-react'
+import { ArrowLeft, Pencil, Calendar, Users, FileText, Check, X, Copy, Download, UserPlus, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -47,6 +47,7 @@ export function ContextDetail() {
   const [editingSpeakersList, setEditingSpeakersList] = useState<string[]>([])
   const [speakerInput, setSpeakerInput] = useState('')
   const [showSpeakerDropdown, setShowSpeakerDropdown] = useState(false)
+  const [saving, setSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   
   const dateStr = decodedFilename.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || ''
@@ -243,6 +244,7 @@ export function ContextDetail() {
       return
     }
     
+    setSaving(true)
     try {
       await window.api.saveMeetingTitle(decodedFilename, editTitleValue)
       setTitle(editTitleValue)
@@ -251,10 +253,13 @@ export function ContextDetail() {
     } catch (err) {
       console.error('Failed to save title:', err)
       showError('Failed to save title')
+    } finally {
+      setSaving(false)
     }
   }, [decodedFilename, editTitleValue, title, success, showError])
 
   const handleSaveSpeakers = useCallback(async () => {
+    setSaving(true)
     try {
       await window.api.saveMeetingSpeakers(decodedFilename, editingSpeakersList)
       setSpeakers(editingSpeakersList)
@@ -263,6 +268,8 @@ export function ContextDetail() {
     } catch (err) {
       console.error('Failed to save attendees:', err)
       showError('Failed to save attendees')
+    } finally {
+      setSaving(false)
     }
   }, [decodedFilename, editingSpeakersList, success, showError])
 
@@ -327,6 +334,7 @@ export function ContextDetail() {
   }
 
   const handleSaveContent = async () => {
+    setSaving(true)
     try {
       const fileContent = transcriptContent
         ? `${editContentValue}\n\n## Raw content\n\n${transcriptContent}`
@@ -339,6 +347,8 @@ export function ContextDetail() {
     } catch (err) {
       console.error('Failed to save content:', err)
       showError('Failed to save content')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -420,11 +430,12 @@ export function ContextDetail() {
                   />
                     <button
                     onClick={handleSaveTitle}
-                    className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors"
+                    disabled={saving}
+                    className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                     title="Save title"
                     aria-label="Save title"
                   >
-                    <Check className="w-5 h-5" aria-hidden="true" />
+                    {saving ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : <Check className="w-5 h-5" aria-hidden="true" />}
                   </button>
                 </div>
               ) : (
@@ -516,11 +527,12 @@ export function ContextDetail() {
                       
                       <button
                         onClick={handleSaveSpeakers}
-                        className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors ml-1"
+                        disabled={saving}
+                        className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors ml-1 disabled:opacity-50 disabled:pointer-events-none"
                         title="Save attendees"
                         aria-label="Save attendees"
                       >
-                        <Check className="w-4 h-4" aria-hidden="true" />
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Check className="w-4 h-4" aria-hidden="true" />}
                       </button>
                       <button
                         onClick={() => {
@@ -632,11 +644,12 @@ export function ContextDetail() {
               <>
                 <button
                   onClick={handleSaveContent}
-                  className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors"
+                  disabled={saving}
+                  className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   title="Save changes"
                   aria-label="Save changes"
                 >
-                  <Check className="w-4 h-4" aria-hidden="true" />
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Check className="w-4 h-4" aria-hidden="true" />}
                 </button>
                 <button
                   onClick={() => setIsEditingContent(false)}
