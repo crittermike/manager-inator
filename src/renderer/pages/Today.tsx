@@ -39,6 +39,7 @@ import {
   Clock
 } from 'lucide-react'
 import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
+import { DropdownMenu } from '../components/common/DropdownMenu'
 import type { TimelineSection, TimelineItem } from './today-components'
 import { AddReportModal } from '../components/layout/AddReportModal'
 import { getCheckInContext } from '../utils/checkin'
@@ -1530,7 +1531,7 @@ export function Today() {
       )}
 
       {hasGithubOrgToken && (
-        <div className="bg-surface rounded-2xl border border-border/80 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
+        <div className="bg-surface rounded-2xl border border-border/80 overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
           <div
             onClick={() => setActivityExpanded(!activityExpanded)}
             className="flex items-center justify-between w-full px-5 py-4 bg-gradient-to-r from-white/[0.02] to-transparent hover:bg-surface-raised/20 transition-colors cursor-pointer"
@@ -1798,7 +1799,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
+          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
@@ -1860,7 +1861,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
+          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
@@ -1959,20 +1960,6 @@ const TimelineRow = memo(function TimelineRow({
   reports,
   teamActions
 }: TimelineRowProps) {
-  const [snoozeOpen, setSnoozeOpen] = useState(false)
-  const snoozeRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!snoozeOpen) return
-    const handler = (e: MouseEvent) => {
-      if (snoozeRef.current && !snoozeRef.current.contains(e.target as Node)) {
-        setSnoozeOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [snoozeOpen])
-
   const handleRowClick = useCallback(() => {
     if (item.actionType === 'navigate' && item.route) {
       navigate(item.route)
@@ -2059,26 +2046,22 @@ const TimelineRow = memo(function TimelineRow({
                 {item.actionLabel}
               </button>
             )}
-            <div className="relative" ref={snoozeRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSnoozeOpen(prev => !prev)
-                }}
-                className="p-1 text-zinc-600 hover:text-amber-400 rounded-lg transition-colors opacity-60 hover:opacity-100"
-                aria-label="Snooze"
-                title="Snooze"
-              >
-                <Clock className="w-4 h-4" aria-hidden="true" />
-              </button>
-              {snoozeOpen && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-surface-raised border border-border rounded-lg shadow-xl shadow-black/40 py-1 min-w-[140px]">
-                  <button onClick={(e) => { e.stopPropagation(); onSnoozeItem(item.id, 0); setSnoozeOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-overlay transition-colors">Later today</button>
-                  <button onClick={(e) => { e.stopPropagation(); onSnoozeItem(item.id, 1); setSnoozeOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-overlay transition-colors">Tomorrow</button>
-                  <button onClick={(e) => { e.stopPropagation(); onSnoozeItem(item.id, 7); setSnoozeOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-overlay transition-colors">Next week</button>
-                </div>
-              )}
-            </div>
+            <DropdownMenu
+              trigger={
+                <button
+                  className="p-1 text-zinc-600 hover:text-amber-400 rounded-lg transition-colors opacity-60 hover:opacity-100"
+                  aria-label="Snooze"
+                  title="Snooze"
+                >
+                  <Clock className="w-4 h-4" aria-hidden="true" />
+                </button>
+              }
+              items={[
+                { label: 'Later today', onClick: () => onSnoozeItem(item.id, 0) },
+                { label: 'Tomorrow', onClick: () => onSnoozeItem(item.id, 1) },
+                { label: 'Next week', onClick: () => onSnoozeItem(item.id, 7) },
+              ]}
+            />
             <button
               onClick={(e) => {
                 e.stopPropagation()

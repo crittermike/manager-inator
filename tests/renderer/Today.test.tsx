@@ -725,8 +725,8 @@ describe('Timeline item snooze', () => {
 
     await act(async () => { snoozeBtn.click() })
 
-    // Dropdown should appear with options
-    const text = container.textContent || ''
+    // Dropdown should appear with options (rendered in portal on document.body)
+    const text = document.body.textContent || ''
     expect(text).toContain('Later today')
     expect(text).toContain('Tomorrow')
     expect(text).toContain('Next week')
@@ -753,8 +753,8 @@ describe('Timeline item snooze', () => {
     const snoozeBtn = container.querySelector('button[aria-label="Snooze"]') as HTMLButtonElement
     await act(async () => { snoozeBtn.click() })
 
-    // Click "Tomorrow"
-    const tomorrowBtn = Array.from(container.querySelectorAll('button'))
+    // Click "Tomorrow" (rendered in portal on document.body)
+    const tomorrowBtn = Array.from(document.body.querySelectorAll('button'))
       .find(b => b.textContent === 'Tomorrow') as HTMLButtonElement
     expect(tomorrowBtn).not.toBeNull()
     await act(async () => { tomorrowBtn.click() })
