@@ -37,6 +37,41 @@ let clientToken: string | null = null
 type CopilotSession = Awaited<ReturnType<CopilotClient['createSession']>>
 const activeSessions = new Map<string, { session: CopilotSession; cancelled: boolean }>()
 
+/**
+ * Resolve the path to the Copilot CLI.
+ * Prefers the bundled .js entry point (uses Electron's Node via process.execPath)
+ * over system bin paths (which need #!/usr/bin/env node shebang).
+ */
+export async function resolveCopilotCliPath(): Promise<string | undefined> {
+  const fs = await import('fs')
+
+  // Prefer bundled JS entry point — avoids needing system node
+  const bundledPath = join(__dirname, '../../node_modules/@github/copilot/index.js')
+  try { fs.statSync(bundledPath); return bundledPath } catch { /* not found */ }
+
+  // Fallback: system-installed copilot
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      let out = ''
+      child.stdout.on('data', (d: Buffer) => { out += d.toString() })
+      child.on('error', reject)
+      child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error('not found')))
+    })
+  } catch {
+    const home = process.env.HOME || ''
+    const candidates = [
+      `${home}/.local/bin/copilot`,
+      '/usr/local/bin/copilot',
+      '/opt/homebrew/bin/copilot',
+    ]
+    for (const p of candidates) {
+      try { fs.statSync(p); return p } catch { /* next */ }
+    }
+  }
+  return undefined
+}
+
 async function getClient(): Promise<CopilotClient> {
   const token = getToken()
   if (!token) {
@@ -52,35 +87,7 @@ async function getClient(): Promise<CopilotClient> {
 
   if (!client) {
 
-    let cliPath: string | undefined
-
-    // In production, always use the bundled JS entry point (avoids needing system node)
-    const bundledPath = join(__dirname, '../../node_modules/@github/copilot/index.js')
-    const fs = await import('fs')
-    try { fs.statSync(bundledPath); cliPath = bundledPath } catch { /* not found */ }
-
-    // Fallback: check system paths (dev mode or missing bundle)
-    if (!cliPath) {
-      try {
-        cliPath = await new Promise<string>((resolve, reject) => {
-          const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
-          let out = ''
-          child.stdout.on('data', (d: Buffer) => { out += d.toString() })
-          child.on('error', reject)
-          child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error('not found')))
-        })
-      } catch {
-        const home = process.env.HOME || ''
-        const candidates = [
-          `${home}/.local/bin/copilot`,
-          '/usr/local/bin/copilot',
-          '/opt/homebrew/bin/copilot',
-        ]
-        for (const p of candidates) {
-          try { fs.statSync(p); cliPath = p; break } catch { /* next */ }
-        }
-      }
-    }
+    const cliPath = await resolveCopilotCliPath()
 
     console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
     client = new CopilotClient({
