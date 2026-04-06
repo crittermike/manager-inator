@@ -408,4 +408,6 @@ export interface IpcApi {
   findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) => Promise<{ matches: number; activeMatchOrdinal: number } | null>
   stopFindInPage: () => Promise<void>
   onFindToggle: (cb: () => void) => () => void
+  onFindNext: (cb: () => void) => () => void
+  onFindPrev: (cb: () => void) => () => void
 }

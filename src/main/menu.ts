@@ -60,7 +60,23 @@ export function buildAppMenu(): void {
           accelerator: 'CmdOrCtrl+F',
           click: () => {
             const win = BrowserWindow.getFocusedWindow()
-            if (win) win.webContents.send('find:toggle')
+            if (win) win.webContents.send('find:show')
+          }
+        },
+        {
+          label: 'Find Next',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('find:next')
+          }
+        },
+        {
+          label: 'Find Previous',
+          accelerator: 'Shift+CmdOrCtrl+G',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('find:prev')
           }
         }
       ]

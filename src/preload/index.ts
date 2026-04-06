@@ -158,7 +158,17 @@ contextBridge.exposeInMainWorld('api', {
   stopFindInPage: () => ipcRenderer.invoke('find:stop'),
   onFindToggle: (cb: () => void) => {
     const handler = () => cb()
-    ipcRenderer.on('find:toggle', handler)
-    return () => ipcRenderer.removeListener('find:toggle', handler)
+    ipcRenderer.on('find:show', handler)
+    return () => ipcRenderer.removeListener('find:show', handler)
+  },
+  onFindNext: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('find:next', handler)
+    return () => ipcRenderer.removeListener('find:next', handler)
+  },
+  onFindPrev: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('find:prev', handler)
+    return () => ipcRenderer.removeListener('find:prev', handler)
   }
 })
