@@ -282,9 +282,18 @@ export function SetupScreen({ onComplete, userLogin }: SetupScreenProps) {
             </div>
             <div className="space-y-1 max-h-64 overflow-y-auto rounded-xl border border-border">
               {teamResult?.directReports.map((report) => (
-                <label
+                <button
                   key={report.github}
-                  className="flex items-center gap-3 p-3 hover:bg-surface-raised/50 transition-colors cursor-pointer no-drag"
+                  type="button"
+                  onClick={() => {
+                    setSelectedReports(prev => {
+                      const next = new Set(prev)
+                      if (next.has(report.github)) next.delete(report.github)
+                      else next.add(report.github)
+                      return next
+                    })
+                  }}
+                  className="w-full flex items-center gap-3 p-3 hover:bg-surface-raised/50 transition-colors cursor-pointer no-drag text-left"
                 >
                   <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
                     selectedReports.has(report.github)
@@ -302,7 +311,7 @@ export function SetupScreen({ onComplete, userLogin }: SetupScreenProps) {
                   {report.location && (
                     <span className="text-xs text-zinc-600 shrink-0">{report.location}</span>
                   )}
-                </label>
+                </button>
               ))}
             </div>
           </div>
