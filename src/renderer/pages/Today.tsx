@@ -1530,7 +1530,7 @@ export function Today() {
       )}
 
       {hasGithubOrgToken && (
-        <div className="bg-surface border border-border/80 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
+        <div className="bg-surface rounded-2xl border border-border/80 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
           <div
             onClick={() => setActivityExpanded(!activityExpanded)}
             className="flex items-center justify-between w-full px-5 py-4 bg-gradient-to-r from-white/[0.02] to-transparent hover:bg-surface-raised/20 transition-colors cursor-pointer"
@@ -1798,7 +1798,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
+          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
@@ -1860,7 +1860,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
+          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
