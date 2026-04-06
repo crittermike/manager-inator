@@ -64,6 +64,7 @@ export function FindBar() {
         window.api.stopFindInPage()
         setMatches(0)
         setActiveMatch(0)
+        setTimeout(() => inputRef.current?.focus(), 50)
       }
       return
     }
