@@ -208,6 +208,23 @@ export function setupIpcHandlers(): void {
     return result.filePaths[0]
   })
 
+  // ── Find in page ──
+  safeHandle('find:find', async (_e, text, options) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win || !text) return null
+    return new Promise((resolve) => {
+      win.webContents.once('found-in-page', (_ev, result) => {
+        resolve({ matches: result.matches, activeMatchOrdinal: result.activeMatchOrdinal })
+      })
+      win.webContents.findInPage(text as string, options as Electron.FindInPageOptions | undefined)
+    })
+  })
+
+  safeHandle('find:stop', async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) win.webContents.stopFindInPage('clearSelection')
+  })
+
   // ── Debug: test org token against GitHub API ──
   safeHandle('debug:test-org-token', async () => {
     const token = getGithubOrgToken()

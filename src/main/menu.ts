@@ -1,4 +1,4 @@
-import { app, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 import { ensureWindowAndSend } from './windowState'
 
 export function buildAppMenu(): void {
@@ -53,7 +53,16 @@ export function buildAppMenu(): void {
         { role: 'paste' },
         { role: 'pasteAndMatchStyle' },
         { role: 'delete' },
-        { role: 'selectAll' }
+        { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          label: 'Find…',
+          accelerator: 'CmdOrCtrl+F',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('find:toggle')
+          }
+        }
       ]
     },
 

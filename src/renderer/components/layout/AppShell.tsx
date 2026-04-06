@@ -20,6 +20,7 @@ import { AddReportModal } from './AddReportModal'
 const CommandPalette = lazy(() => import('../common/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const AIFloatingPanel = lazy(() => import('../common/AIFloatingPanel').then(m => ({ default: m.AIFloatingPanel })))
 const CapturePanel = lazy(() => import('../common/CapturePanel').then(m => ({ default: m.CapturePanel })))
+import { FindBar } from '../common/FindBar'
 
 interface AppShellProps {
   children: ReactNode
@@ -61,7 +62,10 @@ export function AppShell({ children }: AppShellProps) {
   }, [isChatRoute])
 
   const toggleCapture = useCallback(() => {
-    setCapturePanelOpen(prev => !prev)
+    setCapturePanelOpen(prev => {
+      if (!prev) setAiPanelOpen(false)
+      return !prev
+    })
   }, [])
 
   const handleReportCreated = useCallback(async (slug: string) => {
@@ -88,9 +92,11 @@ export function AppShell({ children }: AppShellProps) {
     })
     const cleanupCapture = window.api.onOpenCapture(() => {
       setCapturePanelOpen(true)
+      setAiPanelOpen(false)
     })
     const cleanupTrayCapture = window.api.onTrayCapture((content: string) => {
       setCapturePanelOpen(true)
+      setAiPanelOpen(false)
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('tray-capture-content', { detail: content }))
       }, 100)
@@ -143,7 +149,7 @@ export function AppShell({ children }: AppShellProps) {
         Skip to main content
       </a>
       <Suspense fallback={null}>
-        <CommandPalette onOpenCapture={() => setCapturePanelOpen(true)} onOpenAI={() => setAiPanelOpen(true)} />
+        <CommandPalette onOpenCapture={() => { setCapturePanelOpen(true); setAiPanelOpen(false) }} onOpenAI={() => { setAiPanelOpen(true); setCapturePanelOpen(false) }} />
       </Suspense>
       {/* Sidebar */}
       <aside className="w-64 bg-gradient-to-b from-zinc-900 to-surface border-r border-border flex flex-col shrink-0 overflow-hidden">
@@ -290,6 +296,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Main content */}
       <main id="main-content" className="flex-1 overflow-hidden relative bg-zinc-950">
+        <FindBar />
         {/* Drag region for the rest of the title bar */}
         <div ref={contentRef} className={`${isChatRoute ? 'h-full' : 'h-full pt-14'} overflow-y-auto ${isChatRoute ? '' : 'px-4 pb-8 lg:px-8'}`}>
           {children}
@@ -326,11 +333,11 @@ export function AppShell({ children }: AppShellProps) {
           </button>
           {!isChatRoute && (
             <button
-              onClick={() => setAiPanelOpen(prev => !prev)}
-              className={`w-12 h-12 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] ${
+              onClick={() => setAiPanelOpen(prev => { if (!prev) setCapturePanelOpen(false); return !prev })}
+              className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] ${
                 aiPanelOpen
-                  ? 'bg-zinc-700 hover:bg-zinc-600 shadow-zinc-900/25 rotate-0'
-                  : 'bg-brand hover:bg-brand-dark shadow-brand/25'
+                  ? 'bg-brand text-white shadow-brand/25'
+                  : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
               }`}
               aria-label={aiPanelOpen ? 'Close AI assistant' : 'Open AI assistant'}
               title={aiPanelOpen ? 'Close AI assistant (Esc)' : 'Ask AI anything'}

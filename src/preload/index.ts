@@ -152,5 +152,13 @@ contextBridge.exposeInMainWorld('api', {
     const handler = () => cb()
     ipcRenderer.on('tray-capture:reset', handler)
     return () => ipcRenderer.removeListener('tray-capture:reset', handler)
+  },
+  findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) =>
+    ipcRenderer.invoke('find:find', text, options) as Promise<{ matches: number; activeMatchOrdinal: number } | null>,
+  stopFindInPage: () => ipcRenderer.invoke('find:stop'),
+  onFindToggle: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('find:toggle', handler)
+    return () => ipcRenderer.removeListener('find:toggle', handler)
   }
 })

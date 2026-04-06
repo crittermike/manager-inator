@@ -405,4 +405,7 @@ export interface IpcApi {
   trayCaptureSubmit: (content: string) => Promise<void>
   trayCaptureClose: () => Promise<void>
   onTrayCaptureReset: (cb: () => void) => () => void
+  findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) => Promise<{ matches: number; activeMatchOrdinal: number } | null>
+  stopFindInPage: () => Promise<void>
+  onFindToggle: (cb: () => void) => () => void
 }
