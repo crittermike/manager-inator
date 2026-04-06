@@ -45,7 +45,7 @@ export function createTray(): void {
     },
     {
       label: 'Quick Capture',
-      accelerator: 'CmdOrCtrl+Shift+N',
+      accelerator: 'CmdOrCtrl+Shift+C',
       click: () => toggleCaptureWindow()
     },
     { type: 'separator' },
@@ -129,23 +129,17 @@ function toggleCaptureWindow(): void {
 }
 
 function showCaptureWindow(): void {
-  if (!tray) return
-
   if (!captureWindow || captureWindow.isDestroyed()) {
     captureWindow = createCaptureWindow()
   }
 
-  const trayBounds = tray.getBounds()
-  const windowBounds = captureWindow.getBounds()
-  const display = screen.getDisplayMatching(trayBounds)
+  // Center on the active display
+  const cursorPoint = screen.getCursorScreenPoint()
+  const display = screen.getDisplayNearestPoint(cursorPoint)
   const { workArea } = display
-
-  const trayCenterX = trayBounds.x + trayBounds.width / 2
-  let x = Math.round(trayCenterX - windowBounds.width / 2)
-  const y = trayBounds.y + trayBounds.height + 4
-
-  const maxX = workArea.x + workArea.width - windowBounds.width
-  x = Math.max(workArea.x, Math.min(x, maxX))
+  const windowBounds = captureWindow.getBounds()
+  const x = Math.round(workArea.x + (workArea.width - windowBounds.width) / 2)
+  const y = Math.round(workArea.y + (workArea.height - windowBounds.height) / 3)
 
   captureWindow.setPosition(x, y, false)
   captureWindow.show()

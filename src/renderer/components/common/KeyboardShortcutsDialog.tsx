@@ -9,7 +9,7 @@ interface KeyboardShortcutsDialogProps {
 const shortcuts = {
   General: [
     ['cmd+k', 'Search'],
-    ['cmd+shift+n', 'Capture'],
+    ['cmd+shift+c', 'Capture'],
     ['cmd+,', 'Settings'],
     ['cmd+1-4', 'Switch views'],
     ['cmd+[', 'Go back'],

@@ -284,7 +284,7 @@ describe('Today page polish', () => {
 
       expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
         type: 'keydown',
-        key: 'n',
+        key: 'c',
         shiftKey: true,
         metaKey: true
       }))

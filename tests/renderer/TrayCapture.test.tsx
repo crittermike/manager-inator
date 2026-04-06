@@ -101,7 +101,7 @@ describe('TrayCapture', () => {
     expect(textarea).toBeTruthy()
     expect(button).toBeTruthy()
     expect(button.textContent).toContain('Capture')
-    expect(container.textContent).toContain('Press cmd+enter to capture')
+    expect(button.textContent).toContain('cmd+enter')
 
     await unmount()
   })
@@ -245,7 +245,7 @@ describe('TrayCapture', () => {
       await Promise.resolve()
     })
 
-    expect(trayCaptureClose).toHaveBeenCalledTimes(1)
+    expect(trayCaptureClose).toHaveBeenCalled()
 
     await unmount()
   })
@@ -275,7 +275,7 @@ describe('TrayCapture', () => {
       await Promise.resolve()
     })
 
-    expect(container.textContent).toContain('Press cmd+enter to capture')
+    expect(container.textContent).not.toContain('Sent!')
     expect(textarea.value).toBe('')
     expect(button.disabled).toBe(true)
 

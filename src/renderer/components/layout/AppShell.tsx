@@ -112,7 +112,7 @@ export function AppShell({ children }: AppShellProps) {
     const handleShortcut = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'n' || e.key === 'N') && !isInput) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'c' || e.key === 'C') && !isInput) {
         e.preventDefault()
         toggleCapture()
       }
@@ -327,7 +327,7 @@ export function AppShell({ children }: AppShellProps) {
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
             }`}
             aria-label="Capture content"
-            title="Capture content (cmd+shift+n)"
+            title="Capture content (cmd+shift+c)"
           >
             <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
           </button>

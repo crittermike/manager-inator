@@ -51,9 +51,8 @@ export function TrayCapture() {
   }, [close, submit])
 
   return (
-    <div className="h-screen w-screen p-2">
-      <div className="relative bg-zinc-950/95 border border-zinc-700/50 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-sm">
-        <div className="absolute left-1/2 top-0 w-3 h-3 bg-zinc-950 border-l border-t border-zinc-700/50 rotate-45 -translate-x-1/2 -translate-y-1.5" />
+    <div className="h-screen w-screen flex items-center justify-center p-4">
+      <div className="relative w-full bg-zinc-950/95 border border-zinc-700/50 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-sm">
         <div className="px-4 pt-4 pb-3 space-y-3">
           <textarea
             ref={textareaRef}
@@ -62,16 +61,13 @@ export function TrayCapture() {
             placeholder="Paste content for AI processing..."
             className="w-full min-h-[170px] max-h-[170px] resize-none rounded-xl bg-zinc-900 border border-zinc-700/60 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/40"
           />
-          <div className="flex items-center justify-between">
-            <span className={`text-xs ${sent ? 'text-green-400' : 'text-zinc-500'}`}>
-              {sent ? 'Sent!' : 'Press cmd+enter to capture'}
-            </span>
+          <div className="flex items-center justify-end">
             <button
               onClick={() => void submit()}
               disabled={!content.trim() || sent}
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              Capture
+              {sent ? 'Sent!' : 'Capture'}
               <kbd className="text-[10px] text-white/70">cmd+enter</kbd>
             </button>
           </div>

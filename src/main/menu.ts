@@ -33,7 +33,7 @@ export function buildAppMenu(): void {
       submenu: [
         {
           label: 'New Capture',
-          accelerator: 'CmdOrCtrl+Shift+N',
+          accelerator: 'CmdOrCtrl+Shift+C',
           click: () => ensureWindowAndSend('app:open-capture')
         },
         { type: 'separator' },
