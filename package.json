@@ -45,6 +45,9 @@
     "dmg": {
       "title": "Manager-inator"
     },
+    "asarUnpack": [
+      "node_modules/@github/copilot/**"
+    ],
     "files": [
       "out/**",
       "resources/**",

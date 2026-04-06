@@ -45,8 +45,12 @@ const activeSessions = new Map<string, { session: CopilotSession; cancelled: boo
 export async function resolveCopilotCliPath(): Promise<string | undefined> {
   const fs = await import('fs')
 
-  // Prefer bundled JS entry point — avoids needing system node
+  // Prefer bundled JS entry point — avoids needing system node.
+  // In production, files inside .asar can't be spawned as child processes,
+  // so use the .asar.unpacked path which electron-builder extracts automatically.
   const bundledPath = join(__dirname, '../../node_modules/@github/copilot/index.js')
+  const unpackedPath = bundledPath.replace(/\.asar([/\\])/, '.asar.unpacked$1')
+  try { fs.statSync(unpackedPath); return unpackedPath } catch { /* not found */ }
   try { fs.statSync(bundledPath); return bundledPath } catch { /* not found */ }
 
   // Fallback: system-installed copilot
