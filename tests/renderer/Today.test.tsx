@@ -203,7 +203,7 @@ describe('Today page polish', () => {
     const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement | undefined
     expect(overdueHeader).toBeDefined()
     expect(overdueHeader?.className).toContain('py-3')
-    expect(overdueHeader?.closest('div')?.className).toContain('rounded-2xl')
+    expect(overdueHeader?.closest('div')?.className).toContain('border-border')
 
     expect(container.textContent).toContain('1:1 with Alice Smith is overdue')
     expect(container.textContent).toContain('No feedback logged for Alice Smith')

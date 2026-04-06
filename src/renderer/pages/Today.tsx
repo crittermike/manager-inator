@@ -1530,7 +1530,7 @@ export function Today() {
       )}
 
       {hasGithubOrgToken && (
-        <div className="bg-surface rounded-2xl border border-border/80 overflow-hidden shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
+        <div className="bg-surface border border-border/80 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all">
           <div
             onClick={() => setActivityExpanded(!activityExpanded)}
             className="flex items-center justify-between w-full px-5 py-4 bg-gradient-to-r from-white/[0.02] to-transparent hover:bg-surface-raised/20 transition-colors cursor-pointer"
@@ -1798,7 +1798,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 overflow-visible shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
+          <div key={section} className={`bg-surface border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
@@ -1860,7 +1860,7 @@ export function Today() {
         const Icon = config.icon
 
         return (
-          <div key={section} className={`bg-surface rounded-2xl border border-border/60 ${config.border} border-t-2 overflow-visible shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
+          <div key={section} className={`bg-surface border border-border/60 ${config.border} border-t-2 shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all`}>
             <button
               onClick={() => toggleSection(section)}
               className="flex items-center justify-between w-full px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
@@ -1962,7 +1962,6 @@ const TimelineRow = memo(function TimelineRow({
   const [snoozeOpen, setSnoozeOpen] = useState(false)
   const snoozeRef = useRef<HTMLDivElement>(null)
 
-  // Close snooze dropdown on outside click
   useEffect(() => {
     if (!snoozeOpen) return
     const handler = (e: MouseEvent) => {
@@ -2073,7 +2072,7 @@ const TimelineRow = memo(function TimelineRow({
                 <Clock className="w-4 h-4" aria-hidden="true" />
               </button>
               {snoozeOpen && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-[140px]">
+                <div className="absolute right-0 top-full mt-1 z-50 bg-surface-raised border border-border rounded-lg shadow-xl shadow-black/40 py-1 min-w-[140px]">
                   <button onClick={(e) => { e.stopPropagation(); onSnoozeItem(item.id, 0); setSnoozeOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-overlay transition-colors">Later today</button>
                   <button onClick={(e) => { e.stopPropagation(); onSnoozeItem(item.id, 1); setSnoozeOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-overlay transition-colors">Tomorrow</button>
                   <button onClick={(e) => { e.stopPropagation(); onSnoozeItem(item.id, 7); setSnoozeOpen(false) }} className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-overlay transition-colors">Next week</button>
