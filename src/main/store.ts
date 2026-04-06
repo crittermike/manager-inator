@@ -28,6 +28,8 @@ interface StoreSchema {
   deactivatedReports: string[]
   userName: string
   userGithub: string
+  userManager: string
+  userSkipLevel: string
 }
 
 const storeDefaults: StoreSchema = {
@@ -55,7 +57,9 @@ const storeDefaults: StoreSchema = {
   ptoReports: {},
   deactivatedReports: [],
   userName: '',
-  userGithub: ''
+  userGithub: '',
+  userManager: '',
+  userSkipLevel: ''
 }
 
 function createStore(): Store<StoreSchema> {
@@ -204,7 +208,9 @@ export function getSettingsForRenderer() {
     hasGithubOrgToken: !!store.get('githubOrgToken'),
     githubOrgName: store.get('githubOrgName'),
     userName: store.get('userName'),
-    userGithub: store.get('userGithub')
+    userGithub: store.get('userGithub'),
+    userManager: store.get('userManager'),
+    userSkipLevel: store.get('userSkipLevel')
   }
 }
 

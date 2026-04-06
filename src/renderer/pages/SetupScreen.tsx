@@ -1,25 +1,27 @@
 import { useState } from 'react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { Zap, ArrowRight, FolderGit2, FolderOpen, FolderPlus, ArrowLeft, User, ExternalLink, Eye, EyeOff, KeyRound, SkipForward } from 'lucide-react'
-import { GitHubMark } from '../components/common/GitHubMark'
+import { Zap, ArrowRight, FolderGit2, FolderOpen, FolderPlus, ArrowLeft, ExternalLink, Eye, EyeOff, KeyRound, SkipForward, Users, Check, Loader2 } from 'lucide-react'
+import type { TeamDetectionResult } from '../../shared/types'
 
 interface SetupScreenProps {
   onComplete: () => void
+  userLogin?: string
 }
 
-type Mode = 'choose' | 'connect' | 'create' | 'identity' | 'github-org'
+type Mode = 'choose' | 'connect' | 'create' | 'github-org' | 'team-confirm'
 
-export function SetupScreen({ onComplete }: SetupScreenProps) {
+export function SetupScreen({ onComplete, userLogin }: SetupScreenProps) {
   useDocumentTitle('Setup')
   const [mode, setMode] = useState<Mode>('choose')
   const [repoPath, setRepoPath] = useState('')
-  const [userName, setUserName] = useState('')
-  const [userGithub, setUserGithub] = useState('')
   const [githubOrgName, setGithubOrgName] = useState('github')
   const [githubOrgToken, setGithubOrgToken] = useState('')
   const [showToken, setShowToken] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [detecting, setDetecting] = useState(false)
+  const [teamResult, setTeamResult] = useState<TeamDetectionResult | null>(null)
+  const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set())
 
   const handleConnect = async (e: { preventDefault(): void }) => {
     e.preventDefault()
@@ -49,7 +51,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
       }
 
       setSaving(false)
-      setMode('identity')
+      setMode('github-org')
     } catch (e) {
       setError((e as Error).message)
       setSaving(false)
@@ -70,31 +72,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
       await window.api.initializeRepo(repoPath.trim())
       await window.api.saveSettings({ repoPath: repoPath.trim() })
       setSaving(false)
-      setMode('identity')
-    } catch (e) {
-      setError((e as Error).message)
-      setSaving(false)
-    }
-  }
-
-  const handleIdentityComplete = async (e: { preventDefault(): void }) => {
-    e.preventDefault()
-    if (!userName.trim()) {
-      setError('Your name is required')
-      return
-    }
-
-    setSaving(true)
-    setError('')
-
-    try {
-      await window.api.saveSettings({
-        userName: userName.trim(),
-        userGithub: userGithub.trim()
-      })
-      setSaving(false)
       setMode('github-org')
-      setError('')
     } catch (e) {
       setError((e as Error).message)
       setSaving(false)
@@ -108,25 +86,83 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     setError('')
     setTokenWarning('')
 
-    // Validate PAT if provided — warn but don't block
+    // Validate PAT if provided
     if (githubOrgToken.trim()) {
       try {
         const valid = await window.api.validateGithubToken(githubOrgToken.trim())
         if (!valid) {
-          setTokenWarning('Token could not be validated — it may not work. You can update it later in Settings.')
+          setTokenWarning('Token could not be validated. It may not work. You can update it later in Settings.')
         }
       } catch (e) {
         console.debug('Token validation failed (network/IPC issue):', e)
-        // Validation failed (network/IPC issue) — proceed anyway
       }
     }
 
     try {
+      // Save org settings + userGithub from OAuth
       const settings: Record<string, string> = {}
       if (githubOrgName.trim()) settings.githubOrgName = githubOrgName.trim()
       if (githubOrgToken.trim()) settings.githubOrgToken = githubOrgToken.trim()
+      if (userLogin) settings.userGithub = userLogin
       if (Object.keys(settings).length > 0) {
         await window.api.saveSettings(settings)
+      }
+
+      // Try to auto-detect team from hubbers.yml
+      if (userLogin && githubOrgToken.trim()) {
+        setDetecting(true)
+        setSaving(false)
+        try {
+          const result = await window.api.detectTeam(userLogin, githubOrgToken.trim())
+          if (result && result.directReports.length > 0) {
+            setTeamResult(result)
+            setSelectedReports(new Set(result.directReports.map(r => r.github)))
+            // Save user's name and manager info from hubbers
+            const userSettings: Record<string, string> = {
+              userName: result.user.name
+            }
+            if (result.user.manager) {
+              userSettings.userManager = `${result.user.manager.name} (@${result.user.manager.github})`
+            }
+            if (result.user.skipLevel) {
+              userSettings.userSkipLevel = `${result.user.skipLevel.name} (@${result.user.skipLevel.github})`
+            }
+            await window.api.saveSettings(userSettings)
+            setDetecting(false)
+            setMode('team-confirm')
+            return
+          }
+        } catch (e) {
+          console.debug('Team detection failed:', e)
+        }
+        setDetecting(false)
+      }
+
+      onComplete()
+    } catch (e) {
+      setError((e as Error).message)
+      setSaving(false)
+      setDetecting(false)
+    }
+  }
+
+  const handleTeamConfirm = async () => {
+    if (!teamResult) return
+    setSaving(true)
+    setError('')
+
+    try {
+      // Create reports for selected direct reports
+      const existing = await window.api.getReports()
+      for (const report of teamResult.directReports) {
+        if (!selectedReports.has(report.github)) continue
+        const slug = report.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '')
+        if (existing.includes(slug)) continue
+        await window.api.createReport(report.name, {
+          role: report.title,
+          github: report.github,
+          location: report.location
+        })
       }
       onComplete()
     } catch (e) {
@@ -189,72 +225,112 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
     )
   }
 
-  if (mode === 'identity') {
+  if (mode === 'team-confirm') {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-zinc-950">
         <div className="drag-region absolute top-0 left-0 right-0 h-12" />
 
-        <div className="w-full max-w-md px-8 animate-fade-in">
+        <div className="w-full max-w-lg px-8 animate-fade-in">
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-brand/20 flex items-center justify-center mb-4">
-              <User className="w-8 h-8 text-brand" aria-hidden="true" />
+              <Users className="w-8 h-8 text-brand" aria-hidden="true" />
             </div>
-            <h1 className="text-2xl font-bold text-zinc-100">About you</h1>
+            <h1 className="text-2xl font-bold text-zinc-100">
+              Welcome, {teamResult?.user.name.split(' ')[0]}!
+            </h1>
             <p className="text-sm text-zinc-500 mt-1 text-center">
-              So the app knows who you are when processing transcripts and tracking your impact.
+              We found your team. Confirm who you'd like to track.
             </p>
           </div>
 
-          <form onSubmit={handleIdentityComplete} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                Your name
-              </label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="e.g. Jane Smith"
-                className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag"
-                autoFocus
-              />
+          {teamResult?.user.manager && (
+            <div className="mb-4 p-3 bg-surface rounded-xl border border-border">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-xs text-zinc-500 mb-0.5">Your manager</p>
+                  <p className="text-sm text-zinc-200">{teamResult.user.manager.name}</p>
+                  <p className="text-xs text-zinc-500">@{teamResult.user.manager.github} · {teamResult.user.manager.title}</p>
+                </div>
+                {teamResult.user.skipLevel && (
+                  <div className="flex-1 border-l border-border pl-3">
+                    <p className="text-xs text-zinc-500 mb-0.5">Skip-level</p>
+                    <p className="text-sm text-zinc-200">{teamResult.user.skipLevel.name}</p>
+                    <p className="text-xs text-zinc-500">@{teamResult.user.skipLevel.github} · {teamResult.user.skipLevel.title}</p>
+                  </div>
+                )}
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                GitHub username
-                <span className="text-zinc-600 font-normal ml-1">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={userGithub}
-                onChange={(e) => setUserGithub(e.target.value)}
-                placeholder="e.g. janesmith"
-                className="w-full px-4 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors no-drag"
-              />
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-zinc-300">
+                Direct reports ({selectedReports.size} of {teamResult?.directReports.length})
+              </p>
+              <button
+                onClick={() => {
+                  if (selectedReports.size === teamResult?.directReports.length) {
+                    setSelectedReports(new Set())
+                  } else {
+                    setSelectedReports(new Set(teamResult?.directReports.map(r => r.github)))
+                  }
+                }}
+                className="text-xs text-brand-light hover:text-brand transition-colors no-drag"
+              >
+                {selectedReports.size === teamResult?.directReports.length ? 'Deselect all' : 'Select all'}
+              </button>
             </div>
+            <div className="space-y-1 max-h-64 overflow-y-auto rounded-xl border border-border">
+              {teamResult?.directReports.map((report) => (
+                <label
+                  key={report.github}
+                  className="flex items-center gap-3 p-3 hover:bg-surface-raised/50 transition-colors cursor-pointer no-drag"
+                >
+                  <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    selectedReports.has(report.github)
+                      ? 'bg-brand border-brand'
+                      : 'border-zinc-600 bg-transparent'
+                  }`}>
+                    {selectedReports.has(report.github) && (
+                      <Check className="w-3 h-3 text-white" aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-zinc-200 truncate">{report.name}</p>
+                    <p className="text-xs text-zinc-500 truncate">@{report.github} · {report.title}</p>
+                  </div>
+                  {report.location && (
+                    <span className="text-xs text-zinc-600 shrink-0">{report.location}</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
 
-            {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p className="text-sm text-danger mb-3">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={saving || !userName.trim()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand text-white rounded-lg font-medium text-sm transition-all active:scale-[0.97] disabled:opacity-50 no-drag hover:bg-brand-dark"
-            >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  Next
-                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                </>
-              )}
-            </button>
-          </form>
+          <button
+            onClick={handleTeamConfirm}
+            disabled={saving || selectedReports.size === 0}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand text-white rounded-lg font-medium text-sm transition-all active:scale-[0.97] disabled:opacity-50 no-drag hover:bg-brand-dark"
+          >
+            {saving ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Zap className="w-4 h-4" aria-hidden="true" />
+                Set up {selectedReports.size} report{selectedReports.size !== 1 ? 's' : ''} & get started
+              </>
+            )}
+          </button>
 
-          <p className="text-xs text-zinc-600 text-center mt-6">
-            You can change these later in Settings.
-          </p>
+          <button
+            onClick={onComplete}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mt-2 text-zinc-500 hover:text-zinc-300 text-sm transition-colors no-drag"
+          >
+            <SkipForward className="w-4 h-4" aria-hidden="true" />
+            Skip — I'll add reports manually
+          </button>
         </div>
       </div>
     )
@@ -272,7 +348,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             </div>
             <h1 className="text-2xl font-bold text-zinc-100">GitHub Organization</h1>
             <p className="text-sm text-zinc-500 mt-1 text-center max-w-sm">
-              Connect your GitHub org to see your team's PR and issue activity in the Today view.
+              Connect your GitHub org to auto-detect your team and see their PR and issue activity.
             </p>
           </div>
 
@@ -343,15 +419,18 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
             <div className="flex flex-col gap-2 pt-2">
               <button
                 onClick={handleGithubOrgComplete}
-                disabled={saving}
+                disabled={saving || detecting}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand text-white rounded-lg font-medium text-sm transition-all active:scale-[0.97] disabled:opacity-50 no-drag hover:bg-brand-dark"
               >
-                {saving ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                {saving || detecting ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    {detecting ? 'Finding your team...' : 'Saving...'}
+                  </div>
                 ) : (
                   <>
                     <Zap className="w-4 h-4" aria-hidden="true" />
-                    {githubOrgName.trim() || githubOrgToken.trim() ? 'Save & get started' : 'Get started'}
+                    {githubOrgName.trim() || githubOrgToken.trim() ? 'Save & detect team' : 'Get started'}
                     <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </>
                 )}

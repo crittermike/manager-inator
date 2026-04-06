@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('api', {
   commitBinaryFile: (path: string, base64Data: string, message: string) =>
     ipcRenderer.invoke('github:commit-binary', path, base64Data, message),
   validateGithubToken: (token: string) => ipcRenderer.invoke('github:validate-token', token),
+  detectTeam: (userLogin: string, token: string) => ipcRenderer.invoke('github:detect-team', userLogin, token),
   deleteFile: (path: string) => ipcRenderer.invoke('github:delete-file', path),
   listContexts: () => ipcRenderer.invoke('github:list-contexts'),
   listPeople: () => ipcRenderer.invoke('github:list-people'),

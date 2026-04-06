@@ -23,7 +23,8 @@ import {
   ScrollText,
   Lightbulb,
   ArrowDown,
-  UserPlus
+  UserPlus,
+  RefreshCw
 } from 'lucide-react'
 import { PROMPT_TEMPLATES } from '../../shared/prompts'
 import { GitHubMark } from '../components/common/GitHubMark'
@@ -73,6 +74,9 @@ export function Settings() {
   const [userGithubVal, setUserGithubVal] = useState('')
   const [savedUserGithub, setSavedUserGithub] = useState('')
   const [deactivatedReports, setDeactivatedReports] = useState<string[]>([])
+  const [userManager, setUserManager] = useState('')
+  const [userSkipLevel, setUserSkipLevel] = useState('')
+  const [syncing, setSyncing] = useState(false)
 
   const isDirty = repoPathVal !== savedRepoPath || model !== savedModel || checkInFreq !== savedCheckInFreq || feedbackDays !== savedFeedbackDays || staleActionDays !== savedStaleActionDays || sprintLength !== savedSprintLength || endOfWeekDay !== savedEndOfWeekDay || snippetDay !== savedSnippetDay || sprintStartDate !== savedSprintStartDate || customInstructions !== savedCustomInstructions || githubOrgName !== savedGithubOrgName || githubOrgToken !== savedGithubOrgToken || userNameVal !== savedUserName || userGithubVal !== savedUserGithub
   const { blockerState, proceed, reset: resetBlocker } = useUnsavedChanges(isDirty)
@@ -82,7 +86,7 @@ export function Settings() {
 
   useEffect(() => {
     window.api.getSettings()
-      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; snippetDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string; deactivatedReports?: string[] }) => {
+      .then((s: { repoPath?: string; defaultModel?: string; checkInFrequency?: CheckInFrequency; feedbackReminderDays?: number; staleActionDays?: number; sprintLengthWeeks?: number; endOfWeekDay?: DayOfWeek; snippetDay?: DayOfWeek; sprintStartDate?: string; aiCustomInstructions?: string; githubOrgName?: string; hasGithubOrgToken?: boolean; userName?: string; userGithub?: string; deactivatedReports?: string[]; userManager?: string; userSkipLevel?: string }) => {
         const rp = s.repoPath || ''
         const m = s.defaultModel || DEFAULT_MODEL
         const cif = s.checkInFrequency || 'monthly'
@@ -124,6 +128,8 @@ export function Settings() {
         setSavedUserName(un)
         setSavedUserGithub(ug)
         setDeactivatedReports(s.deactivatedReports || [])
+        setUserManager(s.userManager || '')
+        setUserSkipLevel(s.userSkipLevel || '')
         setLoading(false)
       })
       .catch((err) => {
@@ -204,6 +210,62 @@ export function Settings() {
     } catch (e) {
       console.error('Failed to clear caches:', e)
       toast.error('Failed to clear caches')
+    }
+  }
+
+  const handleSyncTeam = async () => {
+    if (!user || syncing) return
+    setSyncing(true)
+    try {
+      const settings = await window.api.getSettings()
+      if (!settings.hasGithubOrgToken) {
+        toast.error('No org token configured. Add a PAT in the GitHub Organization section.')
+        return
+      }
+      // We need the actual token for the API call — use a special IPC
+      const result = await window.api.detectTeam(user, '')
+      if (!result) {
+        toast.error('Could not detect team. Your token may not have access to github/thehub.')
+        return
+      }
+      // Update user info
+      const userSettings: Record<string, string> = { userName: result.user.name }
+      if (result.user.manager) {
+        userSettings.userManager = `${result.user.manager.name} (@${result.user.manager.github})`
+      }
+      if (result.user.skipLevel) {
+        userSettings.userSkipLevel = `${result.user.skipLevel.name} (@${result.user.skipLevel.github})`
+      }
+      await window.api.saveSettings(userSettings)
+      setUserNameVal(result.user.name)
+      setSavedUserName(result.user.name)
+      setUserManager(userSettings.userManager || '')
+      setUserSkipLevel(userSettings.userSkipLevel || '')
+
+      // Create reports for new direct reports
+      const existing = await window.api.getReports()
+      let added = 0
+      for (const report of result.directReports) {
+        const slug = report.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '')
+        if (existing.includes(slug)) continue
+        await window.api.createReport(report.name, {
+          role: report.title,
+          github: report.github,
+          location: report.location
+        })
+        added++
+      }
+
+      if (added > 0) {
+        toast.success(`Synced! Added ${added} new report${added !== 1 ? 's' : ''}.`)
+      } else {
+        toast.success(`Team is up to date. ${result.directReports.length} reports found.`)
+      }
+    } catch (e) {
+      console.error('Team sync failed:', e)
+      toast.error('Failed to sync team')
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -312,9 +374,19 @@ export function Settings() {
 
       {/* Your Identity */}
       <section className="space-y-4">
-        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-          Your Identity
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+            Your Identity
+          </h2>
+          <button
+            onClick={handleSyncTeam}
+            disabled={syncing}
+            className="flex items-center gap-1.5 text-xs text-brand-light hover:text-brand transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {syncing ? 'Syncing...' : 'Sync from org'}
+          </button>
+        </div>
         <div className={`${cardClass} space-y-4`}>
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -355,6 +427,23 @@ export function Settings() {
               Used to match your activity in meeting action items.
             </p>
           </div>
+
+          {(userManager || userSkipLevel) && (
+            <div className="pt-2 border-t border-border/50 flex gap-6">
+              {userManager && (
+                <div>
+                  <p className="text-xs text-zinc-500 mb-0.5">Manager</p>
+                  <p className="text-sm text-zinc-300">{userManager}</p>
+                </div>
+              )}
+              {userSkipLevel && (
+                <div>
+                  <p className="text-xs text-zinc-500 mb-0.5">Skip-level</p>
+                  <p className="text-sm text-zinc-300">{userSkipLevel}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

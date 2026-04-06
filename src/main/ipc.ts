@@ -45,6 +45,7 @@ import {
 import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken, getGithubOrgToken, getGithubOrgName } from './store'
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
+import { detectTeam } from './hubbers'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -81,7 +82,7 @@ export function setupIpcHandlers(): void {
 
     const repoPathChanging = 'repoPath' in raw && raw['repoPath'] !== getSettings().repoPath
 
-    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'snippetDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules', 'ptoReports', 'deactivatedReports', 'githubOrgName', 'userName', 'userGithub'] as const
+    const ALLOWED_KEYS = ['repoPath', 'repoOwner', 'repoName', 'defaultModel', 'checkInFrequency', 'feedbackReminderDays', 'sprintLengthWeeks', 'endOfWeekDay', 'snippetDay', 'sprintStartDate', 'staleActionDays', 'aiCustomInstructions', 'disabledPractices', 'snoozedPractices', 'customPractices', 'practiceCompletions', 'snoozedActionItems', 'practiceSchedules', 'ptoReports', 'deactivatedReports', 'githubOrgName', 'userName', 'userGithub', 'userManager', 'userSkipLevel'] as const
     const sanitized: Record<string, unknown> = {}
     for (const key of ALLOWED_KEYS) {
       if (key in raw) sanitized[key] = raw[key]
@@ -140,6 +141,11 @@ export function setupIpcHandlers(): void {
     } catch {
       return false
     }
+  })
+  safeHandle('github:detect-team', async (_e, userLogin, token) => {
+    const effectiveToken = (token as string) || getGithubOrgToken() || ''
+    if (!effectiveToken) return null
+    return detectTeam(userLogin as string, effectiveToken)
   })
   safeHandle('github:prewarm-status', () => isPrewarmComplete())
   safeHandle('github:prewarm-progress', () => getPrewarmProgress())

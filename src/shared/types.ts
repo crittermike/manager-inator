@@ -201,6 +201,8 @@ export interface AppSettings {
   githubOrgName: string
   userName: string
   userGithub: string
+  userManager: string
+  userSkipLevel: string
 }
 
 // ── Context entry (from listContexts) ──
@@ -323,6 +325,23 @@ export interface CreateReportFields {
   startDate?: string
 }
 
+// ── Team auto-detection from hubbers.yml ──
+export interface TeamDetectionResult {
+  user: {
+    name: string
+    title: string
+    github: string
+    manager?: { name: string; github: string; title: string }
+    skipLevel?: { name: string; github: string; title: string }
+  }
+  directReports: {
+    name: string
+    github: string
+    title: string
+    location: string
+  }[]
+}
+
 // ── IPC channel types ──
 export interface IpcApi {
   // Auth
@@ -349,6 +368,7 @@ export interface IpcApi {
   commitFile: (path: string, content: string, message: string) => Promise<void>
   commitBinaryFile: (path: string, base64Data: string, message: string) => Promise<void>
   validateGithubToken: (token: string) => Promise<boolean>
+  detectTeam: (userLogin: string, token: string) => Promise<TeamDetectionResult | null>
   deleteFile: (path: string) => Promise<void>
   listContexts: () => Promise<ContextEntry[]>
   listPeople: () => Promise<PersonEntry[]>

@@ -9,6 +9,8 @@ const mockIsGitRepo = vi.fn()
 const mockGetReports = vi.fn()
 const mockInitializeRepo = vi.fn()
 const mockShowOpenDialog = vi.fn()
+const mockDetectTeam = vi.fn()
+const mockCreateReport = vi.fn()
 
 import { SetupScreen } from '../../src/renderer/pages/SetupScreen'
 
@@ -30,6 +32,10 @@ describe('SetupScreen github-org step', () => {
     mockInitializeRepo.mockReset()
     mockInitializeRepo.mockResolvedValue(undefined)
     mockShowOpenDialog.mockReset()
+    mockDetectTeam.mockReset()
+    mockDetectTeam.mockResolvedValue(null)
+    mockCreateReport.mockReset()
+    mockCreateReport.mockResolvedValue('test-slug')
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -39,18 +45,20 @@ describe('SetupScreen github-org step', () => {
         getReports: mockGetReports,
         initializeRepo: mockInitializeRepo,
         showOpenDialog: mockShowOpenDialog,
-        validateGithubToken: vi.fn().mockResolvedValue(true)
+        validateGithubToken: vi.fn().mockResolvedValue(true),
+        detectTeam: mockDetectTeam,
+        createReport: mockCreateReport
       }
     })
   })
 
-  async function renderSetupScreen() {
+  async function renderSetupScreen(userLogin?: string) {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = ReactDOM.createRoot(container)
 
     await act(async () => {
-      root.render(<SetupScreen onComplete={mockOnComplete} />)
+      root.render(<SetupScreen onComplete={mockOnComplete} userLogin={userLogin} />)
     })
 
     return { container, root }
@@ -72,32 +80,16 @@ describe('SetupScreen github-org step', () => {
       pathInput.dispatchEvent(new Event('input', { bubbles: true }))
     })
 
-    // Submit repo form
+    // Submit repo form — goes directly to github-org (identity step removed)
     const connectSubmit = Array.from(container.querySelectorAll('button'))
       .find(b => b.textContent?.includes('Connect repo')) as HTMLButtonElement
     await act(async () => {
       connectSubmit?.click()
       await Promise.resolve()
     })
-
-    // Step 3: Fill identity
-    const nameInput = container.querySelector('input[type="text"]') as HTMLInputElement
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
-      setter?.call(nameInput, 'Test User')
-      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-
-    // Submit identity form
-    const nextButton = Array.from(container.querySelectorAll('button'))
-      .find(b => b.textContent?.includes('Next')) as HTMLButtonElement
-    await act(async () => {
-      nextButton?.click()
-      await Promise.resolve()
-    })
   }
 
-  it('shows github-org step after identity step', async () => {
+  it('shows github-org step after repo step (identity step removed)', async () => {
     const { container, root } = await renderSetupScreen()
 
     await navigateToGithubOrgStep(container)
@@ -170,8 +162,9 @@ describe('SetupScreen github-org step', () => {
     })
   })
 
-  it('saves org name and token when provided', async () => {
-    const { container, root } = await renderSetupScreen()
+  it('saves org settings and completes when no team detected', async () => {
+    mockDetectTeam.mockResolvedValue(null)
+    const { container, root } = await renderSetupScreen('testuser')
 
     await navigateToGithubOrgStep(container)
 
@@ -188,16 +181,121 @@ describe('SetupScreen github-org step', () => {
     })
 
     const saveButton = Array.from(container.querySelectorAll('button'))
-      .find(b => b.textContent?.includes('Save & get started')) as HTMLButtonElement
+      .find(b => b.textContent?.includes('Save & detect team')) as HTMLButtonElement
 
     await act(async () => {
       saveButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
       await Promise.resolve()
     })
 
     expect(mockSaveSettings).toHaveBeenCalledWith(expect.objectContaining({
       githubOrgName: 'my-org',
-      githubOrgToken: 'ghp_test123'
+      githubOrgToken: 'ghp_test123',
+      userGithub: 'testuser'
+    }))
+    expect(mockOnComplete).toHaveBeenCalled()
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('shows team confirmation when team is detected', async () => {
+    mockDetectTeam.mockResolvedValue({
+      user: {
+        name: 'Test Manager',
+        title: 'Engineering Manager',
+        github: 'testuser',
+        manager: { name: 'Big Boss', github: 'bigboss', title: 'Director' },
+        skipLevel: { name: 'VP Person', github: 'vp', title: 'VP Engineering' }
+      },
+      directReports: [
+        { name: 'Alice Dev', github: 'alice', title: 'Software Engineer', location: 'US' },
+        { name: 'Bob Dev', github: 'bob', title: 'Senior Engineer', location: 'UK' }
+      ]
+    })
+    const { container, root } = await renderSetupScreen('testuser')
+
+    await navigateToGithubOrgStep(container)
+
+    const inputs = container.querySelectorAll('input')
+    const tokenInput = inputs[1] as HTMLInputElement
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(tokenInput, 'ghp_test123')
+      tokenInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const saveButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Save & detect team')) as HTMLButtonElement
+
+    await act(async () => {
+      saveButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // Should show team confirm screen
+    expect(container.textContent).toContain('Welcome, Test')
+    expect(container.textContent).toContain('Alice Dev')
+    expect(container.textContent).toContain('Bob Dev')
+    expect(container.textContent).toContain('Big Boss')
+    expect(container.textContent).toContain('VP Person')
+
+    await act(async () => {
+      root.unmount()
+    })
+  })
+
+  it('creates reports for selected team members on confirm', async () => {
+    mockDetectTeam.mockResolvedValue({
+      user: {
+        name: 'Test Manager',
+        title: 'Engineering Manager',
+        github: 'testuser'
+      },
+      directReports: [
+        { name: 'Alice Dev', github: 'alice', title: 'Software Engineer', location: 'US' }
+      ]
+    })
+    // getReports returns ['alice'] (default) for connect step, slug 'alice-dev' won't collide
+    const { container, root } = await renderSetupScreen('testuser')
+
+    await navigateToGithubOrgStep(container)
+
+    const tokenInput = container.querySelectorAll('input')[1] as HTMLInputElement
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(tokenInput, 'ghp_test123')
+      tokenInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    // Click save to trigger detection
+    const saveButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Save & detect team')) as HTMLButtonElement
+    await act(async () => {
+      saveButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // Confirm team
+    const confirmButton = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Set up')) as HTMLButtonElement
+    await act(async () => {
+      confirmButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockCreateReport).toHaveBeenCalledWith('Alice Dev', expect.objectContaining({
+      github: 'alice',
+      role: 'Software Engineer'
     }))
     expect(mockOnComplete).toHaveBeenCalled()
 

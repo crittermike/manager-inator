@@ -10,9 +10,11 @@ import {
   UserCircle,
   ClipboardPaste,
   Keyboard,
-  Plus
+  Plus,
+  RefreshCw
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
+import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../common/Toast'
 import { KeyboardShortcutsDialog } from '../common/KeyboardShortcutsDialog'
 import { AddReportModal } from './AddReportModal'
@@ -38,6 +40,7 @@ export function AppShell({ children }: AppShellProps) {
   const location = useLocation()
   const { overview, refresh: refreshTeam } = useTeamOverview()
   const { settings } = useSettings()
+  const { user } = useAuth()
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
@@ -46,6 +49,7 @@ export function AppShell({ children }: AppShellProps) {
   const [capturePanelOpen, setCapturePanelOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [addReportOpen, setAddReportOpen] = useState(false)
+  const [syncingTeam, setSyncingTeam] = useState(false)
   const ptoReports = settings?.ptoReports ?? {}
   const deactivatedReports = settings?.deactivatedReports ?? []
   const isChatRoute = location.pathname === '/chat'
@@ -72,6 +76,50 @@ export function AppShell({ children }: AppShellProps) {
     await refreshTeam()
     navigate(`/report/${slug}`)
   }, [refreshTeam, navigate])
+
+  const handleSyncTeam = useCallback(async () => {
+    if (!user || syncingTeam) return
+    setSyncingTeam(true)
+    try {
+      const result = await window.api.detectTeam(user, '')
+      if (!result) {
+        toast.error('Could not detect team. Check your org token in Settings.')
+        return
+      }
+      const userSettings: Record<string, string> = { userName: result.user.name }
+      if (result.user.manager) {
+        userSettings.userManager = `${result.user.manager.name} (@${result.user.manager.github})`
+      }
+      if (result.user.skipLevel) {
+        userSettings.userSkipLevel = `${result.user.skipLevel.name} (@${result.user.skipLevel.github})`
+      }
+      await window.api.saveSettings(userSettings)
+
+      const existing = await window.api.getReports()
+      let added = 0
+      for (const report of result.directReports) {
+        const slug = report.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '')
+        if (existing.includes(slug)) continue
+        await window.api.createReport(report.name, {
+          role: report.title,
+          github: report.github,
+          location: report.location
+        })
+        added++
+      }
+      if (added > 0) {
+        await refreshTeam()
+        toast.success(`Added ${added} new report${added !== 1 ? 's' : ''}`)
+      } else {
+        toast.success('Team is up to date')
+      }
+    } catch (e) {
+      console.error('Team sync failed:', e)
+      toast.error('Failed to sync team')
+    } finally {
+      setSyncingTeam(false)
+    }
+  }, [user, syncingTeam, toast, refreshTeam])
 
   useEffect(() => {
     const cleanup = window.api.onPushStatus((data) => {
@@ -189,14 +237,25 @@ export function AppShell({ children }: AppShellProps) {
                 <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
                   Direct reports
                 </span>
-                <button
-                  onClick={() => setAddReportOpen(true)}
-                  className="w-5 h-5 rounded-md flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-all no-drag opacity-0 group-hover:opacity-100"
-                  aria-label="Add direct report"
-                  title="Add direct report"
-                >
-                  <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={handleSyncTeam}
+                    disabled={syncingTeam}
+                    className="w-5 h-5 rounded-md flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-all no-drag disabled:opacity-50"
+                    aria-label="Sync team from org"
+                    title="Sync team from org"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${syncingTeam ? 'animate-spin' : ''}`} aria-hidden="true" />
+                  </button>
+                  <button
+                    onClick={() => setAddReportOpen(true)}
+                    className="w-5 h-5 rounded-md flex items-center justify-center text-zinc-600 hover:text-brand-light hover:bg-brand/10 transition-all no-drag"
+                    aria-label="Add direct report"
+                    title="Add direct report"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               {reports.filter(r => !deactivatedReports.includes(r.name)).map((r) => {
                 const path = `/report/${r.name}`

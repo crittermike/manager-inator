@@ -83,7 +83,7 @@ function LoadingScreen({ message }: { message: string }) {
 }
 
 export default function App() {
-  const { authenticated, loading, bridgeError, forceAuthenticated } = useAuth()
+  const { authenticated, user, loading, bridgeError, forceAuthenticated } = useAuth()
   const [hasRepo, setHasRepo] = useState<boolean | null>(null)
   const [loadingMessage, setLoadingMessage] = useState('Starting up...')
   const [cachesReady, setCachesReady] = useState(false)
@@ -195,7 +195,7 @@ export default function App() {
   }
 
   if (!hasRepo) {
-    return <SetupScreen onComplete={() => setHasRepo(true)} />
+    return <SetupScreen onComplete={() => setHasRepo(true)} userLogin={user || undefined} />
   }
 
   if (!cachesReady) {
