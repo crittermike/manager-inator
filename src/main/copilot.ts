@@ -53,25 +53,32 @@ async function getClient(): Promise<CopilotClient> {
   if (!client) {
 
     let cliPath: string | undefined
-    try {
-      cliPath = await new Promise<string>((resolve, reject) => {
-        const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
-        let out = ''
-        child.stdout.on('data', (d: Buffer) => { out += d.toString() })
-        child.on('error', reject)
-        child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error('not found')))
-      })
-    } catch {
-      const fs = await import('fs')
-      const home = process.env.HOME || ''
-      const candidates = [
-        `${home}/.local/bin/copilot`,
-        '/usr/local/bin/copilot',
-        '/opt/homebrew/bin/copilot',
-        join(__dirname, '../../node_modules/.bin/copilot'),
-      ]
-      for (const p of candidates) {
-        try { fs.statSync(p); cliPath = p; break } catch { /* next */ }
+
+    // In production, always use the bundled JS entry point (avoids needing system node)
+    const bundledPath = join(__dirname, '../../node_modules/@github/copilot/index.js')
+    const fs = await import('fs')
+    try { fs.statSync(bundledPath); cliPath = bundledPath } catch { /* not found */ }
+
+    // Fallback: check system paths (dev mode or missing bundle)
+    if (!cliPath) {
+      try {
+        cliPath = await new Promise<string>((resolve, reject) => {
+          const child = spawn('which', ['copilot'], { stdio: ['ignore', 'pipe', 'ignore'] })
+          let out = ''
+          child.stdout.on('data', (d: Buffer) => { out += d.toString() })
+          child.on('error', reject)
+          child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error('not found')))
+        })
+      } catch {
+        const home = process.env.HOME || ''
+        const candidates = [
+          `${home}/.local/bin/copilot`,
+          '/usr/local/bin/copilot',
+          '/opt/homebrew/bin/copilot',
+        ]
+        for (const p of candidates) {
+          try { fs.statSync(p); cliPath = p; break } catch { /* next */ }
+        }
       }
     }
 
