@@ -33,12 +33,20 @@ export function FindBar() {
     })
   }, [])
 
-  // ⌘F = always show + select all text
+  // ⌘F = always show + focus + select all text
   useEffect(() => {
     if (!window.api.onFindToggle) return
     const unsub = window.api.onFindToggle(() => {
       setVisible(true)
-      requestAnimationFrame(() => inputRef.current?.select())
+      // Double-RAF + timeout to beat Electron's focus stealing
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select()
+        setTimeout(() => {
+          inputRef.current?.focus()
+          inputRef.current?.select()
+        }, 50)
+      })
     })
     return unsub
   }, [])
