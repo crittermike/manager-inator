@@ -27,10 +27,10 @@ interface AppShellProps {
 }
 
 const navItems = [
-  { path: '/', icon: Sun, label: 'Today', shortcut: 'Cmd+1' },
-  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: 'Cmd+2' },
-  { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: 'Cmd+3' },
-  { path: '/search', icon: Search, label: 'Search', shortcut: 'Cmd+K' }
+  { path: '/', icon: Sun, label: 'Today', shortcut: 'cmd+1' },
+  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: 'cmd+2' },
+  { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: 'cmd+3' },
+  { path: '/search', icon: Search, label: 'Search', shortcut: 'cmd+4' }
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -327,7 +327,7 @@ export function AppShell({ children }: AppShellProps) {
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
             }`}
             aria-label="Capture content"
-            title="Capture content (Cmd+Shift+N)"
+            title="Capture content (cmd+shift+n)"
           >
             <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
           </button>

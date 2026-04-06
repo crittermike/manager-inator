@@ -64,7 +64,7 @@ export function TrayCapture() {
           />
           <div className="flex items-center justify-between">
             <span className={`text-xs ${sent ? 'text-green-400' : 'text-zinc-500'}`}>
-              {sent ? 'Sent!' : 'Press Cmd+Enter to capture'}
+              {sent ? 'Sent!' : 'Press cmd+enter to capture'}
             </span>
             <button
               onClick={() => void submit()}
@@ -72,7 +72,7 @@ export function TrayCapture() {
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Capture
-              <kbd className="text-[10px] text-white/70">Cmd+Enter</kbd>
+              <kbd className="text-[10px] text-white/70">cmd+enter</kbd>
             </button>
           </div>
         </div>

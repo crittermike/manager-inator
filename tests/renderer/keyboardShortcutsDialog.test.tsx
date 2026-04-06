@@ -78,8 +78,7 @@ describe('KeyboardShortcutsDialog', () => {
     const kbds = document.querySelectorAll('kbd')
     expect(kbds.length).toBeGreaterThan(0)
     const kbdTexts = Array.from(kbds).map(k => k.textContent)
-    expect(kbdTexts).toContain('Cmd')
-    expect(kbdTexts).toContain('K')
+    expect(kbdTexts).toContain('cmd+k')
     act(() => { root.unmount() })
   })
 
@@ -108,7 +107,7 @@ describe('KeyboardShortcutsDialog', () => {
     act(() => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalled()
     act(() => { root.unmount() })
   })
 

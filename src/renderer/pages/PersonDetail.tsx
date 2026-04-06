@@ -349,7 +349,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 onClick={handleSave}
                 disabled={saving}
                 className="p-1.5 text-success hover:bg-success/10 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                title="Save (⌘S)"
+                title="Save (cmd+s)"
                 aria-label="Save notes"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Check className="w-4 h-4" aria-hidden="true" />}

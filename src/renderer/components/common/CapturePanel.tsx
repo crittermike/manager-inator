@@ -432,7 +432,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               >
                 <Plus className="w-3 h-3" aria-hidden="true" />
                 Capture
-                <kbd className="ml-1 text-[9px] opacity-50 font-sans">Cmd+Enter</kbd>
+                <kbd className="ml-1 text-[9px] opacity-50 font-sans">cmd+enter</kbd>
               </button>
             </div>
           </div>

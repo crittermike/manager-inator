@@ -8,19 +8,19 @@ interface KeyboardShortcutsDialogProps {
 
 const shortcuts = {
   General: [
-    ['Cmd K', 'Search'],
-    ['Cmd Shift N', 'Capture'],
-    ['Cmd ,', 'Settings'],
-    ['Cmd 1-4', 'Switch views'],
-    ['Cmd [', 'Go back'],
-    ['Cmd ]', 'Go forward'],
-    ['Cmd Shift M', 'Show / hide app (global)'],
-    ['Cmd Enter', 'Submit / save'],
+    ['cmd+k', 'Search'],
+    ['cmd+shift+n', 'Capture'],
+    ['cmd+,', 'Settings'],
+    ['cmd+1-4', 'Switch views'],
+    ['cmd+[', 'Go back'],
+    ['cmd+]', 'Go forward'],
+    ['cmd+shift+m', 'Show / hide app (global)'],
+    ['cmd+enter', 'Submit / save'],
     ['?', 'Show shortcuts'],
   ],
   Chat: [
-    ['Cmd N', 'New chat'],
-    ['Cmd Shift E', 'Export chat'],
+    ['cmd+n', 'New chat'],
+    ['cmd+shift+e', 'Export chat'],
   ],
   Lists: [
     ['j', 'Next item'],

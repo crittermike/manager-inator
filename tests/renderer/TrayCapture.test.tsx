@@ -101,7 +101,7 @@ describe('TrayCapture', () => {
     expect(textarea).toBeTruthy()
     expect(button).toBeTruthy()
     expect(button.textContent).toContain('Capture')
-    expect(container.textContent).toContain('Press Cmd+Enter to capture')
+    expect(container.textContent).toContain('Press cmd+enter to capture')
 
     await unmount()
   })
@@ -205,7 +205,7 @@ describe('TrayCapture', () => {
     await unmount()
   })
 
-  it('submits on Cmd+Enter keyboard shortcut', async () => {
+  it('submits on cmd+enter keyboard shortcut', async () => {
     const { textarea, unmount } = await mountTrayCapture()
 
     await setTextareaValue(textarea, 'from keyboard')
@@ -275,7 +275,7 @@ describe('TrayCapture', () => {
       await Promise.resolve()
     })
 
-    expect(container.textContent).toContain('Press Cmd+Enter to capture')
+    expect(container.textContent).toContain('Press cmd+enter to capture')
     expect(textarea.value).toBe('')
     expect(button.disabled).toBe(true)
 
