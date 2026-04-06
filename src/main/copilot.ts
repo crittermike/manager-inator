@@ -93,9 +93,21 @@ async function getClient(): Promise<CopilotClient> {
 
     const cliPath = await resolveCopilotCliPath()
 
-    console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect')
+    // When cliPath is a .js file, the SDK spawns process.execPath (the Electron
+    // binary) to run it.  ELECTRON_RUN_AS_NODE makes that binary behave as plain
+    // Node.js instead of opening a new Electron window.  COPILOT_CLI_RUN_AS_NODE
+    // tells the copilot CLI to use commander's "node" argv parsing (otherwise
+    // commander detects process.versions.electron and only strips 1 argv element
+    // instead of 2, treating the script path as a positional argument).
+    const isJsEntry = cliPath?.endsWith('.js')
+    const env = isJsEntry
+      ? { ...process.env, ELECTRON_RUN_AS_NODE: '1', COPILOT_CLI_RUN_AS_NODE: '1' }
+      : undefined
+
+    console.log('[Copilot SDK] CLI path:', cliPath || 'auto-detect', isJsEntry ? '(ELECTRON_RUN_AS_NODE)' : '')
     client = new CopilotClient({
       ...(cliPath ? { cliPath } : {}),
+      ...(env ? { env } : {}),
       githubToken: token,
       useLoggedInUser: false,
       autoStart: false
