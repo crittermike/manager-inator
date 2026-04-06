@@ -51,12 +51,16 @@ export function FindBar() {
       return
     }
     const timer = setTimeout(() => {
+      // Temporarily clear input to prevent findInPage from matching the search bar itself
+      const input = inputRef.current
+      const savedValue = input?.value ?? ''
+      if (input) input.value = ''
       window.api.findInPage(query).then(result => {
+        if (input) input.value = savedValue
         if (result) {
           setMatches(result.matches)
           setActiveMatch(result.activeMatchOrdinal)
         }
-        // Delay refocus slightly — Electron's findInPage steals focus asynchronously
         setTimeout(() => inputRef.current?.focus(), 50)
       })
     }, 200)
@@ -65,7 +69,11 @@ export function FindBar() {
 
   const findNext = useCallback(() => {
     if (!query.trim()) return
+    const input = inputRef.current
+    const saved = input?.value ?? ''
+    if (input) input.value = ''
     window.api.findInPage(query, { forward: true, findNext: true }).then(result => {
+      if (input) input.value = saved
       if (result) {
         setMatches(result.matches)
         setActiveMatch(result.activeMatchOrdinal)
@@ -76,7 +84,11 @@ export function FindBar() {
 
   const findPrev = useCallback(() => {
     if (!query.trim()) return
+    const input = inputRef.current
+    const saved = input?.value ?? ''
+    if (input) input.value = ''
     window.api.findInPage(query, { forward: false, findNext: true }).then(result => {
+      if (input) input.value = saved
       if (result) {
         setMatches(result.matches)
         setActiveMatch(result.activeMatchOrdinal)
