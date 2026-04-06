@@ -56,7 +56,8 @@ export function FindBar() {
           setMatches(result.matches)
           setActiveMatch(result.activeMatchOrdinal)
         }
-        inputRef.current?.focus()
+        // Delay refocus slightly — Electron's findInPage steals focus asynchronously
+        setTimeout(() => inputRef.current?.focus(), 50)
       })
     }, 200)
     return () => clearTimeout(timer)
@@ -69,7 +70,7 @@ export function FindBar() {
         setMatches(result.matches)
         setActiveMatch(result.activeMatchOrdinal)
       }
-      inputRef.current?.focus()
+      setTimeout(() => inputRef.current?.focus(), 50)
     })
   }, [query])
 
@@ -80,7 +81,7 @@ export function FindBar() {
         setMatches(result.matches)
         setActiveMatch(result.activeMatchOrdinal)
       }
-      inputRef.current?.focus()
+      setTimeout(() => inputRef.current?.focus(), 50)
     })
   }, [query])
 
