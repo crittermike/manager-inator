@@ -40,7 +40,7 @@ export function FindBar() {
     }
   }, [visible])
 
-  // Search as user types
+  // Search as user types (debounced to avoid focus-stealing mid-keystroke)
   useEffect(() => {
     if (!visible || !query.trim()) {
       if (!query.trim() && visible) {
@@ -50,12 +50,16 @@ export function FindBar() {
       }
       return
     }
-    window.api.findInPage(query).then(result => {
-      if (result) {
-        setMatches(result.matches)
-        setActiveMatch(result.activeMatchOrdinal)
-      }
-    })
+    const timer = setTimeout(() => {
+      window.api.findInPage(query).then(result => {
+        if (result) {
+          setMatches(result.matches)
+          setActiveMatch(result.activeMatchOrdinal)
+        }
+        inputRef.current?.focus()
+      })
+    }, 200)
+    return () => clearTimeout(timer)
   }, [query, visible])
 
   const findNext = useCallback(() => {
@@ -65,6 +69,7 @@ export function FindBar() {
         setMatches(result.matches)
         setActiveMatch(result.activeMatchOrdinal)
       }
+      inputRef.current?.focus()
     })
   }, [query])
 
@@ -75,6 +80,7 @@ export function FindBar() {
         setMatches(result.matches)
         setActiveMatch(result.activeMatchOrdinal)
       }
+      inputRef.current?.focus()
     })
   }, [query])
 
