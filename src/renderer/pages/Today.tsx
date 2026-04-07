@@ -38,7 +38,7 @@ import {
   Check,
   Clock
 } from 'lucide-react'
-import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback, TeamActivityChart, groupTimelineItems, isItemGroup } from './today-components'
+import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback, groupTimelineItems, isItemGroup } from './today-components'
 import type { ItemGroup } from './today-components'
 import { DropdownMenu } from '../components/common/DropdownMenu'
 import type { TimelineSection, TimelineItem } from './today-components'
@@ -1585,13 +1585,6 @@ export function Today() {
 
           {activityExpanded && (
             <div className="border-t border-border animate-slide-down">
-              {/* PR activity sparkline chart */}
-              {teamActivity.length > 0 && teamActivity.some(m => m.items.length > 0) && (
-                <div className="px-5 pt-4 pb-2">
-                  <p className="text-xs text-zinc-500 mb-2">PR activity (authored + reviewed per week)</p>
-                  <TeamActivityChart teamActivity={teamActivity} />
-                </div>
-              )}
               {showRawActivity ? (
                 activityLoading ? (
                 <div className="p-5 space-y-4">
