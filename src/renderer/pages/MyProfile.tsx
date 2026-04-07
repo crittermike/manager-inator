@@ -209,7 +209,7 @@ export function MyProfile() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
         <div className="space-y-2">
           <div className="skeleton h-8 w-40 rounded" />
           <div className="skeleton h-4 w-72 rounded" />
@@ -228,7 +228,7 @@ export function MyProfile() {
 
   return (
     <>
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
           <UserCircle className="w-6 h-6 text-brand" aria-hidden="true" />

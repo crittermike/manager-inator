@@ -181,7 +181,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
         <div className="skeleton h-4 w-16 rounded" />
         <div className="bg-surface rounded-2xl border border-border/60 p-6 space-y-4">
           <div className="flex items-center gap-4">
@@ -198,7 +198,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
 
   if (error || !person) {
     return (
-      <div className="max-w-4xl mx-auto py-12 animate-fade-in">
+      <div className="max-w-5xl mx-auto py-12 animate-fade-in">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors mb-8"
@@ -216,7 +216,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       {/* Back */}
       <button
         onClick={() => navigate(-1)}

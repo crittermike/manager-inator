@@ -138,7 +138,7 @@ export function ImpactLog() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
         <div className="space-y-2">
           <div className="skeleton h-8 w-48 rounded" />
           <div className="skeleton h-4 w-64 rounded" />
@@ -157,7 +157,7 @@ export function ImpactLog() {
 
   return (
     <>
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">

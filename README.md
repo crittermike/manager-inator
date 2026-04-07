@@ -1,6 +1,15 @@
-# Manager-inator
+<p align="center">
+  <img src="resources/icon.png" alt="Manager-inator" width="128" />
+</p>
 
-An AI-powered desktop app that helps engineering managers stay on top of everything: 1:1 prep, performance check-ins, feedback tracking, team activity, and more.
+<h1 align="center">Manager-inator</h1>
+
+<p align="center">
+  AI-powered desktop app that helps engineering managers stay on top of everything:<br>
+  1:1 prep, performance check-ins, feedback tracking, team activity, and more.
+</p>
+
+---
 
 ## Features
 

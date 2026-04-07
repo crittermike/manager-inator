@@ -1354,7 +1354,7 @@ export function Today() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
         <div className="space-y-2">
           <div className="skeleton h-8 w-56 rounded" />
           <div className="skeleton h-4 w-72 rounded" />
@@ -1414,7 +1414,7 @@ export function Today() {
 
   return (
     <div
-      className="max-w-4xl mx-auto space-y-6 animate-fade-in relative"
+      className="max-w-5xl mx-auto space-y-6 animate-fade-in relative"
     >
 
       <div className="flex items-center justify-between">

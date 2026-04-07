@@ -1210,7 +1210,7 @@ export function ReportDetail() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
         {/* Profile header skeleton */}
         <div className="flex items-center gap-4">
           <div className="skeleton w-10 h-10 rounded-full" />
@@ -1293,7 +1293,7 @@ export function ReportDetail() {
   // ── Render ──
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       {/* Back + breadcrumb */}
       <button
         onClick={() => navigate('/')}

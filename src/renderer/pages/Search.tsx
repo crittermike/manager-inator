@@ -362,7 +362,7 @@ export function SearchPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
           <SearchIcon className="w-6 h-6 text-brand" aria-hidden="true" />
