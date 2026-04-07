@@ -94,13 +94,23 @@ function aggregateActivityByWeek(
   return { buckets, people: Array.from(people).sort() }
 }
 
+// ── Stable color mapping (alphabetical by name) ──
+
+function buildColorMap(members: TeamMemberDashboard[]): Record<string, string> {
+  const names = members.map(m => m.report.displayName).sort()
+  const map: Record<string, string> = {}
+  names.forEach((name, i) => { map[name] = COLORS[i % COLORS.length] })
+  return map
+}
+
 // ── SVG Line Chart (reusable for authored OR reviewed) ──
 
-function LineChart({ members, startDate, endDate, mode }: {
+function LineChart({ members, startDate, endDate, mode, colorMap }: {
   members: TeamMemberDashboard[]
   startDate: string
   endDate: string
   mode: 'authored' | 'reviewed'
+  colorMap: Record<string, string>
 }) {
   const { buckets, people } = useMemo(
     () => aggregateActivityByWeek(members, startDate, endDate),
@@ -143,8 +153,8 @@ function LineChart({ members, startDate, endDate, mode }: {
         {buckets.map((b, i) => (
           <text key={b.weekStart} x={pL + i * xStep} y={height - 6} textAnchor="middle" className="fill-zinc-600" fontSize={9}>{b.label}</text>
         ))}
-        {people.map((person, pi) => {
-          const color = COLORS[pi % COLORS.length]
+        {people.map((person) => {
+          const color = colorMap[person] ?? '#94a3b8'
           const points = buckets.map((b, i) => {
             const d = b.byPerson[person]
             const val = d ? d[mode] : 0
@@ -173,9 +183,9 @@ function LineChart({ members, startDate, endDate, mode }: {
           style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}>{tooltip.content}</div>
       )}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 px-1">
-        {people.map((person, pi) => (
+        {people.map((person) => (
           <div key={person} className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[pi % COLORS.length] }} />
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colorMap[person] ?? '#94a3b8' }} />
             <span className="text-[11px] text-zinc-400">{person.split(' ')[0]}</span>
           </div>
         ))}
@@ -186,9 +196,10 @@ function LineChart({ members, startDate, endDate, mode }: {
 
 // ── Pie Chart (reusable for authored OR reviewed totals) ──
 
-function PieChart({ members, mode }: {
+function PieChart({ members, mode, colorMap }: {
   members: TeamMemberDashboard[]
   mode: 'authored' | 'reviewed'
+  colorMap: Record<string, string>
 }) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
 
@@ -209,11 +220,11 @@ function PieChart({ members, mode }: {
     return <div className="py-6 text-center text-sm text-zinc-500">No data</div>
   }
 
-  const size = 160
-  const cx = size / 2, cy = size / 2, r = 60
+  const size = 140
+  const cx = size / 2, cy = size / 2, r = 56
 
   let cumAngle = -Math.PI / 2
-  const slices = data.map((d, i) => {
+  const slices = data.map((d) => {
     const angle = (d.count / total) * Math.PI * 2
     const startAngle = cumAngle
     cumAngle += angle
@@ -226,11 +237,11 @@ function PieChart({ members, mode }: {
     const path = data.length === 1
       ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`
       : `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`
-    return { ...d, path, color: COLORS[i % COLORS.length], pct: Math.round((d.count / total) * 100) }
+    return { ...d, path, color: colorMap[d.name] ?? '#94a3b8', pct: Math.round((d.count / total) * 100) }
   })
 
   return (
-    <div className="relative flex items-center gap-4">
+    <div className="relative flex flex-col items-center gap-3">
       <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="shrink-0">
         {slices.map((s, i) => (
           <path key={i} d={s.path} fill={s.color} fillOpacity={0.75} stroke="#111113" strokeWidth={1.5}
@@ -242,8 +253,6 @@ function PieChart({ members, mode }: {
             onMouseLeave={() => setTooltip(null)}
           />
         ))}
-        <text x={cx} y={cy - 4} textAnchor="middle" className="fill-zinc-200" fontSize={18} fontWeight={600}>{total}</text>
-        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-zinc-500" fontSize={9}>{mode}</text>
       </svg>
       {tooltip && (
         <div className="absolute pointer-events-none z-10 px-2.5 py-1.5 bg-zinc-800 border border-border rounded-lg text-xs text-zinc-200 shadow-lg whitespace-nowrap"
@@ -471,6 +480,9 @@ export function Team() {
     if (reports.length > 0) fetchDashboardData()
   }, [reports.length, startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Stable color map for consistent person→color across all charts ──
+  const colorMap = useMemo(() => buildColorMap(members), [members])
+
   // ── Summary stats ──
   const stats = useMemo(() => {
     let totalPRs = 0, totalReviews = 0, totalFeedback = 0, totalActions = 0
@@ -600,39 +612,38 @@ export function Team() {
 
       {members.length > 0 && (
         <>
-          {/* PR Pie Charts — side by side */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-surface rounded-xl border border-border/60 p-5">
-              <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                PRs authored
-              </h2>
-              <PieChart members={members} mode="authored" />
-            </div>
-            <div className="bg-surface rounded-xl border border-border/60 p-5">
-              <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-                PRs reviewed
-              </h2>
-              <PieChart members={members} mode="reviewed" />
-            </div>
-          </div>
-
-          {/* PR Activity Line Charts — separate authored and reviewed */}
+          {/* PRs Authored — line chart (3/4) + pie chart (1/4) */}
           <div className="bg-surface rounded-xl border border-border/60 p-5">
             <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
               <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-              PRs authored over time
+              PRs authored
+              <span className="text-zinc-500 font-normal">· {stats.totalPRs} total</span>
             </h2>
-            <LineChart members={members} startDate={startDate} endDate={endDate} mode="authored" />
+            <div className="flex gap-6 items-start">
+              <div className="flex-1 min-w-0">
+                <LineChart members={members} startDate={startDate} endDate={endDate} mode="authored" colorMap={colorMap} />
+              </div>
+              <div className="w-48 shrink-0">
+                <PieChart members={members} mode="authored" colorMap={colorMap} />
+              </div>
+            </div>
           </div>
 
+          {/* PRs Reviewed — line chart (3/4) + pie chart (1/4) */}
           <div className="bg-surface rounded-xl border border-border/60 p-5">
             <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
               <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-              PRs reviewed over time
+              PRs reviewed
+              <span className="text-zinc-500 font-normal">· {stats.totalReviews} total</span>
             </h2>
-            <LineChart members={members} startDate={startDate} endDate={endDate} mode="reviewed" />
+            <div className="flex gap-6 items-start">
+              <div className="flex-1 min-w-0">
+                <LineChart members={members} startDate={startDate} endDate={endDate} mode="reviewed" colorMap={colorMap} />
+              </div>
+              <div className="w-48 shrink-0">
+                <PieChart members={members} mode="reviewed" colorMap={colorMap} />
+              </div>
+            </div>
           </div>
 
           {/* Feedback Balance Chart */}
