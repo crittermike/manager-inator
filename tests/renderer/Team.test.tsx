@@ -44,10 +44,11 @@ vi.mock('../../src/renderer/hooks/useData', () => ({
 const mockFetchActivity = vi.fn()
 const mockGetReportData = vi.fn()
 
-import { Team } from '../../src/renderer/pages/Team'
+import { Team, clearDashboardCache } from '../../src/renderer/pages/Team'
 
 describe('Team page', () => {
   beforeEach(() => {
+    clearDashboardCache()
     Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true, writable: true })
     document.body.innerHTML = ''
     mockNavigate.mockReset()

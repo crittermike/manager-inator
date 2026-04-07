@@ -417,6 +417,35 @@ function RosterCard({ report, activity, feedback, navigate }: {
   )
 }
 
+// ── Dashboard data cache (persists across navigations) ──
+
+interface DashboardCacheEntry {
+  data: TeamMemberDashboard[]
+  fetchedAt: number
+}
+
+const _dashboardCache = new Map<string, DashboardCacheEntry>()
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+function getCachedDashboard(key: string): TeamMemberDashboard[] | null {
+  const entry = _dashboardCache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) {
+    _dashboardCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function setCachedDashboard(key: string, data: TeamMemberDashboard[]): void {
+  _dashboardCache.set(key, { data, fetchedAt: Date.now() })
+}
+
+/** Clear the dashboard cache (used by tests) */
+export function clearDashboardCache(): void {
+  _dashboardCache.clear()
+}
+
 // ── Main Team Page ──
 
 export function Team() {
@@ -445,8 +474,26 @@ export function Team() {
     return { startDate: start, endDate: end }
   }, [preset, customStart, customEnd])
 
-  const fetchDashboardData = useCallback(async () => {
+  const cacheKey = `${startDate}:${endDate}:${reports.map(r => r.name).join(',')}`
+
+  // Restore from cache on mount or date change
+  useEffect(() => {
+    const cached = getCachedDashboard(cacheKey)
+    if (cached) setMembers(cached)
+  }, [cacheKey])
+
+  const fetchDashboardData = useCallback(async (bypassCache = false) => {
     if (!reports.length) return
+
+    // Use cache if available and not bypassing
+    if (!bypassCache) {
+      const cached = getCachedDashboard(cacheKey)
+      if (cached) {
+        setMembers(cached)
+        return
+      }
+    }
+
     setLoadingData(true)
 
     try {
@@ -468,13 +515,14 @@ export function Team() {
         })
       )
       setMembers(results)
+      setCachedDashboard(cacheKey, results)
     } catch (e) {
       console.error('Failed to fetch team dashboard data:', e)
       toast.error('Failed to load team data')
     } finally {
       setLoadingData(false)
     }
-  }, [reports.length, startDate, endDate, toast])
+  }, [reports, startDate, endDate, cacheKey, toast])
 
   useEffect(() => {
     if (reports.length > 0) fetchDashboardData()
@@ -522,7 +570,7 @@ export function Team() {
           </p>
         </div>
         <button
-          onClick={fetchDashboardData}
+          onClick={() => fetchDashboardData(true)}
           disabled={loadingData}
           className="p-2 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] rounded-lg transition-colors disabled:opacity-50"
           aria-label="Refresh"
