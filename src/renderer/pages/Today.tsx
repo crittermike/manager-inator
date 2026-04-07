@@ -38,7 +38,8 @@ import {
   Check,
   Clock
 } from 'lucide-react'
-import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback } from './today-components'
+import { InlinePrep, InlineActions, InlinePrompt, InlineFeedback, TeamActivityChart, groupTimelineItems, isItemGroup } from './today-components'
+import type { ItemGroup } from './today-components'
 import { DropdownMenu } from '../components/common/DropdownMenu'
 import type { TimelineSection, TimelineItem } from './today-components'
 import { AddReportModal } from '../components/layout/AddReportModal'
@@ -1584,6 +1585,13 @@ export function Today() {
 
           {activityExpanded && (
             <div className="border-t border-border animate-slide-down">
+              {/* PR activity sparkline chart */}
+              {teamActivity.length > 0 && teamActivity.some(m => m.items.length > 0) && (
+                <div className="px-5 pt-4 pb-2">
+                  <p className="text-xs text-zinc-500 mb-2">PR activity (authored + reviewed per week)</p>
+                  <TeamActivityChart teamActivity={teamActivity} />
+                </div>
+              )}
               {showRawActivity ? (
                 activityLoading ? (
                 <div className="p-5 space-y-4">
@@ -1795,6 +1803,7 @@ export function Today() {
       {activeSections.filter(s => s !== 'coming-up' && s !== 'done').map(section => {
         const config = sectionConfig[section]
         const sectionItems = itemsBySection[section]
+        const grouped = groupTimelineItems(sectionItems)
         const isExpanded = expandedSections.has(section)
         const Icon = config.icon
 
@@ -1821,7 +1830,35 @@ export function Today() {
 
             {isExpanded && (
               <div className="border-t border-border/50 animate-slide-down">
-                {sectionItems.map((item, idx) => {
+                {grouped.map((entry, idx) => {
+                  if (isItemGroup(entry)) {
+                    return (
+                      <GroupedItemRow
+                        key={entry.key}
+                        group={entry}
+                        idx={idx}
+                        reportByName={reportByName}
+                        navigate={navigate}
+                        expandedItem={expandedItem}
+                        handleToggleExpandedItem={handleToggleExpandedItem}
+                        handleCancelExpand={handleCancelExpand}
+                        markDone={markDone}
+                        handlePrepDone={handlePrepDone}
+                        handlePrepCancel={handlePrepCancel}
+                        handleActionToggle={handleActionToggle}
+                        handleSnoozeAction={handleSnoozeAction}
+                        handleSnoozeItem={handleSnoozeItem}
+                        handleFeedbackDone={handleFeedbackDone}
+                        handlePromptDone={handlePromptDone}
+                        teamActivity={teamActivity}
+                        reports={reports}
+                        filteredTeamActions={filteredTeamActions}
+                        visibleItemIds={visibleItemIds}
+                        getTodayNavProps={getTodayNavProps}
+                      />
+                    )
+                  }
+                  const item = entry
                   const navIdx = visibleItemIds.indexOf(item.id)
                   const navProps = navIdx >= 0 ? getTodayNavProps(navIdx) : {}
                   return (
@@ -1915,6 +1952,143 @@ export function Today() {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ── GroupedItemRow: collapsed group of similar per-report items ──
+
+interface GroupedItemRowProps {
+  group: ItemGroup
+  idx: number
+  reportByName: Map<string, ReportStatus>
+  navigate: (path: string) => void
+  expandedItem: string | null
+  handleToggleExpandedItem: (id: string) => void
+  handleCancelExpand: () => void
+  markDone: (id: string) => void
+  handlePrepDone: (itemId: string, reportName: string) => void
+  handlePrepCancel: (reportName: string) => void
+  handleActionToggle: (action: TeamActionItem) => Promise<void>
+  handleSnoozeAction: (actionKey: string, untilDate: string) => void
+  handleSnoozeItem: (itemId: string, days: number) => void
+  handleFeedbackDone: (itemId: string) => void
+  handlePromptDone: (itemId: string) => void
+  teamActivity: TeamMemberActivity[]
+  reports: ReportStatus[]
+  filteredTeamActions: TeamActionItem[]
+  visibleItemIds: string[]
+  getTodayNavProps: (idx: number) => Record<string, unknown>
+}
+
+function GroupedItemRow({
+  group, idx, reportByName, navigate, expandedItem,
+  handleToggleExpandedItem, handleCancelExpand, markDone,
+  handlePrepDone, handlePrepCancel, handleActionToggle,
+  handleSnoozeAction, handleSnoozeItem, handleFeedbackDone, handlePromptDone,
+  teamActivity, reports, filteredTeamActions, visibleItemIds, getTodayNavProps
+}: GroupedItemRowProps) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="animate-fade-up" style={{ animationDelay: `${Math.min(idx * 40, 200)}ms`, animationFillMode: 'both' }}>
+      {/* Collapsed group header */}
+      <div
+        className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer group"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {/* Avatar stack */}
+        <div className="flex -space-x-2 shrink-0">
+          {group.items.slice(0, 4).map(item => {
+            const r = item.reportName ? reportByName.get(item.reportName) : null
+            return r?.github ? (
+              <img
+                key={item.id}
+                src={`https://github.com/${r.github}.png?size=48`}
+                alt=""
+                className="w-7 h-7 rounded-full ring-2 ring-surface object-cover"
+              />
+            ) : (
+              <div
+                key={item.id}
+                className="w-7 h-7 rounded-full ring-2 ring-surface bg-zinc-800 flex items-center justify-center text-[10px] font-semibold text-zinc-500"
+              >
+                {(r?.displayName || '?').charAt(0)}
+              </div>
+            )
+          })}
+          {group.items.length > 4 && (
+            <div className="w-7 h-7 rounded-full ring-2 ring-surface bg-zinc-800 flex items-center justify-center text-[10px] font-medium text-zinc-500">
+              +{group.items.length - 4}
+            </div>
+          )}
+        </div>
+
+        {/* Group title + person names */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-zinc-300">{group.title}</p>
+          <p className="text-xs text-zinc-600 truncate">
+            {group.items.map(item => {
+              const r = item.reportName ? reportByName.get(item.reportName) : null
+              return r?.displayName?.split(' ')[0] || item.reportName
+            }).join(', ')}
+          </p>
+        </div>
+
+        {/* Expand to show individual items */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1 rounded"
+        >
+          {expanded ? 'Collapse' : `Show ${group.items.length}`}
+        </button>
+
+        {/* Mark all done */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            for (const item of group.items) markDone(item.id)
+          }}
+          className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-white/[0.06] rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+          title="Dismiss all"
+          aria-label="Dismiss all"
+        >
+          <Check className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Expanded: show individual TimelineRows */}
+      {expanded && (
+        <div className="border-t border-border/30 bg-white/[0.01]">
+          {group.items.map((item) => {
+            const navIdx = visibleItemIds.indexOf(item.id)
+            const navProps = navIdx >= 0 ? getTodayNavProps(navIdx) : {}
+            return (
+              <div key={item.id} {...navProps}>
+                <TimelineRow
+                  item={item}
+                  isItemExpanded={expandedItem === item.id}
+                  reportByName={reportByName}
+                  navigate={navigate}
+                  onToggleExpand={handleToggleExpandedItem}
+                  onCancelExpand={handleCancelExpand}
+                  markDone={markDone}
+                  onPrepDone={handlePrepDone}
+                  onPrepCancel={handlePrepCancel}
+                  handleActionToggle={handleActionToggle}
+                  onSnooze={handleSnoozeAction}
+                  onSnoozeItem={handleSnoozeItem}
+                  onFeedbackDone={handleFeedbackDone}
+                  onPromptDone={handlePromptDone}
+                  teamActivity={teamActivity}
+                  reports={reports}
+                  teamActions={filteredTeamActions}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

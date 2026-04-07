@@ -124,12 +124,16 @@ vi.mock('../../src/renderer/components/layout/AddReportModal', () => ({
   AddReportModal: () => null
 }))
 
-vi.mock('../../src/renderer/pages/today-components', () => ({
-  InlinePrep: () => <div>Inline prep</div>,
-  InlineActions: () => <div>Inline actions</div>,
-  InlinePrompt: () => <div>Inline prompt</div>,
-  InlineFeedback: () => <div>Inline feedback</div>
-}))
+vi.mock('../../src/renderer/pages/today-components', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/renderer/pages/today-components')>()
+  return {
+    ...actual,
+    InlinePrep: () => <div>Inline prep</div>,
+    InlineActions: () => <div>Inline actions</div>,
+    InlinePrompt: () => <div>Inline prompt</div>,
+    InlineFeedback: () => <div>Inline feedback</div>
+  }
+})
 
 import { Today } from '../../src/renderer/pages/Today'
 
