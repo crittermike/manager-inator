@@ -31,8 +31,8 @@ interface AppShellProps {
 
 const navItems = [
   { path: '/', icon: Sun, label: 'Today', shortcut: 'cmd+1' },
-  { path: '/team', icon: Users, label: 'Team', shortcut: 'cmd+2' },
-  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: 'cmd+3' },
+  { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: 'cmd+2' },
+  { path: '/team', icon: Users, label: 'Team', shortcut: 'cmd+3' },
   { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: 'cmd+4' },
   { path: '/search', icon: Search, label: 'Search', shortcut: 'cmd+5' }
 ]

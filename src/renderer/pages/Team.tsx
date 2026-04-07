@@ -94,12 +94,13 @@ function aggregateActivityByWeek(
   return { buckets, people: Array.from(people).sort() }
 }
 
-// ── SVG Chart with hover tooltips ──
+// ── SVG Line Chart (reusable for authored OR reviewed) ──
 
-function ActivityChart({ members, startDate, endDate }: {
+function LineChart({ members, startDate, endDate, mode }: {
   members: TeamMemberDashboard[]
   startDate: string
   endDate: string
+  mode: 'authored' | 'reviewed'
 }) {
   const { buckets, people } = useMemo(
     () => aggregateActivityByWeek(members, startDate, endDate),
@@ -108,21 +109,18 @@ function ActivityChart({ members, startDate, endDate }: {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
 
   if (people.length === 0) {
-    return <div className="py-8 text-center text-sm text-zinc-500">No PR activity in this period</div>
+    return <div className="py-6 text-center text-sm text-zinc-500">No PR activity in this period</div>
   }
 
-  const width = 700
-  const height = 200
-  const pL = 36, pR = 16, pT = 16, pB = 36
-  const cW = width - pL - pR
-  const cH = height - pT - pB
+  const width = 700, height = 180
+  const pL = 36, pR = 16, pT = 16, pB = 32
+  const cW = width - pL - pR, cH = height - pT - pB
   const xStep = cW / Math.max(buckets.length - 1, 1)
 
-  // Per-person line data (not stacked — individual lines are easier to read)
   const maxVal = Math.max(1, ...buckets.map(b =>
     Math.max(...people.map(p => {
       const d = b.byPerson[p]
-      return d ? d.authored + d.reviewed : 0
+      return d ? d[mode] : 0
     }))
   ))
 
@@ -133,7 +131,6 @@ function ActivityChart({ members, startDate, endDate }: {
   return (
     <div className="relative">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
-        {/* Grid */}
         {yTicks.map(v => {
           const y = pT + cH - (v / maxVal) * cH
           return (
@@ -143,68 +140,121 @@ function ActivityChart({ members, startDate, endDate }: {
             </g>
           )
         })}
-
-        {/* X labels */}
         {buckets.map((b, i) => (
-          <text key={b.weekStart} x={pL + i * xStep} y={height - 8} textAnchor="middle" className="fill-zinc-600" fontSize={9}>
-            {b.label}
-          </text>
+          <text key={b.weekStart} x={pL + i * xStep} y={height - 6} textAnchor="middle" className="fill-zinc-600" fontSize={9}>{b.label}</text>
         ))}
-
-        {/* Lines per person */}
         {people.map((person, pi) => {
           const color = COLORS[pi % COLORS.length]
           const points = buckets.map((b, i) => {
             const d = b.byPerson[person]
-            const val = d ? d.authored + d.reviewed : 0
+            const val = d ? d[mode] : 0
             return { x: pL + i * xStep, y: pT + cH - (val / maxVal) * cH, val }
           })
           const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-
           return (
             <g key={person}>
               <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeOpacity={0.8} />
-              {points.map((p, i) => (
-                <circle
-                  key={i}
-                  cx={p.x} cy={p.y} r={p.val > 0 ? 3.5 : 0}
-                  fill={color} fillOpacity={0.9}
-                  className="cursor-pointer"
+              {points.map((p, i) => p.val > 0 ? (
+                <circle key={i} cx={p.x} cy={p.y} r={3.5} fill={color} fillOpacity={0.9}
                   onMouseEnter={(e) => {
                     const rect = (e.target as SVGElement).closest('svg')?.getBoundingClientRect()
                     if (!rect) return
-                    const authored = buckets[i].byPerson[person]?.authored ?? 0
-                    const reviewed = buckets[i].byPerson[person]?.reviewed ?? 0
-                    setTooltip({
-                      x: e.clientX - rect.left,
-                      y: e.clientY - rect.top - 40,
-                      content: `${person.split(' ')[0]}: ${authored} authored, ${reviewed} reviewed (${buckets[i].label})`
-                    })
+                    setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top - 40, content: `${person.split(' ')[0]}: ${p.val} ${mode} (${buckets[i].label})` })
                   }}
                   onMouseLeave={() => setTooltip(null)}
                 />
-              ))}
+              ) : null)}
             </g>
           )
         })}
       </svg>
-
-      {/* Tooltip */}
       {tooltip && (
-        <div
-          className="absolute pointer-events-none z-10 px-2.5 py-1.5 bg-zinc-800 border border-border rounded-lg text-xs text-zinc-200 shadow-lg whitespace-nowrap"
-          style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}
-        >
-          {tooltip.content}
-        </div>
+        <div className="absolute pointer-events-none z-10 px-2.5 py-1.5 bg-zinc-800 border border-border rounded-lg text-xs text-zinc-200 shadow-lg whitespace-nowrap"
+          style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}>{tooltip.content}</div>
       )}
-
-      {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 px-1">
         {people.map((person, pi) => (
           <div key={person} className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[pi % COLORS.length] }} />
             <span className="text-[11px] text-zinc-400">{person.split(' ')[0]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Pie Chart (reusable for authored OR reviewed totals) ──
+
+function PieChart({ members, mode }: {
+  members: TeamMemberDashboard[]
+  mode: 'authored' | 'reviewed'
+}) {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
+
+  const data = useMemo(() => {
+    return members
+      .map(m => {
+        const items = m.activity?.items ?? []
+        const count = items.filter(i => i.type === 'pr' && (mode === 'authored' ? i.role === 'author' : i.role !== 'author')).length
+        return { name: m.report.displayName, count }
+      })
+      .filter(d => d.count > 0)
+      .sort((a, b) => b.count - a.count)
+  }, [members, mode])
+
+  const total = data.reduce((s, d) => s + d.count, 0)
+
+  if (total === 0) {
+    return <div className="py-6 text-center text-sm text-zinc-500">No data</div>
+  }
+
+  const size = 160
+  const cx = size / 2, cy = size / 2, r = 60
+
+  let cumAngle = -Math.PI / 2
+  const slices = data.map((d, i) => {
+    const angle = (d.count / total) * Math.PI * 2
+    const startAngle = cumAngle
+    cumAngle += angle
+    const endAngle = cumAngle
+    const x1 = cx + r * Math.cos(startAngle)
+    const y1 = cy + r * Math.sin(startAngle)
+    const x2 = cx + r * Math.cos(endAngle)
+    const y2 = cy + r * Math.sin(endAngle)
+    const largeArc = angle > Math.PI ? 1 : 0
+    const path = data.length === 1
+      ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`
+      : `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`
+    return { ...d, path, color: COLORS[i % COLORS.length], pct: Math.round((d.count / total) * 100) }
+  })
+
+  return (
+    <div className="relative flex items-center gap-4">
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="shrink-0">
+        {slices.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color} fillOpacity={0.75} stroke="#111113" strokeWidth={1.5}
+            onMouseEnter={(e) => {
+              const rect = (e.target as SVGElement).closest('svg')?.getBoundingClientRect()
+              if (!rect) return
+              setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top - 40, content: `${s.name}: ${s.count} (${s.pct}%)` })
+            }}
+            onMouseLeave={() => setTooltip(null)}
+          />
+        ))}
+        <text x={cx} y={cy - 4} textAnchor="middle" className="fill-zinc-200" fontSize={18} fontWeight={600}>{total}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-zinc-500" fontSize={9}>{mode}</text>
+      </svg>
+      {tooltip && (
+        <div className="absolute pointer-events-none z-10 px-2.5 py-1.5 bg-zinc-800 border border-border rounded-lg text-xs text-zinc-200 shadow-lg whitespace-nowrap"
+          style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}>{tooltip.content}</div>
+      )}
+      <div className="flex flex-col gap-1">
+        {slices.map((s, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+            <span className="text-[11px] text-zinc-400">{s.name.split(' ')[0]}</span>
+            <span className="text-[10px] text-zinc-600">{s.count} ({s.pct}%)</span>
           </div>
         ))}
       </div>
@@ -231,87 +281,69 @@ function FeedbackChart({ members }: { members: TeamMemberDashboard[] }) {
   const maxTotal = Math.max(1, ...data.map(d => d.total))
 
   if (data.every(d => d.total === 0)) {
-    return <div className="py-8 text-center text-sm text-zinc-500">No feedback in this period</div>
+    return <div className="py-6 text-center text-sm text-zinc-500">No feedback in this period</div>
   }
 
-  const barHeight = 28
-  const gap = 6
-  const labelWidth = 80
-  const chartWidth = 400
-  const totalHeight = data.length * (barHeight + gap)
+  const barH = 20, gap = 8, labelW = 70, chartW = 350
+  const totalH = data.length * (barH + gap)
+
+  function handleHover(e: React.MouseEvent<SVGRectElement>, text: string) {
+    const rect = (e.target as SVGElement).closest('svg')?.getBoundingClientRect()
+    if (!rect) return
+    setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top - 36, content: text })
+  }
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${labelWidth + chartWidth + 40} ${totalHeight}`} className="w-full">
+      <svg viewBox={`0 0 ${labelW + chartW + 40} ${totalH}`} className="w-full" style={{ maxHeight: Math.max(totalH * 1.5, 120) }}>
         {data.map((d, i) => {
-          const y = i * (barHeight + gap)
-          const posW = (d.positive / maxTotal) * chartWidth
-          const conW = (d.constructive / maxTotal) * chartWidth
-          const othW = (d.other / maxTotal) * chartWidth
+          const y = i * (barH + gap)
+          const posW = (d.positive / maxTotal) * chartW
+          const conW = (d.constructive / maxTotal) * chartW
+          const othW = (d.other / maxTotal) * chartW
+          const totalW = posW + conW + othW
 
           return (
             <g key={d.name}>
-              <text x={labelWidth - 8} y={y + barHeight / 2 + 4} textAnchor="end" className="fill-zinc-400" fontSize={11}>
+              <text x={labelW - 6} y={y + barH / 2 + 4} textAnchor="end" className="fill-zinc-500" fontSize={10}>
                 {d.name.split(' ')[0]}
               </text>
-              {/* Positive */}
-              <rect
-                x={labelWidth} y={y + 2} width={Math.max(posW, 0)} height={barHeight - 4}
-                rx={4} fill="#34d399" fillOpacity={0.7}
-                className="cursor-pointer"
-                onMouseEnter={(e) => {
-                  const rect = (e.target as SVGElement).closest('svg')?.getBoundingClientRect()
-                  if (!rect) return
-                  setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top - 40, content: `${d.name}: ${d.positive} positive` })
-                }}
-                onMouseLeave={() => setTooltip(null)}
-              />
-              {/* Constructive */}
-              <rect
-                x={labelWidth + posW} y={y + 2} width={Math.max(conW, 0)} height={barHeight - 4}
-                rx={conW > 0 && posW === 0 ? 4 : 0} fill="#f59e0b" fillOpacity={0.7}
-                className="cursor-pointer"
-                onMouseEnter={(e) => {
-                  const rect = (e.target as SVGElement).closest('svg')?.getBoundingClientRect()
-                  if (!rect) return
-                  setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top - 40, content: `${d.name}: ${d.constructive} constructive` })
-                }}
-                onMouseLeave={() => setTooltip(null)}
-              />
-              {/* Other */}
-              {othW > 0 && (
-                <rect
-                  x={labelWidth + posW + conW} y={y + 2} width={Math.max(othW, 0)} height={barHeight - 4}
-                  rx={0} fill="#94a3b8" fillOpacity={0.5}
-                />
-              )}
-              {/* Count */}
-              <text x={labelWidth + posW + conW + othW + 6} y={y + barHeight / 2 + 4} className="fill-zinc-600" fontSize={10}>
-                {d.total}
-              </text>
+              {/* Background track */}
+              <rect x={labelW} y={y + 1} width={chartW} height={barH - 2} rx={3} fill="rgba(255,255,255,0.02)" />
+              {/* Clip path for rounded ends */}
+              <clipPath id={`bar-clip-${i}`}>
+                <rect x={labelW} y={y + 1} width={Math.max(totalW, 1)} height={barH - 2} rx={3} />
+              </clipPath>
+              <g clipPath={`url(#bar-clip-${i})`}>
+                {posW > 0 && (
+                  <rect x={labelW} y={y + 1} width={posW} height={barH - 2} fill="#34d399" fillOpacity={0.7}
+                    onMouseEnter={(e) => handleHover(e, `${d.name}: ${d.positive} positive`)}
+                    onMouseLeave={() => setTooltip(null)} />
+                )}
+                {conW > 0 && (
+                  <rect x={labelW + posW} y={y + 1} width={conW} height={barH - 2} fill="#f59e0b" fillOpacity={0.7}
+                    onMouseEnter={(e) => handleHover(e, `${d.name}: ${d.constructive} constructive`)}
+                    onMouseLeave={() => setTooltip(null)} />
+                )}
+                {othW > 0 && (
+                  <rect x={labelW + posW + conW} y={y + 1} width={othW} height={barH - 2} fill="#94a3b8" fillOpacity={0.5}
+                    onMouseEnter={(e) => handleHover(e, `${d.name}: ${d.other} other`)}
+                    onMouseLeave={() => setTooltip(null)} />
+                )}
+              </g>
+              <text x={labelW + totalW + 6} y={y + barH / 2 + 4} className="fill-zinc-600" fontSize={9}>{d.total}</text>
             </g>
           )
         })}
       </svg>
-
       {tooltip && (
-        <div
-          className="absolute pointer-events-none z-10 px-2.5 py-1.5 bg-zinc-800 border border-border rounded-lg text-xs text-zinc-200 shadow-lg whitespace-nowrap"
-          style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}
-        >
-          {tooltip.content}
-        </div>
+        <div className="absolute pointer-events-none z-10 px-2.5 py-1.5 bg-zinc-800 border border-border rounded-lg text-xs text-zinc-200 shadow-lg whitespace-nowrap"
+          style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}>{tooltip.content}</div>
       )}
-
       <div className="flex gap-4 mt-2 px-1">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span className="text-[11px] text-zinc-400">Positive</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-amber-400" />
-          <span className="text-[11px] text-zinc-400">Constructive</span>
-        </div>
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-400" /><span className="text-[11px] text-zinc-400">Positive</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /><span className="text-[11px] text-zinc-400">Constructive</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-slate-400" /><span className="text-[11px] text-zinc-400">Other</span></div>
       </div>
     </div>
   )
@@ -568,13 +600,39 @@ export function Team() {
 
       {members.length > 0 && (
         <>
-          {/* PR Activity Chart */}
+          {/* PR Pie Charts — side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-surface rounded-xl border border-border/60 p-5">
+              <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                PRs authored
+              </h2>
+              <PieChart members={members} mode="authored" />
+            </div>
+            <div className="bg-surface rounded-xl border border-border/60 p-5">
+              <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+                <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+                PRs reviewed
+              </h2>
+              <PieChart members={members} mode="reviewed" />
+            </div>
+          </div>
+
+          {/* PR Activity Line Charts — separate authored and reviewed */}
           <div className="bg-surface rounded-xl border border-border/60 p-5">
             <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
               <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
-              PR activity over time
+              PRs authored over time
             </h2>
-            <ActivityChart members={members} startDate={startDate} endDate={endDate} />
+            <LineChart members={members} startDate={startDate} endDate={endDate} mode="authored" />
+          </div>
+
+          <div className="bg-surface rounded-xl border border-border/60 p-5">
+            <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+              <GitPullRequest className="w-4 h-4 text-brand-light" aria-hidden="true" />
+              PRs reviewed over time
+            </h2>
+            <LineChart members={members} startDate={startDate} endDate={endDate} mode="reviewed" />
           </div>
 
           {/* Feedback Balance Chart */}

@@ -146,7 +146,10 @@ describe('Team page', () => {
 
   it('shows PR activity chart section', async () => {
     const { container, root } = await renderTeam()
-    expect(container.textContent).toContain('PR activity over time')
+    expect(container.textContent).toContain('PRs authored over time')
+    expect(container.textContent).toContain('PRs reviewed over time')
+    expect(container.textContent).toContain('PRs authored') // pie chart
+    expect(container.textContent).toContain('PRs reviewed') // pie chart
     // Should have an SVG element
     const svg = container.querySelector('svg')
     expect(svg).not.toBeNull()
