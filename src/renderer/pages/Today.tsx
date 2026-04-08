@@ -1040,6 +1040,123 @@ export function Today() {
       setPrepExistsMap(map)
     }).catch(err => { console.error('Failed to check prep files', err); toast.error('Failed to check prep files') })
   }, [overview])
+
+  // Auto-generate 1:1 prep for anyone with a meeting today who doesn't have prep yet
+  useEffect(() => {
+    const reps = overview?.reports
+    if (!reps || reps.length === 0) return
+    const now = new Date()
+    const dayIndex = getDay(now)
+    if (dayIndex === 0 || dayIndex === 6) return // skip weekends
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const todayName = dayNames[dayIndex]
+    const today = format(now, 'yyyy-MM-dd')
+
+    const todayMeetings = reps.filter(r =>
+      r.meetingDay && matchesMeetingDay(r.meetingDay, todayName)
+    )
+    if (todayMeetings.length === 0) return
+
+    const needsPrep = todayMeetings.filter(r => {
+      const genKey = `auto-prep-${today}-${r.name}`
+      return !prepExistsMap[r.name] && localStorage.getItem(genKey) !== 'true'
+    })
+    if (needsPrep.length === 0) return
+
+    const runAutoPrep = async () => {
+      let generatedAny = false
+      for (const r of needsPrep) {
+        const genKey = `auto-prep-${today}-${r.name}`
+        try {
+          const reportData = await window.api.getReportData(r.name)
+          const recentSummaryDates = reportData.summaries.slice(-5)
+          const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${r.name}-1-1.md`}`)
+          const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
+          const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
+          const openActions = reportData.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
+          const feedbackText = reportData.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n')
+
+          const displayName = reportData.profile.displayName
+          const firstName = displayName.split(' ')[0]
+          const namePattern = new RegExp(`\\b(${firstName}|${displayName})\\b`, 'i')
+          const ownSummaryPrefix = `${r.name}-1-1`
+
+          let crossMentions = ''
+          try {
+            const allContexts = await window.api.listContexts()
+            const others = allContexts
+              .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
+              .slice(0, 15)
+            const otherPaths = others.map(m => `contexts/${m.filename}`)
+            const otherMap = await window.api.getFilesContentBulk(otherPaths)
+            const mentions = others
+              .filter(m => { const c = otherMap[`contexts/${m.filename}`]; return c && namePattern.test(c) })
+              .slice(0, 5)
+              .map(m => `### ${m.title} (${m.date})\n${otherMap[`contexts/${m.filename}`]}`)
+            crossMentions = mentions.join('\n\n---\n\n')
+          } catch (e) { console.debug('Cross-meeting mentions unavailable:', e) }
+
+          let githubActivityText: string | undefined
+          try {
+            const weekAgo = new Date(now)
+            weekAgo.setDate(weekAgo.getDate() - 7)
+            const activityResult = await window.api.fetchActivityForPerson(r.name, format(weekAgo, 'yyyy-MM-dd'), today)
+            if (activityResult?.items.length) {
+              const prs = activityResult.items.filter(i => i.type === 'pr')
+              const issues = activityResult.items.filter(i => i.type === 'issue')
+              const discussions = activityResult.items.filter(i => i.type === 'discussion')
+              const sections = [`Summary: ${prs.length} PRs, ${issues.length} issues, ${discussions.length} discussions in the past week`]
+              for (const pr of prs.slice(0, 10)) {
+                let line = `- [${pr.state}] ${pr.title} (${pr.repo})`
+                if (pr.reviewComments?.length) {
+                  line += `\n  Reviews: ${pr.reviewComments.slice(0, 3).map(rc => `@${rc.author} [${rc.reviewState || 'comment'}]: ${rc.body.split('\n')[0].slice(0, 150)}`).join('; ')}`
+                }
+                sections.push(line)
+              }
+              for (const issue of issues.slice(0, 5)) sections.push(`- [${issue.state}] ${issue.title} (${issue.repo})`)
+              for (const d of discussions.slice(0, 3)) sections.push(`- [discussion] ${d.title} (${d.repo})`)
+              githubActivityText = sections.join('\n')
+            }
+          } catch (e) { console.debug('GitHub activity fetch unavailable:', e) }
+
+          const rid = crypto.randomUUID()
+          const result = await window.api.aiGenerate('prep-one-on-one', {
+            reportName: displayName,
+            about: reportData.profile.about || undefined,
+            jobExpectations: reportData.jobExpectations || undefined,
+            summaries: summariesText || 'No recent summaries available.',
+            actionItems: openActions || 'No open action items.',
+            feedback: feedbackText || undefined,
+            crossMeetingMentions: crossMentions || undefined,
+            githubActivity: githubActivityText
+          }, () => {}, rid)
+
+          if (result) {
+            await window.api.commitFile(
+              `reports/${r.name}/prep/${today}.md`,
+              result,
+              `Auto-generate 1:1 prep for ${displayName} on ${today}`
+            )
+            localStorage.setItem(genKey, 'true')
+            generatedAny = true
+          }
+        } catch (e) {
+          console.error('Failed to auto-generate prep for', r.name, e)
+        }
+      }
+      if (generatedAny) {
+        setPrepExistsMap(prev => {
+          const next = { ...prev }
+          for (const r of needsPrep) {
+            if (localStorage.getItem(`auto-prep-${today}-${r.name}`) === 'true') next[r.name] = true
+          }
+          return next
+        })
+      }
+    }
+
+    runAutoPrep()
+  }, [overview, prepExistsMap]) // eslint-disable-line react-hooks/exhaustive-deps
   const fetchTeamActivity = useCallback(async () => {
     if (!hasGithubOrgToken) return
     setActivityLoading(true)
