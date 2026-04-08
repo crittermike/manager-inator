@@ -198,6 +198,26 @@ export function ReportDetail() {
   const savePrepRef = useRef<() => void>(() => {})
   const aiActionsMenuRef = useRef<HTMLDivElement | null>(null)
   const addMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // Reset AI/panel state when switching between people
+  useEffect(() => {
+    if (streaming) cancel()
+    setShowAI(false)
+    setAiContent(null)
+    setAiLoading(false)
+    setAiSaving(false)
+    setAiSaved(false)
+    setPrepContent(null)
+    setExpandedItems(new Set())
+    setViewingContent(null)
+    setIsEditingContent(false)
+    setShowActivity(false)
+    setActivityData(null)
+    setAddingFeedback(false)
+    setAddingReview(false)
+    setDeleteTarget(null)
+    reset()
+  }, [name]) // eslint-disable-line react-hooks/exhaustive-deps
   const moreMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {

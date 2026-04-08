@@ -238,7 +238,7 @@ describe('ReportDetail AI actions menu', () => {
       await Promise.resolve()
     })
 
-    expect(mockReset).toHaveBeenCalledTimes(1)
+    expect(mockReset).toHaveBeenCalled()
     expect(mockGenerate).toHaveBeenCalledWith('prep-one-on-one', expect.objectContaining({
       reportName: 'Chanakya Valluri'
     }))
@@ -576,12 +576,14 @@ describe('ReportDetail monthly check-in workflow', () => {
 
       await act(async () => {
         deleteButton?.click()
+        await Promise.resolve()
       })
 
-      // Confirm delete step
-      const confirmYes = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.trim() === 'Yes') as HTMLButtonElement | undefined
-      expect(confirmYes).toBeDefined()
+      // Delete triggers ConfirmDialog (single confirmation, no inline Yes/No)
+      // Verify no inline "Yes" confirmation appears (Bug #26 fix)
+      const inlineYes = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Yes')
+      expect(inlineYes).toBeUndefined()
 
       await act(async () => {
         root.unmount()
@@ -743,12 +745,14 @@ describe('ReportDetail monthly check-in workflow', () => {
 
       await act(async () => {
         deleteButton?.click()
+        await Promise.resolve()
       })
 
-      // Confirm delete step
-      const confirmYes = Array.from(container.querySelectorAll('button'))
-        .find(b => b.textContent?.trim() === 'Yes') as HTMLButtonElement | undefined
-      expect(confirmYes).toBeDefined()
+      // Delete triggers ConfirmDialog (single confirmation, no inline Yes/No)
+      // Verify no inline "Yes" confirmation appears (Bug #26 fix)
+      const inlineYes = Array.from(container.querySelectorAll('button'))
+        .find(b => b.textContent?.trim() === 'Yes')
+      expect(inlineYes).toBeUndefined()
 
       await act(async () => {
         root.unmount()
@@ -1199,5 +1203,41 @@ describe('ReportDetail filter switching preserves state', () => {
       mockReport.feedback = origFeedback
       mockReport.contextNotes = origContextNotes
     }
+  })
+})
+
+// ── Bug #22 regression: AI state resets when switching direct reports ──
+describe('Bug #22: AI state resets on name change', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true, writable: true })
+    document.body.innerHTML = ''
+    mockGenerate.mockReset()
+    mockCancel.mockReset()
+    mockReset.mockReset()
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
+    mockToast.success.mockReset()
+    mockToast.error.mockReset()
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        listContexts: vi.fn().mockResolvedValue([]),
+        fetchActivityForPerson: vi.fn().mockResolvedValue(null),
+        commitFile: vi.fn().mockResolvedValue(undefined),
+        getSettings: vi.fn().mockResolvedValue({}),
+        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getFileContent: vi.fn().mockResolvedValue(null)
+      }
+    })
+  })
+
+  it('resets AI state on initial mount to prevent stale content from previous report', async () => {
+    const { root } = await renderReportDetail()
+
+    // The useEffect([name]) should call reset() on mount
+    expect(mockReset).toHaveBeenCalled()
+
+    await act(async () => { root.unmount() })
   })
 })
