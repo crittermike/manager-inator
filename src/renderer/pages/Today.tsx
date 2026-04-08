@@ -1139,9 +1139,10 @@ export function Today() {
             )
             localStorage.setItem(genKey, 'true')
             generatedAny = true
+            toast.success(`1:1 prep ready for ${displayName}`)
           }
         } catch (e) {
-          console.error('Failed to auto-generate prep for', r.name, e)
+          console.debug('Auto-prep generation failed for', r.name, e)
         }
       }
       if (generatedAny) {
