@@ -45,7 +45,3 @@ npm run dev          # Dev mode with hot reload
 npm run build        # Production build
 npx vitest run       # Run tests
 ```
-
-## License
-
-Private, not open source.
