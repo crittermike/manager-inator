@@ -189,6 +189,7 @@ export function InlinePrep({
           if (saved) {
             autoSavedRef.current = true
             toast.success('Prep saved')
+            onDone()
           } else {
             toast.error('Failed to auto-save prep')
           }

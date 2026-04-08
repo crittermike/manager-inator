@@ -226,13 +226,12 @@ export const StreamEntryCard = memo(function StreamEntryCard({
     }
   }, [entry.type, entry.data, name])
 
-  // Shared editing + delete-confirm state for all detail types
+  // Shared editing state for all detail types
   const [detailEditing, setDetailEditing] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const stopEditing = useCallback(() => setDetailEditing(false), [])
 
   useEffect(() => {
-    if (!expanded) { setDetailEditing(false); setConfirmDelete(false) }
+    if (!expanded) { setDetailEditing(false) }
   }, [expanded])
 
   const canEditDelete = entry.type !== 'action'
@@ -251,7 +250,6 @@ export const StreamEntryCard = memo(function StreamEntryCard({
     } else {
       onDeleteContent(entryPath)
     }
-    setConfirmDelete(false)
   }, [entry.type, entry.data, entryPath, onDeleteContent, onDeleteFeedback])
 
   return (
@@ -320,21 +318,13 @@ export const StreamEntryCard = memo(function StreamEntryCard({
             >
               <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
-            {confirmDelete ? (
-              <span className="flex items-center gap-1.5 text-xs">
-                <span className="text-zinc-400">Delete?</span>
-                <button onClick={handleHeaderDelete} className="text-danger hover:text-red-400 font-medium">Yes</button>
-                <button onClick={() => setConfirmDelete(false)} className="text-zinc-500 hover:text-zinc-300">No</button>
-              </span>
-            ) : (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
-                aria-label="Delete"
-              >
-                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-            )}
+            <button
+              onClick={handleHeaderDelete}
+              className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+              aria-label="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
           </div>
         )}
       </div>
