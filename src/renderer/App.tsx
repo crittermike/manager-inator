@@ -15,6 +15,7 @@ import tieIcon from '../../resources/tie.png'
 
 const ReportDetail = lazy(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetail })))
 const Playbook = lazy(() => import('./pages/Playbook').then(m => ({ default: m.Playbook })))
+const TeamPage = lazy(() => import('./pages/Team').then(m => ({ default: m.Team })))
 
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 const ContextDetail = lazy(() => import('./pages/ContextDetail').then(m => ({ default: m.ContextDetail })))
@@ -95,6 +96,7 @@ export default function App() {
       element: <Layout />,
       children: [
         { path: '/', element: <Today /> },
+        { path: '/team', element: <TeamPage /> },
         { path: '/playbook', element: <Playbook /> },
         { path: '/chat', element: <Chat /> },
         { path: '/report/:name', element: <ReportDetail /> },
