@@ -22,6 +22,7 @@ WRITING RULES (apply to ALL generated content):
 
 const AI_REQUEST_TIMEOUT_MS = 120_000
 const CHAT_REQUEST_TIMEOUT_MS = 300_000
+const MAX_PROMPT_TOKENS = 130_000 // conservative margin under the 168K model input limit
 
 type StreamCallback = (chunk: string) => void
 type ToolStatusCallback = (toolName: string, args: Record<string, unknown>) => void
@@ -129,6 +130,66 @@ function stripSystemNotifications(text: string): string {
   return text.replace(/<system_notification>[\s\S]*?<\/system_notification>\s*/g, '')
 }
 
+/** Conservative token estimate (~3 chars per token for mixed markdown/English) */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3)
+}
+
+/**
+ * Truncate messages to fit within the model's token budget.
+ * For chat: drops oldest conversation history first (preserves latest question).
+ * For non-chat: trims context from the end of the longest user message.
+ */
+export function truncateMessagesToFit(messages: CopilotMessage[], action: string): CopilotMessage[] {
+  const totalTokens = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  if (totalTokens <= MAX_PROMPT_TOKENS) return messages
+
+  const overageTokens = totalTokens - MAX_PROMPT_TOKENS
+  const overageChars = overageTokens * 3
+
+  console.warn(
+    `[Copilot] Prompt exceeds token budget: ~${totalTokens} estimated tokens (limit: ${MAX_PROMPT_TOKENS}). ` +
+    `Truncating ~${overageChars} chars. Action: ${action}`
+  )
+
+  // Find the longest user message
+  let longestIdx = -1
+  let longestLen = 0
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].role === 'user' && messages[i].content.length > longestLen) {
+      longestLen = messages[i].content.length
+      longestIdx = i
+    }
+  }
+
+  if (longestIdx === -1) return messages
+
+  const msg = messages[longestIdx]
+  const targetLen = Math.max(msg.content.length - overageChars, 2000)
+
+  let truncated: string
+  if (action === 'chat') {
+    // Chat: history at top, current message at bottom — trim from top
+    const start = msg.content.length - targetLen
+    truncated = msg.content.slice(start)
+    const nextNewline = truncated.indexOf('\n')
+    if (nextNewline > 0 && nextNewline < truncated.length * 0.3) {
+      truncated = truncated.slice(nextNewline + 1)
+    }
+    truncated = '[Earlier conversation history truncated to fit model token limit]\n\n' + truncated
+  } else {
+    // Non-chat: context data at end — trim from end
+    truncated = msg.content.slice(0, targetLen)
+    const lastNewline = truncated.lastIndexOf('\n')
+    if (lastNewline > targetLen * 0.7) {
+      truncated = truncated.slice(0, lastNewline)
+    }
+    truncated += '\n\n[Context truncated to fit model token limit]'
+  }
+
+  return messages.map((m, i) => i === longestIdx ? { ...m, content: truncated } : m)
+}
+
 export async function aiGenerate(
   action: string,
   context: Record<string, unknown>,
@@ -138,7 +199,7 @@ export async function aiGenerate(
 ): Promise<AiGenerateResult> {
   const entry = { session: null as unknown as CopilotSession, cancelled: false }
   const unsubscribers: (() => void)[] = []
-  const messages = buildMessages(action, context)
+  const messages = truncateMessagesToFit(buildMessages(action, context), action)
   const isChat = action === 'chat'
   const timeout = isChat ? CHAT_REQUEST_TIMEOUT_MS : AI_REQUEST_TIMEOUT_MS
   const modifiedFiles = new Set<string>()

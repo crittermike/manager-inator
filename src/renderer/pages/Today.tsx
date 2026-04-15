@@ -1072,7 +1072,7 @@ export function Today() {
           const recentSummaryDates = reportData.summaries.slice(-5)
           const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${r.name}-1-1.md`}`)
           const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
-          const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
+          const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).map(c => c.slice(0, 4000)).join('\n\n---\n\n')
           const openActions = reportData.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
           const feedbackText = reportData.feedback.slice(-3).map(f => `${f.date} (${f.type}): ${f.content}`).join('\n---\n')
 
@@ -1086,13 +1086,16 @@ export function Today() {
             const allContexts = await window.api.listContexts()
             const others = allContexts
               .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
-              .slice(0, 15)
+              .slice(0, 10)
             const otherPaths = others.map(m => `contexts/${m.filename}`)
             const otherMap = await window.api.getFilesContentBulk(otherPaths)
             const mentions = others
               .filter(m => { const c = otherMap[`contexts/${m.filename}`]; return c && namePattern.test(c) })
               .slice(0, 5)
-              .map(m => `### ${m.title} (${m.date})\n${otherMap[`contexts/${m.filename}`]}`)
+              .map(m => {
+                const c = otherMap[`contexts/${m.filename}`]!
+                return `### ${m.title} (${m.date})\n${c.slice(0, 3000)}`
+              })
             crossMentions = mentions.join('\n\n---\n\n')
           } catch (e) { console.debug('Cross-meeting mentions unavailable:', e) }
 

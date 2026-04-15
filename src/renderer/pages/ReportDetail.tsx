@@ -374,7 +374,7 @@ export function ReportDetail() {
       const recentSummaryDates = report.summaries.slice(-5)
       const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
       const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
-      const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
+      const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).map(c => c.slice(0, 4000)).join('\n\n---\n\n')
       if (!mountedRef.current) return
       const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
 
@@ -388,14 +388,14 @@ export function ReportDetail() {
       const allContexts = await window.api.listContexts()
       const otherWithSummaries = allContexts
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
-        .slice(0, 15)
+        .slice(0, 10)
 
       const otherPaths = otherWithSummaries.map(m => `contexts/${m.filename}`)
       const otherMap = await window.api.getFilesContentBulk(otherPaths)
       const mentionResults = otherWithSummaries.map(m => {
         const content = otherMap[`contexts/${m.filename}`]
         if (content && namePattern.test(content)) {
-          return `### ${m.title} (${m.date})\n${content}`
+          return `### ${m.title} (${m.date})\n${content.slice(0, 3000)}`
         }
         return ''
       })
@@ -571,7 +571,7 @@ export function ReportDetail() {
       const reviewMap = await window.api.getFilesContentBulk(reviewPaths)
     const summariesText = recentSummaries.map(s => {
       const content = reviewMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
-      return content ? `### ${s.date}\n${content}` : ''
+      return content ? `### ${s.date}\n${content.slice(0, 4000)}` : ''
     }).filter(Boolean).join('\n\n---\n\n')
     if (!mountedRef.current) return
 
@@ -579,7 +579,7 @@ export function ReportDetail() {
       `### ${c.date}\n${c.content || c.accomplishments.join('\n') || '(no content)'}`
     ).join('\n\n---\n\n')
 
-    const feedbackText = report.feedback.map(f =>
+    const feedbackText = report.feedback.slice(-15).map(f =>
       `${f.date} (${f.type}): ${f.content}`
     ).join('\n---\n')
 
@@ -638,7 +638,10 @@ export function ReportDetail() {
         feedback: feedbackText || undefined,
         actionItems: allActions || undefined,
         contextNotes: report.contextNotes.length > 0
-          ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
+          ? report.contextNotes.slice(-8).map(n => {
+              const content = n.content.length > 2000 ? n.content.slice(0, 2000) + '...[truncated]' : n.content
+              return `### ${n.date} (${n.source})\n${n.summary}\n\n${content}`
+            }).join('\n\n---\n\n')
           : undefined,
         githubActivity: githubActivityText
       })
