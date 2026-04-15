@@ -11,7 +11,7 @@ vi.mock('../../src/main/github', () => ({
   commitFile: vi.fn()
 }))
 
-import { getTeamActivity, clearActivityCache, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot } from '../../src/main/github-activity'
+import { getTeamActivity, clearActivityCache, clearRateLimit, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot } from '../../src/main/github-activity'
 import { getGithubOrgToken, getGithubOrgName } from '../../src/main/store'
 import { getReports, getReportProfile, commitFile } from '../../src/main/github'
 
@@ -132,11 +132,13 @@ describe('getTeamActivity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearActivityCache()
+    clearRateLimit()
     mockFetch.mockReset()
   })
 
   afterEach(() => {
     clearActivityCache()
+    clearRateLimit()
   })
 
   it('returns empty array when no org token is configured', async () => {
@@ -334,6 +336,37 @@ describe('getTeamActivity', () => {
 
     expect(result[0].error).toContain('Rate limited')
     expect(result[0].items).toEqual([])
+  })
+
+  it('skips API calls when rate limited and returns empty results', async () => {
+    mockedGetToken.mockReturnValue('ghp_test123')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice', 'bob'])
+    mockedGetProfile.mockImplementation((name: string) => makeProfile(name, `${name}-gh`))
+
+    // First call hits rate limit
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: new Headers({
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 3600)
+      }),
+      json: async () => ({})
+    })
+
+    await getTeamActivity()
+    clearActivityCache()
+    const callsAfterFirstRate = mockFetch.mock.calls.length
+
+    // Second call should skip API entirely due to rate limit tracking
+    mockFetch.mockClear()
+    const result = await getTeamActivity()
+
+    // No new fetch calls should be made — all skipped
+    expect(mockFetch).toHaveBeenCalledTimes(0)
+    expect(result[0].items).toEqual([])
+    expect(result[1].items).toEqual([])
   })
 
   it('handles generic API errors', async () => {
@@ -857,6 +890,7 @@ describe('enrichItemsWithContent', () => {
 
   beforeEach(() => {
     mockFetch.mockReset()
+    clearRateLimit()
   })
 
   it('fetches reviews and comments for PR items', async () => {
@@ -1095,6 +1129,7 @@ describe('formatActivityAsMarkdown', () => {
 describe('fetchActivityForPerson', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    clearRateLimit()
   })
 
   it('returns null when no token', async () => {
@@ -1151,6 +1186,7 @@ describe('fetchActivityForPerson', () => {
 describe('saveActivitySnapshot', () => {
   beforeEach(() => {
     mockFetch.mockReset()
+    clearRateLimit()
     mockedCommitFile.mockReset()
   })
 

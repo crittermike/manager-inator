@@ -6,6 +6,33 @@ const CACHE_TTL_MS = 15 * 60 * 1000
 const MAX_CONCURRENT = 3
 const GITHUB_API = 'https://api.github.com'
 
+// Module-level rate limit tracking: once any request is rate-limited,
+// all subsequent requests skip until the reset time to avoid error spam.
+let _rateLimitedUntil: number | null = null
+
+function isRateLimited(): boolean {
+  if (!_rateLimitedUntil) return false
+  if (Date.now() >= _rateLimitedUntil) {
+    _rateLimitedUntil = null
+    return false
+  }
+  return true
+}
+
+function setRateLimited(resetEpochSeconds: string | null): void {
+  _rateLimitedUntil = resetEpochSeconds
+    ? Number(resetEpochSeconds) * 1000
+    : Date.now() + 60_000 // default 1 minute cooldown
+}
+
+export function getRateLimitResetTime(): number | null {
+  return _rateLimitedUntil
+}
+
+export function clearRateLimit(): void {
+  _rateLimitedUntil = null
+}
+
 interface CacheEntry {
   data: TeamMemberActivity[]
   timestamp: number
@@ -113,6 +140,8 @@ async function fetchSearchPage(
   query: string,
   headers: Record<string, string>
 ): Promise<GitHubActivityItem[]> {
+  if (isRateLimited()) return []
+
   const url = `${GITHUB_API}/search/issues?q=${encodeURIComponent(query)}&per_page=50&sort=updated`
 
   const response = await fetch(url, { headers })
@@ -126,6 +155,7 @@ async function fetchSearchPage(
     const remaining = response.headers.get('X-RateLimit-Remaining')
     if (remaining === '0') {
       const resetAt = response.headers.get('X-RateLimit-Reset')
+      setRateLimited(resetAt)
       const resetDate = resetAt ? new Date(Number(resetAt) * 1000) : null
       throw new Error(
         `Rate limited${resetDate ? ` — resets at ${resetDate.toLocaleTimeString()}` : ''}`
@@ -163,6 +193,8 @@ async function fetchDiscussions(
   query: string,
   headers: Record<string, string>
 ): Promise<GitHubActivityItem[]> {
+  if (isRateLimited()) return []
+
   const graphqlQuery = {
     query: `query($q: String!) {
       search(type: DISCUSSION, query: $q, first: 50) {
@@ -199,6 +231,7 @@ async function fetchDiscussions(
       const remaining = response.headers.get('X-RateLimit-Remaining')
       if (remaining === '0') {
         const resetAt = response.headers.get('X-RateLimit-Reset')
+        setRateLimited(resetAt)
         const resetDate = resetAt ? new Date(Number(resetAt) * 1000) : null
         throw new Error(
           `Rate limited${resetDate ? ` — resets at ${resetDate.toLocaleTimeString()}` : ''}`
@@ -470,6 +503,7 @@ async function fetchPRReviews(
   prNumber: number,
   headers: Record<string, string>
 ): Promise<ActivityComment[]> {
+  if (isRateLimited()) return []
   const url = `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=30`
   try {
     const response = await fetch(url, { headers })
@@ -494,6 +528,7 @@ async function fetchIssueComments(
   issueNumber: number,
   headers: Record<string, string>
 ): Promise<ActivityComment[]> {
+  if (isRateLimited()) return []
   const url = `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments?per_page=20&sort=created&direction=desc`
   try {
     const response = await fetch(url, { headers })
