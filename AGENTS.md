@@ -2,6 +2,15 @@
 
 ## Recent Changes (April 2026)
 
+### AI Token Limit Fix (COMPLETE)
+- **Centralized prompt truncation** in `src/main/copilot.ts`: `truncateMessagesToFit()` estimates token count (~3 chars/token) and truncates messages to fit within a 130K token budget (168K model limit minus safety margin). Chat actions trim oldest history first; non-chat actions trim context from the end.
+- **Source-level context caps** applied consistently across all AI context assembly points:
+  - Individual summary content capped at 4000 chars (`checkin.ts`, `ReportDetail.tsx`, `Today.tsx`, `InlinePrep.tsx`)
+  - Feedback limited to last 10 entries for check-ins, 15 for reviews (was unlimited)
+  - Context notes limited to last 5-8 with 2000 char cap per note
+  - Cross-meeting mentions reduced from 15→10 contexts scanned, each capped at 3000 chars
+- **Debug logging** when truncation fires (logs action, estimated tokens, and chars removed)
+
 ### Check-in + Review Workflow Upgrade (COMPLETE)
 - **Monthly check-ins auto-save after generation** in `ReportDetail.tsx`. Generating a performance check-in now immediately writes `reports/{name}/check-ins/monthly/YYYY-MM.md` instead of waiting for a separate save step.
 - **Correct monthly check-in period selection**: the reporting month now targets the completed month (for example, Apr 1 generates/saves `2026-03.md`, not `2026-04.md`).
