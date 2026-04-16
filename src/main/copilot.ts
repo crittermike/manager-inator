@@ -208,7 +208,7 @@ export async function aiGenerate(
     const c = await getClient()
     const settings = getSettings()
     const requestedModel = typeof context['model'] === 'string' ? context['model'] : undefined
-    const model = requestedModel || settings.defaultModel || 'claude-sonnet-4.5'
+    const model = requestedModel || settings.defaultModel || 'claude-opus-4.7'
     debugLog('[Copilot SDK] Model:', model, 'Action:', action)
 
     const systemMessages = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n')
