@@ -1,7 +1,26 @@
 import { CopilotClient, approveAll } from '@github/copilot-sdk'
 import { getSettings, getToken } from './store'
 import { spawn } from 'child_process'
-import { join } from 'path'
+import { join, basename } from 'path'
+import { existsSync } from 'fs'
+
+function buildImageAttachments(imagePaths: string[], repoRoot: string): Array<{ type: 'file'; path: string; displayName: string }> | undefined {
+  if (!imagePaths.length) return undefined
+  const result: Array<{ type: 'file'; path: string; displayName: string }> = []
+  for (const p of imagePaths) {
+    const abs = join(repoRoot, p)
+    if (!existsSync(abs)) {
+      debugLog('[Copilot SDK] Image attachment missing on disk:', abs)
+      continue
+    }
+    result.push({
+      type: 'file',
+      path: abs,
+      displayName: basename(abs),
+    })
+  }
+  return result.length > 0 ? result : undefined
+}
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 function debugLog(...args: unknown[]): void {
@@ -305,14 +324,9 @@ export async function aiGenerate(
       }))
 
       debugLog('[Copilot SDK] Sending chat message...')
-      // Build file attachments for images (if any)
       const chatImagePaths = Array.isArray(context['imagePaths']) ? context['imagePaths'] as string[] : []
-      const chatAttachments = chatImagePaths.length > 0
-        ? chatImagePaths.map(p => ({
-            type: 'file' as const,
-            path: join(settings.repoPath || '', p),
-          }))
-        : undefined
+      const chatAttachments = buildImageAttachments(chatImagePaths, settings.repoPath || '')
+      if (chatAttachments) debugLog('[Copilot SDK] Chat attachments:', chatAttachments.length, 'image(s)')
       const response = await session.sendAndWait({ prompt: userMessage, attachments: chatAttachments }, timeout)
 
       const finalContent = response?.data?.content || ''
@@ -343,14 +357,9 @@ export async function aiGenerate(
       }))
 
       debugLog('[Copilot SDK] Sending message...')
-      // Build file attachments for images (if any)
       const imagePaths = Array.isArray(context['imagePaths']) ? context['imagePaths'] as string[] : []
-      const attachments = imagePaths.length > 0
-        ? imagePaths.map(p => ({
-            type: 'file' as const,
-            path: join(settings.repoPath || '', p),
-          }))
-        : undefined
+      const attachments = buildImageAttachments(imagePaths, settings.repoPath || '')
+      if (attachments) debugLog('[Copilot SDK] Attachments:', attachments.length, 'image(s)')
       const response = await session.sendAndWait({ prompt: userMessage, attachments }, timeout)
 
       // Use sendAndWait return if streaming didn't capture anything
