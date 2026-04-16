@@ -305,7 +305,15 @@ export async function aiGenerate(
       }))
 
       debugLog('[Copilot SDK] Sending chat message...')
-      const response = await session.sendAndWait({ prompt: userMessage }, timeout)
+      // Build file attachments for images (if any)
+      const chatImagePaths = Array.isArray(context['imagePaths']) ? context['imagePaths'] as string[] : []
+      const chatAttachments = chatImagePaths.length > 0
+        ? chatImagePaths.map(p => ({
+            type: 'file' as const,
+            path: join(settings.repoPath || '', p),
+          }))
+        : undefined
+      const response = await session.sendAndWait({ prompt: userMessage, attachments: chatAttachments }, timeout)
 
       const finalContent = response?.data?.content || ''
       debugLog('[Copilot SDK] Chat complete:', finalContent.length, 'chars', 'Modified files:', [...modifiedFiles])

@@ -2,6 +2,16 @@
 
 ## Recent Changes (April 2026)
 
+### AI Chat Image Paste Support (COMPLETE)
+- **Paste images into AI chat** (`Chat.tsx` and `AIFloatingPanel.tsx`): pasting an image in the chat input commits it to `attachments/` (via `commitBinaryFile`) and shows a removable thumbnail above the textarea. On send, the image paths are passed to the AI with the message.
+- New shared utilities in `src/renderer/utils/imageAttachments.ts`:
+  - `uploadPastedImage(blob, mimeType)` commits a blob to `attachments/YYYY-MM-DD-<id>.<ext>` and returns `{ id, filename, dataUrl, path }`. Maps `image/jpeg → .jpg`.
+  - `handleImagePaste(e)` walks `ClipboardEvent` items, uploads image items, calls `preventDefault()` only when images are found.
+- New `useImagePaths(paths)` hook in `useAttachedImages.ts` lazy-loads repo-relative image paths as base64 data URLs for display in prior message bubbles (via `window.api.getFileBase64`).
+- `Message` type gains optional `imagePaths?: string[]`; `sendMessage(text, context?, imagePaths?)` now accepts images (text may be empty if images are present) and passes them through to `ai.generate` as `context.imagePaths`.
+- Main-side: `copilot.ts` chat path now builds SDK `attachments` from `context.imagePaths` (mirrors existing non-chat behavior) and passes them to `session.sendAndWait`.
+- Tests: 3 new `sendMessage` tests (image-only, with text, omits key when empty) and 5 new tests covering `uploadPastedImage` / `handleImagePaste`.
+
 ### Capture & Today UX Improvements (COMPLETE)
 - **Today page Team Activity tile** now shows a live "Updated X ago" timestamp in its subtitle (`Today.tsx`). Refreshed via a 30s tick.
 - **CapturePanel drag/drop accepts `.vtt` and `.srt` files** alongside `.txt`/`.md`/`.markdown` for meeting transcript imports. File input `accept=` attribute and drop-overlay text updated accordingly.

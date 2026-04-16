@@ -11,6 +11,36 @@ import {
   Trash2, Plus, MessageSquare, Copy, Check, FileText, Maximize2
 } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
+import { handleImagePaste, type PastedImage } from '../../utils/imageAttachments'
+import { useImagePaths } from '../../hooks/useAttachedImages'
+
+function MessageImages({ paths }: { paths: string[] }) {
+  const urls = useImagePaths(paths)
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {paths.map((p, idx) => {
+        const url = urls[p]
+        if (!url) {
+          return (
+            <div
+              key={idx}
+              className="w-24 h-16 rounded-md border border-border bg-surface-raised/40 animate-pulse"
+              aria-label={`Loading ${p}`}
+            />
+          )
+        }
+        return (
+          <img
+            key={idx}
+            src={url}
+            alt={p.split('/').pop() || 'attached image'}
+            className="max-w-[180px] max-h-[180px] rounded-md border border-border object-cover"
+          />
+        )
+      })}
+    </div>
+  )
+}
 
 function titleFromMessage(content: string): string {
   const trimmed = content.slice(0, 50).trim()
@@ -49,6 +79,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null)
+  const [pendingImages, setPendingImages] = useState<PastedImage[]>([])
 
   useEffect(() => {
     return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
@@ -123,9 +154,10 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
   const handleSend = async (overrideText?: string) => {
     const text = overrideText || input.trim()
-    if (!text || streaming) return
+    const imagesToSend = overrideText ? [] : pendingImages
+    if ((!text && imagesToSend.length === 0) || streaming) return
 
-    if (!overrideText) setInput('')
+    if (!overrideText) { setInput(''); setPendingImages([]) }
     if (inputRef.current) inputRef.current.style.height = ''
     setToolStatus(null)
 
@@ -164,8 +196,15 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
 
     const fullContext = [contextHint, activityContext, fileContext].filter(Boolean).join('\n\n')
     // Delegate to shared context — survives unmount
-    await sendMessage(text, fullContext || undefined)
+    await sendMessage(text, fullContext || undefined, imagesToSend.length > 0 ? imagesToSend.map(i => i.path) : undefined)
     setToolStatus(null)
+  }
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const uploaded = await handleImagePaste(e)
+    if (uploaded.length > 0) {
+      setPendingImages(prev => [...prev, ...uploaded])
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -386,7 +425,12 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
                   <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content || '_No response received._'}</ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
+                <div className="space-y-1.5">
+                  {msg.imagePaths && msg.imagePaths.length > 0 && (
+                    <MessageImages paths={msg.imagePaths} />
+                  )}
+                  {msg.content && <p className="text-xs whitespace-pre-wrap">{msg.content}</p>}
+                </div>
               )}
             </div>
             {msg.role === 'user' && (
@@ -444,12 +488,33 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
             <span className="text-[10px] text-zinc-600">attached as context</span>
           </div>
         )}
+        {pendingImages.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2 px-1">
+            {pendingImages.map(img => (
+              <div key={img.id} className="relative group">
+                <img
+                  src={img.dataUrl}
+                  alt={img.filename}
+                  className="w-10 h-10 object-cover rounded-md border border-border"
+                />
+                <button
+                  onClick={() => setPendingImages(prev => prev.filter(i => i.id !== img.id))}
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-zinc-800 border border-border rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label={`Remove image ${img.filename}`}
+                >
+                  <X className="w-2.5 h-2.5" aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-2 bg-zinc-950 rounded-xl border border-border p-1.5 focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/10 transition-all">
           <textarea
             ref={inputRef}
             value={input}
             onChange={e => { setInput(e.target.value); resizeTextarea() }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Ask about your team…"
             aria-label="Ask about your team"
             rows={1}
@@ -466,7 +531,7 @@ export function AIFloatingPanel({ open, onClose }: { open: boolean; onClose: () 
           ) : (
             <button
               onClick={() => handleSend()}
-              disabled={!input.trim()}
+              disabled={!input.trim() && pendingImages.length === 0}
               aria-label="Send message"
               className="p-1.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-zinc-100 transition-all active:scale-[0.97] disabled:opacity-30 shrink-0"
             >
