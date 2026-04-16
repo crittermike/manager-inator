@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
 import { useToast } from '../components/common/Toast'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { getDay, format, getMonth, getDate } from 'date-fns'
+import { getDay, format, getMonth, getDate, formatDistanceToNow } from 'date-fns'
 import type { ReportStatus, ContextEntry, CadenceSettings, TeamActionItem, CustomPractice, TeamMemberActivity } from '../../shared/types'
 import { formatActivityCounts } from '../utils/activitySuggestions'
 import { matchesMeetingDay } from '../utils/meetingDay'
@@ -942,6 +942,7 @@ export function Today() {
 
   const [teamActivity, setTeamActivity] = useState<TeamMemberActivity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [activityFetchedAt, setActivityFetchedAt] = useState<Date | null>(null)
   const [activitySummaryPending, setActivitySummaryPending] = useState(false)
   const activitySummaryAttempted = useRef(false)
   const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
@@ -1167,6 +1168,7 @@ export function Today() {
     try {
       const data = await window.api.getTeamActivity()
       setTeamActivity(data)
+      setActivityFetchedAt(new Date())
     } catch (err) {
       console.error(err)
     } finally {
@@ -1177,6 +1179,20 @@ export function Today() {
   useEffect(() => {
     fetchTeamActivity()
   }, [fetchTeamActivity])
+
+  // Tick every 30s so the "last updated X minutes ago" label stays fresh
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    if (!activityFetchedAt) return
+    const interval = setInterval(() => setNowTick(Date.now()), 30_000)
+    return () => clearInterval(interval)
+  }, [activityFetchedAt])
+
+  const activityLastUpdatedLabel = useMemo(() => {
+    if (!activityFetchedAt) return null
+    void nowTick
+    return formatDistanceToNow(activityFetchedAt, { addSuffix: true })
+  }, [activityFetchedAt, nowTick])
 
   const generateActivitySummary = useCallback(async (data: TeamMemberActivity[]) => {
     const hasActivity = data.some(m => m.items.length > 0)
@@ -1664,7 +1680,12 @@ export function Today() {
               </div>
               <div>
                 <span className="text-sm font-semibold text-zinc-100">Team Activity</span>
-                <div className="text-xs text-zinc-500 mt-0.5">Recent GitHub work and AI summary</div>
+                <div className="text-xs text-zinc-500 mt-0.5">
+                  Recent GitHub work and AI summary
+                  {activityLastUpdatedLabel && (
+                    <span className="text-zinc-600"> · Updated {activityLastUpdatedLabel}</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">

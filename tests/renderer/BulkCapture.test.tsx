@@ -96,6 +96,8 @@ describe('CapturePanel bulk file processing', () => {
     expect(fileInput).not.toBeNull()
     expect(fileInput.accept).toContain('.txt')
     expect(fileInput.accept).toContain('.md')
+    expect(fileInput.accept).toContain('.vtt')
+    expect(fileInput.accept).toContain('.srt')
     expect(fileInput.multiple).toBe(true)
     expect(fileInput.className).toContain('hidden')
   })
@@ -253,5 +255,23 @@ describe('CapturePanel bulk file processing', () => {
     // The overlay should appear (state change triggers re-render)
     // Note: happy-dom event handling may not trigger React synthetic events perfectly,
     // so we verify the component renders the overlay when isDraggingFiles is true
+  })
+
+  it('accepts .vtt and .srt files via the capture-files-dropped event', async () => {
+    await act(async () => {
+      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+    })
+
+    const vttFile = new File(['WEBVTT\n\n00:00.000 --> 00:05.000\nHello'], 'transcript.vtt', { type: 'text/plain' })
+    const srtFile = new File(['1\n00:00:00,000 --> 00:00:05,000\nHello'], 'transcript.srt', { type: 'text/plain' })
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('capture-files-dropped', { detail: [vttFile, srtFile] }))
+      await new Promise(r => setTimeout(r, 100))
+    })
+
+    const text = container.textContent || ''
+    expect(text).toContain('transcript.vtt')
+    expect(text).toContain('transcript.srt')
   })
 })

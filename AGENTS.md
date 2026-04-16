@@ -2,6 +2,16 @@
 
 ## Recent Changes (April 2026)
 
+### Capture & Today UX Improvements (COMPLETE)
+- **Today page Team Activity tile** now shows a live "Updated X ago" timestamp in its subtitle (`Today.tsx`). Refreshed via a 30s tick.
+- **CapturePanel drag/drop accepts `.vtt` and `.srt` files** alongside `.txt`/`.md`/`.markdown` for meeting transcript imports. File input `accept=` attribute and drop-overlay text updated accordingly.
+- **Drag files directly onto the FAB** (`AppShell.tsx`) to kick off capture. The FAB has `onDragOver`/`onDrop` handlers that open the CapturePanel and dispatch a `capture-files-dropped` CustomEvent with the file list. The FAB also pulses/glows when a drag is hovering.
+- **CapturePanel listens for `capture-files-dropped`** and reuses the shared `processDroppedFiles(files)` helper (extracted from `handleDrop`) to handle both text files and images.
+
+### AI Rate Limit Handling (COMPLETE)
+- **Module-level rate limit tracking** in `src/main/github-activity.ts`: `_rateLimitedUntil` timestamp set when GitHub returns 403/429. All API functions (`fetchSearchPage`, `fetchDiscussions`, `fetchPRReviews`, `fetchIssueComments`) bail early when rate-limited instead of spamming errors.
+- `clearRateLimit()` exported for test isolation.
+
 ### AI Token Limit Fix (COMPLETE)
 - **Centralized prompt truncation** in `src/main/copilot.ts`: `truncateMessagesToFit()` estimates token count (~3 chars/token) and truncates messages to fit within a 130K token budget (168K model limit minus safety margin). Chat actions trim oldest history first; non-chat actions trim context from the end.
 - **Source-level context caps** applied consistently across all AI context assembly points:
