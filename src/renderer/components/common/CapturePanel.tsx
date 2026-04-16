@@ -463,6 +463,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             reports={reports}
             onStatusChange={handleStatusChange}
             onRemove={handleRemoveSession}
+            onNavigateAway={onClose}
           />
         ))}
       </div>

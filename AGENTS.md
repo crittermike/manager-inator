@@ -7,6 +7,7 @@
 - **CapturePanel drag/drop accepts `.vtt` and `.srt` files** alongside `.txt`/`.md`/`.markdown` for meeting transcript imports. File input `accept=` attribute and drop-overlay text updated accordingly.
 - **Drag files directly onto the FAB** (`AppShell.tsx`) to kick off capture. The FAB has `onDragOver`/`onDrop` handlers that open the CapturePanel and dispatch a `capture-files-dropped` CustomEvent with the file list. The FAB also pulses/glows when a drag is hovering.
 - **CapturePanel listens for `capture-files-dropped`** and reuses the shared `processDroppedFiles(files)` helper (extracted from `handleDrop`) to handle both text files and images.
+- **CaptureSession "View" button**: processed/saved captures now have a View action (alongside Edit/Delete) that navigates to `/context/{filename}?dir=contexts` — the same full-view page opened from Search. CapturePanel passes its `onClose` down as `onNavigateAway` so the panel dismisses before navigation. Tests wrap `<CapturePanel>` in `MemoryRouter` since `useNavigate` now fires inside CaptureSession.
 
 ### AI Rate Limit Handling (COMPLETE)
 - **Module-level rate limit tracking** in `src/main/github-activity.ts`: `_rateLimitedUntil` timestamp set when GitHub returns 403/429. All API functions (`fetchSearchPage`, `fetchDiscussions`, `fetchPRReviews`, `fetchIssueComments`) bail early when rate-limited instead of spamming errors.
