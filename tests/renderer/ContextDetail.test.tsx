@@ -50,7 +50,14 @@ Object.defineProperty(window, 'api', {
     saveMeetingTitle: mockSaveMeetingTitle,
     saveMeetingSpeakers: mockSaveMeetingSpeakers,
     listPeople: mockListPeople,
-    onDataFilesChanged: undefined
+    onDataFilesChanged: undefined,
+    onAiStreamReset: () => () => {},
+    onAiStreamChunk: () => () => {},
+    onAiStreamComplete: () => () => {},
+    onAiStreamError: () => () => {},
+    onAiToolCall: () => () => {},
+    onAiToolResult: () => () => {},
+    aiGenerate: vi.fn()
   },
   writable: true
 })

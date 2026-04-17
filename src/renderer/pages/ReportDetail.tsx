@@ -15,6 +15,7 @@ const REMARK_PLUGINS = [remarkGfm]
 import type { ActionItem, CheckIn, ContextNote, FeedbackEntry, PrepEntry, PersonActivityResult } from '../../shared/types'
 
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
+import { RefineWithAI } from '../components/common/RefineWithAI'
 import { StreamEntryCard } from '../components/report/StreamEntryCard'
 import type { StreamEntry } from '../components/report/StreamEntryCard'
 import {
@@ -2418,6 +2419,44 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
           </button>
         </div>
         <div className="flex items-center gap-1">
+          {!editingAbout && !editingJobExpectations && (
+            detailsTab === 'about' ? (
+              <RefineWithAI
+                filePath={`reports/${name}/profile.md`}
+                currentContent={aboutText}
+                documentType="about section"
+                modalTitle="Refine About"
+                onSaved={(updated) => {
+                  setReport(prev => prev ? { ...prev, profile: { ...prev.profile, about: updated.trim() } } : prev)
+                }}
+                onSaveOverride={async (updated) => {
+                  const profileContent = await window.api.getFileContent(`reports/${name}/profile.md`)
+                  const aboutSection = `## About\n\n${updated.trim()}`
+                  let merged: string
+                  if (profileContent.match(/## About\s*\n/)) {
+                    merged = profileContent.replace(/## About\s*\n[\s\S]*?(?=\n##|$)/, aboutSection)
+                  } else {
+                    merged = profileContent.trimEnd() + '\n\n' + aboutSection + '\n'
+                  }
+                  await window.api.commitFile(
+                    `reports/${name}/profile.md`,
+                    merged,
+                    `Refine via AI: about section for ${report.profile.displayName}`
+                  )
+                }}
+              />
+            ) : (
+              <RefineWithAI
+                filePath={`reports/${name}/job-expectations.md`}
+                currentContent={report.jobExpectations || ''}
+                documentType="job expectations"
+                modalTitle="Refine job expectations"
+                onSaved={(updated) => {
+                  setReport(prev => prev ? { ...prev, jobExpectations: updated } : prev)
+                }}
+              />
+            )
+          )}
           <button
             onClick={() => detailsTab === 'about' ? handleEditAbout() : handleEditJobExpectations()}
             className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"

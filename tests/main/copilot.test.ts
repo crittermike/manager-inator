@@ -274,6 +274,29 @@ describe('buildMessages', () => {
 
     expect(mockedCreateSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-5.4' }))
   })
+  it('refine-document includes current contents and instruction', () => {
+    const result = buildMessages('refine-document', {
+      currentContent: '# Old heading\n\nOriginal paragraph about the project.',
+      instruction: 'Change the project description to mention shipping in March.',
+      documentType: 'monthly check-in'
+    })
+    expect(result[1].role).toBe('system')
+    expect(result[1].content).toContain('monthly check-in')
+    expect(result[1].content).toContain('preserve it exactly')
+    expect(result[2].role).toBe('user')
+    expect(result[2].content).toContain('---DOCUMENT START---')
+    expect(result[2].content).toContain('Original paragraph about the project.')
+    expect(result[2].content).toContain('---DOCUMENT END---')
+    expect(result[2].content).toContain('Change the project description to mention shipping in March.')
+  })
+
+  it('refine-document falls back to "document" when type omitted', () => {
+    const result = buildMessages('refine-document', {
+      currentContent: 'hello',
+      instruction: 'make it more formal'
+    })
+    expect(result[1].content).toContain('editing a document')
+  })
 })
 
 describe('getClient authentication', () => {

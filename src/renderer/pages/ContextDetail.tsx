@@ -11,6 +11,7 @@ import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
 import { useSettings } from '../hooks/useData'
 import { useAttachedImages } from '../hooks/useAttachedImages'
+import { RefineWithAI } from '../components/common/RefineWithAI'
 
 export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
@@ -677,6 +678,24 @@ export function ContextDetail() {
             >
               <Download className="w-4 h-4" aria-hidden="true" />
             </button>
+            {activeTab === 'summary' && !isEditingContent && (
+              <RefineWithAI
+                filePath={`${dir}/${decodedFilename}`}
+                currentContent={rawContent || content || ''}
+                documentType={
+                  dir === 'contexts' ? 'context' :
+                  dir === 'people' ? 'people profile' :
+                  dir.includes('check-ins') ? 'monthly check-in' :
+                  dir.includes('reviews') ? 'performance review' :
+                  dir.includes('prep') ? '1:1 prep document' :
+                  'document'
+                }
+                onSaved={(updated) => {
+                  setRawContent(updated)
+                  setContent(cleanSummaryContent(updated))
+                }}
+              />
+            )}
           </div>
           
           {dir !== 'contexts' ? (

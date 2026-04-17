@@ -818,6 +818,36 @@ ${context.githubActivity ? `Current team GitHub activity (what's in-flight, what
       })
       break
 
+    case 'refine-document': {
+      const docType = (context.documentType as string) || 'document'
+      messages.push({
+        role: 'system',
+        content: `You are editing a ${docType} for a manager. The user will provide the current contents and an instruction describing what to change. Apply the instruction precisely.
+
+CRITICAL RULES:
+- Return ONLY the full updated document content. No preamble, no explanation, no markdown code fences around the output.
+- If the document starts with YAML frontmatter (between --- lines), preserve it exactly as-is unless the user explicitly asks to change frontmatter fields.
+- Preserve existing markdown structure, headings, and formatting style.
+- Only change what the user instructs. Do NOT rewrite or reorganize unaffected sections.
+- Do NOT add new sections or content unless the instruction asks for it.
+- Apply the WRITING RULES (no em dashes, sentence case headings, casual direct tone, no filler).
+- If the instruction is ambiguous or could not be reasonably applied, return the original document unchanged.`
+      })
+      messages.push({
+        role: 'user',
+        content: `Current ${docType} contents:
+
+---DOCUMENT START---
+${context.currentContent || ''}
+---DOCUMENT END---
+
+Instruction: ${context.instruction || ''}
+
+Return the full updated document.`
+      })
+      break
+    }
+
     default:
       messages.push({
         role: 'user',

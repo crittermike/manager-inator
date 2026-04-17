@@ -2,6 +2,13 @@
 
 ## Recent Changes (April 2026)
 
+### Refine with AI (COMPLETE)
+- **New AI action `refine-document`** (`src/main/copilot.ts`): rewrites a markdown document based on a natural-language instruction. System prompt enforces preserving YAML frontmatter, returning ONLY content (no fences), and only changing what was asked.
+- **Reusable `RefineWithAI` component** (`src/renderer/components/common/RefineWithAI.tsx`): sparkle (✨) icon button → modal with instruction textarea → Generate → before/after line diff → Accept commits via `commitFile`, Reject closes. Cmd+Enter submits. `stripCodeFence()` defensively strips ```` ```markdown ```` wrapping. Supports `onSaveOverride` prop for refining a sub-section of a file (e.g. About section merged into profile.md).
+- **Line diff utility** (`src/renderer/utils/lineDiff.ts`): pure LCS implementation, returns `[{op: 'equal'|'add'|'remove', text}]`. No new deps.
+- **Mounted on every markdown viewer**: ContextDetail (covers contexts/check-ins/reviews/preps/people via `dir` param), PersonDetail (Notes), MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About uses onSaveOverride to merge into profile.md; Job Expectations is whole-file).
+- Tests: 9 lineDiff tests, 8 RefineWithAI tests, 2 copilot `buildMessages` tests for `refine-document`. ContextDetail test mock updated to include AI stream listeners now that RefineWithAI uses `useAI`.
+
 ### AI Chat Image Paste Support (COMPLETE)
 - **Paste images into AI chat** (`Chat.tsx` and `AIFloatingPanel.tsx`): pasting an image in the chat input commits it to `attachments/` (via `commitBinaryFile`) and shows a removable thumbnail above the textarea. On send, the image paths are passed to the AI with the message.
 - New shared utilities in `src/renderer/utils/imageAttachments.ts`:

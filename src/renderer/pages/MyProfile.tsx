@@ -7,6 +7,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { useActiveFile } from '../hooks/useActiveFile'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
+import { RefineWithAI } from '../components/common/RefineWithAI'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -295,6 +296,15 @@ export function MyProfile() {
             <Edit3 className="w-4 h-4" aria-hidden="true" />
             {editing ? 'Cancel' : 'Edit'}
           </button>
+          {!editing && (
+            <RefineWithAI
+              filePath="impact-log.md"
+              currentContent={content}
+              documentType="impact log"
+              onSaved={(updated) => setContent(updated)}
+              className="!p-2"
+            />
+          )}
           <button
             onClick={() => setShowAdd(!showAdd)}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"
@@ -558,6 +568,14 @@ export function MyProfile() {
                       <Edit3 className="w-3.5 h-3.5" aria-hidden="true" />
                       Edit
                     </button>
+                    {selectedEntry && (
+                      <RefineWithAI
+                        filePath={`weekly-log/${selectedEntry.filename}`}
+                        currentContent={entryContent}
+                        documentType="weekly log entry"
+                        onSaved={(updated) => setEntryContent(updated)}
+                      />
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
                     <FolderOpen className="w-3 h-3" aria-hidden="true" />
