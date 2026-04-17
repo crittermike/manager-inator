@@ -170,7 +170,8 @@ describe('ReportDetail AI actions menu', () => {
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue(mockSettings),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
-        getFileContent: vi.fn().mockResolvedValue('mock file content')
+        getFileContent: vi.fn().mockResolvedValue('mock file content'),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -796,7 +797,8 @@ describe('ReportDetail More actions menu', () => {
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue(mockSettings),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
-        getFileContent: vi.fn().mockResolvedValue('mock file content')
+        getFileContent: vi.fn().mockResolvedValue('mock file content'),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -882,7 +884,8 @@ describe('ReportDetail More actions menu', () => {
         getSettings: vi.fn().mockResolvedValue(mockSettings),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
         getFileContent: vi.fn().mockResolvedValue('mock file content'),
-        saveSettings: vi.fn().mockResolvedValue(undefined)
+        saveSettings: vi.fn().mockResolvedValue(undefined),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -1040,11 +1043,16 @@ describe('ReportDetail expand button', () => {
 
     await act(async () => { contextEntry?.click() })
 
-    // Find the expand button (Maximize2 icon, aria-label="Open full view")
-    const expandBtn = container.querySelector('button[aria-label="Open full view"]') as HTMLButtonElement
-    expect(expandBtn).not.toBeNull()
+    // Open the "Open in…" dropdown and click "Open full view"
+    await act(async () => { await Promise.resolve() })
+    const openInTrigger = container.querySelector('button[aria-label="Open in…"]') as HTMLButtonElement
+    expect(openInTrigger).not.toBeNull()
+    await act(async () => { openInTrigger.click() })
+    const fullViewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Open full view')) as HTMLButtonElement
+    expect(fullViewItem).toBeDefined()
 
-    await act(async () => { expandBtn.click() })
+    await act(async () => { fullViewItem.click() })
 
     expect(mockNavigate).toHaveBeenCalledWith(
       '/context/2026-03-15-weekly-sync.md?dir=contexts'
@@ -1080,10 +1088,15 @@ describe('ReportDetail expand button', () => {
 
     await act(async () => { reviewEntry?.click() })
 
-    const expandBtn = container.querySelector('button[aria-label="Open full view"]') as HTMLButtonElement
-    expect(expandBtn).not.toBeNull()
+    await act(async () => { await Promise.resolve() })
+    const openInTrigger = container.querySelector('button[aria-label="Open in…"]') as HTMLButtonElement
+    expect(openInTrigger).not.toBeNull()
+    await act(async () => { openInTrigger.click() })
+    const fullViewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+      .find(b => b.textContent?.includes('Open full view')) as HTMLButtonElement
+    expect(fullViewItem).toBeDefined()
 
-    await act(async () => { expandBtn.click() })
+    await act(async () => { fullViewItem.click() })
 
     expect(mockNavigate).toHaveBeenCalledWith(
       '/context/fy26-h1.md?dir=reports/chanakya-valluri/reviews'
@@ -1227,7 +1240,8 @@ describe('Bug #22: AI state resets on name change', () => {
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue({}),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
-        getFileContent: vi.fn().mockResolvedValue(null)
+        getFileContent: vi.fn().mockResolvedValue(null),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })

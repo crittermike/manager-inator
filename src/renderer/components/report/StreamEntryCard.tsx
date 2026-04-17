@@ -312,16 +312,6 @@ export const StreamEntryCard = memo(function StreamEntryCard({
                 <div className="w-px h-4 bg-border mx-1" />
               </>
             )}
-            {onExpand && (
-              <button
-                onClick={() => onExpand(entry)}
-                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-                aria-label="Open full view"
-                title="Open full view"
-              >
-                <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-            )}
             {canRefine && refineContent != null && (
               <RefineWithAI
                 filePath={entryPath}
@@ -331,8 +321,20 @@ export const StreamEntryCard = memo(function StreamEntryCard({
                 className="!p-1"
               />
             )}
-            {canRefine && entryPath && (
-              <OpenInExternal filePath={entryPath} className="!gap-0" />
+            {canRefine && entryPath ? (
+              <OpenInExternal
+                filePath={entryPath}
+                onOpenFullView={onExpand ? () => onExpand(entry) : undefined}
+              />
+            ) : onExpand && (
+              <button
+                onClick={() => onExpand(entry)}
+                className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                aria-label="Open full view"
+                title="Open full view"
+              >
+                <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
             )}
             <button
               onClick={handleHeaderEdit}

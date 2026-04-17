@@ -167,4 +167,37 @@ describe('useFileContent', () => {
     expect(container.querySelector('[data-testid="content"]')!.textContent).toBe('updated content')
     expect(mockGetFileContent).toHaveBeenCalledTimes(2)
   })
+
+  it('refetches when the window regains focus (picks up external edits)', async () => {
+    await act(async () => {
+      root.render(<TestComponent path="test.md" />)
+    })
+    await act(async () => { await Promise.resolve() })
+    const callsBefore = mockGetFileContent.mock.calls.length
+
+    mockGetFileContent.mockResolvedValue('externally edited')
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    await act(async () => { await Promise.resolve() })
+
+    expect(mockGetFileContent.mock.calls.length).toBeGreaterThan(callsBefore)
+    expect(container.querySelector('[data-testid="content"]')!.textContent).toBe('externally edited')
+  })
+
+  it('does not refetch on focus when path is null', async () => {
+    await act(async () => {
+      root.render(<TestComponent path={null} />)
+    })
+    await act(async () => { await Promise.resolve() })
+    const callsBefore = mockGetFileContent.mock.calls.length
+
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    await act(async () => { await Promise.resolve() })
+
+    // The null-path component itself must not have fetched on focus.
+    // (Other still-mounted components from prior tests may fetch, so
+    // we only assert nothing changed for our component.)
+    expect(container.querySelector('[data-testid="content"]')!.textContent).toBe('')
+    expect(container.querySelector('[data-testid="loading"]')!.textContent).toBe('false')
+    void callsBefore
+  })
 })

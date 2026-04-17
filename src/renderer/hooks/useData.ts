@@ -187,6 +187,15 @@ export function useFileContent(path: string | null) {
     return load()
   }, [load])
 
+  // Auto-reload when the window regains focus, so external edits
+  // (in VS Code, Obsidian, etc.) show up without a manual refresh.
+  useEffect(() => {
+    if (!path) return
+    const onFocus = () => { load() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [path, load])
+
   const reload = useCallback(() => { load() }, [load])
 
   return { content, loading, error, reload }

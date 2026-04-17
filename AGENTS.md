@@ -3,13 +3,15 @@
 ## Recent Changes (April 2026)
 
 ### Open in External App (COMPLETE)
-- **New `OpenInExternal` component** (`src/renderer/components/common/OpenInExternal.tsx`): renders ✏️/📁 icon buttons next to RefineWithAI on every markdown viewer. Detection runs once at first mount and is cached for the session.
-- **Detection is OS-aware** (`src/main/external.ts` → `detectExternalApps()`): macOS-only currently. Checks `/Applications` and `~/Applications` for VS Code, Cursor, VSCodium (any one shows the VS Code button), and Obsidian. Returns `{ vscode, obsidian, finder }`. Buttons that are not detected are not rendered.
-- **URL schemes used**: `vscode://file<absolute-path>` and `obsidian://open?path=<absolute-path>` (Obsidian resolves the file via any registered vault). Reveal-in-Finder uses `shell.showItemInFolder`.
+- **Single-button dropdown** on every markdown viewer (`OpenInExternal`): clicking the ↗ icon opens a menu with "Open full view" (when applicable), "Open in VS Code", "Open in Obsidian", and "Reveal in Finder" — only the apps actually detected on the machine appear. Replaced the previous trio of separate icon buttons that cluttered the toolbar.
+- **`onOpenFullView` prop**: when provided, adds an "Open full view" item at the top of the dropdown. Used in `StreamEntryCard` so the inline-expanded report stream cards can navigate to the full ContextDetail page from the same menu.
+- **Auto-reload on window focus**: `useFileContent` (in `useData.ts`) now refetches whenever the window regains focus. This means edits made externally in VS Code/Obsidian appear in the app on switch-back without a manual refresh. Cached aggregates (`getReportData`, etc.) are NOT auto-refreshed on focus to avoid expensive recomputation.
+- **Detection is OS-aware** (`src/main/external.ts` → `detectExternalApps()`): macOS-only currently. Checks `/Applications` and `~/Applications` for VS Code, Cursor, VSCodium (any one shows the VS Code button), and Obsidian. Returns `{ vscode, obsidian, finder }`. Cached for the session.
+- **URL schemes used**: `vscode://file<absolute-path>` and `obsidian://open?path=<absolute-path>`. Reveal-in-Finder uses `shell.showItemInFolder`.
 - **Path traversal protected**: `safeAbsolutePath()` resolves under the configured `repoPath` and rejects anything that escapes via `..` or symlinks. Files must exist before being opened.
-- **Mounted alongside RefineWithAI**: ContextDetail, PersonDetail, MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About + Job Expectations), and the inline expanded view inside `StreamEntryCard` (which lazy-loads file content via `useFileContent` so the Refine + open buttons appear inside expanded check-ins, reviews, preps, and contexts on the report page).
-- New IPC: `external:detect`, `external:open-vscode`, `external:open-obsidian`, `external:reveal-in-finder`. `IpcApi` type updated.
-- Tests: 11 main-side (`tests/main/external.test.ts`) + 7 renderer (`tests/renderer/OpenInExternal.test.tsx`). Updated `ContextDetail.test.tsx` and `StreamEntryDelete.test.tsx` mocks to include the AI stream listeners now that RefineWithAI/StreamEntryCard pull in `useAI`.
+- **Mounted alongside RefineWithAI**: ContextDetail, PersonDetail, MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About + Job Expectations), and the inline expanded view inside `StreamEntryCard`.
+- IPC: `external:detect`, `external:open-vscode`, `external:open-obsidian`, `external:reveal-in-finder`.
+- Tests: 11 main-side + 10 renderer + 2 useFileContent focus-reload tests.
 
 ### Refine with AI (COMPLETE)
 - **New AI action `refine-document`** (`src/main/copilot.ts`): rewrites a markdown document based on a natural-language instruction. System prompt enforces preserving YAML frontmatter, returning ONLY content (no fences), and only changing what was asked.

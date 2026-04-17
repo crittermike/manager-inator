@@ -45,6 +45,13 @@ async function render(filePath = 'contexts/foo.md') {
   return { container, root }
 }
 
+async function openMenu(container: HTMLElement) {
+  const trigger = container.querySelector('button[aria-label="Open in…"]') as HTMLButtonElement
+  await act(async () => { trigger.click() })
+  await flush()
+  return container.querySelector('[role="menu"]') as HTMLElement | null
+}
+
 describe('OpenInExternal', () => {
   it('renders nothing when no apps are available', async () => {
     mockDetect.mockResolvedValue({ vscode: false, obsidian: false, finder: false })
@@ -52,42 +59,62 @@ describe('OpenInExternal', () => {
     expect(container.querySelector('button')).toBeNull()
   })
 
-  it('renders only buttons for detected apps', async () => {
-    mockDetect.mockResolvedValue({ vscode: true, obsidian: false, finder: true })
-    const { container } = await render()
-    expect(container.querySelector('button[aria-label="Open in VS Code"]')).not.toBeNull()
-    expect(container.querySelector('button[aria-label="Open in Obsidian"]')).toBeNull()
-    expect(container.querySelector('button[aria-label="Reveal in Finder"]')).not.toBeNull()
-  })
-
-  it('renders all three when everything is detected', async () => {
+  it('renders a single trigger button when apps are available', async () => {
     mockDetect.mockResolvedValue({ vscode: true, obsidian: true, finder: true })
     const { container } = await render()
-    expect(container.querySelectorAll('button').length).toBe(3)
+    const buttons = container.querySelectorAll('button')
+    expect(buttons.length).toBe(1)
+    expect(buttons[0].getAttribute('aria-label')).toBe('Open in…')
+    expect(buttons[0].getAttribute('title')).toBe('Open in…')
   })
 
-  it('invokes openInVSCode with the filePath when clicked', async () => {
+  it('shows menu items only for detected apps', async () => {
+    mockDetect.mockResolvedValue({ vscode: true, obsidian: false, finder: true })
+    const { container } = await render()
+    const menu = await openMenu(container)
+    expect(menu).not.toBeNull()
+    const items = menu!.querySelectorAll('[role="menuitem"]')
+    const labels = Array.from(items).map((b) => b.textContent?.trim())
+    expect(labels).toContain('Open in VS Code')
+    expect(labels).toContain('Reveal in Finder')
+    expect(labels).not.toContain('Open in Obsidian')
+  })
+
+  it('invokes openInVSCode when its menu item is clicked', async () => {
     mockDetect.mockResolvedValue({ vscode: true, obsidian: false, finder: false })
     const { container } = await render('reports/jane/profile.md')
-    const btn = container.querySelector('button[aria-label="Open in VS Code"]') as HTMLButtonElement
-    await act(async () => { btn.click() })
+    const menu = await openMenu(container)
+    const item = Array.from(menu!.querySelectorAll('[role="menuitem"]')).find((b) => b.textContent?.includes('VS Code')) as HTMLButtonElement
+    await act(async () => { item.click() })
     expect(mockOpenVSCode).toHaveBeenCalledWith('reports/jane/profile.md')
   })
 
-  it('invokes openInObsidian with the filePath when clicked', async () => {
+  it('invokes openInObsidian when its menu item is clicked', async () => {
     mockDetect.mockResolvedValue({ vscode: false, obsidian: true, finder: false })
     const { container } = await render('contexts/note.md')
-    const btn = container.querySelector('button[aria-label="Open in Obsidian"]') as HTMLButtonElement
-    await act(async () => { btn.click() })
+    const menu = await openMenu(container)
+    const item = Array.from(menu!.querySelectorAll('[role="menuitem"]')).find((b) => b.textContent?.includes('Obsidian')) as HTMLButtonElement
+    await act(async () => { item.click() })
     expect(mockOpenObsidian).toHaveBeenCalledWith('contexts/note.md')
   })
 
-  it('invokes revealInFinder when clicked', async () => {
+  it('invokes revealInFinder when its menu item is clicked', async () => {
     mockDetect.mockResolvedValue({ vscode: false, obsidian: false, finder: true })
     const { container } = await render('weekly-log/2026-04.md')
-    const btn = container.querySelector('button[aria-label="Reveal in Finder"]') as HTMLButtonElement
-    await act(async () => { btn.click() })
+    const menu = await openMenu(container)
+    const item = Array.from(menu!.querySelectorAll('[role="menuitem"]')).find((b) => b.textContent?.includes('Finder')) as HTMLButtonElement
+    await act(async () => { item.click() })
     expect(mockReveal).toHaveBeenCalledWith('weekly-log/2026-04.md')
+  })
+
+  it('closes the menu after selecting an item', async () => {
+    mockDetect.mockResolvedValue({ vscode: true, obsidian: false, finder: false })
+    const { container } = await render()
+    const menu = await openMenu(container)
+    const item = menu!.querySelector('[role="menuitem"]') as HTMLButtonElement
+    await act(async () => { item.click() })
+    await flush()
+    expect(container.querySelector('[role="menu"]')).toBeNull()
   })
 
   it('caches the detection call across multiple instances', async () => {
@@ -96,5 +123,35 @@ describe('OpenInExternal', () => {
     await render('b.md')
     await render('c.md')
     expect(mockDetect).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders an "Open full view" item when onOpenFullView is provided', async () => {
+    mockDetect.mockResolvedValue({ vscode: true, obsidian: false, finder: false })
+    const onFullView = vi.fn()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+    await act(async () => {
+      root.render(React.createElement(OpenInExternal, { filePath: 'a.md', onOpenFullView: onFullView }))
+    })
+    await flush()
+    const menu = await openMenu(container)
+    const items = Array.from(menu!.querySelectorAll('[role="menuitem"]'))
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Open full view', 'Open in VS Code'])
+    const fullView = items.find((b) => b.textContent?.includes('full view')) as HTMLButtonElement
+    await act(async () => { fullView.click() })
+    expect(onFullView).toHaveBeenCalled()
+  })
+
+  it('renders the trigger when onOpenFullView is provided even with no external apps', async () => {
+    mockDetect.mockResolvedValue({ vscode: false, obsidian: false, finder: false })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+    await act(async () => {
+      root.render(React.createElement(OpenInExternal, { filePath: 'a.md', onOpenFullView: vi.fn() }))
+    })
+    await flush()
+    expect(container.querySelector('button[aria-label="Open in…"]')).not.toBeNull()
   })
 })
