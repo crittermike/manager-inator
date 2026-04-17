@@ -5,6 +5,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 import { IMPACT_LOG_PATH } from '../../shared/constants'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -210,6 +211,7 @@ export function ImpactLog() {
               className="!p-2"
             />
           )}
+          <OpenInExternal filePath={IMPACT_LOG_PATH} />
           <button
             onClick={() => setShowAdd(!showAdd)}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-all active:scale-[0.97]"

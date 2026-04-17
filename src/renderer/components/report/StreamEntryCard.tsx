@@ -8,6 +8,8 @@ import { useFileContent } from '../../hooks/useData'
 import { useAttachedImages } from '../../hooks/useAttachedImages'
 import { useToast } from '../common/Toast'
 import { FormattedDate } from '../common/FormattedDate'
+import { RefineWithAI } from '../common/RefineWithAI'
+import { OpenInExternal } from '../common/OpenInExternal'
 import {
   ChevronDown,
   ChevronRight,
@@ -235,6 +237,15 @@ export const StreamEntryCard = memo(function StreamEntryCard({
   }, [expanded])
 
   const canEditDelete = entry.type !== 'action'
+  const canRefine = expanded && (entry.type === 'context' || entry.type === 'checkin' || entry.type === 'review' || entry.type === 'prep')
+  const refinePath = canRefine ? entryPath : null
+  const { content: refineContent } = useFileContent(refinePath)
+  const refineDocumentType =
+    entry.type === 'context' ? 'context' :
+    entry.type === 'checkin' ? 'monthly check-in' :
+    entry.type === 'review' ? 'performance review' :
+    entry.type === 'prep' ? '1:1 prep document' :
+    'document'
 
   const handleHeaderEdit = useCallback(() => {
     if (entry.type === 'context' || entry.type === 'prep') {
@@ -310,6 +321,18 @@ export const StreamEntryCard = memo(function StreamEntryCard({
               >
                 <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
+            )}
+            {canRefine && refineContent != null && (
+              <RefineWithAI
+                filePath={entryPath}
+                currentContent={refineContent}
+                documentType={refineDocumentType}
+                onSaved={() => { /* file change events trigger reload */ }}
+                className="!p-1"
+              />
+            )}
+            {canRefine && entryPath && (
+              <OpenInExternal filePath={entryPath} className="!gap-0" />
             )}
             <button
               onClick={handleHeaderEdit}

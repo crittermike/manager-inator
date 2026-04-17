@@ -2,6 +2,15 @@
 
 ## Recent Changes (April 2026)
 
+### Open in External App (COMPLETE)
+- **New `OpenInExternal` component** (`src/renderer/components/common/OpenInExternal.tsx`): renders ✏️/📁 icon buttons next to RefineWithAI on every markdown viewer. Detection runs once at first mount and is cached for the session.
+- **Detection is OS-aware** (`src/main/external.ts` → `detectExternalApps()`): macOS-only currently. Checks `/Applications` and `~/Applications` for VS Code, Cursor, VSCodium (any one shows the VS Code button), and Obsidian. Returns `{ vscode, obsidian, finder }`. Buttons that are not detected are not rendered.
+- **URL schemes used**: `vscode://file<absolute-path>` and `obsidian://open?path=<absolute-path>` (Obsidian resolves the file via any registered vault). Reveal-in-Finder uses `shell.showItemInFolder`.
+- **Path traversal protected**: `safeAbsolutePath()` resolves under the configured `repoPath` and rejects anything that escapes via `..` or symlinks. Files must exist before being opened.
+- **Mounted alongside RefineWithAI**: ContextDetail, PersonDetail, MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About + Job Expectations), and the inline expanded view inside `StreamEntryCard` (which lazy-loads file content via `useFileContent` so the Refine + open buttons appear inside expanded check-ins, reviews, preps, and contexts on the report page).
+- New IPC: `external:detect`, `external:open-vscode`, `external:open-obsidian`, `external:reveal-in-finder`. `IpcApi` type updated.
+- Tests: 11 main-side (`tests/main/external.test.ts`) + 7 renderer (`tests/renderer/OpenInExternal.test.tsx`). Updated `ContextDetail.test.tsx` and `StreamEntryDelete.test.tsx` mocks to include the AI stream listeners now that RefineWithAI/StreamEntryCard pull in `useAI`.
+
 ### Refine with AI (COMPLETE)
 - **New AI action `refine-document`** (`src/main/copilot.ts`): rewrites a markdown document based on a natural-language instruction. System prompt enforces preserving YAML frontmatter, returning ONLY content (no fences), and only changing what was asked.
 - **Reusable `RefineWithAI` component** (`src/renderer/components/common/RefineWithAI.tsx`): sparkle (✨) icon button → modal with instruction textarea → Generate → before/after line diff → Accept commits via `commitFile`, Reject closes. Cmd+Enter submits. `stripCodeFence()` defensively strips ```` ```markdown ```` wrapping. Supports `onSaveOverride` prop for refining a sub-section of a file (e.g. About section merged into profile.md).

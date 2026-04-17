@@ -15,6 +15,20 @@ vi.mock('../../src/renderer/components/common/Toast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() })
 }))
 
+Object.defineProperty(window, 'api', {
+  value: {
+    onAiStreamReset: () => () => {},
+    onAiStreamChunk: () => () => {},
+    onAiStreamComplete: () => () => {},
+    onAiStreamError: () => () => {},
+    onAiToolCall: () => () => {},
+    onAiToolResult: () => () => {},
+    aiGenerate: vi.fn(),
+    detectExternalApps: () => Promise.resolve({ vscode: false, obsidian: false, finder: false })
+  },
+  writable: true
+})
+
 import { StreamEntryCard } from '../../src/renderer/components/report/StreamEntryCard'
 
 describe('Bug #26: StreamEntryCard delete uses single confirmation', () => {

@@ -16,6 +16,7 @@ import type { ActionItem, CheckIn, ContextNote, FeedbackEntry, PrepEntry, Person
 
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 import { StreamEntryCard } from '../components/report/StreamEntryCard'
 import type { StreamEntry } from '../components/report/StreamEntryCard'
 import {
@@ -2456,6 +2457,11 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
                 }}
               />
             )
+          )}
+          {!editingAbout && !editingJobExpectations && (
+            <OpenInExternal
+              filePath={detailsTab === 'about' ? `reports/${name}/profile.md` : `reports/${name}/job-expectations.md`}
+            />
           )}
           <button
             onClick={() => detailsTab === 'about' ? handleEditAbout() : handleEditJobExpectations()}

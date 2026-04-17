@@ -12,6 +12,7 @@ import { ComboInput } from '../components/common/ComboInput'
 import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
 import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 
 export function PersonDetail() {
   const { slug } = useParams<{ slug: string }>()
@@ -355,6 +356,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
               >
                 <Pencil className="w-4 h-4" aria-hidden="true" />
               </button>
+              <OpenInExternal filePath={`people/${slug}.md`} />
             </div>
           ) : (
             <div className="flex items-center gap-1">

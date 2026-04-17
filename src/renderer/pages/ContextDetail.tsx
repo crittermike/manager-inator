@@ -12,6 +12,7 @@ import { useActiveFile } from '../hooks/useActiveFile'
 import { useSettings } from '../hooks/useData'
 import { useAttachedImages } from '../hooks/useAttachedImages'
 import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 
 export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
@@ -696,6 +697,7 @@ export function ContextDetail() {
                 }}
               />
             )}
+            <OpenInExternal filePath={`${dir}/${decodedFilename}`} />
           </div>
           
           {dir !== 'contexts' ? (

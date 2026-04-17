@@ -46,6 +46,7 @@ import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, s
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 import { detectTeam } from './hubbers'
+import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder } from './external'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -279,6 +280,12 @@ export function setupIpcHandlers(): void {
       }
     }
   })
+
+  // ── Open file in external app ──
+  safeHandle('external:detect', () => detectExternalApps())
+  safeHandle('external:open-vscode', (_e, path) => openInVSCode(path as string))
+  safeHandle('external:open-obsidian', (_e, path) => openInObsidian(path as string))
+  safeHandle('external:reveal-in-finder', (_e, path) => { revealInFinder(path as string); return true })
 
   // ── Test-only IPC handlers for E2E setup ──
   if (process.env['ELECTRON_USER_DATA']) {

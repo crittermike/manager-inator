@@ -400,6 +400,10 @@ export interface IpcApi {
   onUpdateReady: (cb: (version: string) => void) => () => void
   installUpdate: () => Promise<void>
   startPrewarm: () => Promise<void>
+  detectExternalApps: () => Promise<{ vscode: boolean; obsidian: boolean; finder: boolean }>
+  openInVSCode: (path: string) => Promise<void>
+  openInObsidian: (path: string) => Promise<void>
+  revealInFinder: (path: string) => Promise<boolean>
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void
