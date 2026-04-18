@@ -155,6 +155,35 @@ export interface ReportStatus {
   checkInCount: number
 }
 
+// ── Per-report repo sync ──
+export interface ReportSyncStatus {
+  canSync: boolean
+  ghUsername: string
+  owner: string
+  destPath: string
+  cloned: boolean
+  error?: string
+}
+
+export interface ReportSyncEntry {
+  source: string
+  dest: string
+}
+
+export interface ReportSyncPreview {
+  added: ReportSyncEntry[]
+  updated: ReportSyncEntry[]
+  unchanged: ReportSyncEntry[]
+}
+
+export interface ReportSyncResult {
+  added: ReportSyncEntry[]
+  updated: ReportSyncEntry[]
+  pushed: boolean
+  pushError?: string
+  commitSha?: string
+}
+
 // ── Manager workflow checklist item ──
 export type WorkflowCategory = 'daily' | 'weekly' | 'monthly' | 'weekend-preview'
 export type WorkflowPriority = 'high' | 'medium' | 'low'
@@ -404,6 +433,9 @@ export interface IpcApi {
   openInVSCode: (path: string) => Promise<void>
   openInObsidian: (path: string) => Promise<void>
   revealInFinder: (path: string) => Promise<boolean>
+  getReportSyncStatus: (slug: string) => Promise<ReportSyncStatus>
+  previewReportSync: (slug: string) => Promise<ReportSyncPreview>
+  syncReport: (slug: string) => Promise<ReportSyncResult>
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void

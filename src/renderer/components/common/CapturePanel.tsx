@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useTeamOverview } from '../../hooks/useData'
 import { ClipboardPaste, X, ChevronDown, ChevronUp, Plus, Loader2, Check, AlertCircle, Pencil, FileUp } from 'lucide-react'
 import { CaptureSession } from './CaptureSession'
+import { cleanTranscript } from '../../utils/transcriptCleaners'
 
 type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other' | ''
 type SessionState = 'processing' | 'saved' | 'editing' | 'error'
@@ -161,13 +162,18 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     Promise.all(readers).then(results => {
       const newSessions = results
         .filter(r => r.content.trim().length > 0)
-        .map(r => ({
-          id: crypto.randomUUID(),
-          content: r.content.trim(),
-          sourceHint: sourceHint as SourceHint,
-          status: 'processing' as SessionState,
-          fileName: r.name,
-        }))
+        .map(r => {
+          const cleaned = cleanTranscript(r.name, r.content)
+          const isTranscript = /\.(vtt|srt)$/i.test(r.name)
+          return {
+            id: crypto.randomUUID(),
+            content: cleaned.trim(),
+            // Force meeting hint for VTT/SRT — these are always meeting transcripts.
+            sourceHint: (isTranscript ? 'meeting' : sourceHint) as SourceHint,
+            status: 'processing' as SessionState,
+            fileName: r.name,
+          }
+        })
       if (newSessions.length > 0) {
         setSessions(prev => [...newSessions, ...prev])
       }

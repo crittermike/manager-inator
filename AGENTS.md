@@ -2,6 +2,37 @@
 
 ## Recent Changes (April 2026)
 
+### Per-direct-report repo sync + transcript cleanup (COMPLETE)
+Two related features shipped together so that managers can keep their main repo as the source of truth while still pushing curated content to per-report private repos.
+
+**Feature A: VTT/SRT transcript cleanup at capture time**
+- New pure utility `src/renderer/utils/transcriptCleaners.ts` exports `cleanTranscript(filename, raw)` and dispatches by extension to VTT or SRT cleaners (anything else passes through).
+- VTT path parses cue-by-cue and pulls speakers from `<v Speaker>...</v>` voice tags (closing tag often missing — `VOICE_TAG` regex handles both forms). Strips `WEBVTT` header, `NOTE` blocks, cue ids, timestamps, residual HTML, decodes entities.
+- SRT path strips sequence numbers + timestamps, detects inline `Speaker:` prefix.
+- Both pipe through `mergeAdjacentSameSpeaker` — **must require BOTH speakers be non-null to merge**, or sequential narration paragraphs collapse into one blob.
+- Output format: `**Speaker:** text\n\n` blocks; falls back to plain paragraphs when no speakers detected.
+- Wired into `CapturePanel.createSessionsFromFiles`: `.vtt`/`.srt` files get cleaned + forced `sourceHint='meeting'` before being stuffed into a session.
+- 15 tests in `tests/renderer/transcriptCleaners.test.ts`.
+
+**Feature B: On-demand sync to `<owner>/1-1-<github-username>` repo**
+- New main module `src/main/syncToReport.ts`. Local cache lives at `app.getPath('userData') + '/synced-repos/1-1-<gh>'`.
+- Owner derivation: prefers `getSettings().repoOwner`; falls back to parsing source repo's `origin` URL via `parseGithubOwnerFromOrigin` (only accepts GitHub HTTPS or SSH — rejects everything else).
+- GitHub username validation regex: `/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/` — applied to BOTH `profile.github` and the owner before any URL/path construction.
+- Auth-safe git invocations: every `spawnGit` call sets `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=echo`, `SSH_ASKPASS=echo` so git fails fast instead of hanging on credential prompts.
+- **Strict 1:1 predicate** `isOneOnOneWith` requires `frontmatter.source === 'meeting'` AND case-insensitive normalized `speakers` set equals exactly `{currentUserName, reportName-or-alias}` (size === 2). Anything else (team standups, group meetings, 1:1s with other reports) is excluded — protects against cross-report leakage. There is regression coverage for this.
+- **File mapping**:
+  - `reports/<slug>/check-ins/monthly/<YYYY-MM>.md` → `check-ins/<YYYY-MM>.md`
+  - `reports/<slug>/reviews/<file>.md` → `reviews/<file>.md`
+  - For each `contexts/*.md` matching the strict 1:1 predicate: summary (everything before `## Raw content`) → `summaries/<date>.md`, raw content (after `## Raw content`, if non-empty) → `transcripts/<date>.md`. All frontmatter stripped.
+- **Stable date-collision suffixes**: contexts grouped by date, sorted alphabetically by source filename, suffixes `''`, `-2`, `-3` assigned by index. Summary and transcript for the same source file always share a suffix (paired correctly). Preview and sync use the same planner so counts always agree.
+- **Append-only mirror** (per user choice): preview returns only `{added, updated, unchanged}`. Stale dest files are never deleted.
+- Path safety: `destSafePath` walks up checking for symlinks that escape the dest root. Even though dest is a clone of a user-owned repo, malicious symlinks could escape.
+- Dirty-check before write: `ensureClean` runs `git status --porcelain` and aborts only if MANAGED_DIRS (`check-ins`, `reviews`, `summaries`, `transcripts`) have uncommitted changes. README/etc. edits are user's business.
+- IPC: `report:get-sync-status`, `report:preview-sync`, `report:sync` in `src/main/ipc.ts`. Preload exposes `getReportSyncStatus`, `previewReportSync`, `syncReport`. Types in `src/shared/types.ts`: `ReportSyncStatus`, `ReportSyncEntry`, `ReportSyncPreview`, `ReportSyncResult`.
+- UI: "Sync to 1-1-<gh> repo" item appears in the existing **More actions** menu on `ReportDetail`, gated on `report.profile.github` being set. Click → preview → ConfirmDialog showing `{added, updated, unchanged}` counts plus the first 8 dest paths → confirm → sync → toast (success / "saved locally but push failed" / already up to date).
+- **`ConfirmDialog.message` now respects `\n` line breaks** via `whitespace-pre-line` (was previously collapsed to a single line). Multi-line preview messages render correctly.
+- 45 tests in `tests/main/syncToReport.test.ts` covering URL parsing, username validation, the 1:1 predicate (incl. team-standup regression), summary/transcript extraction, and `planWrites` mapping incl. the same-day stable-suffix regression.
+
 ### Auto-track meeting attendees on capture (COMPLETE)
 - When the Capture panel saves a meeting (AI `source === 'meeting'` OR `sourceHint === 'meeting'`), it now writes a `speakers:` frontmatter field to the new context file containing the current user (`settings.userName`) plus every name in `classified.people_mentioned`. Previously only `people:` (slugs) was written, so the ContextDetail "Attendees" UI showed "No attendees recorded" until the user manually edited speakers.
 - The classify prompt was tightened to require every meeting attendee in `people_mentioned`, even silent ones, so 1:1s reliably end up with both parties listed.

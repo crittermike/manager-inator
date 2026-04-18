@@ -106,7 +106,7 @@ export function ConfirmDialog({
           </button>
         </div>
 
-        <p className="text-zinc-300 mb-8 leading-relaxed">
+        <p className="text-zinc-300 mb-8 leading-relaxed whitespace-pre-line">
           {message}
         </p>
 

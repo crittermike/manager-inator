@@ -190,6 +190,8 @@ export function ReportDetail() {
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [showPtoModal, setShowPtoModal] = useState(false)
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
+  const [syncPreview, setSyncPreview] = useState<import('../../shared/types').ReportSyncPreview | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
   const [ptoInput, setPtoInput] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 7)
@@ -1080,6 +1082,47 @@ export function ReportDetail() {
     }
   }, [name, report, toast, refreshSettings, navigate])
 
+  const handlePreviewSync = useCallback(async () => {
+    if (!name) return
+    setSyncBusy(true)
+    try {
+      const status = await window.api.getReportSyncStatus(name)
+      if (!status.canSync) {
+        toast.error(status.error || 'Cannot sync this report')
+        return
+      }
+      const preview = await window.api.previewReportSync(name)
+      setSyncPreview(preview)
+    } catch (e) {
+      console.error('Failed to preview sync:', e)
+      toast.error(e instanceof Error ? e.message : 'Failed to preview sync')
+    } finally {
+      setSyncBusy(false)
+    }
+  }, [name, toast])
+
+  const handleConfirmSync = useCallback(async () => {
+    if (!name) return
+    setSyncBusy(true)
+    try {
+      const result = await window.api.syncReport(name)
+      const total = result.added.length + result.updated.length
+      if (result.pushed) {
+        toast.success(`Synced ${total} file${total === 1 ? '' : 's'} to repo`)
+      } else if (total > 0) {
+        toast.error(`Saved ${total} file${total === 1 ? '' : 's'} locally but push failed: ${result.pushError || 'unknown error'}`)
+      } else {
+        toast.info('Repo already up to date')
+      }
+    } catch (e) {
+      console.error('Failed to sync:', e)
+      toast.error(e instanceof Error ? e.message : 'Failed to sync')
+    } finally {
+      setSyncBusy(false)
+      setSyncPreview(null)
+    }
+  }, [name, toast])
+
   // ── Build activity stream ──
 
   const streamEntries = useMemo((): StreamEntry[] => {
@@ -1475,6 +1518,20 @@ export function ReportDetail() {
                           <Plane className={`w-4 h-4 ${isOnPto ? 'text-amber-400' : 'text-zinc-400'}`} aria-hidden="true" />
                           {isOnPto ? 'Clear PTO' : 'Mark PTO'}
                         </button>
+                        {report.profile.github && (
+                          <button
+                            role="menuitem"
+                            disabled={syncBusy}
+                            onClick={() => {
+                              setShowMoreMenu(false)
+                              void handlePreviewSync()
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Upload className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                            Sync to 1-1-{report.profile.github} repo
+                          </button>
+                        )}
                         <button
                           role="menuitem"
                           onClick={() => {
@@ -2288,8 +2345,33 @@ export function ReportDetail() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      <ConfirmDialog
+        open={syncPreview !== null}
+        title={`Sync to 1-1-${report?.profile.github ?? ''} repo`}
+        message={syncPreview ? buildSyncPreviewMessage(syncPreview) : ''}
+        confirmLabel={syncBusy ? 'Syncing…' : 'Sync now'}
+        onConfirm={handleConfirmSync}
+        onCancel={() => setSyncPreview(null)}
+      />
     </div>
   )
+}
+
+function buildSyncPreviewMessage(preview: import('../../shared/types').ReportSyncPreview): string {
+  const a = preview.added.length
+  const u = preview.updated.length
+  const n = preview.unchanged.length
+  if (a === 0 && u === 0) {
+    return `No changes to sync. ${n} file${n === 1 ? '' : 's'} already up to date.`
+  }
+  const lines: string[] = []
+  lines.push(`${a} new, ${u} updated, ${n} unchanged.`)
+  lines.push('')
+  const samples = [...preview.added, ...preview.updated].slice(0, 8)
+  for (const e of samples) lines.push(`• ${e.dest}`)
+  const more = a + u - samples.length
+  if (more > 0) lines.push(`…and ${more} more`)
+  return lines.join('\n')
 }
 
 // ── Editable Details Panel (About + Job Expectations) ──

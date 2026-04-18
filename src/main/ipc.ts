@@ -47,6 +47,7 @@ import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 import { detectTeam } from './hubbers'
 import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder } from './external'
+import { getRepoSyncStatus, previewSync, syncReport } from './syncToReport'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -286,6 +287,11 @@ export function setupIpcHandlers(): void {
   safeHandle('external:open-vscode', (_e, path) => openInVSCode(path as string))
   safeHandle('external:open-obsidian', (_e, path) => openInObsidian(path as string))
   safeHandle('external:reveal-in-finder', (_e, path) => { revealInFinder(path as string); return true })
+
+  // ── Per-report repo sync ──
+  safeHandle('report:get-sync-status', (_e, slug) => getRepoSyncStatus(slug as string))
+  safeHandle('report:preview-sync', (_e, slug) => previewSync(slug as string))
+  safeHandle('report:sync', (_e, slug) => syncReport(slug as string))
 
   // ── Test-only IPC handlers for E2E setup ──
   if (process.env['ELECTRON_USER_DATA']) {
