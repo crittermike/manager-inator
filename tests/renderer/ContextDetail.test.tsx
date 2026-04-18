@@ -159,6 +159,29 @@ Great quarter with solid delivery.`
 
       expect(container.textContent).toContain('2026-03-15')
     })
+
+    it('refetches file content when window regains focus', async () => {
+      mockGetFileContent.mockResolvedValue(contextContent)
+      await act(async () => {
+        root.render(<ContextDetail />)
+      })
+      await act(async () => { await Promise.resolve() })
+
+      const callsBefore = mockGetFileContent.mock.calls.length
+      expect(callsBefore).toBeGreaterThan(0)
+
+      const updated = contextContent.replace('We discussed the roadmap.', 'Updated externally.')
+      mockGetFileContent.mockResolvedValue(updated)
+
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'))
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(mockGetFileContent.mock.calls.length).toBeGreaterThan(callsBefore)
+      expect(container.textContent).toContain('Updated externally.')
+    })
   })
 
   describe('non-context files (reviews, check-ins, preps)', () => {

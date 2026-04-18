@@ -48,6 +48,9 @@ export function ContextDetail() {
   const [isEditingSpeakers, setIsEditingSpeakers] = useState(false)
   const [editingSpeakersList, setEditingSpeakersList] = useState<string[]>([])
   const [speakerInput, setSpeakerInput] = useState('')
+
+  const isEditingAnythingRef = useRef(false)
+  isEditingAnythingRef.current = isEditingContent || isEditingTitle || isEditingSpeakers
   const [showSpeakerDropdown, setShowSpeakerDropdown] = useState(false)
   const [saving, setSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -90,12 +93,18 @@ export function ContextDetail() {
 
   useEffect(() => {
     if (!decodedFilename) return
-    
+
     let isMounted = true
-    setLoading(true)
-    setError(null)
-    
-    window.api.getFileContent(`${dir}/${decodedFilename}`)
+    let isInitialLoad = true
+
+    const loadContent = () => {
+      if (isInitialLoad) {
+        setLoading(true)
+        setError(null)
+      }
+      isInitialLoad = false
+
+      window.api.getFileContent(`${dir}/${decodedFilename}`)
       .then((rawContent) => {
         if (!isMounted) return
         
@@ -228,8 +237,17 @@ export function ContextDetail() {
           setLoading(false)
         }
       })
-      
-    return () => { isMounted = false }
+    }
+
+    loadContent()
+
+    const onFocus = () => { if (isMounted && !isEditingAnythingRef.current) loadContent() }
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      isMounted = false
+      window.removeEventListener('focus', onFocus)
+    }
   }, [decodedFilename, dir])
 
   // Sync viewed file to AI context
