@@ -1106,6 +1106,52 @@ describe('ReportDetail expand button', () => {
     container.remove()
     mockReport.reviews = origReviews
   })
+
+  it('cancelling edit on a context entry closes the inline editor (no double content)', async () => {
+    const origContextNotes = mockReport.contextNotes
+    mockReport.contextNotes = [{
+      date: '2026-03-15',
+      source: 'meeting' as const,
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap priorities.',
+      tags: [],
+      people: [],
+      content: '',
+      filename: '2026-03-15-weekly-sync.md'
+    }]
+    mockUseFileContent.mockReturnValue({ content: '# File content', loading: false })
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<ReportDetail />)
+    })
+
+    // Expand the context entry
+    const contextEntry = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Weekly sync'))
+    await act(async () => { contextEntry?.click() })
+
+    // Click the header Edit (Pencil) button
+    const editBtn = container.querySelector('button[aria-label="Edit"]') as HTMLButtonElement
+    expect(editBtn).not.toBeNull()
+    await act(async () => { editBtn.click() })
+
+    // The InlineEditor renders a Cancel button
+    const cancelBtn = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === 'Cancel') as HTMLButtonElement
+    expect(cancelBtn).toBeDefined()
+    await act(async () => { cancelBtn.click() })
+
+    // The viewing pane (titled "Edit Content") must be gone after cancel
+    expect(container.textContent).not.toContain('Edit Content')
+
+    await act(async () => { root.unmount() })
+    container.remove()
+    mockReport.contextNotes = origContextNotes
+  })
 })
 
 describe('ReportDetail filter switching preserves state', () => {

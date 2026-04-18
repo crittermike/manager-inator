@@ -2177,7 +2177,7 @@ export function ReportDetail() {
                     onEditContent={handleEditContent}
                     onDeleteContent={handleDeleteContent}
                     onSaveContent={handleSaveContent}
-                    onCancelEdit={() => setIsEditingContent(false)}
+                    onCancelEdit={() => { setIsEditingContent(false); setViewingContent(null) }}
                     onUpdateFeedback={handleUpdateFeedback}
                     onDeleteFeedback={handleDeleteFeedback}
                     onExpand={['context', 'checkin', 'review', 'prep'].includes(entry.type) ? handleExpand : undefined}

@@ -12,6 +12,7 @@
 - **Mounted alongside RefineWithAI**: ContextDetail, PersonDetail, MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About + Job Expectations), and the inline expanded view inside `StreamEntryCard`.
 - IPC: `external:detect`, `external:open-vscode`, `external:open-obsidian`, `external:reveal-in-finder`.
 - Tests: 11 main-side + 10 renderer + 2 useFileContent focus-reload tests.
+- **Bug fix (cancel-edit double content)**: In `ReportDetail.tsx`, clicking Edit then Cancel on a context/prep stream card was leaving `viewingContent` set, so the inline editor closed back to a read-only viewer pane that rendered the same file already shown by `ContextDetail` above — duplicate content. Fix: `onCancelEdit` now clears both `isEditingContent` AND `viewingContent`. Regression test added in `tests/renderer/ReportDetail.test.tsx`.
 
 ### Refine with AI (COMPLETE)
 - **New AI action `refine-document`** (`src/main/copilot.ts`): rewrites a markdown document based on a natural-language instruction. System prompt enforces preserving YAML frontmatter, returning ONLY content (no fences), and only changing what was asked.
