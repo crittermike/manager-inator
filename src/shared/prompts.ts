@@ -68,7 +68,7 @@ Required JSON shape:
 }
 
 Rules:
-- "people_mentioned" should only include people who are meaningfully discussed, not just @mentioned in passing
+- "people_mentioned" should only include people who are meaningfully discussed, not just @mentioned in passing. For meetings (especially 1:1s), ALWAYS include every attendee/participant of the meeting in this list, even if they only listened.
 - "feedback" should only contain concrete, behavior-anchored observations about my direct reports
 - For "person" fields, use the exact name from my reports list when possible
 - If no feedback, action items, or impact exist, use empty arrays

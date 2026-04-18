@@ -2,6 +2,11 @@
 
 ## Recent Changes (April 2026)
 
+### Auto-track meeting attendees on capture (COMPLETE)
+- When the Capture panel saves a meeting (AI `source === 'meeting'` OR `sourceHint === 'meeting'`), it now writes a `speakers:` frontmatter field to the new context file containing the current user (`settings.userName`) plus every name in `classified.people_mentioned`. Previously only `people:` (slugs) was written, so the ContextDetail "Attendees" UI showed "No attendees recorded" until the user manually edited speakers.
+- The classify prompt was tightened to require every meeting attendee in `people_mentioned`, even silent ones, so 1:1s reliably end up with both parties listed.
+- Helper extracted to `src/renderer/utils/captureAttendees.ts` (`buildMeetingAttendees`, `shouldRecordAttendees`) with unit tests in `tests/renderer/captureAttendees.test.ts`.
+
 ### Open in External App (COMPLETE)
 - **Single-button dropdown** on every markdown viewer (`OpenInExternal`): clicking the ↗ icon opens a menu with "Open full view" (when applicable), "Open in VS Code", "Open in Obsidian", and "Reveal in Finder" — only the apps actually detected on the machine appear. Replaced the previous trio of separate icon buttons that cluttered the toolbar.
 - **`onOpenFullView` prop**: when provided, adds an "Open full view" item at the top of the dropdown. Used in `StreamEntryCard` so the inline-expanded report stream cards can navigate to the full ContextDetail page from the same menu.
