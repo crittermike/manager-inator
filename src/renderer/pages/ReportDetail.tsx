@@ -2223,11 +2223,11 @@ export function ReportDetail() {
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr] items-start">
-            {/* ── Left: list ── */}
+            {/* ── Left: list (sticky, scrolls internally) ── */}
             <nav
               aria-label="Activity stream"
               data-testid="stream-list"
-              className={`space-y-1 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto lg:pr-1 ${animating ? 'animate-fade-up' : ''}`}
+              className={`space-y-1 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1 ${animating ? 'animate-fade-up' : ''}`}
             >
               {(() => {
                 let lastGroup = ''
@@ -2256,8 +2256,8 @@ export function ReportDetail() {
               })()}
             </nav>
 
-            {/* ── Right: detail pane ── */}
-            <div data-testid="stream-detail" className="lg:sticky lg:top-4 min-w-0">
+            {/* ── Right: detail pane (flows naturally; page scrolls) ── */}
+            <div data-testid="stream-detail" className="min-w-0">
               {(() => {
                 const selected = filteredEntries.find(e => e.id === selectedStreamEntryId) ?? filteredEntries[0]
                 if (!selected) {
