@@ -53,10 +53,10 @@ async function openMenu(container: HTMLElement) {
 }
 
 describe('OpenInExternal', () => {
-  it('renders nothing when no apps are available', async () => {
+  it('always renders the trigger, since "Open on GitHub" is unconditional', async () => {
     mockDetect.mockResolvedValue({ vscode: false, obsidian: false, finder: false })
     const { container } = await render()
-    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('button[aria-label="Open in…"]')).not.toBeNull()
   })
 
   it('renders a single trigger button when apps are available', async () => {
@@ -137,7 +137,7 @@ describe('OpenInExternal', () => {
     await flush()
     const menu = await openMenu(container)
     const items = Array.from(menu!.querySelectorAll('[role="menuitem"]'))
-    expect(items.map((b) => b.textContent?.trim())).toEqual(['Open full view', 'Open in VS Code'])
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Open full view', 'Open in VS Code', 'Open on GitHub'])
     const fullView = items.find((b) => b.textContent?.includes('full view')) as HTMLButtonElement
     await act(async () => { fullView.click() })
     expect(onFullView).toHaveBeenCalled()

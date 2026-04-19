@@ -46,7 +46,7 @@ import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, s
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 import { detectTeam } from './hubbers'
-import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder } from './external'
+import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder, openInGitHub } from './external'
 import { getRepoSyncStatus, previewSync, syncReport } from './syncToReport'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
@@ -287,6 +287,7 @@ export function setupIpcHandlers(): void {
   safeHandle('external:open-vscode', (_e, path) => openInVSCode(path as string))
   safeHandle('external:open-obsidian', (_e, path) => openInObsidian(path as string))
   safeHandle('external:reveal-in-finder', (_e, path) => { revealInFinder(path as string); return true })
+  safeHandle('external:open-github', (_e, path) => openInGitHub(path as string))
 
   // ── Per-report repo sync ──
   safeHandle('report:get-sync-status', (_e, slug) => getRepoSyncStatus(slug as string))

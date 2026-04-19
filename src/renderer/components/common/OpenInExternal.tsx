@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FolderOpen, Code2, FileText, ExternalLink, Maximize2 } from 'lucide-react'
+import { FolderOpen, Code2, FileText, ExternalLink, Maximize2, Github } from 'lucide-react'
 
 interface Props {
   filePath: string
@@ -63,7 +63,10 @@ export function OpenInExternal({ filePath, className, onOpenFullView }: Props) {
 
   if (!detection) return null
   const hasExternal = detection.vscode || detection.obsidian || detection.finder
-  if (!hasExternal && !onOpenFullView) return null
+  // Always show the menu — Open in GitHub is unconditional (no app detection needed).
+  // hasExternal is no longer a hard gate, but kept for future logic.
+  void hasExternal
+  if (!onOpenFullView && !detection) return null
 
   const api = window.api
 
@@ -96,6 +99,17 @@ export function OpenInExternal({ filePath, className, onOpenFullView }: Props) {
       onClick: () => api.revealInFinder(filePath).catch((err) => console.error('Reveal in Finder failed:', err))
     })
   }
+  items.push({
+    label: 'Open on GitHub',
+    icon: Github,
+    onClick: () => {
+      if (typeof api.openInGitHub !== 'function') {
+        console.warn('[OpenInExternal] openInGitHub unavailable — restart dev server.')
+        return
+      }
+      api.openInGitHub(filePath).catch((err) => console.error('Open on GitHub failed:', err))
+    }
+  })
 
   return (
     <div ref={menuRef} className={`relative inline-block ${className || ''}`}>

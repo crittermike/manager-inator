@@ -122,3 +122,77 @@ describe('revealInFinder', () => {
     expect(mockShowItemInFolder).not.toHaveBeenCalled()
   })
 })
+
+describe('openInGitHub', () => {
+  // Mock child_process.spawn so we can simulate git rev-parse / git config calls.
+  function mockGit(responses: Record<string, { code: number; stdout?: string; stderr?: string }>) {
+    return vi.doMock('child_process', () => ({
+      spawn: (_cmd: string, args: string[]) => {
+        const key = args.join(' ')
+        const r = responses[key] ?? { code: 1, stderr: `unexpected git args: ${key}` }
+        return {
+          stdout: { on: (ev: string, cb: (b: Buffer) => void) => { if (ev === 'data' && r.stdout) cb(Buffer.from(r.stdout)) } },
+          stderr: { on: (ev: string, cb: (b: Buffer) => void) => { if (ev === 'data' && r.stderr) cb(Buffer.from(r.stderr)) } },
+          on: (ev: string, cb: (code: number) => void) => { if (ev === 'close') setImmediate(() => cb(r.code)) },
+        }
+      }
+    }))
+  }
+
+  it('builds URL using settings owner/repo and current branch', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockGetSettings.mockReturnValue({ repoPath: REPO, repoOwner: 'crittermike', repoName: 'critters' })
+    mockGit({ 'rev-parse --abbrev-ref HEAD': { code: 0, stdout: 'main\n' } })
+    const { openInGitHub } = await import('../../src/main/external')
+    await openInGitHub('contexts/foo.md')
+    expect(mockOpenExternal).toHaveBeenCalledWith('https://github.com/crittermike/critters/blob/main/contexts/foo.md')
+  })
+
+  it('URL-encodes path segments with spaces and special chars', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockGetSettings.mockReturnValue({ repoPath: REPO, repoOwner: 'o', repoName: 'r' })
+    mockGit({ 'rev-parse --abbrev-ref HEAD': { code: 0, stdout: 'main\n' } })
+    const { openInGitHub } = await import('../../src/main/external')
+    await openInGitHub('contexts/has spaces & symbols.md')
+    expect(mockOpenExternal).toHaveBeenCalledWith(
+      `https://github.com/o/r/blob/main/contexts/${encodeURIComponent('has spaces & symbols.md')}`
+    )
+  })
+
+  it('falls back to parsing origin URL when settings owner/repo missing', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockGetSettings.mockReturnValue({ repoPath: REPO, repoOwner: '', repoName: '' })
+    mockGit({
+      'config --get remote.origin.url': { code: 0, stdout: 'git@github.com:foo/bar.git\n' },
+      'rev-parse --abbrev-ref HEAD': { code: 0, stdout: 'develop\n' },
+    })
+    const { openInGitHub } = await import('../../src/main/external')
+    await openInGitHub('contexts/foo.md')
+    expect(mockOpenExternal).toHaveBeenCalledWith('https://github.com/foo/bar/blob/develop/contexts/foo.md')
+  })
+
+  it('defaults to "main" when HEAD is detached', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockGetSettings.mockReturnValue({ repoPath: REPO, repoOwner: 'o', repoName: 'r' })
+    mockGit({ 'rev-parse --abbrev-ref HEAD': { code: 0, stdout: 'HEAD\n' } })
+    const { openInGitHub } = await import('../../src/main/external')
+    await openInGitHub('a.md')
+    expect(mockOpenExternal).toHaveBeenCalledWith('https://github.com/o/r/blob/main/a.md')
+  })
+
+  it('blocks path traversal', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockGetSettings.mockReturnValue({ repoPath: REPO, repoOwner: 'o', repoName: 'r' })
+    const { openInGitHub } = await import('../../src/main/external')
+    await expect(openInGitHub('../etc/passwd')).rejects.toThrow(/Path traversal blocked/)
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+  })
+
+  it('throws when origin URL is non-GitHub and settings are unset', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockGetSettings.mockReturnValue({ repoPath: REPO, repoOwner: '', repoName: '' })
+    mockGit({ 'config --get remote.origin.url': { code: 0, stdout: 'https://gitlab.com/owner/repo.git\n' } })
+    const { openInGitHub } = await import('../../src/main/external')
+    await expect(openInGitHub('a.md')).rejects.toThrow(/Could not determine GitHub/)
+  })
+})

@@ -84,6 +84,7 @@ contextBridge.exposeInMainWorld('api', {
   openInVSCode: (path: string) => ipcRenderer.invoke('external:open-vscode', path),
   openInObsidian: (path: string) => ipcRenderer.invoke('external:open-obsidian', path),
   revealInFinder: (path: string) => ipcRenderer.invoke('external:reveal-in-finder', path),
+  openInGitHub: (path: string) => ipcRenderer.invoke('external:open-github', path),
   getReportSyncStatus: (slug: string) => ipcRenderer.invoke('report:get-sync-status', slug),
   previewReportSync: (slug: string) => ipcRenderer.invoke('report:preview-sync', slug),
   syncReport: (slug: string) => ipcRenderer.invoke('report:sync', slug),

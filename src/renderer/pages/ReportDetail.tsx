@@ -1130,8 +1130,9 @@ export function ReportDetail() {
 
   // Subscribe to sync progress events from main
   useEffect(() => {
-    if (typeof window.api.onReportSyncProgress !== 'function') return
-    const unsubscribe = window.api.onReportSyncProgress((data) => {
+    const api = (window as { api?: { onReportSyncProgress?: (cb: (d: unknown) => void) => () => void } }).api
+    if (!api || typeof api.onReportSyncProgress !== 'function') return
+    const unsubscribe = api.onReportSyncProgress((data) => {
       setSyncProgress(data as import('../../shared/types').ReportSyncProgress)
     })
     return unsubscribe

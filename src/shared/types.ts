@@ -451,6 +451,7 @@ export interface IpcApi {
   openInVSCode: (path: string) => Promise<void>
   openInObsidian: (path: string) => Promise<void>
   revealInFinder: (path: string) => Promise<boolean>
+  openInGitHub: (path: string) => Promise<void>
   getReportSyncStatus: (slug: string) => Promise<ReportSyncStatus>
   previewReportSync: (slug: string) => Promise<ReportSyncPreview>
   syncReport: (slug: string) => Promise<ReportSyncResult>
