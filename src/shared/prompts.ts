@@ -96,8 +96,6 @@ Use this format:
 # Monthly check-in: {month}
 _{displayName}, {monthName}_
 
-> ⚠️ This document is for manager's records only.
-
 ## Accomplishments
 ## Concerns
 ## Goal progress
