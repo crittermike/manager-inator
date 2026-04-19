@@ -10,6 +10,15 @@ Two related features shipped together so that managers can keep their main repo 
 - `isOneOnOneWith` was loosened: speakers must now be a non-empty subset of `{currentUserName, reportName-or-alias}` AND must contain the report. Empty speakers and >2 speakers still rejected. This accepts the very common case where the meeting tool only transcribes the report (manager isn't transcribed), without weakening cross-report leakage protection — because every speaker is still required to be either the user or the report.
 - **Open on GitHub**: `OpenInExternal` dropdown now always includes "Open on GitHub" (icon `Github`), invoking `window.api.openInGitHub(filePath)`. `src/main/external.ts#openInGitHub` builds the URL from `settings.repoOwner`/`repoName`, falls back to parsing `git remote.origin.url` (HTTPS or SSH GitHub only), defaults branch to `main` when HEAD is detached, URL-encodes path segments, and rejects path traversal. IPC: `external:open-github`.
 
+### Master/detail "inbox" stream view (April 2026)
+- `ReportDetail`'s activity stream switched from inline expand-in-place to a two-pane email-inbox layout: compact list on the left, detail pane on the right (`lg:grid-cols-[minmax(260px,340px)_1fr]`). Below the `lg` breakpoint they stack.
+- New compact list-row component: `src/renderer/components/report/StreamEntryRow.tsx` (badge + title + preview + date, `aria-current` highlight when selected). Detail pane reuses the existing `<StreamEntryCard expanded={true}>` so all detail UX (refine, edit, file viewer, etc.) carries over unchanged.
+- Selection state: `selectedStreamEntryId` is **separate from** `expandedItems`. The latter still drives the GitHub activity accordion — do not unify them.
+- Auto-select: the first visible entry is auto-selected on filter change / data refresh; selection is cleared/retargeted whenever the selected id is no longer in `filteredEntries`.
+- AI context sync now keys off `selectedStreamEntryId` (was `expandedItems.size === 1`).
+- `useListNavigation` j/k now sets selection (was toggling expansion).
+- Tests: `tests/renderer/StreamEntryRow.test.tsx` (5 tests) for the row component; `tests/renderer/ReportDetail.test.tsx` "master/detail stream" describe block covers auto-select + click-to-select. Existing tests continue to pass because they query the DOM by visible text and the same content now appears in the detail pane.
+
 **Feature A: VTT/SRT transcript cleanup at capture time**
 - New pure utility `src/renderer/utils/transcriptCleaners.ts` exports `cleanTranscript(filename, raw)` and dispatches by extension to VTT or SRT cleaners (anything else passes through).
 - VTT path parses cue-by-cue and pulls speakers from `<v Speaker>...</v>` voice tags (closing tag often missing — `VOICE_TAG` regex handles both forms). Strips `WEBVTT` header, `NOTE` blocks, cue ids, timestamps, residual HTML, decodes entities.

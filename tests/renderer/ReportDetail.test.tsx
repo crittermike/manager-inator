@@ -1313,3 +1313,78 @@ describe('Bug #22: AI state resets on name change', () => {
     await act(async () => { root.unmount() })
   })
 })
+
+describe('ReportDetail master/detail stream', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true, writable: true })
+    document.body.innerHTML = ''
+    mockNavigate.mockReset()
+    mockUseFileContent.mockReset()
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        listContexts: vi.fn().mockResolvedValue([]),
+        fetchActivityForPerson: vi.fn().mockResolvedValue(null),
+        getMonthlyActivity: vi.fn().mockResolvedValue(null),
+        commitFile: vi.fn().mockResolvedValue(undefined),
+        getSettings: vi.fn().mockResolvedValue(mockSettings),
+        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getFileContent: vi.fn().mockResolvedValue('mock'),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false }),
+      }
+    })
+  })
+
+  it('renders both stream-list and stream-detail panes when entries exist', async () => {
+    const orig = mockReport.contextNotes
+    mockReport.contextNotes = [
+      { date: '2026-04-15', source: 'meeting', title: 'Sync A', summary: 'A summary', tags: [], people: [], content: '', filename: '2026-04-15-a.md' },
+      { date: '2026-04-14', source: 'meeting', title: 'Sync B', summary: 'B summary', tags: [], people: [], content: '', filename: '2026-04-14-b.md' },
+    ]
+    const { container, root } = await renderReportDetail()
+    await flushPromises()
+
+    const list = container.querySelector('[data-testid="stream-list"]')
+    const detail = container.querySelector('[data-testid="stream-detail"]')
+    expect(list).not.toBeNull()
+    expect(detail).not.toBeNull()
+
+    // First entry auto-selected: row has aria-current=true
+    const selectedRows = list!.querySelectorAll('button[aria-current="true"]')
+    expect(selectedRows.length).toBe(1)
+    expect(selectedRows[0].textContent).toContain('Sync A')
+
+    // Detail pane shows the selected entry's title
+    expect(detail!.textContent).toContain('Sync A')
+
+    await act(async () => { root.unmount() })
+    mockReport.contextNotes = orig
+  })
+
+  it('clicking a different row updates aria-current and detail pane', async () => {
+    const orig = mockReport.contextNotes
+    mockReport.contextNotes = [
+      { date: '2026-04-15', source: 'meeting', title: 'Sync A', summary: 'A summary', tags: [], people: [], content: '', filename: '2026-04-15-a.md' },
+      { date: '2026-04-14', source: 'meeting', title: 'Sync B', summary: 'B summary', tags: [], people: [], content: '', filename: '2026-04-14-b.md' },
+    ]
+    const { container, root } = await renderReportDetail()
+    await flushPromises()
+
+    const list = container.querySelector('[data-testid="stream-list"]')!
+    const rowB = Array.from(list.querySelectorAll('button')).find(b => b.textContent?.includes('Sync B')) as HTMLButtonElement
+    expect(rowB).toBeDefined()
+    await act(async () => { rowB.click() })
+
+    const selectedRows = list.querySelectorAll('button[aria-current="true"]')
+    expect(selectedRows.length).toBe(1)
+    expect(selectedRows[0].textContent).toContain('Sync B')
+
+    const detail = container.querySelector('[data-testid="stream-detail"]')!
+    expect(detail.textContent).toContain('Sync B')
+
+    await act(async () => { root.unmount() })
+    mockReport.contextNotes = orig
+  })
+})

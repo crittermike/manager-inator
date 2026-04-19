@@ -19,6 +19,7 @@ import { RefineWithAI } from '../components/common/RefineWithAI'
 import { OpenInExternal } from '../components/common/OpenInExternal'
 import { StreamEntryCard } from '../components/report/StreamEntryCard'
 import type { StreamEntry } from '../components/report/StreamEntryCard'
+import { StreamEntryRow } from '../components/report/StreamEntryRow'
 import {
   ArrowLeft,
   Calendar,
@@ -126,8 +127,11 @@ export function ReportDetail() {
     }
   }, [])
 
-  // Expanded item tracking
+  // Expanded item tracking (used by GitHub activity section + legacy callers)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  // Selected entry in the master/detail stream view (single selection).
+  const [selectedStreamEntryId, setSelectedStreamEntryId] = useState<string | null>(null)
 
   // AI generation states
   const [showAI, setShowAI] = useState(false)
@@ -1247,8 +1251,8 @@ export function ReportDetail() {
   const navEnabled = !showAI && !isEditingContent && !viewingContent && !showPtoModal
   const handleNavSelect = useCallback((index: number) => {
     const entry = filteredEntries[index]
-    if (entry) toggleExpanded(entry.id)
-  }, [filteredEntries, toggleExpanded])
+    if (entry) setSelectedStreamEntryId(entry.id)
+  }, [filteredEntries])
   const { getItemProps: getNavProps } = useListNavigation({
     itemCount: filteredEntries.length,
     onSelect: handleNavSelect,
@@ -1268,14 +1272,12 @@ export function ReportDetail() {
     }
   }, [navigate, name])
 
-  // Sync expanded entry content to AI context (for check-ins, reviews, etc.)
+  // Sync selected entry content to AI context (for check-ins, reviews, etc.)
   useEffect(() => {
     if (viewingContent) return // File viewer has its own sync
-    if (expandedItems.size !== 1) { setActiveFile(null); return }
-    const expandedId = [...expandedItems][0]
-    const entry = streamEntries.find(e => e.id === expandedId)
+    if (!selectedStreamEntryId) { setActiveFile(null); return }
+    const entry = streamEntries.find(e => e.id === selectedStreamEntryId)
     if (!entry) return
-    // Only sync types that have meaningful file content
     if (entry.type === 'checkin') {
       setActiveFile({ path: `reports/${name}/check-ins/monthly/${entry.data.date}.md`, title: entry.title, content: '' })
     } else if (entry.type === 'review') {
@@ -1285,7 +1287,18 @@ export function ReportDetail() {
     } else if (entry.type === 'feedback') {
       setActiveFile({ path: '', title: entry.title, content: entry.data.content })
     }
-  }, [expandedItems, streamEntries, viewingContent, name, setActiveFile])
+  }, [selectedStreamEntryId, streamEntries, viewingContent, name, setActiveFile])
+
+  // Auto-select first visible entry; clear selection when entry no longer visible.
+  useEffect(() => {
+    if (filteredEntries.length === 0) {
+      if (selectedStreamEntryId !== null) setSelectedStreamEntryId(null)
+      return
+    }
+    if (!selectedStreamEntryId || !filteredEntries.some(e => e.id === selectedStreamEntryId)) {
+      setSelectedStreamEntryId(filteredEntries[0].id)
+    }
+  }, [filteredEntries, selectedStreamEntryId])
 
   // ── Pre-computed values (must be above early returns to preserve hook ordering) ──
 
@@ -2159,8 +2172,8 @@ export function ReportDetail() {
         })}
       </div>
 
-      {/* ── Activity Stream ── */}
-      <div className="space-y-2">
+      {/* ── Activity Stream — master/detail (inbox-style) ── */}
+      <div>
         {filteredEntries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
             <div className="w-12 h-12 rounded-full bg-surface-raised flex items-center justify-center mb-4">
@@ -2209,33 +2222,64 @@ export function ReportDetail() {
             )}
           </div>
         ) : (
-          (() => {
-            let lastGroup = ''
-            return filteredEntries.map((entry, idx) => {
-              const toggleKey = entry.type === 'action'
-                ? entry.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
-                : false
-              const group = entry.pinned ? '' : getTimeGroup(entry.date)
-              const showHeader = group && group !== lastGroup
-              if (showHeader) lastGroup = group
-              return (
-                <div key={entry.id}>
-                  {showHeader && (
-                    <div className={`flex items-center gap-3 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-6'} mb-2`} role="heading" aria-level={3}>
-                      <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{group}</span>
-                      <hr className="flex-1 border-0 h-px bg-border" aria-hidden="true" />
+          <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr] items-start">
+            {/* ── Left: list ── */}
+            <nav
+              aria-label="Activity stream"
+              data-testid="stream-list"
+              className={`space-y-1 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto lg:pr-1 ${animating ? 'animate-fade-up' : ''}`}
+            >
+              {(() => {
+                let lastGroup = ''
+                return filteredEntries.map((entry, idx) => {
+                  const group = entry.pinned ? '' : getTimeGroup(entry.date)
+                  const showHeader = group && group !== lastGroup
+                  if (showHeader) lastGroup = group
+                  return (
+                    <div key={entry.id}>
+                      {showHeader && (
+                        <div className={`flex items-center gap-2 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-4'} mb-1.5 px-1`} role="heading" aria-level={3}>
+                          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{group}</span>
+                          <hr className="flex-1 border-0 h-px bg-border" aria-hidden="true" />
+                        </div>
+                      )}
+                      <div {...getNavProps(idx)}>
+                        <StreamEntryRow
+                          entry={entry}
+                          selected={entry.id === selectedStreamEntryId}
+                          onSelect={setSelectedStreamEntryId}
+                        />
+                      </div>
                     </div>
-                  )}
-                  <div {...getNavProps(idx)} className={animating ? 'animate-fade-up' : ''} style={animating ? { animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' } : undefined}>
+                  )
+                })
+              })()}
+            </nav>
+
+            {/* ── Right: detail pane ── */}
+            <div data-testid="stream-detail" className="lg:sticky lg:top-4 min-w-0">
+              {(() => {
+                const selected = filteredEntries.find(e => e.id === selectedStreamEntryId) ?? filteredEntries[0]
+                if (!selected) {
+                  return (
+                    <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-zinc-500">
+                      Select an entry to view details
+                    </div>
+                  )
+                }
+                const toggleKey = selected.type === 'action'
+                  ? selected.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
+                  : false
+                return (
                   <StreamEntryCard
-                    entry={entry}
-                    expanded={expandedItems.has(entry.id)}
-                    onToggle={toggleExpanded}
+                    entry={selected}
+                    expanded={true}
+                    onToggle={() => { /* no-op in master/detail */ }}
                     name={name!}
                     onViewContent={handleViewContent}
                     onToggleAction={handleToggleAction}
                     isToggling={toggleKey}
-                    isViewing={viewingContent?.id === entry.id}
+                    isViewing={viewingContent?.id === selected.id}
                     viewingPath={viewingContent?.path ?? null}
                     viewingTitle={viewingContent?.title ?? null}
                     fileContent={fileContent}
@@ -2252,13 +2296,12 @@ export function ReportDetail() {
                     onCancelEdit={() => { setIsEditingContent(false); setViewingContent(null) }}
                     onUpdateFeedback={handleUpdateFeedback}
                     onDeleteFeedback={handleDeleteFeedback}
-                    onExpand={['context', 'checkin', 'review', 'prep'].includes(entry.type) ? handleExpand : undefined}
+                    onExpand={['context', 'checkin', 'review', 'prep'].includes(selected.type) ? handleExpand : undefined}
                   />
-                  </div>
-                </div>
-              )
-            })
-          })()
+                )
+              })()}
+            </div>
+          </div>
         )}
       </div>
 
