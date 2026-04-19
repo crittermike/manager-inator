@@ -110,24 +110,40 @@ describe('isOneOnOneWith', () => {
     expect(isOneOnOneWith({ ...base, speakers: ['Mike Crittenden', 'Steve Richert', 'Alice Smith'] })).toBe(false)
   })
 
-  it('rejects solo meetings (1 speaker)', () => {
+  it('rejects when current user name is empty but speakers includes user', () => {
+    // With no userName configured, we can't recognize the user as such — so
+    // {me, report} can no longer be evaluated. {report} alone still works.
+    expect(isOneOnOneWith({ ...base, currentUserName: '', speakers: ['Mike Crittenden', 'Steve Richert'] })).toBe(false)
+  })
+
+  it('accepts speakers list containing only the report (manager not transcribed)', () => {
+    // REGRESSION: many real 1:1 transcripts only list the report in speakers
+    // because the manager isn't transcribed by the meeting tool.
+    expect(isOneOnOneWith({ ...base, speakers: ['Steve Richert'] })).toBe(true)
+  })
+
+  it('accepts speakers list containing only a report alias', () => {
+    expect(isOneOnOneWith({ ...base, reportAliases: ['Steve'], speakers: ['Steve'] })).toBe(true)
+  })
+
+  it('rejects speakers list containing only the current user (no report present)', () => {
     expect(isOneOnOneWith({ ...base, speakers: ['Mike Crittenden'] })).toBe(false)
   })
 
-  it('rejects when current user is not present', () => {
+  it('rejects empty speakers list', () => {
+    expect(isOneOnOneWith({ ...base, speakers: [] })).toBe(false)
+  })
+
+  it('REGRESSION: rejects {report, third-party} (would leak across reports)', () => {
     expect(isOneOnOneWith({ ...base, speakers: ['Steve Richert', 'Alice Smith'] })).toBe(false)
   })
 
-  it('rejects when the named report is not present', () => {
-    expect(isOneOnOneWith({ ...base, speakers: ['Mike Crittenden', 'Alice Smith'] })).toBe(false)
+  it('rejects when only third party is in speakers', () => {
+    expect(isOneOnOneWith({ ...base, speakers: ['Alice Smith'] })).toBe(false)
   })
 
   it('handles duplicate speaker entries (case-insensitive dedup)', () => {
     expect(isOneOnOneWith({ ...base, speakers: ['Mike Crittenden', 'mike crittenden', 'Steve Richert'] })).toBe(true)
-  })
-
-  it('rejects when current user name is empty', () => {
-    expect(isOneOnOneWith({ ...base, currentUserName: '', speakers: ['Mike Crittenden', 'Steve Richert'] })).toBe(false)
   })
 })
 

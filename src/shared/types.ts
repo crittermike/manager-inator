@@ -184,6 +184,24 @@ export interface ReportSyncResult {
   commitSha?: string
 }
 
+export type ReportSyncStage =
+  | 'starting'
+  | 'cloning'
+  | 'fetching'
+  | 'planning'
+  | 'comparing'
+  | 'writing'
+  | 'committing'
+  | 'pushing'
+  | 'done'
+
+export interface ReportSyncProgress {
+  stage: ReportSyncStage
+  message: string
+  current?: number
+  total?: number
+}
+
 // ── Manager workflow checklist item ──
 export type WorkflowCategory = 'daily' | 'weekly' | 'monthly' | 'weekend-preview'
 export type WorkflowPriority = 'high' | 'medium' | 'low'
@@ -436,6 +454,7 @@ export interface IpcApi {
   getReportSyncStatus: (slug: string) => Promise<ReportSyncStatus>
   previewReportSync: (slug: string) => Promise<ReportSyncPreview>
   syncReport: (slug: string) => Promise<ReportSyncResult>
+  onReportSyncProgress: (cb: (data: ReportSyncProgress) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void

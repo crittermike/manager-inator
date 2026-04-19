@@ -87,6 +87,11 @@ contextBridge.exposeInMainWorld('api', {
   getReportSyncStatus: (slug: string) => ipcRenderer.invoke('report:get-sync-status', slug),
   previewReportSync: (slug: string) => ipcRenderer.invoke('report:preview-sync', slug),
   syncReport: (slug: string) => ipcRenderer.invoke('report:sync', slug),
+  onReportSyncProgress: (cb: (data: { stage: string; message: string; current?: number; total?: number }) => void) => {
+    const handler = (_event: unknown, data: { stage: string; message: string; current?: number; total?: number }) => cb(data)
+    ipcRenderer.on('report:sync-progress', handler)
+    return () => ipcRenderer.removeListener('report:sync-progress', handler)
+  },
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => {
     const handler = (_event: unknown, data: { success: boolean; error?: string }) => cb(data)
     ipcRenderer.on('github:push-status', handler)

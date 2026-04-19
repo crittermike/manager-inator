@@ -58,6 +58,29 @@ export interface SyncResult {
   commitSha?: string
 }
 
+export type SyncProgressStage =
+  | 'starting'
+  | 'cloning'
+  | 'fetching'
+  | 'planning'
+  | 'comparing'
+  | 'writing'
+  | 'committing'
+  | 'pushing'
+  | 'done'
+
+export interface SyncProgress {
+  stage: SyncProgressStage
+  message: string
+  /** For stages that iterate (e.g. writing), 1-based current item index. */
+  current?: number
+  /** For stages that iterate, the total number of items. */
+  total?: number
+}
+
+export type ProgressFn = (p: SyncProgress) => void
+const noopProgress: ProgressFn = () => {}
+
 // ── Git helpers (auth-safe) ──
 
 function spawnGit(args: string[], cwd: string): Promise<string> {
@@ -205,8 +228,22 @@ function normalizeName(name: string): string {
 }
 
 /**
- * Returns true iff the file is a 1:1 between exactly the current user and the
- * given report (matched by report's name + aliases). Pure for testability.
+ * Returns true iff the file is a 1:1 between the current user and the given
+ * report. Accepts speakers in any of these shapes (after case-insensitive,
+ * paren-stripping normalization):
+ *   - {me, report}         canonical
+ *   - {report}             current user not listed (common when only one party speaks)
+ *   - {me}                 — REJECTED (no report present)
+ *   - {report, third}      — REJECTED (third party present)
+ *   - {me, report, third}  — REJECTED (third party present)
+ *
+ * In other words: speakers must be a non-empty subset of {me, report-or-alias}
+ * AND must contain the report. This guarantees no cross-report leakage —
+ * speakers can never include anyone other than the user and this report.
+ *
+ * Empty speakers lists are rejected since we cannot verify it's actually a 1:1.
+ *
+ * Pure for testability.
  */
 export function isOneOnOneWith(opts: {
   source: string | undefined
@@ -216,20 +253,34 @@ export function isOneOnOneWith(opts: {
   reportAliases: string[]
 }): boolean {
   if ((opts.source || '').toLowerCase() !== 'meeting') return false
-  if (!opts.currentUserName.trim() || !opts.reportName.trim()) return false
+  if (!opts.reportName.trim()) return false
 
   const speakers = new Set<string>()
   for (const s of opts.speakers) {
     const n = normalizeName(s)
     if (n) speakers.add(n)
   }
-  if (speakers.size !== 2) return false
+  if (speakers.size === 0) return false
+  if (speakers.size > 2) return false
 
   const userKey = normalizeName(opts.currentUserName)
-  if (!speakers.has(userKey)) return false
-
   const reportKeys = [opts.reportName, ...opts.reportAliases].map(normalizeName).filter(Boolean)
-  return reportKeys.some(k => speakers.has(k))
+  const reportKeySet = new Set(reportKeys)
+
+  // Speakers must contain the report.
+  let containsReport = false
+  for (const s of speakers) {
+    if (reportKeySet.has(s)) { containsReport = true; break }
+  }
+  if (!containsReport) return false
+
+  // Every speaker must be either the report (or alias) or the current user.
+  for (const s of speakers) {
+    if (reportKeySet.has(s)) continue
+    if (userKey && s === userKey) continue
+    return false
+  }
+  return true
 }
 
 // ── Mapping computation ──
@@ -386,12 +437,12 @@ export async function getRepoSyncStatus(slug: string): Promise<SyncStatus> {
   return { canSync: true, ghUsername: gh, owner, destPath, cloned }
 }
 
-async function ensureCloned(status: SyncStatus): Promise<void> {
+async function ensureCloned(status: SyncStatus, onProgress: ProgressFn = noopProgress): Promise<void> {
   if (status.cloned) return
   const root = getSyncedReposRoot()
   if (!existsSync(root)) mkdirSync(root, { recursive: true })
   const repoUrl = `https://github.com/${status.owner}/1-1-${status.ghUsername}.git`
-  // Clone into the exact destPath.
+  onProgress({ stage: 'cloning', message: `Cloning ${status.owner}/1-1-${status.ghUsername}…` })
   await spawnGit(['clone', '--depth', '50', repoUrl, status.destPath], root)
 }
 
@@ -453,7 +504,8 @@ function classifyChange(destPath: string, w: PlannedWrite): 'added' | 'updated' 
   }
 }
 
-export async function previewSync(slug: string): Promise<SyncPreview> {
+export async function previewSync(slug: string, onProgress: ProgressFn = noopProgress): Promise<SyncPreview> {
+  onProgress({ stage: 'starting', message: 'Checking sync status…' })
   const status = await getRepoSyncStatus(slug)
   if (!status.canSync) throw new Error(status.error || 'Cannot sync')
 
@@ -462,14 +514,16 @@ export async function previewSync(slug: string): Promise<SyncPreview> {
   let canCompare = status.cloned
   if (!canCompare) {
     try {
-      await ensureCloned(status)
+      await ensureCloned(status, onProgress)
       canCompare = true
     } catch {
       canCompare = false
     }
   }
 
+  onProgress({ stage: 'planning', message: 'Scanning source repo for changes…' })
   const writes = buildPlanFromStatus(status, slug)
+  onProgress({ stage: 'comparing', message: `Comparing ${writes.length} file${writes.length === 1 ? '' : 's'}…` })
   const preview: SyncPreview = { added: [], updated: [], unchanged: [] }
   for (const w of writes) {
     const entry: SyncEntry = { source: w.source, dest: w.dest }
@@ -477,24 +531,37 @@ export async function previewSync(slug: string): Promise<SyncPreview> {
     const cls = classifyChange(status.destPath, w)
     preview[cls].push(entry)
   }
+  onProgress({ stage: 'done', message: 'Preview ready' })
   return preview
 }
 
-export async function syncReport(slug: string): Promise<SyncResult> {
+export async function syncReport(slug: string, onProgress: ProgressFn = noopProgress): Promise<SyncResult> {
+  onProgress({ stage: 'starting', message: 'Preparing sync…' })
   const status = await getRepoSyncStatus(slug)
   if (!status.canSync) throw new Error(status.error || 'Cannot sync')
 
-  await ensureCloned(status)
+  await ensureCloned(status, onProgress)
+  onProgress({ stage: 'fetching', message: 'Fetching latest from remote…' })
   await ensureClean(status.destPath)
   await pullFastForward(status.destPath)
 
+  onProgress({ stage: 'planning', message: 'Building file plan…' })
   const writes = buildPlanFromStatus(status, slug)
   const added: SyncEntry[] = []
   const updated: SyncEntry[] = []
 
+  const changedWrites = writes.filter(w => classifyChange(status.destPath, w) !== 'unchanged')
+  let i = 0
   for (const w of writes) {
     const cls = classifyChange(status.destPath, w)
     if (cls === 'unchanged') continue
+    i++
+    onProgress({
+      stage: 'writing',
+      message: `Writing ${w.dest}`,
+      current: i,
+      total: changedWrites.length,
+    })
     const full = destSafePath(status.destPath, w.dest)
     mkdirSync(dirname(full), { recursive: true })
     writeFileSync(full, w.content, 'utf8')
@@ -503,6 +570,7 @@ export async function syncReport(slug: string): Promise<SyncResult> {
   }
 
   if (added.length === 0 && updated.length === 0) {
+    onProgress({ stage: 'done', message: 'Already up to date' })
     return { added, updated, pushed: false }
   }
 
@@ -510,6 +578,7 @@ export async function syncReport(slug: string): Promise<SyncResult> {
   const profile = getReportProfile(slug)
   const message = `Sync from manager-inator: ${profile.displayName || slug} (${added.length} added, ${updated.length} updated)`
 
+  onProgress({ stage: 'committing', message: 'Committing changes…' })
   await spawnGit(['add', '-A', '--', ...MANAGED_DIRS], status.destPath)
   await spawnGit(['-c', `user.name=${settings.userName || 'manager-inator'}`, '-c', 'user.email=manager-inator@local', 'commit', '-m', message], status.destPath)
 
@@ -518,6 +587,7 @@ export async function syncReport(slug: string): Promise<SyncResult> {
     commitSha = (await spawnGit(['rev-parse', 'HEAD'], status.destPath)).trim()
   } catch { /* ignore */ }
 
+  onProgress({ stage: 'pushing', message: 'Pushing to remote…' })
   let pushed = true
   let pushError: string | undefined
   try {
@@ -527,6 +597,7 @@ export async function syncReport(slug: string): Promise<SyncResult> {
     pushError = (e as Error).message
   }
 
+  onProgress({ stage: 'done', message: pushed ? 'Push complete' : 'Saved locally; push failed' })
   return { added, updated, pushed, pushError, commitSha }
 }
 

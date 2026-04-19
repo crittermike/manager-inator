@@ -290,8 +290,12 @@ export function setupIpcHandlers(): void {
 
   // ── Per-report repo sync ──
   safeHandle('report:get-sync-status', (_e, slug) => getRepoSyncStatus(slug as string))
-  safeHandle('report:preview-sync', (_e, slug) => previewSync(slug as string))
-  safeHandle('report:sync', (_e, slug) => syncReport(slug as string))
+  safeHandle('report:preview-sync', (event, slug) => previewSync(slug as string, (p) => {
+    safeSend(BrowserWindow.fromWebContents(event.sender), 'report:sync-progress', p)
+  }))
+  safeHandle('report:sync', (event, slug) => syncReport(slug as string, (p) => {
+    safeSend(BrowserWindow.fromWebContents(event.sender), 'report:sync-progress', p)
+  }))
 
   // ── Test-only IPC handlers for E2E setup ──
   if (process.env['ELECTRON_USER_DATA']) {

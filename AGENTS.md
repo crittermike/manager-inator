@@ -5,6 +5,10 @@
 ### Per-direct-report repo sync + transcript cleanup (COMPLETE)
 Two related features shipped together so that managers can keep their main repo as the source of truth while still pushing curated content to per-report private repos.
 
+**Sync UX: streaming progress + relaxed 1:1 detection (April 2026 follow-up)**
+- The sync no longer blocks the UI silently. Main process emits `report:sync-progress` events at each stage (`starting`/`cloning`/`fetching`/`planning`/`comparing`/`writing` (with `current`/`total`)/`committing`/`pushing`/`done`). Renderer subscribes via `window.api.onReportSyncProgress` and shows: a "Calculating sync preview…" spinner overlay before the dialog opens, and a `⏳ <message>` line appended inside the confirm dialog while syncing.
+- `isOneOnOneWith` was loosened: speakers must now be a non-empty subset of `{currentUserName, reportName-or-alias}` AND must contain the report. Empty speakers and >2 speakers still rejected. This accepts the very common case where the meeting tool only transcribes the report (manager isn't transcribed), without weakening cross-report leakage protection — because every speaker is still required to be either the user or the report.
+
 **Feature A: VTT/SRT transcript cleanup at capture time**
 - New pure utility `src/renderer/utils/transcriptCleaners.ts` exports `cleanTranscript(filename, raw)` and dispatches by extension to VTT or SRT cleaners (anything else passes through).
 - VTT path parses cue-by-cue and pulls speakers from `<v Speaker>...</v>` voice tags (closing tag often missing — `VOICE_TAG` regex handles both forms). Strips `WEBVTT` header, `NOTE` blocks, cue ids, timestamps, residual HTML, decodes entities.

@@ -192,6 +192,7 @@ export function ReportDetail() {
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
   const [syncPreview, setSyncPreview] = useState<import('../../shared/types').ReportSyncPreview | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
+  const [syncProgress, setSyncProgress] = useState<import('../../shared/types').ReportSyncProgress | null>(null)
   const [ptoInput, setPtoInput] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 7)
@@ -1085,6 +1086,7 @@ export function ReportDetail() {
   const handlePreviewSync = useCallback(async () => {
     if (!name) return
     setSyncBusy(true)
+    setSyncProgress({ stage: 'starting', message: 'Checking sync status…' })
     try {
       const status = await window.api.getReportSyncStatus(name)
       if (!status.canSync) {
@@ -1098,12 +1100,14 @@ export function ReportDetail() {
       toast.error(e instanceof Error ? e.message : 'Failed to preview sync')
     } finally {
       setSyncBusy(false)
+      setSyncProgress(null)
     }
   }, [name, toast])
 
   const handleConfirmSync = useCallback(async () => {
     if (!name) return
     setSyncBusy(true)
+    setSyncProgress({ stage: 'starting', message: 'Preparing sync…' })
     try {
       const result = await window.api.syncReport(name)
       const total = result.added.length + result.updated.length
@@ -1119,9 +1123,19 @@ export function ReportDetail() {
       toast.error(e instanceof Error ? e.message : 'Failed to sync')
     } finally {
       setSyncBusy(false)
+      setSyncProgress(null)
       setSyncPreview(null)
     }
   }, [name, toast])
+
+  // Subscribe to sync progress events from main
+  useEffect(() => {
+    if (typeof window.api.onReportSyncProgress !== 'function') return
+    const unsubscribe = window.api.onReportSyncProgress((data) => {
+      setSyncProgress(data as import('../../shared/types').ReportSyncProgress)
+    })
+    return unsubscribe
+  }, [])
 
   // ── Build activity stream ──
 
@@ -2348,29 +2362,58 @@ export function ReportDetail() {
       <ConfirmDialog
         open={syncPreview !== null}
         title={`Sync to 1-1-${report?.profile.github ?? ''} repo`}
-        message={syncPreview ? buildSyncPreviewMessage(syncPreview) : ''}
+        message={syncPreview ? buildSyncPreviewMessage(syncPreview, syncBusy ? syncProgress : null) : ''}
         confirmLabel={syncBusy ? 'Syncing…' : 'Sync now'}
         onConfirm={handleConfirmSync}
         onCancel={() => setSyncPreview(null)}
       />
+
+      {/* ── Sync preview progress overlay (before dialog opens) ── */}
+      {syncBusy && syncPreview === null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="sync-preview-title">
+          <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
+            <h3 id="sync-preview-title" className="text-base font-semibold text-zinc-100 mb-3 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-light" aria-hidden="true" />
+              Calculating sync preview…
+            </h3>
+            <p className="text-sm text-zinc-400">
+              {syncProgress?.message || 'Preparing…'}
+              {typeof syncProgress?.current === 'number' && typeof syncProgress?.total === 'number'
+                ? ` (${syncProgress.current}/${syncProgress.total})`
+                : ''}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function buildSyncPreviewMessage(preview: import('../../shared/types').ReportSyncPreview): string {
+function buildSyncPreviewMessage(
+  preview: import('../../shared/types').ReportSyncPreview,
+  progress: import('../../shared/types').ReportSyncProgress | null,
+): string {
   const a = preview.added.length
   const u = preview.updated.length
   const n = preview.unchanged.length
-  if (a === 0 && u === 0) {
-    return `No changes to sync. ${n} file${n === 1 ? '' : 's'} already up to date.`
-  }
   const lines: string[] = []
-  lines.push(`${a} new, ${u} updated, ${n} unchanged.`)
-  lines.push('')
-  const samples = [...preview.added, ...preview.updated].slice(0, 8)
-  for (const e of samples) lines.push(`• ${e.dest}`)
-  const more = a + u - samples.length
-  if (more > 0) lines.push(`…and ${more} more`)
+  if (a === 0 && u === 0) {
+    lines.push(`No changes to sync. ${n} file${n === 1 ? '' : 's'} already up to date.`)
+  } else {
+    lines.push(`${a} new, ${u} updated, ${n} unchanged.`)
+    lines.push('')
+    const samples = [...preview.added, ...preview.updated].slice(0, 8)
+    for (const e of samples) lines.push(`• ${e.dest}`)
+    const more = a + u - samples.length
+    if (more > 0) lines.push(`…and ${more} more`)
+  }
+  if (progress) {
+    lines.push('')
+    const counter = (typeof progress.current === 'number' && typeof progress.total === 'number')
+      ? ` (${progress.current}/${progress.total})`
+      : ''
+    lines.push(`⏳ ${progress.message}${counter}`)
+  }
   return lines.join('\n')
 }
 
