@@ -403,7 +403,7 @@ export const StreamEntryCard = memo(function StreamEntryCard({
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-success" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
                     </button>
-                    <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+                    <div className="prose-dark text-sm">
                       <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(fileContent)}</ReactMarkdown>
                     </div>
                   </div>
@@ -470,7 +470,7 @@ function ContextDetail({
           <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />
         </div>
       ) : fileContent ? (
-        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+        <div className="prose-dark text-sm">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
             {renderedContent}
           </ReactMarkdown>
@@ -570,7 +570,7 @@ function ActionDetail({ entry, onToggleAction, isToggling }: { entry: ActionStre
   const actions = entry.data
 
   return (
-    <div className="space-y-1 max-h-72 overflow-y-auto">
+    <div className="space-y-1">
       {actions.map((a, i) => {
         return (
           <button
@@ -630,7 +630,7 @@ function CheckinDetail({ entry, name, editing, onStopEditing, onSave }: {
   return (
     <div className="space-y-2">
       {content ? (
-        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+        <div className="prose-dark text-sm">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(content)}</ReactMarkdown>
         </div>
       ) : c.accomplishments.length > 0 ? (
@@ -686,7 +686,7 @@ function ReviewDetail({ entry, name, editing, onStopEditing, onSave }: {
   return (
     <div className="space-y-3">
       {reviewContent ? (
-        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+        <div className="prose-dark text-sm">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{cleanSummaryContent(reviewContent)}</ReactMarkdown>
         </div>
       ) : (
@@ -730,7 +730,7 @@ function PrepDetail({ entry, name }: { entry: PrepStreamEntry; name: string }) {
   return (
     <div className="space-y-2">
       {hasCheckboxes ? (
-        <div className="max-h-96 overflow-y-auto pr-2">
+        <div>
           {lines.map((line, i) => {
             const unchecked = line.match(/^(\s*)- \[ \] (.+)/)
             const checked = line.match(/^(\s*)- \[x\] (.+)/)
@@ -776,7 +776,7 @@ function PrepDetail({ entry, name }: { entry: PrepStreamEntry; name: string }) {
           })}
         </div>
       ) : (
-        <div className="prose-dark text-sm max-h-96 overflow-y-auto pr-2">
+        <div className="prose-dark text-sm">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{content}</ReactMarkdown>
         </div>
       )}
