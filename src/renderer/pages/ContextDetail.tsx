@@ -327,26 +327,33 @@ export function ContextDetail() {
     const trimmed = speakerName.trim()
     if (!trimmed) return
     const slug = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    
+
     const existingSlug = await window.api.findPersonByName(trimmed)
     if (existingSlug) {
       const person = people.find(p => p.slug === existingSlug)
-      if (person) {
-        const isReport = person.relationship?.toLowerCase() === 'direct report'
-        navigate(isReport ? `/report/${person.slug}` : `/people/${person.slug}`)
-      }
+      // Already exists — link them to this context but stay on this page so the
+      // user isn't yanked away into a slow profile load.
+      try {
+        await window.api.addPersonToContext(decodedFilename, slug)
+      } catch (e) { console.debug('Failed to link existing person to context:', e) }
+      success(`${person?.name || trimmed} is already on file`)
+      const freshPeople = await window.api.listPeople()
+      setPeople(freshPeople)
       return
     }
 
     const newContent = `---\nname: ${trimmed}\nslug: ${slug}\naliases: \nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${trimmed}\n`
-    
+
     try {
       await window.api.commitFile(`people/${slug}.md`, newContent, `Add person: ${trimmed}`)
       await window.api.addPersonToContext(decodedFilename, slug)
       success(`Created page for ${trimmed}`)
+      // Refresh the local people list so the speaker now resolves to the new
+      // person, but stay on this context — opening the new profile loads every
+      // context that mentions them, which is slow on a cold cache and freezes
+      // the app.
       const freshPeople = await window.api.listPeople()
       setPeople(freshPeople)
-      navigate(`/people/${slug}`)
     } catch (err) {
       console.error('Failed to create person:', err)
       showError('Failed to create person page')
