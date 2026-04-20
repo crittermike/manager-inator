@@ -17,7 +17,21 @@ Two related features shipped together so that managers can keep their main repo 
 - Auto-select: the first visible entry is auto-selected on filter change / data refresh; selection is cleared/retargeted whenever the selected id is no longer in `filteredEntries`.
 - AI context sync now keys off `selectedStreamEntryId` (was `expandedItems.size === 1`).
 - `useListNavigation` j/k now sets selection (was toggling expansion).
+- **Detail pane flows naturally** (no inner scroller). The list pane is sticky/scrollable (`lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto`); the detail pane is `min-w-0` only and lets the page scroll. Per-type subcomponents in `StreamEntryCard.tsx` had their inner `max-h-96 overflow-y-auto` caps stripped so detail content can flow to full height.
 - Tests: `tests/renderer/StreamEntryRow.test.tsx` (5 tests) for the row component; `tests/renderer/ReportDetail.test.tsx` "master/detail stream" describe block covers auto-select + click-to-select. Existing tests continue to pass because they query the DOM by visible text and the same content now appears in the detail pane.
+
+### Today master/detail (April 2026)
+- The Today page uses the same email-inbox layout: left column = category nav (Team Activity if `hasGithubOrgToken`, plus the populated `TimelineSection`s — `overdue`, `reflection`, `this-week`, `coming-up`, `done`). Right column = items for the selected category, OR the Team Activity panel.
+- State: `selectedCategory: 'activity' | TimelineSection | null`. Auto-select preference order: `overdue → reflection → this-week → activity → coming-up → done`. Re-targets when the current selection leaves the set.
+- Removed: `expandedSections`, `setExpandedSections`, `toggleSection`, `activityExpanded`, `setActivityExpanded`, plus the section accordion buttons and chevrons. Each section / activity panel is rendered as a top-level card inside the right pane (no header toggle button).
+- **`TimelineRow.handleRowClick` now navigates** for inline-style action types instead of expanding inline:
+  - `prep` → `/report/<reportName>`
+  - `feedback` → `/report/<reportName>?filter=feedback`
+  - `inline-actions` → `/report/<reportName>?filter=action`
+  - `prompt` → still expands inline (no per-report destination exists for cross-team prompts like weekly retro / sprint goal / quarterly OKR / 1:1 format check). The action button next to the row also follows the same routing rules.
+- `visibleItemIds` is now scoped to the selected category (drives `useListNavigation` j/k inside the right pane only).
+- Tests: `tests/renderer/Today.test.tsx` updated. New helper `selectCategory(container, label)` clicks a category in the left nav. Two tests removed/replaced (the old "collapses and re-expands a Today section" and the old per-section header className assertions); added "selects a different category to switch the right pane". Tests that look for prompt items now select the appropriate category first (`'This week'` for quarterly/team-health/1:1-format/personal-retro; `'Team Activity'` for the activity refresh affordance).
+
 
 **Feature A: VTT/SRT transcript cleanup at capture time**
 - New pure utility `src/renderer/utils/transcriptCleaners.ts` exports `cleanTranscript(filename, raw)` and dispatches by extension to VTT or SRT cleaners (anything else passes through).
