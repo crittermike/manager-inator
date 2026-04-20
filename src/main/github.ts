@@ -1854,17 +1854,50 @@ export async function resolveAndToggleActionItem(
 
 // ── Get open action items for specific people (for AI context) ──
 
-export function getOpenActionItemsForPeople(
+export async function getOpenActionItemsForPeople(
   slugs: string[]
-): { slug: string; items: ActionItem[] }[] {
+): Promise<{ slug: string; items: ActionItem[] }[]> {
   const results: { slug: string; items: ActionItem[] }[] = []
+  // Yield between reports so the main process can keep handling IPC / window
+  // events instead of blocking for the full duration on a cold cache. The old
+  // implementation called the heavyweight getReportData() per report, which
+  // could stall the renderer (spinning beachball) for 10+ seconds when the
+  // user submitted a capture session before any report had been loaded.
+  const yieldToLoop = () => new Promise<void>(resolve => setImmediate(resolve))
   for (const slug of slugs) {
     try {
-      const data = getReportData(slug)
-      const openItems = data.actionItems.filter(a => !a.completed)
-      if (openItems.length > 0) {
-        results.push({ slug, items: openItems })
+      // Fast path: cached report data already has parsed action items.
+      const cached = _reportDataCache.get(slug)
+      if (cached) {
+        const openItems = cached.actionItems.filter(a => !a.completed)
+        if (openItems.length > 0) results.push({ slug, items: openItems })
+        await yieldToLoop()
+        continue
       }
+      // Cold path: skip the full getReportData() and parse only the most recent
+      // meeting files for this person — the same lightweight approach
+      // getTeamActionItems uses.
+      const profile = getReportProfile(slug)
+      const meetings = getPersonContexts(slug).slice(0, 5)
+      const personFirstName = (profile.displayName || profile.name || slug).split(/\s+/)[0].toLowerCase()
+      const managerFirstName = (getSettings().userName || '').split(/\s+/)[0].toLowerCase()
+      const items: ActionItem[] = []
+      for (const m of meetings) {
+        try {
+          const content = getFileContent(`contexts/${m.filename}`)
+          const parsed = parseActionItems(content, `contexts/${m.filename}`)
+          for (const ai of parsed) {
+            if (ai.completed) continue
+            const ownerLower = ai.owner.toLowerCase()
+            const ownerFirst = ownerLower.split(/\s+/)[0]
+            if (ownerFirst === personFirstName || (managerFirstName && ownerFirst === managerFirstName) || ownerLower === 'unknown') {
+              items.push(ai)
+            }
+          }
+        } catch { /* skip */ }
+      }
+      if (items.length > 0) results.push({ slug, items })
+      await yieldToLoop()
     } catch { /* skip */ }
   }
   return results
