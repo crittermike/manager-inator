@@ -12,7 +12,8 @@ import {
   Keyboard,
   Plus,
   RefreshCw,
-  Users
+  Users,
+  LayoutGrid
 } from 'lucide-react'
 import { useTeamOverview, useSettings } from '../../hooks/useData'
 import { useAuth } from '../../hooks/useAuth'
@@ -33,8 +34,9 @@ const navItems = [
   { path: '/', icon: Sun, label: 'Today', shortcut: 'cmd+1' },
   { path: '/playbook', icon: BookOpen, label: 'Playbook', shortcut: 'cmd+2' },
   { path: '/team', icon: Users, label: 'Team', shortcut: 'cmd+3' },
-  { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: 'cmd+4' },
-  { path: '/search', icon: Search, label: 'Search', shortcut: 'cmd+5' }
+  { path: '/plans', icon: LayoutGrid, label: 'Plans', shortcut: 'cmd+4' },
+  { path: '/chat', icon: MessageSquare, label: 'Chat', shortcut: 'cmd+5' },
+  { path: '/search', icon: Search, label: 'Search', shortcut: 'cmd+6' }
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -171,7 +173,7 @@ export function AppShell({ children }: AppShellProps) {
         e.preventDefault()
         setShortcutsOpen(prev => !prev)
       }
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '5') {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '6') {
         const idx = parseInt(e.key) - 1
         if (navItems[idx]) {
           e.preventDefault()

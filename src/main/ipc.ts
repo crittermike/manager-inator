@@ -48,6 +48,8 @@ import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, s
 import { detectTeam } from './hubbers'
 import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder, openInGitHub } from './external'
 import { getRepoSyncStatus, previewSync, syncReport } from './syncToReport'
+import { listPlans, getPlan, createPlan, savePlan, deletePlan } from './plans'
+import type { Plan } from '../shared/types'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -297,6 +299,13 @@ export function setupIpcHandlers(): void {
   safeHandle('report:sync', (event, slug) => syncReport(slug as string, (p) => {
     safeSend(BrowserWindow.fromWebContents(event.sender), 'report:sync-progress', p)
   }))
+
+  // ── Plans ──
+  safeHandle('plans:list', () => listPlans())
+  safeHandle('plans:get', (_e, slug) => getPlan(slug as string))
+  safeHandle('plans:create', (_e, name) => createPlan(name as string))
+  safeHandle('plans:save', (_e, plan) => savePlan(plan as Plan))
+  safeHandle('plans:delete', (_e, slug) => deletePlan(slug as string))
 
   // ── Test-only IPC handlers for E2E setup ──
   if (process.env['ELECTRON_USER_DATA']) {

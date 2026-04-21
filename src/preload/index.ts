@@ -184,5 +184,12 @@ contextBridge.exposeInMainWorld('api', {
     const handler = () => cb()
     ipcRenderer.on('find:prev', handler)
     return () => ipcRenderer.removeListener('find:prev', handler)
-  }
+  },
+
+  // Plans
+  listPlans: () => ipcRenderer.invoke('plans:list'),
+  getPlan: (slug: string) => ipcRenderer.invoke('plans:get', slug),
+  createPlan: (name: string) => ipcRenderer.invoke('plans:create', name),
+  savePlan: (plan: unknown) => ipcRenderer.invoke('plans:save', plan),
+  deletePlan: (slug: string) => ipcRenderer.invoke('plans:delete', slug)
 })

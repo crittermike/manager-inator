@@ -390,6 +390,69 @@ export interface TeamDetectionResult {
 }
 
 // ── IPC channel types ──
+export type PlanColor =
+  | 'amber'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'pink'
+  | 'gray'
+  | 'orange'
+  | 'red'
+  | 'teal'
+  | 'indigo'
+
+export interface PlanColumn {
+  id: string
+  label: string
+}
+
+export interface PlanIteration {
+  id: string
+  name?: string
+  columns: PlanColumn[]
+}
+
+export interface PlanPerson {
+  id: string
+  name: string
+  reportSlug?: string
+  github?: string
+}
+
+export interface PlanProject {
+  id: string
+  name: string
+  color: PlanColor
+  driPersonId?: string
+  estWeeks: number | null
+  url?: string
+}
+
+export interface PlanAssignment {
+  personId: string
+  columnId: string
+  projectId: string
+}
+
+export interface Plan {
+  slug: string
+  name: string
+  iterations: PlanIteration[]
+  people: PlanPerson[]
+  projects: PlanProject[]
+  assignments: PlanAssignment[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PlanSummary {
+  slug: string
+  name: string
+  updatedAt: string
+}
+
 export interface IpcApi {
   // Auth
   getAuthStatus: () => Promise<{ authenticated: boolean; user?: string }>
@@ -486,4 +549,11 @@ export interface IpcApi {
   onFindToggle: (cb: () => void) => () => void
   onFindNext: (cb: () => void) => () => void
   onFindPrev: (cb: () => void) => () => void
+
+  // Plans
+  listPlans: () => Promise<PlanSummary[]>
+  getPlan: (slug: string) => Promise<Plan | null>
+  createPlan: (name: string) => Promise<Plan>
+  savePlan: (plan: Plan) => Promise<void>
+  deletePlan: (slug: string) => Promise<void>
 }

@@ -2,6 +2,18 @@
 
 ## Recent Changes (April 2026)
 
+### Plans page (April 2026)
+- New `/plans` and `/plans/:slug` routes with sidebar entry (LayoutGrid icon, ⌘4).
+- Iteration-by-iteration capacity planner: rows = people, columns grouped under iterations (each iteration = 1+ "week" columns), bottom table = projects.
+- Click any cell to open a popover and pick projects to assign; OR drag a project chip from the projects table onto a cell.
+- Each project has: color (11-color palette), name, DRI dropdown (people in plan), est. weeks (number), URL (e.g. GitHub issue), and an auto-calculated `planned / estimated wk` counter that turns emerald when planned == estimated and amber when over.
+- Plans are stored as `plans/<slug>.json` in the data repo (so they're git-versioned and sync via the normal commit flow).
+- Adding a person opens a dialog that lists the manager's direct reports (those not already on the plan) plus a custom-name option.
+- Adding an iteration auto-generates two consecutive Mon-Fri week labels (e.g. "Jan 5-9", "Jan 12-16"), continuing from the latest existing column. All labels are inline-editable.
+- Debounced 600 ms autosave with inline "Saving / Saved" indicator.
+- New IPC: `plans:list`, `plans:get`, `plans:create`, `plans:save`, `plans:delete`. Storage in `src/main/plans.ts`.
+- Tests: `tests/main/plans.test.ts` (13), `tests/renderer/Plans.test.tsx` (4), `tests/renderer/PlanDetail.test.tsx` (5), `tests/renderer/planColors.test.ts` (8).
+
 ### Per-direct-report repo sync + transcript cleanup (COMPLETE)
 Two related features shipped together so that managers can keep their main repo as the source of truth while still pushing curated content to per-report private repos.
 

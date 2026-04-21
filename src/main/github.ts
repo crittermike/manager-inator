@@ -157,6 +157,10 @@ function listFiles(path: string): string[] {
   } catch { return [] }
 }
 
+export function listFilesInDir(path: string): string[] {
+  return listFiles(path)
+}
+
 function listFilesRecursive(path: string): string[] {
   const results: string[] = []
   const stack: string[] = [path]
