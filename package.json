@@ -1,7 +1,7 @@
 {
   "name": "manager-inator",
   "productName": "Manager-inator",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "main": "out/main/index.mjs",
   "scripts": {
     "postinstall": "node scripts/patch-electron-dev.mjs",
