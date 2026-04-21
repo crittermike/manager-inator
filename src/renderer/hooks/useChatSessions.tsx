@@ -4,6 +4,7 @@ import { useAI } from './useAI'
 export interface Message {
   role: 'user' | 'assistant'
   content: string
+  imagePaths?: string[]
 }
 
 export interface ChatSession {
@@ -48,7 +49,7 @@ interface ChatContextValue {
   updateSession: (id: string, updater: (s: ChatSession) => ChatSession) => void
   deleteSession: (id: string) => void
   newChat: (model?: string) => void
-  sendMessage: (text: string, context?: string) => Promise<void>
+  sendMessage: (text: string, context?: string, imagePaths?: string[]) => Promise<void>
   // AI state (shared)
   streaming: boolean
   streamedText: string
@@ -117,15 +118,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [ai])
 
   // Shared sendMessage — lives in the provider so it survives component unmounts
-  const sendMessage = useCallback(async (text: string, context?: string) => {
-    if (!text.trim() || ai.streaming) return
+  const sendMessage = useCallback(async (text: string, context?: string, imagePaths?: string[]) => {
+    if ((!text.trim() && (!imagePaths || imagePaths.length === 0)) || ai.streaming) return
     const sessionId = activeId
 
     // Push user message
     setSessions(prev => prev.map(s => s.id === sessionId ? {
       ...s,
-      messages: [...s.messages, { role: 'user' as const, content: text.trim() }],
-      title: s.messages.length === 0 ? text.trim().slice(0, 50) : s.title,
+      messages: [...s.messages, {
+        role: 'user' as const,
+        content: text.trim(),
+        ...(imagePaths && imagePaths.length > 0 ? { imagePaths } : {})
+      }],
+      title: s.messages.length === 0 ? text.trim().slice(0, 50) || 'Image' : s.title,
       updatedAt: new Date().toISOString()
     } : s))
 
@@ -137,7 +142,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         message: text,
         history: (activeSession?.messages || []).map(m => ({ role: m.role, content: m.content })),
         ...(activeSession?.model ? { model: activeSession.model } : {}),
-        ...(context ? { pageContext: context } : {})
+        ...(context ? { pageContext: context } : {}),
+        ...(imagePaths && imagePaths.length > 0 ? { imagePaths } : {})
       })
 
       setSessions(prev => prev.map(s => s.id === sessionId ? {

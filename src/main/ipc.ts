@@ -46,6 +46,8 @@ import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, s
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 import { detectTeam } from './hubbers'
+import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder, openInGitHub } from './external'
+import { getRepoSyncStatus, previewSync, syncReport } from './syncToReport'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -279,6 +281,22 @@ export function setupIpcHandlers(): void {
       }
     }
   })
+
+  // ── Open file in external app ──
+  safeHandle('external:detect', () => detectExternalApps())
+  safeHandle('external:open-vscode', (_e, path) => openInVSCode(path as string))
+  safeHandle('external:open-obsidian', (_e, path) => openInObsidian(path as string))
+  safeHandle('external:reveal-in-finder', (_e, path) => { revealInFinder(path as string); return true })
+  safeHandle('external:open-github', (_e, path) => openInGitHub(path as string))
+
+  // ── Per-report repo sync ──
+  safeHandle('report:get-sync-status', (_e, slug) => getRepoSyncStatus(slug as string))
+  safeHandle('report:preview-sync', (event, slug) => previewSync(slug as string, (p) => {
+    safeSend(BrowserWindow.fromWebContents(event.sender), 'report:sync-progress', p)
+  }))
+  safeHandle('report:sync', (event, slug) => syncReport(slug as string, (p) => {
+    safeSend(BrowserWindow.fromWebContents(event.sender), 'report:sync-progress', p)
+  }))
 
   // ── Test-only IPC handlers for E2E setup ──
   if (process.env['ELECTRON_USER_DATA']) {

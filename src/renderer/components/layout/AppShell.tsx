@@ -52,6 +52,7 @@ export function AppShell({ children }: AppShellProps) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [addReportOpen, setAddReportOpen] = useState(false)
   const [syncingTeam, setSyncingTeam] = useState(false)
+  const [isDraggingOverFab, setIsDraggingOverFab] = useState(false)
   const ptoReports = settings?.ptoReports ?? {}
   const deactivatedReports = settings?.deactivatedReports ?? []
   const isChatRoute = location.pathname === '/chat'
@@ -382,13 +383,31 @@ export function AppShell({ children }: AppShellProps) {
         <div className="absolute bottom-6 right-6 flex items-center gap-3 z-20">
           <button
             onClick={toggleCapture}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOverFab(true) }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOverFab(true) }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingOverFab(false) }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsDraggingOverFab(false)
+              const files = Array.from(e.dataTransfer.files)
+              if (files.length === 0) return
+              setCapturePanelOpen(true)
+              setAiPanelOpen(false)
+              // Dispatch after mount so CapturePanel's listener is attached
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('capture-files-dropped', { detail: files }))
+              }, 0)
+            }}
             className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] ${
-              capturePanelOpen
+              isDraggingOverFab
+                ? 'bg-brand text-white shadow-brand/40 scale-125 ring-4 ring-brand/30'
+                : capturePanelOpen
                 ? 'bg-brand text-white shadow-brand/25'
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 shadow-zinc-900/25'
             }`}
             aria-label="Capture content"
-            title="Capture content (cmd+shift+c)"
+            title="Capture content (cmd+shift+c) — drop files here"
           >
             <ClipboardPaste className="w-5 h-5" aria-hidden="true" />
           </button>

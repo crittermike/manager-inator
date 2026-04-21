@@ -11,6 +11,8 @@ import { GitHubMark } from '../components/common/GitHubMark'
 import { ComboInput } from '../components/common/ComboInput'
 import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
+import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 
 export function PersonDetail() {
   const { slug } = useParams<{ slug: string }>()
@@ -332,17 +334,30 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
         <div className="flex items-center justify-between px-6 py-3 border-b border-border/60">
           <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Notes</h2>
           {!isEditing ? (
-            <button
-              onClick={() => {
-                setEditValue(bodyContent)
-                setIsEditing(true)
-              }}
-              className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
-              title="Edit notes"
-              aria-label="Edit notes"
-            >
-              <Pencil className="w-4 h-4" aria-hidden="true" />
-            </button>
+            <div className="flex items-center gap-1">
+              <RefineWithAI
+                filePath={`people/${slug}.md`}
+                currentContent={rawFileContent}
+                documentType="people profile notes"
+                onSaved={(updated) => {
+                  setRawFileContent(updated)
+                  const fmMatch = updated.match(/^---\n[\s\S]*?\n---\n*([\s\S]*)$/)
+                  setBodyContent(fmMatch?.[1] ?? updated)
+                }}
+              />
+              <button
+                onClick={() => {
+                  setEditValue(bodyContent)
+                  setIsEditing(true)
+                }}
+                className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-colors"
+                title="Edit notes"
+                aria-label="Edit notes"
+              >
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+              </button>
+              <OpenInExternal filePath={`people/${slug}.md`} />
+            </div>
           ) : (
             <div className="flex items-center gap-1">
               <button

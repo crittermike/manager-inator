@@ -1,7 +1,26 @@
 import { CopilotClient, approveAll } from '@github/copilot-sdk'
 import { getSettings, getToken } from './store'
 import { spawn } from 'child_process'
-import { join } from 'path'
+import { join, basename } from 'path'
+import { existsSync } from 'fs'
+
+function buildImageAttachments(imagePaths: string[], repoRoot: string): Array<{ type: 'file'; path: string; displayName: string }> | undefined {
+  if (!imagePaths.length) return undefined
+  const result: Array<{ type: 'file'; path: string; displayName: string }> = []
+  for (const p of imagePaths) {
+    const abs = join(repoRoot, p)
+    if (!existsSync(abs)) {
+      debugLog('[Copilot SDK] Image attachment missing on disk:', abs)
+      continue
+    }
+    result.push({
+      type: 'file',
+      path: abs,
+      displayName: basename(abs),
+    })
+  }
+  return result.length > 0 ? result : undefined
+}
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 function debugLog(...args: unknown[]): void {
@@ -22,6 +41,7 @@ WRITING RULES (apply to ALL generated content):
 
 const AI_REQUEST_TIMEOUT_MS = 120_000
 const CHAT_REQUEST_TIMEOUT_MS = 300_000
+const MAX_PROMPT_TOKENS = 130_000 // conservative margin under the 168K model input limit
 
 type StreamCallback = (chunk: string) => void
 type ToolStatusCallback = (toolName: string, args: Record<string, unknown>) => void
@@ -129,6 +149,66 @@ function stripSystemNotifications(text: string): string {
   return text.replace(/<system_notification>[\s\S]*?<\/system_notification>\s*/g, '')
 }
 
+/** Conservative token estimate (~3 chars per token for mixed markdown/English) */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3)
+}
+
+/**
+ * Truncate messages to fit within the model's token budget.
+ * For chat: drops oldest conversation history first (preserves latest question).
+ * For non-chat: trims context from the end of the longest user message.
+ */
+export function truncateMessagesToFit(messages: CopilotMessage[], action: string): CopilotMessage[] {
+  const totalTokens = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  if (totalTokens <= MAX_PROMPT_TOKENS) return messages
+
+  const overageTokens = totalTokens - MAX_PROMPT_TOKENS
+  const overageChars = overageTokens * 3
+
+  console.warn(
+    `[Copilot] Prompt exceeds token budget: ~${totalTokens} estimated tokens (limit: ${MAX_PROMPT_TOKENS}). ` +
+    `Truncating ~${overageChars} chars. Action: ${action}`
+  )
+
+  // Find the longest user message
+  let longestIdx = -1
+  let longestLen = 0
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].role === 'user' && messages[i].content.length > longestLen) {
+      longestLen = messages[i].content.length
+      longestIdx = i
+    }
+  }
+
+  if (longestIdx === -1) return messages
+
+  const msg = messages[longestIdx]
+  const targetLen = Math.max(msg.content.length - overageChars, 2000)
+
+  let truncated: string
+  if (action === 'chat') {
+    // Chat: history at top, current message at bottom — trim from top
+    const start = msg.content.length - targetLen
+    truncated = msg.content.slice(start)
+    const nextNewline = truncated.indexOf('\n')
+    if (nextNewline > 0 && nextNewline < truncated.length * 0.3) {
+      truncated = truncated.slice(nextNewline + 1)
+    }
+    truncated = '[Earlier conversation history truncated to fit model token limit]\n\n' + truncated
+  } else {
+    // Non-chat: context data at end — trim from end
+    truncated = msg.content.slice(0, targetLen)
+    const lastNewline = truncated.lastIndexOf('\n')
+    if (lastNewline > targetLen * 0.7) {
+      truncated = truncated.slice(0, lastNewline)
+    }
+    truncated += '\n\n[Context truncated to fit model token limit]'
+  }
+
+  return messages.map((m, i) => i === longestIdx ? { ...m, content: truncated } : m)
+}
+
 export async function aiGenerate(
   action: string,
   context: Record<string, unknown>,
@@ -138,7 +218,7 @@ export async function aiGenerate(
 ): Promise<AiGenerateResult> {
   const entry = { session: null as unknown as CopilotSession, cancelled: false }
   const unsubscribers: (() => void)[] = []
-  const messages = buildMessages(action, context)
+  const messages = truncateMessagesToFit(buildMessages(action, context), action)
   const isChat = action === 'chat'
   const timeout = isChat ? CHAT_REQUEST_TIMEOUT_MS : AI_REQUEST_TIMEOUT_MS
   const modifiedFiles = new Set<string>()
@@ -147,7 +227,7 @@ export async function aiGenerate(
     const c = await getClient()
     const settings = getSettings()
     const requestedModel = typeof context['model'] === 'string' ? context['model'] : undefined
-    const model = requestedModel || settings.defaultModel || 'claude-sonnet-4.5'
+    const model = requestedModel || settings.defaultModel || 'claude-opus-4.7'
     debugLog('[Copilot SDK] Model:', model, 'Action:', action)
 
     const systemMessages = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n')
@@ -244,7 +324,10 @@ export async function aiGenerate(
       }))
 
       debugLog('[Copilot SDK] Sending chat message...')
-      const response = await session.sendAndWait({ prompt: userMessage }, timeout)
+      const chatImagePaths = Array.isArray(context['imagePaths']) ? context['imagePaths'] as string[] : []
+      const chatAttachments = buildImageAttachments(chatImagePaths, settings.repoPath || '')
+      if (chatAttachments) debugLog('[Copilot SDK] Chat attachments:', chatAttachments.length, 'image(s)')
+      const response = await session.sendAndWait({ prompt: userMessage, attachments: chatAttachments }, timeout)
 
       const finalContent = response?.data?.content || ''
       debugLog('[Copilot SDK] Chat complete:', finalContent.length, 'chars', 'Modified files:', [...modifiedFiles])
@@ -274,14 +357,9 @@ export async function aiGenerate(
       }))
 
       debugLog('[Copilot SDK] Sending message...')
-      // Build file attachments for images (if any)
       const imagePaths = Array.isArray(context['imagePaths']) ? context['imagePaths'] as string[] : []
-      const attachments = imagePaths.length > 0
-        ? imagePaths.map(p => ({
-            type: 'file' as const,
-            path: join(settings.repoPath || '', p),
-          }))
-        : undefined
+      const attachments = buildImageAttachments(imagePaths, settings.repoPath || '')
+      if (attachments) debugLog('[Copilot SDK] Attachments:', attachments.length, 'image(s)')
       const response = await session.sendAndWait({ prompt: userMessage, attachments }, timeout)
 
       // Use sendAndWait return if streaming didn't capture anything
@@ -739,6 +817,36 @@ ${context.actionItems ? `Open action items:\n${context.actionItems}\n` : ''}
 ${context.githubActivity ? `Current team GitHub activity (what's in-flight, what's been shipping, what's stale):\n${context.githubActivity}` : ''}`
       })
       break
+
+    case 'refine-document': {
+      const docType = (context.documentType as string) || 'document'
+      messages.push({
+        role: 'system',
+        content: `You are editing a ${docType} for a manager. The user will provide the current contents and an instruction describing what to change. Apply the instruction precisely.
+
+CRITICAL RULES:
+- Return ONLY the full updated document content. No preamble, no explanation, no markdown code fences around the output.
+- If the document starts with YAML frontmatter (between --- lines), preserve it exactly as-is unless the user explicitly asks to change frontmatter fields.
+- Preserve existing markdown structure, headings, and formatting style.
+- Only change what the user instructs. Do NOT rewrite or reorganize unaffected sections.
+- Do NOT add new sections or content unless the instruction asks for it.
+- Apply the WRITING RULES (no em dashes, sentence case headings, casual direct tone, no filler).
+- If the instruction is ambiguous or could not be reasonably applied, return the original document unchanged.`
+      })
+      messages.push({
+        role: 'user',
+        content: `Current ${docType} contents:
+
+---DOCUMENT START---
+${context.currentContent || ''}
+---DOCUMENT END---
+
+Instruction: ${context.instruction || ''}
+
+Return the full updated document.`
+      })
+      break
+    }
 
     default:
       messages.push({

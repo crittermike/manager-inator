@@ -15,8 +15,11 @@ const REMARK_PLUGINS = [remarkGfm]
 import type { ActionItem, CheckIn, ContextNote, FeedbackEntry, PrepEntry, PersonActivityResult } from '../../shared/types'
 
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
+import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 import { StreamEntryCard } from '../components/report/StreamEntryCard'
 import type { StreamEntry } from '../components/report/StreamEntryCard'
+import { StreamEntryRow } from '../components/report/StreamEntryRow'
 import {
   ArrowLeft,
   Calendar,
@@ -124,8 +127,11 @@ export function ReportDetail() {
     }
   }, [])
 
-  // Expanded item tracking
+  // Expanded item tracking (used by GitHub activity section + legacy callers)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  // Selected entry in the master/detail stream view (single selection).
+  const [selectedStreamEntryId, setSelectedStreamEntryId] = useState<string | null>(null)
 
   // AI generation states
   const [showAI, setShowAI] = useState(false)
@@ -188,6 +194,9 @@ export function ReportDetail() {
   const [ptoReports, setPtoReports] = useState<Record<string, string>>({})
   const [showPtoModal, setShowPtoModal] = useState(false)
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
+  const [syncPreview, setSyncPreview] = useState<import('../../shared/types').ReportSyncPreview | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncProgress, setSyncProgress] = useState<import('../../shared/types').ReportSyncProgress | null>(null)
   const [ptoInput, setPtoInput] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 7)
@@ -374,7 +383,7 @@ export function ReportDetail() {
       const recentSummaryDates = report.summaries.slice(-5)
       const summaryPaths = recentSummaryDates.map(s => `contexts/${s.filename || `${s.date}-${name}-1-1.md`}`)
       const summaryMap = await window.api.getFilesContentBulk(summaryPaths)
-      const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).join('\n\n---\n\n')
+      const summariesText = summaryPaths.map(p => summaryMap[p]).filter(Boolean).map(c => c.slice(0, 4000)).join('\n\n---\n\n')
       if (!mountedRef.current) return
       const openActions = report.actionItems.filter(a => !a.completed).map(a => `- [ ] ${a.text}`).join('\n')
 
@@ -388,14 +397,14 @@ export function ReportDetail() {
       const allContexts = await window.api.listContexts()
       const otherWithSummaries = allContexts
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
-        .slice(0, 15)
+        .slice(0, 10)
 
       const otherPaths = otherWithSummaries.map(m => `contexts/${m.filename}`)
       const otherMap = await window.api.getFilesContentBulk(otherPaths)
       const mentionResults = otherWithSummaries.map(m => {
         const content = otherMap[`contexts/${m.filename}`]
         if (content && namePattern.test(content)) {
-          return `### ${m.title} (${m.date})\n${content}`
+          return `### ${m.title} (${m.date})\n${content.slice(0, 3000)}`
         }
         return ''
       })
@@ -571,7 +580,7 @@ export function ReportDetail() {
       const reviewMap = await window.api.getFilesContentBulk(reviewPaths)
     const summariesText = recentSummaries.map(s => {
       const content = reviewMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
-      return content ? `### ${s.date}\n${content}` : ''
+      return content ? `### ${s.date}\n${content.slice(0, 4000)}` : ''
     }).filter(Boolean).join('\n\n---\n\n')
     if (!mountedRef.current) return
 
@@ -579,7 +588,7 @@ export function ReportDetail() {
       `### ${c.date}\n${c.content || c.accomplishments.join('\n') || '(no content)'}`
     ).join('\n\n---\n\n')
 
-    const feedbackText = report.feedback.map(f =>
+    const feedbackText = report.feedback.slice(-15).map(f =>
       `${f.date} (${f.type}): ${f.content}`
     ).join('\n---\n')
 
@@ -638,7 +647,10 @@ export function ReportDetail() {
         feedback: feedbackText || undefined,
         actionItems: allActions || undefined,
         contextNotes: report.contextNotes.length > 0
-          ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
+          ? report.contextNotes.slice(-8).map(n => {
+              const content = n.content.length > 2000 ? n.content.slice(0, 2000) + '...[truncated]' : n.content
+              return `### ${n.date} (${n.source})\n${n.summary}\n\n${content}`
+            }).join('\n\n---\n\n')
           : undefined,
         githubActivity: githubActivityText
       })
@@ -1075,6 +1087,61 @@ export function ReportDetail() {
     }
   }, [name, report, toast, refreshSettings, navigate])
 
+  const handlePreviewSync = useCallback(async () => {
+    if (!name) return
+    setSyncBusy(true)
+    setSyncProgress({ stage: 'starting', message: 'Checking sync status…' })
+    try {
+      const status = await window.api.getReportSyncStatus(name)
+      if (!status.canSync) {
+        toast.error(status.error || 'Cannot sync this report')
+        return
+      }
+      const preview = await window.api.previewReportSync(name)
+      setSyncPreview(preview)
+    } catch (e) {
+      console.error('Failed to preview sync:', e)
+      toast.error(e instanceof Error ? e.message : 'Failed to preview sync')
+    } finally {
+      setSyncBusy(false)
+      setSyncProgress(null)
+    }
+  }, [name, toast])
+
+  const handleConfirmSync = useCallback(async () => {
+    if (!name) return
+    setSyncBusy(true)
+    setSyncProgress({ stage: 'starting', message: 'Preparing sync…' })
+    try {
+      const result = await window.api.syncReport(name)
+      const total = result.added.length + result.updated.length
+      if (result.pushed) {
+        toast.success(`Synced ${total} file${total === 1 ? '' : 's'} to repo`)
+      } else if (total > 0) {
+        toast.error(`Saved ${total} file${total === 1 ? '' : 's'} locally but push failed: ${result.pushError || 'unknown error'}`)
+      } else {
+        toast.info('Repo already up to date')
+      }
+    } catch (e) {
+      console.error('Failed to sync:', e)
+      toast.error(e instanceof Error ? e.message : 'Failed to sync')
+    } finally {
+      setSyncBusy(false)
+      setSyncProgress(null)
+      setSyncPreview(null)
+    }
+  }, [name, toast])
+
+  // Subscribe to sync progress events from main
+  useEffect(() => {
+    const api = (window as { api?: { onReportSyncProgress?: (cb: (d: unknown) => void) => () => void } }).api
+    if (!api || typeof api.onReportSyncProgress !== 'function') return
+    const unsubscribe = api.onReportSyncProgress((data) => {
+      setSyncProgress(data as import('../../shared/types').ReportSyncProgress)
+    })
+    return unsubscribe
+  }, [])
+
   // ── Build activity stream ──
 
   const streamEntries = useMemo((): StreamEntry[] => {
@@ -1184,8 +1251,8 @@ export function ReportDetail() {
   const navEnabled = !showAI && !isEditingContent && !viewingContent && !showPtoModal
   const handleNavSelect = useCallback((index: number) => {
     const entry = filteredEntries[index]
-    if (entry) toggleExpanded(entry.id)
-  }, [filteredEntries, toggleExpanded])
+    if (entry) setSelectedStreamEntryId(entry.id)
+  }, [filteredEntries])
   const { getItemProps: getNavProps } = useListNavigation({
     itemCount: filteredEntries.length,
     onSelect: handleNavSelect,
@@ -1205,14 +1272,12 @@ export function ReportDetail() {
     }
   }, [navigate, name])
 
-  // Sync expanded entry content to AI context (for check-ins, reviews, etc.)
+  // Sync selected entry content to AI context (for check-ins, reviews, etc.)
   useEffect(() => {
     if (viewingContent) return // File viewer has its own sync
-    if (expandedItems.size !== 1) { setActiveFile(null); return }
-    const expandedId = [...expandedItems][0]
-    const entry = streamEntries.find(e => e.id === expandedId)
+    if (!selectedStreamEntryId) { setActiveFile(null); return }
+    const entry = streamEntries.find(e => e.id === selectedStreamEntryId)
     if (!entry) return
-    // Only sync types that have meaningful file content
     if (entry.type === 'checkin') {
       setActiveFile({ path: `reports/${name}/check-ins/monthly/${entry.data.date}.md`, title: entry.title, content: '' })
     } else if (entry.type === 'review') {
@@ -1222,7 +1287,18 @@ export function ReportDetail() {
     } else if (entry.type === 'feedback') {
       setActiveFile({ path: '', title: entry.title, content: entry.data.content })
     }
-  }, [expandedItems, streamEntries, viewingContent, name, setActiveFile])
+  }, [selectedStreamEntryId, streamEntries, viewingContent, name, setActiveFile])
+
+  // Auto-select first visible entry; clear selection when entry no longer visible.
+  useEffect(() => {
+    if (filteredEntries.length === 0) {
+      if (selectedStreamEntryId !== null) setSelectedStreamEntryId(null)
+      return
+    }
+    if (!selectedStreamEntryId || !filteredEntries.some(e => e.id === selectedStreamEntryId)) {
+      setSelectedStreamEntryId(filteredEntries[0].id)
+    }
+  }, [filteredEntries, selectedStreamEntryId])
 
   // ── Pre-computed values (must be above early returns to preserve hook ordering) ──
 
@@ -1470,6 +1546,20 @@ export function ReportDetail() {
                           <Plane className={`w-4 h-4 ${isOnPto ? 'text-amber-400' : 'text-zinc-400'}`} aria-hidden="true" />
                           {isOnPto ? 'Clear PTO' : 'Mark PTO'}
                         </button>
+                        {report.profile.github && (
+                          <button
+                            role="menuitem"
+                            disabled={syncBusy}
+                            onClick={() => {
+                              setShowMoreMenu(false)
+                              void handlePreviewSync()
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Upload className="w-4 h-4 text-zinc-400" aria-hidden="true" />
+                            Sync to 1-1-{report.profile.github} repo
+                          </button>
+                        )}
                         <button
                           role="menuitem"
                           onClick={() => {
@@ -2082,8 +2172,8 @@ export function ReportDetail() {
         })}
       </div>
 
-      {/* ── Activity Stream ── */}
-      <div className="space-y-2">
+      {/* ── Activity Stream — master/detail (inbox-style) ── */}
+      <div>
         {filteredEntries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
             <div className="w-12 h-12 rounded-full bg-surface-raised flex items-center justify-center mb-4">
@@ -2132,33 +2222,64 @@ export function ReportDetail() {
             )}
           </div>
         ) : (
-          (() => {
-            let lastGroup = ''
-            return filteredEntries.map((entry, idx) => {
-              const toggleKey = entry.type === 'action'
-                ? entry.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
-                : false
-              const group = entry.pinned ? '' : getTimeGroup(entry.date)
-              const showHeader = group && group !== lastGroup
-              if (showHeader) lastGroup = group
-              return (
-                <div key={entry.id}>
-                  {showHeader && (
-                    <div className={`flex items-center gap-3 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-6'} mb-2`} role="heading" aria-level={3}>
-                      <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{group}</span>
-                      <hr className="flex-1 border-0 h-px bg-border" aria-hidden="true" />
+          <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr] items-start">
+            {/* ── Left: list (sticky, scrolls internally) ── */}
+            <nav
+              aria-label="Activity stream"
+              data-testid="stream-list"
+              className={`space-y-1 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1 ${animating ? 'animate-fade-up' : ''}`}
+            >
+              {(() => {
+                let lastGroup = ''
+                return filteredEntries.map((entry, idx) => {
+                  const group = entry.pinned ? '' : getTimeGroup(entry.date)
+                  const showHeader = group && group !== lastGroup
+                  if (showHeader) lastGroup = group
+                  return (
+                    <div key={entry.id}>
+                      {showHeader && (
+                        <div className={`flex items-center gap-2 ${idx === 0 || (idx === 1 && filteredEntries[0]?.pinned) ? '' : 'mt-4'} mb-1.5 px-1`} role="heading" aria-level={3}>
+                          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{group}</span>
+                          <hr className="flex-1 border-0 h-px bg-border" aria-hidden="true" />
+                        </div>
+                      )}
+                      <div {...getNavProps(idx)}>
+                        <StreamEntryRow
+                          entry={entry}
+                          selected={entry.id === selectedStreamEntryId}
+                          onSelect={setSelectedStreamEntryId}
+                        />
+                      </div>
                     </div>
-                  )}
-                  <div {...getNavProps(idx)} className={animating ? 'animate-fade-up' : ''} style={animating ? { animationDelay: `${Math.min(idx * 50, 300)}ms`, animationFillMode: 'both' } : undefined}>
+                  )
+                })
+              })()}
+            </nav>
+
+            {/* ── Right: detail pane (flows naturally; page scrolls) ── */}
+            <div data-testid="stream-detail" className="min-w-0">
+              {(() => {
+                const selected = filteredEntries.find(e => e.id === selectedStreamEntryId) ?? filteredEntries[0]
+                if (!selected) {
+                  return (
+                    <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-zinc-500">
+                      Select an entry to view details
+                    </div>
+                  )
+                }
+                const toggleKey = selected.type === 'action'
+                  ? selected.data.some(a => togglingItems.has(`${a.sourceFile ?? ''}:${a.sourceLineNumber ?? -1}`))
+                  : false
+                return (
                   <StreamEntryCard
-                    entry={entry}
-                    expanded={expandedItems.has(entry.id)}
-                    onToggle={toggleExpanded}
+                    entry={selected}
+                    expanded={true}
+                    onToggle={() => { /* no-op in master/detail */ }}
                     name={name!}
                     onViewContent={handleViewContent}
                     onToggleAction={handleToggleAction}
                     isToggling={toggleKey}
-                    isViewing={viewingContent?.id === entry.id}
+                    isViewing={viewingContent?.id === selected.id}
                     viewingPath={viewingContent?.path ?? null}
                     viewingTitle={viewingContent?.title ?? null}
                     fileContent={fileContent}
@@ -2172,16 +2293,15 @@ export function ReportDetail() {
                     onEditContent={handleEditContent}
                     onDeleteContent={handleDeleteContent}
                     onSaveContent={handleSaveContent}
-                    onCancelEdit={() => setIsEditingContent(false)}
+                    onCancelEdit={() => { setIsEditingContent(false); setViewingContent(null) }}
                     onUpdateFeedback={handleUpdateFeedback}
                     onDeleteFeedback={handleDeleteFeedback}
-                    onExpand={['context', 'checkin', 'review', 'prep'].includes(entry.type) ? handleExpand : undefined}
+                    onExpand={['context', 'checkin', 'review', 'prep'].includes(selected.type) ? handleExpand : undefined}
                   />
-                  </div>
-                </div>
-              )
-            })
-          })()
+                )
+              })()}
+            </div>
+          </div>
         )}
       </div>
 
@@ -2283,8 +2403,62 @@ export function ReportDetail() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      <ConfirmDialog
+        open={syncPreview !== null}
+        title={`Sync to 1-1-${report?.profile.github ?? ''} repo`}
+        message={syncPreview ? buildSyncPreviewMessage(syncPreview, syncBusy ? syncProgress : null) : ''}
+        confirmLabel={syncBusy ? 'Syncing…' : 'Sync now'}
+        onConfirm={handleConfirmSync}
+        onCancel={() => setSyncPreview(null)}
+      />
+
+      {/* ── Sync preview progress overlay (before dialog opens) ── */}
+      {syncBusy && syncPreview === null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="sync-preview-title">
+          <div className="bg-surface rounded-xl border border-border p-5 w-96 shadow-2xl">
+            <h3 id="sync-preview-title" className="text-base font-semibold text-zinc-100 mb-3 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-light" aria-hidden="true" />
+              Calculating sync preview…
+            </h3>
+            <p className="text-sm text-zinc-400">
+              {syncProgress?.message || 'Preparing…'}
+              {typeof syncProgress?.current === 'number' && typeof syncProgress?.total === 'number'
+                ? ` (${syncProgress.current}/${syncProgress.total})`
+                : ''}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function buildSyncPreviewMessage(
+  preview: import('../../shared/types').ReportSyncPreview,
+  progress: import('../../shared/types').ReportSyncProgress | null,
+): string {
+  const a = preview.added.length
+  const u = preview.updated.length
+  const n = preview.unchanged.length
+  const lines: string[] = []
+  if (a === 0 && u === 0) {
+    lines.push(`No changes to sync. ${n} file${n === 1 ? '' : 's'} already up to date.`)
+  } else {
+    lines.push(`${a} new, ${u} updated, ${n} unchanged.`)
+    lines.push('')
+    const samples = [...preview.added, ...preview.updated].slice(0, 8)
+    for (const e of samples) lines.push(`• ${e.dest}`)
+    const more = a + u - samples.length
+    if (more > 0) lines.push(`…and ${more} more`)
+  }
+  if (progress) {
+    lines.push('')
+    const counter = (typeof progress.current === 'number' && typeof progress.total === 'number')
+      ? ` (${progress.current}/${progress.total})`
+      : ''
+    lines.push(`⏳ ${progress.message}${counter}`)
+  }
+  return lines.join('\n')
 }
 
 // ── Editable Details Panel (About + Job Expectations) ──
@@ -2415,6 +2589,49 @@ function EditableDetailsPanel({ report, name, aboutText, toast, setReport }: {
           </button>
         </div>
         <div className="flex items-center gap-1">
+          {!editingAbout && !editingJobExpectations && (
+            detailsTab === 'about' ? (
+              <RefineWithAI
+                filePath={`reports/${name}/profile.md`}
+                currentContent={aboutText}
+                documentType="about section"
+                modalTitle="Refine About"
+                onSaved={(updated) => {
+                  setReport(prev => prev ? { ...prev, profile: { ...prev.profile, about: updated.trim() } } : prev)
+                }}
+                onSaveOverride={async (updated) => {
+                  const profileContent = await window.api.getFileContent(`reports/${name}/profile.md`)
+                  const aboutSection = `## About\n\n${updated.trim()}`
+                  let merged: string
+                  if (profileContent.match(/## About\s*\n/)) {
+                    merged = profileContent.replace(/## About\s*\n[\s\S]*?(?=\n##|$)/, aboutSection)
+                  } else {
+                    merged = profileContent.trimEnd() + '\n\n' + aboutSection + '\n'
+                  }
+                  await window.api.commitFile(
+                    `reports/${name}/profile.md`,
+                    merged,
+                    `Refine via AI: about section for ${report.profile.displayName}`
+                  )
+                }}
+              />
+            ) : (
+              <RefineWithAI
+                filePath={`reports/${name}/job-expectations.md`}
+                currentContent={report.jobExpectations || ''}
+                documentType="job expectations"
+                modalTitle="Refine job expectations"
+                onSaved={(updated) => {
+                  setReport(prev => prev ? { ...prev, jobExpectations: updated } : prev)
+                }}
+              />
+            )
+          )}
+          {!editingAbout && !editingJobExpectations && (
+            <OpenInExternal
+              filePath={detailsTab === 'about' ? `reports/${name}/profile.md` : `reports/${name}/job-expectations.md`}
+            />
+          )}
           <button
             onClick={() => detailsTab === 'about' ? handleEditAbout() : handleEditJobExpectations()}
             className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"

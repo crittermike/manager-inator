@@ -102,6 +102,7 @@ export function InlinePrep({
     const summariesText = summaryPaths
       .map(p => summaryFileMap[p])
       .filter(Boolean)
+      .map(c => c.slice(0, 4000))
       .join('\n\n---\n\n')
     if (!mountedRef.current) return
 
@@ -118,14 +119,14 @@ export function InlinePrep({
       const allContexts = await window.api.listContexts()
       const otherMeetings = allContexts
         .filter(m => !m.filename.replace('.md', '').includes(ownSummaryPrefix))
-        .slice(0, 15)
+        .slice(0, 10)
       const paths = otherMeetings.map(m => `contexts/${m.filename}`)
       const fileMap = await window.api.getFilesContentBulk(paths)
       const mentions: string[] = []
       for (const m of otherMeetings) {
         const content = fileMap[`contexts/${m.filename}`]
         if (content && namePattern.test(content)) {
-          mentions.push(`### ${m.title} (${m.date})\n${content}`)
+          mentions.push(`### ${m.title} (${m.date})\n${content.slice(0, 3000)}`)
           if (mentions.length >= 5) break
         }
       }

@@ -10,7 +10,7 @@ vi.mock('../../src/main/store', () => ({
   getToken: vi.fn(() => 'ghp_test-token-abc123')
 }))
 
-import { buildMessages, aiGenerate, aiCancel, stopClient, type CopilotMessage } from '../../src/main/copilot'
+import { buildMessages, aiGenerate, aiCancel, stopClient, estimateTokens, truncateMessagesToFit, type CopilotMessage } from '../../src/main/copilot'
 import { getSettings, getToken } from '../../src/main/store'
 
 const mockedGetSettings = vi.mocked(getSettings)
@@ -274,6 +274,29 @@ describe('buildMessages', () => {
 
     expect(mockedCreateSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-5.4' }))
   })
+  it('refine-document includes current contents and instruction', () => {
+    const result = buildMessages('refine-document', {
+      currentContent: '# Old heading\n\nOriginal paragraph about the project.',
+      instruction: 'Change the project description to mention shipping in March.',
+      documentType: 'monthly check-in'
+    })
+    expect(result[1].role).toBe('system')
+    expect(result[1].content).toContain('monthly check-in')
+    expect(result[1].content).toContain('preserve it exactly')
+    expect(result[2].role).toBe('user')
+    expect(result[2].content).toContain('---DOCUMENT START---')
+    expect(result[2].content).toContain('Original paragraph about the project.')
+    expect(result[2].content).toContain('---DOCUMENT END---')
+    expect(result[2].content).toContain('Change the project description to mention shipping in March.')
+  })
+
+  it('refine-document falls back to "document" when type omitted', () => {
+    const result = buildMessages('refine-document', {
+      currentContent: 'hello',
+      instruction: 'make it more formal'
+    })
+    expect(result[1].content).toContain('editing a document')
+  })
 })
 
 describe('getClient authentication', () => {
@@ -428,5 +451,82 @@ describe('getClient authentication', () => {
     expect(result.content).not.toContain('system_notification')
     expect(result.content).toContain('Hello')
     expect(result.content).toContain('world')
+  })
+})
+
+describe('estimateTokens', () => {
+  it('estimates tokens at ~3 chars per token', () => {
+    expect(estimateTokens('abc')).toBe(1)
+    expect(estimateTokens('a'.repeat(300))).toBe(100)
+    expect(estimateTokens('')).toBe(0)
+  })
+})
+
+describe('truncateMessagesToFit', () => {
+  it('returns messages unchanged when under budget', () => {
+    const messages: CopilotMessage[] = [
+      { role: 'system', content: 'System prompt' },
+      { role: 'user', content: 'Short user message' }
+    ]
+    const result = truncateMessagesToFit(messages, 'generate-checkin')
+    expect(result).toEqual(messages)
+  })
+
+  it('truncates the longest user message from the end for non-chat actions', () => {
+    // Create a message that exceeds 130K tokens (~390K chars)
+    const bigContext = 'x'.repeat(500_000)
+    const messages: CopilotMessage[] = [
+      { role: 'system', content: 'System prompt' },
+      { role: 'user', content: `Instructions\n\nContext:\n${bigContext}` }
+    ]
+    const result = truncateMessagesToFit(messages, 'generate-checkin')
+    expect(result.length).toBe(2)
+    expect(result[1].content.length).toBeLessThan(messages[1].content.length)
+    expect(result[1].content).toContain('[Context truncated to fit model token limit]')
+    // Should still have the beginning of the message
+    expect(result[1].content).toContain('Instructions')
+  })
+
+  it('truncates from the beginning for chat actions (preserves latest message)', () => {
+    const oldHistory = 'Old history message\n'.repeat(20_000)
+    const currentMessage = 'What is the latest status?'
+    const messages: CopilotMessage[] = [
+      { role: 'system', content: 'System prompt' },
+      { role: 'user', content: `Previous conversation:\n${oldHistory}---\n\n${currentMessage}` }
+    ]
+    const result = truncateMessagesToFit(messages, 'chat')
+    expect(result[1].content.length).toBeLessThan(messages[1].content.length)
+    expect(result[1].content).toContain('[Earlier conversation history truncated')
+    // Current message should be preserved (it's at the end)
+    expect(result[1].content).toContain(currentMessage)
+  })
+
+  it('does not truncate system messages', () => {
+    const bigContext = 'x'.repeat(500_000)
+    const messages: CopilotMessage[] = [
+      { role: 'system', content: 'Important system prompt' },
+      { role: 'user', content: bigContext }
+    ]
+    const result = truncateMessagesToFit(messages, 'prep-one-on-one')
+    expect(result[0].content).toBe('Important system prompt')
+  })
+
+  it('keeps at least 2000 chars in the truncated message', () => {
+    // Edge case: huge overage that would truncate to nothing
+    const messages: CopilotMessage[] = [
+      { role: 'system', content: 'x'.repeat(400_000) },
+      { role: 'user', content: 'y'.repeat(10_000) }
+    ]
+    const result = truncateMessagesToFit(messages, 'generate-checkin')
+    // User message should still have at least 2000 chars
+    expect(result[1].content.length).toBeGreaterThanOrEqual(2000)
+  })
+
+  it('handles messages with no user messages gracefully', () => {
+    const messages: CopilotMessage[] = [
+      { role: 'system', content: 'x'.repeat(500_000) }
+    ]
+    const result = truncateMessagesToFit(messages, 'generate-checkin')
+    expect(result).toEqual(messages)
   })
 })

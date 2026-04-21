@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useTeamOverview } from '../../hooks/useData'
 import { ClipboardPaste, X, ChevronDown, ChevronUp, Plus, Loader2, Check, AlertCircle, Pencil, FileUp } from 'lucide-react'
 import { CaptureSession } from './CaptureSession'
+import { cleanTranscript } from '../../utils/transcriptCleaners'
 
 type SourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other' | ''
 type SessionState = 'processing' | 'saved' | 'editing' | 'error'
@@ -144,7 +145,8 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
 
   const createSessionsFromFiles = useCallback((files: File[]) => {
     const textFiles = Array.from(files).filter(f =>
-      f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown') || f.type === 'text/plain'
+      f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown') ||
+      f.name.endsWith('.vtt') || f.name.endsWith('.srt') || f.type === 'text/plain'
     )
     if (textFiles.length === 0) return
 
@@ -160,36 +162,35 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     Promise.all(readers).then(results => {
       const newSessions = results
         .filter(r => r.content.trim().length > 0)
-        .map(r => ({
-          id: crypto.randomUUID(),
-          content: r.content.trim(),
-          sourceHint: sourceHint as SourceHint,
-          status: 'processing' as SessionState,
-          fileName: r.name,
-        }))
+        .map(r => {
+          const cleaned = cleanTranscript(r.name, r.content)
+          const isTranscript = /\.(vtt|srt)$/i.test(r.name)
+          return {
+            id: crypto.randomUUID(),
+            content: cleaned.trim(),
+            // Force meeting hint for VTT/SRT — these are always meeting transcripts.
+            sourceHint: (isTranscript ? 'meeting' : sourceHint) as SourceHint,
+            status: 'processing' as SessionState,
+            fileName: r.name,
+          }
+        })
       if (newSessions.length > 0) {
         setSessions(prev => [...newSessions, ...prev])
       }
     })
   }, [sourceHint])
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingFiles(false)
-
-    const files = Array.from(e.dataTransfer.files)
+  const processDroppedFiles = useCallback(async (files: File[]) => {
     const imageFiles = files.filter(f => f.type.startsWith('image/'))
     const textFiles = files.filter(f =>
-      f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown') || f.type === 'text/plain'
+      f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown') ||
+      f.name.endsWith('.vtt') || f.name.endsWith('.srt') || f.type === 'text/plain'
     )
 
-    // Handle text files as bulk captures
     if (textFiles.length > 0) {
       createSessionsFromFiles(textFiles)
     }
 
-    // Handle image files as attachments (existing behavior)
     for (const file of imageFiles) {
       const reader = new FileReader()
       reader.onload = async () => {
@@ -204,6 +205,25 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
       reader.readAsDataURL(file)
     }
   }, [createSessionsFromFiles])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingFiles(false)
+    const files = Array.from(e.dataTransfer.files)
+    await processDroppedFiles(files)
+  }, [processDroppedFiles])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const files = (e as CustomEvent<File[]>).detail
+      if (files && files.length > 0) {
+        processDroppedFiles(files)
+      }
+    }
+    window.addEventListener('capture-files-dropped', handler)
+    return () => window.removeEventListener('capture-files-dropped', handler)
+  }, [processDroppedFiles])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -366,7 +386,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
                 <div className="text-center">
                   <FileUp className="w-8 h-8 text-brand-light mx-auto mb-2" aria-hidden="true" />
                   <p className="text-sm font-medium text-brand-light">Drop files to process</p>
-                  <p className="text-xs text-zinc-500 mt-1">.txt and .md files</p>
+                  <p className="text-xs text-zinc-500 mt-1">.txt, .md, .vtt, .srt files</p>
                 </div>
               </div>
             )}
@@ -412,7 +432,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,.md,.markdown,text/plain"
+                accept=".txt,.md,.markdown,.vtt,.srt,text/plain"
                 multiple
                 onChange={handleFileInputChange}
                 className="hidden"
@@ -449,6 +469,7 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
             reports={reports}
             onStatusChange={handleStatusChange}
             onRemove={handleRemoveSession}
+            onNavigateAway={onClose}
           />
         ))}
       </div>

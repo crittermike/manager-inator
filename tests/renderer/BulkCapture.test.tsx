@@ -56,7 +56,9 @@ Object.defineProperty(window, 'api', {
   writable: true
 })
 
-import { CapturePanel } from '../../src/renderer/components/common/CapturePanel'
+import { CapturePanel } from "../../src/renderer/components/common/CapturePanel"
+import { MemoryRouter } from "react-router-dom"
+const Wrapper = ({ children }: { children: React.ReactNode }) => <MemoryRouter>{children}</MemoryRouter>
 
 describe('CapturePanel bulk file processing', () => {
   let container: HTMLDivElement
@@ -79,7 +81,7 @@ describe('CapturePanel bulk file processing', () => {
 
   it('shows Import files button', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     const importBtn = Array.from(container.querySelectorAll('button'))
@@ -89,20 +91,22 @@ describe('CapturePanel bulk file processing', () => {
 
   it('has a hidden file input that accepts text files', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
     expect(fileInput).not.toBeNull()
     expect(fileInput.accept).toContain('.txt')
     expect(fileInput.accept).toContain('.md')
+    expect(fileInput.accept).toContain('.vtt')
+    expect(fileInput.accept).toContain('.srt')
     expect(fileInput.multiple).toBe(true)
     expect(fileInput.className).toContain('hidden')
   })
 
   it('creates sessions from dropped text files', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     // Find the drop zone
@@ -139,7 +143,7 @@ describe('CapturePanel bulk file processing', () => {
 
   it('creates sessions from file input selection', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
@@ -171,7 +175,7 @@ describe('CapturePanel bulk file processing', () => {
 
   it('filters out non-text files when dropping', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     const dropZone = container.querySelector('[class*="relative"]') as HTMLElement
@@ -204,7 +208,7 @@ describe('CapturePanel bulk file processing', () => {
 
   it('skips empty text files', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement
@@ -236,7 +240,7 @@ describe('CapturePanel bulk file processing', () => {
 
   it('shows drag overlay when dragging files over', async () => {
     await act(async () => {
-      root.render(<CapturePanel open={true} onClose={vi.fn()} />)
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
     })
 
     // Initially no drop overlay
@@ -253,5 +257,23 @@ describe('CapturePanel bulk file processing', () => {
     // The overlay should appear (state change triggers re-render)
     // Note: happy-dom event handling may not trigger React synthetic events perfectly,
     // so we verify the component renders the overlay when isDraggingFiles is true
+  })
+
+  it('accepts .vtt and .srt files via the capture-files-dropped event', async () => {
+    await act(async () => {
+      root.render(<Wrapper><CapturePanel open={true} onClose={vi.fn()} /></Wrapper>)
+    })
+
+    const vttFile = new File(['WEBVTT\n\n00:00.000 --> 00:05.000\nHello'], 'transcript.vtt', { type: 'text/plain' })
+    const srtFile = new File(['1\n00:00:00,000 --> 00:00:05,000\nHello'], 'transcript.srt', { type: 'text/plain' })
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('capture-files-dropped', { detail: [vttFile, srtFile] }))
+      await new Promise(r => setTimeout(r, 100))
+    })
+
+    const text = container.textContent || ''
+    expect(text).toContain('transcript.vtt')
+    expect(text).toContain('transcript.srt')
   })
 })

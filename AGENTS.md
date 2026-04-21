@@ -2,6 +2,119 @@
 
 ## Recent Changes (April 2026)
 
+### Per-direct-report repo sync + transcript cleanup (COMPLETE)
+Two related features shipped together so that managers can keep their main repo as the source of truth while still pushing curated content to per-report private repos.
+
+**Sync UX: streaming progress + relaxed 1:1 detection (April 2026 follow-up)**
+- The sync no longer blocks the UI silently. Main process emits `report:sync-progress` events at each stage (`starting`/`cloning`/`fetching`/`planning`/`comparing`/`writing` (with `current`/`total`)/`committing`/`pushing`/`done`). Renderer subscribes via `window.api.onReportSyncProgress` and shows: a "Calculating sync preview…" spinner overlay before the dialog opens, and a `⏳ <message>` line appended inside the confirm dialog while syncing.
+- `isOneOnOneWith` was loosened: speakers must now be a non-empty subset of `{currentUserName, reportName-or-alias}` AND must contain the report. Empty speakers and >2 speakers still rejected. This accepts the very common case where the meeting tool only transcribes the report (manager isn't transcribed), without weakening cross-report leakage protection — because every speaker is still required to be either the user or the report.
+- **Open on GitHub**: `OpenInExternal` dropdown now always includes "Open on GitHub" (icon `Github`), invoking `window.api.openInGitHub(filePath)`. `src/main/external.ts#openInGitHub` builds the URL from `settings.repoOwner`/`repoName`, falls back to parsing `git remote.origin.url` (HTTPS or SSH GitHub only), defaults branch to `main` when HEAD is detached, URL-encodes path segments, and rejects path traversal. IPC: `external:open-github`.
+
+### Master/detail "inbox" stream view (April 2026)
+- `ReportDetail`'s activity stream switched from inline expand-in-place to a two-pane email-inbox layout: compact list on the left, detail pane on the right (`lg:grid-cols-[minmax(260px,340px)_1fr]`). Below the `lg` breakpoint they stack.
+- New compact list-row component: `src/renderer/components/report/StreamEntryRow.tsx` (badge + title + preview + date, `aria-current` highlight when selected). Detail pane reuses the existing `<StreamEntryCard expanded={true}>` so all detail UX (refine, edit, file viewer, etc.) carries over unchanged.
+- Selection state: `selectedStreamEntryId` is **separate from** `expandedItems`. The latter still drives the GitHub activity accordion — do not unify them.
+- Auto-select: the first visible entry is auto-selected on filter change / data refresh; selection is cleared/retargeted whenever the selected id is no longer in `filteredEntries`.
+- AI context sync now keys off `selectedStreamEntryId` (was `expandedItems.size === 1`).
+- `useListNavigation` j/k now sets selection (was toggling expansion).
+- **Detail pane flows naturally** (no inner scroller). The list pane is sticky/scrollable (`lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto`); the detail pane is `min-w-0` only and lets the page scroll. Per-type subcomponents in `StreamEntryCard.tsx` had their inner `max-h-96 overflow-y-auto` caps stripped so detail content can flow to full height.
+- Tests: `tests/renderer/StreamEntryRow.test.tsx` (5 tests) for the row component; `tests/renderer/ReportDetail.test.tsx` "master/detail stream" describe block covers auto-select + click-to-select. Existing tests continue to pass because they query the DOM by visible text and the same content now appears in the detail pane.
+
+### Today master/detail (April 2026)
+- The Today page uses the same email-inbox layout: left column = category nav (Team Activity if `hasGithubOrgToken`, plus the populated `TimelineSection`s — `overdue`, `reflection`, `this-week`, `coming-up`, `done`). Right column = items for the selected category, OR the Team Activity panel.
+- State: `selectedCategory: 'activity' | TimelineSection | null`. Auto-select preference order: `overdue → reflection → this-week → activity → coming-up → done`. Re-targets when the current selection leaves the set.
+- Removed: `expandedSections`, `setExpandedSections`, `toggleSection`, `activityExpanded`, `setActivityExpanded`, plus the section accordion buttons and chevrons. Each section / activity panel is rendered as a top-level card inside the right pane (no header toggle button).
+- **`TimelineRow.handleRowClick` now navigates** for inline-style action types instead of expanding inline:
+  - `prep` → `/report/<reportName>`
+  - `feedback` → `/report/<reportName>?filter=feedback`
+  - `inline-actions` → `/report/<reportName>?filter=action`
+  - `prompt` → still expands inline (no per-report destination exists for cross-team prompts like weekly retro / sprint goal / quarterly OKR / 1:1 format check). The action button next to the row also follows the same routing rules.
+- `visibleItemIds` is now scoped to the selected category (drives `useListNavigation` j/k inside the right pane only).
+- Tests: `tests/renderer/Today.test.tsx` updated. New helper `selectCategory(container, label)` clicks a category in the left nav. Two tests removed/replaced (the old "collapses and re-expands a Today section" and the old per-section header className assertions); added "selects a different category to switch the right pane". Tests that look for prompt items now select the appropriate category first (`'This week'` for quarterly/team-health/1:1-format/personal-retro; `'Team Activity'` for the activity refresh affordance).
+
+
+**Feature A: VTT/SRT transcript cleanup at capture time**
+- New pure utility `src/renderer/utils/transcriptCleaners.ts` exports `cleanTranscript(filename, raw)` and dispatches by extension to VTT or SRT cleaners (anything else passes through).
+- VTT path parses cue-by-cue and pulls speakers from `<v Speaker>...</v>` voice tags (closing tag often missing — `VOICE_TAG` regex handles both forms). Strips `WEBVTT` header, `NOTE` blocks, cue ids, timestamps, residual HTML, decodes entities.
+- SRT path strips sequence numbers + timestamps, detects inline `Speaker:` prefix.
+- Both pipe through `mergeAdjacentSameSpeaker` — **must require BOTH speakers be non-null to merge**, or sequential narration paragraphs collapse into one blob.
+- Output format: `**Speaker:** text\n\n` blocks; falls back to plain paragraphs when no speakers detected.
+- Wired into `CapturePanel.createSessionsFromFiles`: `.vtt`/`.srt` files get cleaned + forced `sourceHint='meeting'` before being stuffed into a session.
+- 15 tests in `tests/renderer/transcriptCleaners.test.ts`.
+
+**Feature B: On-demand sync to `<owner>/1-1-<github-username>` repo**
+- New main module `src/main/syncToReport.ts`. Local cache lives at `app.getPath('userData') + '/synced-repos/1-1-<gh>'`.
+- Owner derivation: prefers `getSettings().repoOwner`; falls back to parsing source repo's `origin` URL via `parseGithubOwnerFromOrigin` (only accepts GitHub HTTPS or SSH — rejects everything else).
+- GitHub username validation regex: `/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/` — applied to BOTH `profile.github` and the owner before any URL/path construction.
+- Auth-safe git invocations: every `spawnGit` call sets `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=echo`, `SSH_ASKPASS=echo` so git fails fast instead of hanging on credential prompts.
+- **Strict 1:1 predicate** `isOneOnOneWith` requires `frontmatter.source === 'meeting'` AND case-insensitive normalized `speakers` set equals exactly `{currentUserName, reportName-or-alias}` (size === 2). Anything else (team standups, group meetings, 1:1s with other reports) is excluded — protects against cross-report leakage. There is regression coverage for this.
+- **File mapping**:
+  - `reports/<slug>/check-ins/monthly/<YYYY-MM>.md` → `check-ins/<YYYY-MM>.md`
+  - `reports/<slug>/reviews/<file>.md` → `reviews/<file>.md`
+  - For each `contexts/*.md` matching the strict 1:1 predicate: summary (everything before `## Raw content`) → `summaries/<date>.md`, raw content (after `## Raw content`, if non-empty) → `transcripts/<date>.md`. All frontmatter stripped.
+- **Stable date-collision suffixes**: contexts grouped by date, sorted alphabetically by source filename, suffixes `''`, `-2`, `-3` assigned by index. Summary and transcript for the same source file always share a suffix (paired correctly). Preview and sync use the same planner so counts always agree.
+- **Append-only mirror** (per user choice): preview returns only `{added, updated, unchanged}`. Stale dest files are never deleted.
+- Path safety: `destSafePath` walks up checking for symlinks that escape the dest root. Even though dest is a clone of a user-owned repo, malicious symlinks could escape.
+- Dirty-check before write: `ensureClean` runs `git status --porcelain` and aborts only if MANAGED_DIRS (`check-ins`, `reviews`, `summaries`, `transcripts`) have uncommitted changes. README/etc. edits are user's business.
+- IPC: `report:get-sync-status`, `report:preview-sync`, `report:sync` in `src/main/ipc.ts`. Preload exposes `getReportSyncStatus`, `previewReportSync`, `syncReport`. Types in `src/shared/types.ts`: `ReportSyncStatus`, `ReportSyncEntry`, `ReportSyncPreview`, `ReportSyncResult`.
+- UI: "Sync to 1-1-<gh> repo" item appears in the existing **More actions** menu on `ReportDetail`, gated on `report.profile.github` being set. Click → preview → ConfirmDialog showing `{added, updated, unchanged}` counts plus the first 8 dest paths → confirm → sync → toast (success / "saved locally but push failed" / already up to date).
+- **`ConfirmDialog.message` now respects `\n` line breaks** via `whitespace-pre-line` (was previously collapsed to a single line). Multi-line preview messages render correctly.
+- 45 tests in `tests/main/syncToReport.test.ts` covering URL parsing, username validation, the 1:1 predicate (incl. team-standup regression), summary/transcript extraction, and `planWrites` mapping incl. the same-day stable-suffix regression.
+
+### Auto-track meeting attendees on capture (COMPLETE)
+- When the Capture panel saves a meeting (AI `source === 'meeting'` OR `sourceHint === 'meeting'`), it now writes a `speakers:` frontmatter field to the new context file containing the current user (`settings.userName`) plus every name in `classified.people_mentioned`. Previously only `people:` (slugs) was written, so the ContextDetail "Attendees" UI showed "No attendees recorded" until the user manually edited speakers.
+- The classify prompt was tightened to require every meeting attendee in `people_mentioned`, even silent ones, so 1:1s reliably end up with both parties listed.
+- Helper extracted to `src/renderer/utils/captureAttendees.ts` (`buildMeetingAttendees`, `shouldRecordAttendees`) with unit tests in `tests/renderer/captureAttendees.test.ts`.
+
+### Open in External App (COMPLETE)
+- **Single-button dropdown** on every markdown viewer (`OpenInExternal`): clicking the ↗ icon opens a menu with "Open full view" (when applicable), "Open in VS Code", "Open in Obsidian", and "Reveal in Finder" — only the apps actually detected on the machine appear. Replaced the previous trio of separate icon buttons that cluttered the toolbar.
+- **`onOpenFullView` prop**: when provided, adds an "Open full view" item at the top of the dropdown. Used in `StreamEntryCard` so the inline-expanded report stream cards can navigate to the full ContextDetail page from the same menu.
+- **Auto-reload on window focus**: `useFileContent` (in `useData.ts`) now refetches whenever the window regains focus. This means edits made externally in VS Code/Obsidian appear in the app on switch-back without a manual refresh. Cached aggregates (`getReportData`, etc.) are NOT auto-refreshed on focus to avoid expensive recomputation. `ContextDetail` (full-view page for meetings/reviews/check-ins/preps/contexts) also refetches on focus, but skips the refetch while the user is actively editing title/speakers/content to avoid clobbering in-progress changes.
+- **Detection is OS-aware** (`src/main/external.ts` → `detectExternalApps()`): macOS-only currently. Checks `/Applications` and `~/Applications` for VS Code, Cursor, VSCodium (any one shows the VS Code button), and Obsidian. Returns `{ vscode, obsidian, finder }`. Cached for the session.
+- **URL schemes used**: `vscode://file<absolute-path>` and `obsidian://open?path=<absolute-path>`. Reveal-in-Finder uses `shell.showItemInFolder`.
+- **Path traversal protected**: `safeAbsolutePath()` resolves under the configured `repoPath` and rejects anything that escapes via `..` or symlinks. Files must exist before being opened.
+- **Mounted alongside RefineWithAI**: ContextDetail, PersonDetail, MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About + Job Expectations), and the inline expanded view inside `StreamEntryCard`.
+- IPC: `external:detect`, `external:open-vscode`, `external:open-obsidian`, `external:reveal-in-finder`.
+- Tests: 11 main-side + 10 renderer + 2 useFileContent focus-reload tests.
+- **Bug fix (cancel-edit double content)**: In `ReportDetail.tsx`, clicking Edit then Cancel on a context/prep stream card was leaving `viewingContent` set, so the inline editor closed back to a read-only viewer pane that rendered the same file already shown by `ContextDetail` above — duplicate content. Fix: `onCancelEdit` now clears both `isEditingContent` AND `viewingContent`. Regression test added in `tests/renderer/ReportDetail.test.tsx`.
+
+### Refine with AI (COMPLETE)
+- **New AI action `refine-document`** (`src/main/copilot.ts`): rewrites a markdown document based on a natural-language instruction. System prompt enforces preserving YAML frontmatter, returning ONLY content (no fences), and only changing what was asked.
+- **Reusable `RefineWithAI` component** (`src/renderer/components/common/RefineWithAI.tsx`): sparkle (✨) icon button → modal with instruction textarea → Generate → before/after line diff → Accept commits via `commitFile`, Reject closes. Cmd+Enter submits. `stripCodeFence()` defensively strips ```` ```markdown ```` wrapping. Supports `onSaveOverride` prop for refining a sub-section of a file (e.g. About section merged into profile.md).
+- **Line diff utility** (`src/renderer/utils/lineDiff.ts`): pure LCS implementation, returns `[{op: 'equal'|'add'|'remove', text}]`. No new deps.
+- **Mounted on every markdown viewer**: ContextDetail (covers contexts/check-ins/reviews/preps/people via `dir` param), PersonDetail (Notes), MyProfile (impact-log + weekly entries), ImpactLog, ReportDetail (About uses onSaveOverride to merge into profile.md; Job Expectations is whole-file).
+- Tests: 9 lineDiff tests, 8 RefineWithAI tests, 2 copilot `buildMessages` tests for `refine-document`. ContextDetail test mock updated to include AI stream listeners now that RefineWithAI uses `useAI`.
+
+### AI Chat Image Paste Support (COMPLETE)
+- **Paste images into AI chat** (`Chat.tsx` and `AIFloatingPanel.tsx`): pasting an image in the chat input commits it to `attachments/` (via `commitBinaryFile`) and shows a removable thumbnail above the textarea. On send, the image paths are passed to the AI with the message.
+- New shared utilities in `src/renderer/utils/imageAttachments.ts`:
+  - `uploadPastedImage(blob, mimeType)` commits a blob to `attachments/YYYY-MM-DD-<id>.<ext>` and returns `{ id, filename, dataUrl, path }`. Maps `image/jpeg → .jpg`.
+  - `handleImagePaste(e)` walks `ClipboardEvent` items, uploads image items, calls `preventDefault()` only when images are found.
+- New `useImagePaths(paths)` hook in `useAttachedImages.ts` lazy-loads repo-relative image paths as base64 data URLs for display in prior message bubbles (via `window.api.getFileBase64`).
+- `Message` type gains optional `imagePaths?: string[]`; `sendMessage(text, context?, imagePaths?)` now accepts images (text may be empty if images are present) and passes them through to `ai.generate` as `context.imagePaths`.
+- Main-side: `copilot.ts` chat path now builds SDK `attachments` from `context.imagePaths` (mirrors existing non-chat behavior) and passes them to `session.sendAndWait`.
+- Tests: 3 new `sendMessage` tests (image-only, with text, omits key when empty) and 5 new tests covering `uploadPastedImage` / `handleImagePaste`.
+
+### Capture & Today UX Improvements (COMPLETE)
+- **Today page Team Activity tile** now shows a live "Updated X ago" timestamp in its subtitle (`Today.tsx`). Refreshed via a 30s tick.
+- **CapturePanel drag/drop accepts `.vtt` and `.srt` files** alongside `.txt`/`.md`/`.markdown` for meeting transcript imports. File input `accept=` attribute and drop-overlay text updated accordingly.
+- **Drag files directly onto the FAB** (`AppShell.tsx`) to kick off capture. The FAB has `onDragOver`/`onDrop` handlers that open the CapturePanel and dispatch a `capture-files-dropped` CustomEvent with the file list. The FAB also pulses/glows when a drag is hovering.
+- **CapturePanel listens for `capture-files-dropped`** and reuses the shared `processDroppedFiles(files)` helper (extracted from `handleDrop`) to handle both text files and images.
+- **CaptureSession "View" button**: processed/saved captures now have a View action (alongside Edit/Delete) that navigates to `/context/{filename}?dir=contexts` — the same full-view page opened from Search. CapturePanel passes its `onClose` down as `onNavigateAway` so the panel dismisses before navigation. Tests wrap `<CapturePanel>` in `MemoryRouter` since `useNavigate` now fires inside CaptureSession.
+
+### AI Rate Limit Handling (COMPLETE)
+- **Module-level rate limit tracking** in `src/main/github-activity.ts`: `_rateLimitedUntil` timestamp set when GitHub returns 403/429. All API functions (`fetchSearchPage`, `fetchDiscussions`, `fetchPRReviews`, `fetchIssueComments`) bail early when rate-limited instead of spamming errors.
+- `clearRateLimit()` exported for test isolation.
+
+### AI Token Limit Fix (COMPLETE)
+- **Centralized prompt truncation** in `src/main/copilot.ts`: `truncateMessagesToFit()` estimates token count (~3 chars/token) and truncates messages to fit within a 130K token budget (168K model limit minus safety margin). Chat actions trim oldest history first; non-chat actions trim context from the end.
+- **Source-level context caps** applied consistently across all AI context assembly points:
+  - Individual summary content capped at 4000 chars (`checkin.ts`, `ReportDetail.tsx`, `Today.tsx`, `InlinePrep.tsx`)
+  - Feedback limited to last 10 entries for check-ins, 15 for reviews (was unlimited)
+  - Context notes limited to last 5-8 with 2000 char cap per note
+  - Cross-meeting mentions reduced from 15→10 contexts scanned, each capped at 3000 chars
+- **Debug logging** when truncation fires (logs action, estimated tokens, and chars removed)
+
 ### Check-in + Review Workflow Upgrade (COMPLETE)
 - **Monthly check-ins auto-save after generation** in `ReportDetail.tsx`. Generating a performance check-in now immediately writes `reports/{name}/check-ins/monthly/YYYY-MM.md` instead of waiting for a separate save step.
 - **Correct monthly check-in period selection**: the reporting month now targets the completed month (for example, Apr 1 generates/saves `2026-03.md`, not `2026-04.md`).

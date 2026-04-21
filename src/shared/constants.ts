@@ -2,10 +2,11 @@
 export const IMPACT_LOG_PATH = 'impact-log.md'
 
 /** Default AI model ID */
-export const DEFAULT_MODEL = 'gpt-4.1'
+export const DEFAULT_MODEL = 'claude-opus-4.7'
 
 /** Available AI models for the model picker */
 export const AVAILABLE_MODELS = [
+  { id: 'claude-opus-4.7', name: 'Claude Opus 4.7', provider: 'Anthropic' },
   { id: 'claude-opus-4.6', name: 'Claude Opus 4.6', provider: 'Anthropic' },
   { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'Anthropic' },
   { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'Anthropic' },

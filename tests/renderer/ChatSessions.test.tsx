@@ -448,4 +448,59 @@ describe('sendMessage model passing', () => {
 
     act(() => { root.unmount() })
   })
+
+  it('passes imagePaths through to generate and attaches them to the user message', async () => {
+    let ctx!: ReturnType<typeof useChatSessions>
+    const { root } = renderWithProvider(c => { ctx = c })
+
+    mockGenerate.mockClear()
+
+    await act(async () => {
+      await ctx.sendMessage('look at this', undefined, ['attachments/pic.png'])
+    })
+
+    expect(mockGenerate).toHaveBeenCalledWith('chat', expect.objectContaining({
+      message: 'look at this',
+      imagePaths: ['attachments/pic.png'],
+    }))
+
+    const userMsg = ctx.activeSession.messages.find(m => m.role === 'user')
+    expect(userMsg?.imagePaths).toEqual(['attachments/pic.png'])
+
+    act(() => { root.unmount() })
+  })
+
+  it('allows sending images without text', async () => {
+    let ctx!: ReturnType<typeof useChatSessions>
+    const { root } = renderWithProvider(c => { ctx = c })
+
+    mockGenerate.mockClear()
+
+    await act(async () => {
+      await ctx.sendMessage('', undefined, ['attachments/only.png'])
+    })
+
+    expect(mockGenerate).toHaveBeenCalledTimes(1)
+    const userMsg = ctx.activeSession.messages.find(m => m.role === 'user')
+    expect(userMsg).toBeDefined()
+    expect(userMsg?.imagePaths).toEqual(['attachments/only.png'])
+
+    act(() => { root.unmount() })
+  })
+
+  it('omits imagePaths key when none are provided', async () => {
+    let ctx!: ReturnType<typeof useChatSessions>
+    const { root } = renderWithProvider(c => { ctx = c })
+
+    mockGenerate.mockClear()
+
+    await act(async () => {
+      await ctx.sendMessage('just text')
+    })
+
+    const callArgs = mockGenerate.mock.calls[0][1]
+    expect(callArgs).not.toHaveProperty('imagePaths')
+
+    act(() => { root.unmount() })
+  })
 })

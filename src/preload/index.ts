@@ -80,6 +80,19 @@ contextBridge.exposeInMainWorld('api', {
   },
   installUpdate: () => ipcRenderer.invoke('app:install-update'),
   startPrewarm: () => ipcRenderer.invoke('app:start-prewarm'),
+  detectExternalApps: () => ipcRenderer.invoke('external:detect'),
+  openInVSCode: (path: string) => ipcRenderer.invoke('external:open-vscode', path),
+  openInObsidian: (path: string) => ipcRenderer.invoke('external:open-obsidian', path),
+  revealInFinder: (path: string) => ipcRenderer.invoke('external:reveal-in-finder', path),
+  openInGitHub: (path: string) => ipcRenderer.invoke('external:open-github', path),
+  getReportSyncStatus: (slug: string) => ipcRenderer.invoke('report:get-sync-status', slug),
+  previewReportSync: (slug: string) => ipcRenderer.invoke('report:preview-sync', slug),
+  syncReport: (slug: string) => ipcRenderer.invoke('report:sync', slug),
+  onReportSyncProgress: (cb: (data: { stage: string; message: string; current?: number; total?: number }) => void) => {
+    const handler = (_event: unknown, data: { stage: string; message: string; current?: number; total?: number }) => cb(data)
+    ipcRenderer.on('report:sync-progress', handler)
+    return () => ipcRenderer.removeListener('report:sync-progress', handler)
+  },
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => {
     const handler = (_event: unknown, data: { success: boolean; error?: string }) => cb(data)
     ipcRenderer.on('github:push-status', handler)

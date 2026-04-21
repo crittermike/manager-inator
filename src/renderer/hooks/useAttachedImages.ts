@@ -48,3 +48,37 @@ export function useAttachedImages(content: string | null) {
 
   return { stripImageRefs, getImageUrls, imageCount: Object.keys(imageDataUrls).length }
 }
+
+/**
+ * Loads an explicit list of repo-relative image paths as base64 data URLs.
+ * Paths that fail to load resolve to an empty string and are skipped.
+ */
+export function useImagePaths(paths: string[] | undefined) {
+  const [urls, setUrls] = useState<Record<string, string>>({})
+  const key = (paths || []).join('|')
+
+  useEffect(() => {
+    if (!paths || paths.length === 0) { setUrls({}); return }
+    let stale = false
+    Promise.all(paths.map(async (p) => {
+      try {
+        const base64 = await window.api.getFileBase64(p)
+        const ext = p.split('.').pop()?.toLowerCase() || 'png'
+        const mime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }
+        return { path: p, url: `data:${mime[ext] || 'image/png'};base64,${base64}` }
+      } catch (err) {
+        console.error('[useImagePaths] Failed to load', p, err)
+        return { path: p, url: '' }
+      }
+    })).then(results => {
+      if (stale) return
+      const map: Record<string, string> = {}
+      for (const r of results) if (r.url) map[r.path] = r.url
+      setUrls(map)
+    })
+    return () => { stale = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return urls
+}

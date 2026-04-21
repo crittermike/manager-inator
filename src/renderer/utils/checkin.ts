@@ -23,7 +23,7 @@ export async function getCheckInContext(report: Report, name: string, now = new 
   const checkInMap = await window.api.getFilesContentBulk(checkInPaths)
   const summariesText = recentSummaries.map(s => {
     const content = checkInMap[`contexts/${s.filename || `${s.date}-${name}-1-1.md`}`]
-    return content ? `### ${s.date}\n${content}` : ''
+    return content ? `### ${s.date}\n${content.slice(0, 4000)}` : ''
   }).filter(Boolean).join('\n\n---\n\n')
 
   const recentCheckIns = report.checkIns.slice(-3)
@@ -88,10 +88,13 @@ export async function getCheckInContext(report: Report, name: string, now = new 
     jobExpectations: report.jobExpectations || undefined,
     summaries: summariesText || 'No recent summaries available.',
     checkInHistory: checkInHistoryText,
-    feedback: report.feedback.map(f => `${f.date}: ${f.content}`).join('\n---\n'),
+    feedback: report.feedback.slice(-10).map(f => `${f.date}: ${f.content}`).join('\n---\n'),
     actionItems: report.actionItems.filter(a => !a.completed).slice(0, 20).map(a => `- ${a.text}`).join('\n'),
     contextNotes: report.contextNotes.length > 0
-      ? report.contextNotes.map(n => `### ${n.date} (${n.source})\n${n.summary}\n\n${n.content}`).join('\n\n---\n\n')
+      ? report.contextNotes.slice(-5).map(n => {
+          const content = n.content.length > 2000 ? n.content.slice(0, 2000) + '...[truncated]' : n.content
+          return `### ${n.date} (${n.source})\n${n.summary}\n\n${content}`
+        }).join('\n\n---\n\n')
       : undefined,
     githubActivity: githubActivityText
   }

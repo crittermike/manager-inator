@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAI } from '../../hooks/useAI'
+import { useSettings } from '../../hooks/useData'
+import { buildMeetingAttendees, shouldRecordAttendees } from '../../utils/captureAttendees'
 import { useToast } from './Toast'
 import { format } from 'date-fns'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
@@ -8,7 +11,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   Loader2, Check, AlertCircle, Sparkles,
-  Pencil, Trash2, ChevronDown, ChevronUp, X, FileText
+  Pencil, Trash2, ChevronDown, ChevronUp, X, FileText, ExternalLink
 } from 'lucide-react'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -52,6 +55,7 @@ export function CaptureSession({
   reports,
   onStatusChange,
   onRemove,
+  onNavigateAway,
 }: {
   id: string
   initialContent: string
@@ -61,8 +65,11 @@ export function CaptureSession({
   reports: ReportSummary[]
   onStatusChange: (id: string, status: SessionState) => void
   onRemove: (id: string) => void
+  onNavigateAway?: () => void
 }) {
   const toast = useToast()
+  const navigate = useNavigate()
+  const { settings } = useSettings()
   const { streaming, streamedText, generate, cancel, reset } = useAI()
 
   const [state, setState] = useState<SessionState>('processing')
@@ -106,6 +113,16 @@ export function CaptureSession({
       ? `people:\n${peopleSlugs.map(s => `  - ${s}`).join('\n')}`
       : 'people: []'
 
+    // For meeting captures, always record attendees (current user + people meaningfully discussed)
+    // so the meeting shows up under the right person and speakers render correctly.
+    let speakersYaml = ''
+    if (shouldRecordAttendees(classified.source, sourceHint)) {
+      const attendees = buildMeetingAttendees(settings?.userName, classified.people_mentioned)
+      if (attendees.length > 0) {
+        speakersYaml = `speakers:\n${attendees.map(n => `  - ${n}`).join('\n')}\n`
+      }
+    }
+
     const frontmatter = [
       '---',
       `date: ${today}`,
@@ -114,9 +131,10 @@ export function CaptureSession({
       `summary: ${classified.summary.replace(/\n/g, ' ')}`,
       `tags: ${classified.tags.join(', ')}`,
       peopleYaml,
+      speakersYaml ? speakersYaml.trimEnd() : null,
       '---',
       '',
-    ].join('\n')
+    ].filter(line => line !== null).join('\n')
 
     const body = [
       classified.detailed_summary ? `## Summary\n\n${classified.detailed_summary}\n` : '',
@@ -231,7 +249,7 @@ export function CaptureSession({
         toast.error('Failed to save captured content')
       }
     }
-  }, [initialContent, reports, toast])
+  }, [initialContent, reports, toast, settings?.userName, sourceHint])
 
   const retryCountRef = useRef(0)
   const MAX_RETRIES = 3
@@ -365,6 +383,14 @@ export function CaptureSession({
       toast.error('Failed to delete context')
     }
   }, [id, onRemove, savedFilepath, toast])
+
+  const handleView = useCallback(() => {
+    if (!savedFilepath) return
+    const filename = savedFilepath.split('/').pop() || ''
+    if (!filename) return
+    onNavigateAway?.()
+    navigate(`/context/${encodeURIComponent(filename)}?dir=contexts`)
+  }, [savedFilepath, navigate, onNavigateAway])
 
   const handleCancelProcessing = useCallback(async () => {
     await cancel()
@@ -564,6 +590,16 @@ export function CaptureSession({
                   <Pencil className="w-3 h-3" aria-hidden="true" />
                   Edit
                 </button>
+                {savedFilepath && (
+                  <button
+                    onClick={handleView}
+                    className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                    title="Open captured context in full view"
+                  >
+                    <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    View
+                  </button>
+                )}
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
                   className="flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors"

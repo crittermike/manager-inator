@@ -170,7 +170,8 @@ describe('ReportDetail AI actions menu', () => {
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue(mockSettings),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
-        getFileContent: vi.fn().mockResolvedValue('mock file content')
+        getFileContent: vi.fn().mockResolvedValue('mock file content'),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -796,7 +797,8 @@ describe('ReportDetail More actions menu', () => {
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue(mockSettings),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
-        getFileContent: vi.fn().mockResolvedValue('mock file content')
+        getFileContent: vi.fn().mockResolvedValue('mock file content'),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -882,7 +884,8 @@ describe('ReportDetail More actions menu', () => {
         getSettings: vi.fn().mockResolvedValue(mockSettings),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
         getFileContent: vi.fn().mockResolvedValue('mock file content'),
-        saveSettings: vi.fn().mockResolvedValue(undefined)
+        saveSettings: vi.fn().mockResolvedValue(undefined),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -1040,11 +1043,23 @@ describe('ReportDetail expand button', () => {
 
     await act(async () => { contextEntry?.click() })
 
-    // Find the expand button (Maximize2 icon, aria-label="Open full view")
-    const expandBtn = container.querySelector('button[aria-label="Open full view"]') as HTMLButtonElement
-    expect(expandBtn).not.toBeNull()
+    // Open the "Open in…" dropdown and click "Open full view".
+    // The header also has its own OpenInExternal, so iterate triggers and find
+    // the one whose menu offers "Open full view".
+    await act(async () => { await Promise.resolve() })
+    const triggers = Array.from(container.querySelectorAll('button[aria-label="Open in…"]')) as HTMLButtonElement[]
+    expect(triggers.length).toBeGreaterThan(0)
+    let fullViewItem: HTMLButtonElement | undefined
+    for (const trigger of triggers) {
+      await act(async () => { trigger.click() })
+      fullViewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+        .find(b => b.textContent?.includes('Open full view')) as HTMLButtonElement | undefined
+      if (fullViewItem) break
+      await act(async () => { trigger.click() })
+    }
+    expect(fullViewItem).toBeDefined()
 
-    await act(async () => { expandBtn.click() })
+    await act(async () => { fullViewItem!.click() })
 
     expect(mockNavigate).toHaveBeenCalledWith(
       '/context/2026-03-15-weekly-sync.md?dir=contexts'
@@ -1080,10 +1095,20 @@ describe('ReportDetail expand button', () => {
 
     await act(async () => { reviewEntry?.click() })
 
-    const expandBtn = container.querySelector('button[aria-label="Open full view"]') as HTMLButtonElement
-    expect(expandBtn).not.toBeNull()
+    await act(async () => { await Promise.resolve() })
+    const triggers = Array.from(container.querySelectorAll('button[aria-label="Open in…"]')) as HTMLButtonElement[]
+    expect(triggers.length).toBeGreaterThan(0)
+    let fullViewItem: HTMLButtonElement | undefined
+    for (const trigger of triggers) {
+      await act(async () => { trigger.click() })
+      fullViewItem = Array.from(container.querySelectorAll('[role="menuitem"]'))
+        .find(b => b.textContent?.includes('Open full view')) as HTMLButtonElement | undefined
+      if (fullViewItem) break
+      await act(async () => { trigger.click() })
+    }
+    expect(fullViewItem).toBeDefined()
 
-    await act(async () => { expandBtn.click() })
+    await act(async () => { fullViewItem!.click() })
 
     expect(mockNavigate).toHaveBeenCalledWith(
       '/context/fy26-h1.md?dir=reports/chanakya-valluri/reviews'
@@ -1092,6 +1117,52 @@ describe('ReportDetail expand button', () => {
     await act(async () => { root.unmount() })
     container.remove()
     mockReport.reviews = origReviews
+  })
+
+  it('cancelling edit on a context entry closes the inline editor (no double content)', async () => {
+    const origContextNotes = mockReport.contextNotes
+    mockReport.contextNotes = [{
+      date: '2026-03-15',
+      source: 'meeting' as const,
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap priorities.',
+      tags: [],
+      people: [],
+      content: '',
+      filename: '2026-03-15-weekly-sync.md'
+    }]
+    mockUseFileContent.mockReturnValue({ content: '# File content', loading: false })
+
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = ReactDOM.createRoot(container)
+
+    await act(async () => {
+      root.render(<ReportDetail />)
+    })
+
+    // Expand the context entry
+    const contextEntry = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.includes('Weekly sync'))
+    await act(async () => { contextEntry?.click() })
+
+    // Click the header Edit (Pencil) button
+    const editBtn = container.querySelector('button[aria-label="Edit"]') as HTMLButtonElement
+    expect(editBtn).not.toBeNull()
+    await act(async () => { editBtn.click() })
+
+    // The InlineEditor renders a Cancel button
+    const cancelBtn = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === 'Cancel') as HTMLButtonElement
+    expect(cancelBtn).toBeDefined()
+    await act(async () => { cancelBtn.click() })
+
+    // The viewing pane (titled "Edit Content") must be gone after cancel
+    expect(container.textContent).not.toContain('Edit Content')
+
+    await act(async () => { root.unmount() })
+    container.remove()
+    mockReport.contextNotes = origContextNotes
   })
 })
 
@@ -1227,7 +1298,8 @@ describe('Bug #22: AI state resets on name change', () => {
         commitFile: vi.fn().mockResolvedValue(undefined),
         getSettings: vi.fn().mockResolvedValue({}),
         resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
-        getFileContent: vi.fn().mockResolvedValue(null)
+        getFileContent: vi.fn().mockResolvedValue(null),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false })
       }
     })
   })
@@ -1239,5 +1311,80 @@ describe('Bug #22: AI state resets on name change', () => {
     expect(mockReset).toHaveBeenCalled()
 
     await act(async () => { root.unmount() })
+  })
+})
+
+describe('ReportDetail master/detail stream', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true, writable: true })
+    document.body.innerHTML = ''
+    mockNavigate.mockReset()
+    mockUseFileContent.mockReset()
+    mockUseFileContent.mockReturnValue({ content: null, loading: false })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        getFilesContentBulk: vi.fn().mockResolvedValue({}),
+        listContexts: vi.fn().mockResolvedValue([]),
+        fetchActivityForPerson: vi.fn().mockResolvedValue(null),
+        getMonthlyActivity: vi.fn().mockResolvedValue(null),
+        commitFile: vi.fn().mockResolvedValue(undefined),
+        getSettings: vi.fn().mockResolvedValue(mockSettings),
+        resolveAndToggleActionItem: vi.fn().mockResolvedValue(undefined),
+        getFileContent: vi.fn().mockResolvedValue('mock'),
+        detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: false }),
+      }
+    })
+  })
+
+  it('renders both stream-list and stream-detail panes when entries exist', async () => {
+    const orig = mockReport.contextNotes
+    mockReport.contextNotes = [
+      { date: '2026-04-15', source: 'meeting', title: 'Sync A', summary: 'A summary', tags: [], people: [], content: '', filename: '2026-04-15-a.md' },
+      { date: '2026-04-14', source: 'meeting', title: 'Sync B', summary: 'B summary', tags: [], people: [], content: '', filename: '2026-04-14-b.md' },
+    ]
+    const { container, root } = await renderReportDetail()
+    await flushPromises()
+
+    const list = container.querySelector('[data-testid="stream-list"]')
+    const detail = container.querySelector('[data-testid="stream-detail"]')
+    expect(list).not.toBeNull()
+    expect(detail).not.toBeNull()
+
+    // First entry auto-selected: row has aria-current=true
+    const selectedRows = list!.querySelectorAll('button[aria-current="true"]')
+    expect(selectedRows.length).toBe(1)
+    expect(selectedRows[0].textContent).toContain('Sync A')
+
+    // Detail pane shows the selected entry's title
+    expect(detail!.textContent).toContain('Sync A')
+
+    await act(async () => { root.unmount() })
+    mockReport.contextNotes = orig
+  })
+
+  it('clicking a different row updates aria-current and detail pane', async () => {
+    const orig = mockReport.contextNotes
+    mockReport.contextNotes = [
+      { date: '2026-04-15', source: 'meeting', title: 'Sync A', summary: 'A summary', tags: [], people: [], content: '', filename: '2026-04-15-a.md' },
+      { date: '2026-04-14', source: 'meeting', title: 'Sync B', summary: 'B summary', tags: [], people: [], content: '', filename: '2026-04-14-b.md' },
+    ]
+    const { container, root } = await renderReportDetail()
+    await flushPromises()
+
+    const list = container.querySelector('[data-testid="stream-list"]')!
+    const rowB = Array.from(list.querySelectorAll('button')).find(b => b.textContent?.includes('Sync B')) as HTMLButtonElement
+    expect(rowB).toBeDefined()
+    await act(async () => { rowB.click() })
+
+    const selectedRows = list.querySelectorAll('button[aria-current="true"]')
+    expect(selectedRows.length).toBe(1)
+    expect(selectedRows[0].textContent).toContain('Sync B')
+
+    const detail = container.querySelector('[data-testid="stream-detail"]')!
+    expect(detail.textContent).toContain('Sync B')
+
+    await act(async () => { root.unmount() })
+    mockReport.contextNotes = orig
   })
 })

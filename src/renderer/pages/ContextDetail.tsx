@@ -11,6 +11,8 @@ import { useToast } from '../components/common/Toast'
 import { useActiveFile } from '../hooks/useActiveFile'
 import { useSettings } from '../hooks/useData'
 import { useAttachedImages } from '../hooks/useAttachedImages'
+import { RefineWithAI } from '../components/common/RefineWithAI'
+import { OpenInExternal } from '../components/common/OpenInExternal'
 
 export function ContextDetail() {
   const { filename } = useParams<{ filename: string }>()
@@ -46,6 +48,9 @@ export function ContextDetail() {
   const [isEditingSpeakers, setIsEditingSpeakers] = useState(false)
   const [editingSpeakersList, setEditingSpeakersList] = useState<string[]>([])
   const [speakerInput, setSpeakerInput] = useState('')
+
+  const isEditingAnythingRef = useRef(false)
+  isEditingAnythingRef.current = isEditingContent || isEditingTitle || isEditingSpeakers
   const [showSpeakerDropdown, setShowSpeakerDropdown] = useState(false)
   const [saving, setSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -88,12 +93,18 @@ export function ContextDetail() {
 
   useEffect(() => {
     if (!decodedFilename) return
-    
+
     let isMounted = true
-    setLoading(true)
-    setError(null)
-    
-    window.api.getFileContent(`${dir}/${decodedFilename}`)
+    let isInitialLoad = true
+
+    const loadContent = () => {
+      if (isInitialLoad) {
+        setLoading(true)
+        setError(null)
+      }
+      isInitialLoad = false
+
+      window.api.getFileContent(`${dir}/${decodedFilename}`)
       .then((rawContent) => {
         if (!isMounted) return
         
@@ -226,8 +237,17 @@ export function ContextDetail() {
           setLoading(false)
         }
       })
-      
-    return () => { isMounted = false }
+    }
+
+    loadContent()
+
+    const onFocus = () => { if (isMounted && !isEditingAnythingRef.current) loadContent() }
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      isMounted = false
+      window.removeEventListener('focus', onFocus)
+    }
   }, [decodedFilename, dir])
 
   // Sync viewed file to AI context
@@ -307,26 +327,33 @@ export function ContextDetail() {
     const trimmed = speakerName.trim()
     if (!trimmed) return
     const slug = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    
+
     const existingSlug = await window.api.findPersonByName(trimmed)
     if (existingSlug) {
       const person = people.find(p => p.slug === existingSlug)
-      if (person) {
-        const isReport = person.relationship?.toLowerCase() === 'direct report'
-        navigate(isReport ? `/report/${person.slug}` : `/people/${person.slug}`)
-      }
+      // Already exists — link them to this context but stay on this page so the
+      // user isn't yanked away into a slow profile load.
+      try {
+        await window.api.addPersonToContext(decodedFilename, slug)
+      } catch (e) { console.debug('Failed to link existing person to context:', e) }
+      success(`${person?.name || trimmed} is already on file`)
+      const freshPeople = await window.api.listPeople()
+      setPeople(freshPeople)
       return
     }
 
     const newContent = `---\nname: ${trimmed}\nslug: ${slug}\naliases: \nrole: \ngithub: \nlocation: \nrelationship: \n---\n\n# ${trimmed}\n`
-    
+
     try {
       await window.api.commitFile(`people/${slug}.md`, newContent, `Add person: ${trimmed}`)
       await window.api.addPersonToContext(decodedFilename, slug)
       success(`Created page for ${trimmed}`)
+      // Refresh the local people list so the speaker now resolves to the new
+      // person, but stay on this context — opening the new profile loads every
+      // context that mentions them, which is slow on a cold cache and freezes
+      // the app.
       const freshPeople = await window.api.listPeople()
       setPeople(freshPeople)
-      navigate(`/people/${slug}`)
     } catch (err) {
       console.error('Failed to create person:', err)
       showError('Failed to create person page')
@@ -677,6 +704,25 @@ export function ContextDetail() {
             >
               <Download className="w-4 h-4" aria-hidden="true" />
             </button>
+            {activeTab === 'summary' && !isEditingContent && (
+              <RefineWithAI
+                filePath={`${dir}/${decodedFilename}`}
+                currentContent={rawContent || content || ''}
+                documentType={
+                  dir === 'contexts' ? 'context' :
+                  dir === 'people' ? 'people profile' :
+                  dir.includes('check-ins') ? 'monthly check-in' :
+                  dir.includes('reviews') ? 'performance review' :
+                  dir.includes('prep') ? '1:1 prep document' :
+                  'document'
+                }
+                onSaved={(updated) => {
+                  setRawContent(updated)
+                  setContent(cleanSummaryContent(updated))
+                }}
+              />
+            )}
+            <OpenInExternal filePath={`${dir}/${decodedFilename}`} />
           </div>
           
           {dir !== 'contexts' ? (

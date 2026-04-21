@@ -155,6 +155,53 @@ export interface ReportStatus {
   checkInCount: number
 }
 
+// ── Per-report repo sync ──
+export interface ReportSyncStatus {
+  canSync: boolean
+  ghUsername: string
+  owner: string
+  destPath: string
+  cloned: boolean
+  error?: string
+}
+
+export interface ReportSyncEntry {
+  source: string
+  dest: string
+}
+
+export interface ReportSyncPreview {
+  added: ReportSyncEntry[]
+  updated: ReportSyncEntry[]
+  unchanged: ReportSyncEntry[]
+}
+
+export interface ReportSyncResult {
+  added: ReportSyncEntry[]
+  updated: ReportSyncEntry[]
+  pushed: boolean
+  pushError?: string
+  commitSha?: string
+}
+
+export type ReportSyncStage =
+  | 'starting'
+  | 'cloning'
+  | 'fetching'
+  | 'planning'
+  | 'comparing'
+  | 'writing'
+  | 'committing'
+  | 'pushing'
+  | 'done'
+
+export interface ReportSyncProgress {
+  stage: ReportSyncStage
+  message: string
+  current?: number
+  total?: number
+}
+
 // ── Manager workflow checklist item ──
 export type WorkflowCategory = 'daily' | 'weekly' | 'monthly' | 'weekend-preview'
 export type WorkflowPriority = 'high' | 'medium' | 'low'
@@ -400,6 +447,15 @@ export interface IpcApi {
   onUpdateReady: (cb: (version: string) => void) => () => void
   installUpdate: () => Promise<void>
   startPrewarm: () => Promise<void>
+  detectExternalApps: () => Promise<{ vscode: boolean; obsidian: boolean; finder: boolean }>
+  openInVSCode: (path: string) => Promise<void>
+  openInObsidian: (path: string) => Promise<void>
+  revealInFinder: (path: string) => Promise<boolean>
+  openInGitHub: (path: string) => Promise<void>
+  getReportSyncStatus: (slug: string) => Promise<ReportSyncStatus>
+  previewReportSync: (slug: string) => Promise<ReportSyncPreview>
+  syncReport: (slug: string) => Promise<ReportSyncResult>
+  onReportSyncProgress: (cb: (data: ReportSyncProgress) => void) => () => void
   onPushStatus: (cb: (data: { success: boolean; error?: string }) => void) => () => void
   onAiToolStatus: (cb: (data: { requestId: string; toolName: string; args: Record<string, unknown> }) => void) => () => void
   onAiStreamReset: (cb: (data: { requestId: string }) => void) => () => void

@@ -154,6 +154,20 @@ async function renderToday() {
   return { container, root }
 }
 
+/**
+ * Helper for the master/detail Today view: clicks the named category in the left
+ * nav so its items render in the right pane. Returns true if the category was
+ * found and clicked.
+ */
+async function selectCategory(container: HTMLElement, label: string): Promise<boolean> {
+  const button = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes(label)) as HTMLButtonElement | undefined
+  if (!button) return false
+  await act(async () => {
+    button.click()
+  })
+  return true
+}
+
 describe('Today page polish', () => {
   beforeEach(() => {
     Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
@@ -204,10 +218,11 @@ describe('Today page polish', () => {
   it('renders strengthened Today sections and visible row actions', async () => {
     const { container, root } = await renderToday()
 
-    const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement | undefined
-    expect(overdueHeader).toBeDefined()
-    expect(overdueHeader?.className).toContain('py-3')
-    expect(overdueHeader?.closest('div')?.className).toContain('border-border')
+    // The "Needs attention" category appears as a button in the left nav and is auto-selected,
+    // so its items render in the right pane.
+    const overdueNavButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement | undefined
+    expect(overdueNavButton).toBeDefined()
+    expect(overdueNavButton?.getAttribute('aria-current')).toBe('page')
 
     expect(container.textContent).toContain('1:1 with Alice Smith is overdue')
     expect(container.textContent).toContain('No feedback logged for Alice Smith')
@@ -226,23 +241,20 @@ describe('Today page polish', () => {
     })
   })
 
-  it('collapses and re-expands a Today section without losing items', async () => {
+  it('selects a different category to switch the right pane', async () => {
     const { container, root } = await renderToday()
 
-    const overdueHeader = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement
     expect(container.textContent).toContain('1:1 with Alice Smith is overdue')
 
+    const thisWeekNav = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('This week')) as HTMLButtonElement
+    expect(thisWeekNav).toBeDefined()
+
     await act(async () => {
-      overdueHeader.click()
+      thisWeekNav.click()
     })
 
+    // Switching categories hides the previous category's items.
     expect(container.textContent).not.toContain('1:1 with Alice Smith is overdue')
-
-    await act(async () => {
-      overdueHeader.click()
-    })
-
-    expect(container.textContent).toContain('1:1 with Alice Smith is overdue')
 
     await act(async () => {
       root.unmount()
@@ -252,7 +264,13 @@ describe('Today page polish', () => {
   it('renders the team activity card with the refined header rhythm', async () => {
     const { container, root } = await renderToday()
 
-    const activityHeader = Array.from(container.querySelectorAll('div')).find(node => node.textContent?.includes('Team Activity')) as HTMLDivElement | undefined
+    const activityNav = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Team Activity')) as HTMLButtonElement | undefined
+    expect(activityNav).toBeDefined()
+    await act(async () => {
+      activityNav?.click()
+    })
+
+    const activityHeader = Array.from(container.querySelectorAll('div')).find(node => node.textContent?.includes('Recent GitHub work and AI summary'))
     expect(activityHeader?.textContent).toContain('Recent GitHub work and AI summary')
 
     const rawButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.trim() === 'Raw') as HTMLButtonElement | undefined
@@ -320,13 +338,21 @@ describe('Today date-sensitive behavior', () => {
     const { container, root } = await renderToday()
 
     expect(container.textContent).not.toContain('Monthly check-in with Alice Smith is overdue')
+
+    // Switch to "This week" — the check-in due item belongs there, not in "Needs attention".
+    const thisWeekNav = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('This week')) as HTMLButtonElement
+    expect(thisWeekNav).toBeDefined()
+    await act(async () => {
+      thisWeekNav.click()
+    })
     expect(container.textContent).toContain('Monthly check-in due for Alice Smith')
 
-    const overdueSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention'))
-    expect(overdueSectionButton?.parentElement?.textContent).not.toContain('Monthly check-in due for Alice Smith')
-
-    const thisWeekSectionButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('This week'))
-    expect(thisWeekSectionButton?.parentElement?.textContent).toContain('Monthly check-in due for Alice Smith')
+    // Switch back to "Needs attention" and confirm the check-in item is NOT there.
+    const overdueNav = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Needs attention')) as HTMLButtonElement
+    await act(async () => {
+      overdueNav.click()
+    })
+    expect(container.textContent).not.toContain('Monthly check-in due for Alice Smith')
 
     await act(async () => {
       root.unmount()
@@ -438,6 +464,9 @@ describe('Today actionable items', () => {
 
     const { container, root } = await renderToday()
 
+    // Skip-level prep is a "this week" item.
+    await selectCategory(container, 'This week')
+
     expect(container.textContent).toContain('Prep for your skip-level 1:1')
     expect(container.textContent).toContain('Draft an agenda')
 
@@ -463,6 +492,8 @@ describe('Today actionable items', () => {
 
     const { container, root } = await renderToday()
 
+    await selectCategory(container, 'This week')
+
     expect(container.textContent).toContain('Quarterly planning')
 
     const draftButton = Array.from(container.querySelectorAll('button'))
@@ -485,6 +516,8 @@ describe('Today actionable items', () => {
 
     const { container, root } = await renderToday()
 
+    await selectCategory(container, 'This week')
+
     expect(container.textContent).toContain('Team health check')
     expect(container.textContent).toContain('BICEPS')
 
@@ -504,6 +537,8 @@ describe('Today actionable items', () => {
 
     const { container, root } = await renderToday()
 
+    await selectCategory(container, 'This week')
+
     expect(container.textContent).toContain('Personal management retro')
     expect(container.textContent).toContain('What kind of manager')
 
@@ -520,6 +555,8 @@ describe('Today actionable items', () => {
     vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
 
     const { container, root } = await renderToday()
+
+    await selectCategory(container, 'This week')
 
     expect(container.textContent).toContain('1:1 format check')
     expect(container.textContent).toContain('Reflect on how your 1:1s')
@@ -669,6 +706,9 @@ describe('Today activity snapshot date range', () => {
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 100))
     })
+
+    // Activity content lives in the master/detail right pane; select it.
+    await selectCategory(container, 'Team Activity')
 
     const noActivityText = Array.from(container.querySelectorAll('div')).find(
       d => d.textContent?.includes('No activity data available')
