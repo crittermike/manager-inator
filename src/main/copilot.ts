@@ -433,8 +433,6 @@ Use this format:
 # Monthly check-in: ${context.month}
 _${context.displayName}, ${context.monthName}_
 
-> ⚠️ This document is for manager's records only.
-
 ## Accomplishments
 ## Concerns
 ## Goal progress
