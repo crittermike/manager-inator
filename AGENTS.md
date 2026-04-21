@@ -268,9 +268,18 @@ The app is distributed via GitHub Releases with automatic updates via `electron-
    git push origin main --tags
    ```
 4. GitHub Actions (`.github/workflows/release.yml`) will automatically:
-   - Build a universal Mac `.dmg` and `.zip`
-   - Publish them as a GitHub Release for tag `v1.1.0`
-5. All running copies of the app will detect the new version within ~4 hours (or on next launch) and prompt the user to restart to update.
+   - Build arm64 + x64 Mac `.dmg` and `.zip` artifacts
+   - Create a **draft** GitHub Release for tag `v1.1.0` and upload all artifacts to it
+5. After the workflow finishes (~10 min), publish the release with curated notes:
+   ```bash
+   gh release edit v1.1.0 --draft=false --notes-file release-notes.md
+   ```
+   Or via the GitHub UI: open the draft release, paste/write notes, click Publish.
+6. All running copies of the app will detect the new version within ~4 hours (or on next launch) and prompt the user to restart to update.
+
+> ⚠️ **Do NOT run `gh release create vX.Y.Z` before the workflow runs.** electron-builder always creates new releases as drafts. If a *published* release already exists at the tag, it logs `existing type not compatible with publishing type` and silently skips uploading every artifact, leaving you with a notes-only release and zero `.dmg` files. The workflow will still report success.
+>
+> Symptoms: workflow is green, but `gh release view vX.Y.Z --json assets` shows `assets: []`. Recovery: save the notes (`gh release view vX.Y.Z --json body -q .body > notes.md`), `gh release delete vX.Y.Z --cleanup-tag=false --yes`, `gh run rerun <run-id>`, then publish the resulting draft with `gh release edit vX.Y.Z --draft=false --notes-file notes.md`.
 
 ### How auto-update works:
 - `electron-updater` checks GitHub Releases on app launch (after 5s) and every 4 hours
