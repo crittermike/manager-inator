@@ -10,6 +10,8 @@ import { getResourcePath } from './resourcePaths'
 import { createTray, destroyTray } from './tray'
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts'
 import { getMainWindow, setMainWindow, getIsQuitting, setIsQuitting, ensureWindowAndSend } from './windowState'
+import { startCaptureWebhook, stopCaptureWebhook } from './captureWebhook'
+import { getCaptureWebhookConfig } from './store'
 
 // Support custom userDataDir for test isolation
 if (process.env['ELECTRON_USER_DATA']) {
@@ -154,6 +156,14 @@ app.whenReady().then(() => {
   registerGlobalShortcuts()
   setupAutoUpdater()
 
+  // Start local capture webhook if user has enabled it
+  const webhookCfg = getCaptureWebhookConfig()
+  if (webhookCfg.enabled) {
+    startCaptureWebhook(webhookCfg.port).catch((err) => {
+      console.error('[CaptureWebhook] Failed to start at boot:', err.message)
+    })
+  }
+
   if (process.platform === 'darwin' && app.dock) {
     app.dock.setMenu(Menu.buildFromTemplate([
       {
@@ -188,6 +198,7 @@ app.on('will-quit', (e) => {
   e.preventDefault()
   unregisterGlobalShortcuts()
   destroyTray()
+  stopCaptureWebhook().catch(() => {})
 
   const forceQuit = setTimeout(() => {
     stopClient()

@@ -1,5 +1,33 @@
 # AGENTS.md — Session Context for AI Agents
 
+## Recent Changes (May 2026)
+
+### Local Capture Webhook (COMPLETE)
+- New opt-in HTTP server in the main process that lets external apps push captures into the same pipeline as a manual paste.
+- **Module**: `src/main/captureWebhook.ts` (Node `http`, no new deps). Bound to `127.0.0.1` only — no auth (loopback IS the trust boundary). Default port `47829`, configurable.
+- **Endpoints**:
+  - `POST /capture` — accepts JSON or `text/plain`. Returns `202 {ok, id}`.
+  - `GET /health` — `{ok: true}`.
+  - `OPTIONS` — `204` with permissive CORS (safe because of loopback binding).
+- **Flexible JSON schema** — works with the user's `{title, transcript}` tool out of the box and supports other shapes:
+  - content aliases: `content` | `transcript` | `text` | `body` | `message` | `markdown`
+  - sourceHint aliases: `sourceHint` | `source` | `type` (validated). Presence of `transcript` field implies `meeting`.
+  - optional `title` (prepended as `# Title`), `fileName` / `filename` (`.vtt`/`.srt` triggers `cleanTranscript`), `speakers[]`.
+  - text/plain bodies use raw body as content; query params `?source=`, `?fileName=`, `?title=` apply.
+- **Security**:
+  - Listens only on `127.0.0.1` AND runtime-checks `req.socket.remoteAddress` for loopback (defense in depth).
+  - Validates `Host:` header against `localhost`/`127.0.0.1`/`[::1]` to defeat DNS-rebinding.
+  - 5MB body cap → `413` (drains body so the response actually delivers).
+- **Settings persistence** (`src/main/store.ts`): adds `captureWebhookEnabled` (default `false`) and `captureWebhookPort` (default `47829`). New `getCaptureWebhookConfig` / `setCaptureWebhookConfig` helpers; both surfaced in `getSettingsForRenderer`.
+- **IPC**: `webhook:get-status`, `webhook:set-enabled` (starts/stops server), `webhook:set-port` (restarts if running). Incoming captures go through `setCaptureHandler` → `ensureWindowAndSend('webhook:capture', payload)`. (`ensureWindowAndSend` signature relaxed from `string` to `unknown` for typed payloads.)
+- **Renderer flow**: `AppShell` subscribes via `window.api.onWebhookCapture`, dispatches a `webhook-capture-content` window event with the payload. `CapturePanel` listens for it and creates a `SessionItem` exactly like the tray flow. VTT/SRT cleanup runs when `fileName` indicates a transcript.
+- **Settings UI** (`src/renderer/pages/Settings.tsx`): new "Local Capture Webhook" section with enable toggle, port input + Save, status badge (running/enabled-but-not-running/disabled, with error text), copyable URL, and a collapsible "How to send a capture" panel showing a curl example and the JSON schema.
+- Auto-start on boot in `src/main/index.ts` when enabled. Stopped in `will-quit`.
+- **Tests**:
+  - `tests/main/captureWebhook.test.ts` — 21 tests covering schema aliases, text/plain body, sourceHint validation, transcript→meeting inference, speakers extraction, title-not-double-prepended; HTTP layer covers 202/400/404/405/413/500, OPTIONS+CORS, lifecycle, and the Host-header DNS-rebinding defense (uses raw TCP socket).
+  - `tests/renderer/captureWebhookListener.test.tsx` — 3 tests for `webhook-capture-content` session creation, VTT cleanup, and empty-event ignore.
+  - Existing AppShell-related tests (`AppShell`, `scrollToTop`, `dialogAccessibility`, `ariaCurrentNav`, `trayIntegration`) updated to mock `onWebhookCapture`. `Settings.test.tsx` mocks the new `getWebhookStatus`/`setWebhookEnabled`/`setWebhookPort` IPC.
+
 ## Recent Changes (April 2026)
 
 ### Per-direct-report repo sync + transcript cleanup (COMPLETE)

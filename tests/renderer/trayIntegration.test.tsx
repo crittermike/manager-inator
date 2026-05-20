@@ -56,6 +56,7 @@ function setupWindowApiForAppShell() {
     trayCaptureCallback = cb
     return vi.fn()
   })
+  const onWebhookCapture = vi.fn((_cb: (payload: unknown) => void) => vi.fn())
 
   Object.defineProperty(window, 'api', {
     configurable: true,
@@ -64,10 +65,11 @@ function setupWindowApiForAppShell() {
       onNavigate,
       onOpenCapture,
       onTrayCapture,
+      onWebhookCapture,
     },
   })
 
-  return { onPushStatus, onNavigate, onOpenCapture, onTrayCapture }
+  return { onPushStatus, onNavigate, onOpenCapture, onTrayCapture, onWebhookCapture }
 }
 
 async function renderIntoBody(node: React.ReactNode) {

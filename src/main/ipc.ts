@@ -42,12 +42,20 @@ import {
   updateFeedbackEntry,
   deleteFeedbackEntry
 } from './github'
-import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken, getGithubOrgToken, getGithubOrgName } from './store'
+import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken, getGithubOrgToken, getGithubOrgName, getCaptureWebhookConfig, setCaptureWebhookConfig } from './store'
 import { aiGenerate, aiCancel } from './copilot'
 import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
 import { detectTeam } from './hubbers'
 import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder, openInGitHub } from './external'
 import { getRepoSyncStatus, previewSync, syncReport } from './syncToReport'
+import {
+  startCaptureWebhook,
+  stopCaptureWebhook,
+  getCaptureWebhookStatus,
+  setCaptureHandler,
+  isWebhookRunning
+} from './captureWebhook'
+import { ensureWindowAndSend } from './windowState'
 
 /** Wrap an IPC handler so any thrown error is forwarded as a descriptive Error to the renderer */
 function safeHandle(
@@ -297,6 +305,52 @@ export function setupIpcHandlers(): void {
   safeHandle('report:sync', (event, slug) => syncReport(slug as string, (p) => {
     safeSend(BrowserWindow.fromWebContents(event.sender), 'report:sync-progress', p)
   }))
+
+  // ── Local capture webhook ──
+  setCaptureHandler((payload) => {
+    ensureWindowAndSend('webhook:capture', payload)
+  })
+
+  safeHandle('webhook:get-status', () => {
+    const cfg = getCaptureWebhookConfig()
+    return getCaptureWebhookStatus(cfg.port, cfg.enabled)
+  })
+
+  safeHandle('webhook:set-enabled', async (_e, enabled) => {
+    const want = !!enabled
+    setCaptureWebhookConfig({ enabled: want })
+    const { port } = getCaptureWebhookConfig()
+    if (want) {
+      try {
+        await startCaptureWebhook(port)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Webhook] Failed to start:', msg)
+      }
+    } else {
+      await stopCaptureWebhook()
+    }
+    return getCaptureWebhookStatus(port, want)
+  })
+
+  safeHandle('webhook:set-port', async (_e, port) => {
+    const portNum = Number(port)
+    if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
+      throw new Error('Port must be between 1 and 65535')
+    }
+    const cfg = getCaptureWebhookConfig()
+    setCaptureWebhookConfig({ port: portNum })
+    if (cfg.enabled && isWebhookRunning()) {
+      await stopCaptureWebhook()
+      try {
+        await startCaptureWebhook(portNum)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Webhook] Failed to restart on new port:', msg)
+      }
+    }
+    return getCaptureWebhookStatus(portNum, cfg.enabled)
+  })
 
   // ── Test-only IPC handlers for E2E setup ──
   if (process.env['ELECTRON_USER_DATA']) {

@@ -24,7 +24,7 @@ export function setIsQuitting(value: boolean): void {
  * - If no window exists, emits 'activate' to create one and waits for it.
  * - If the window's webContents is still loading, waits for 'did-finish-load'.
  */
-export function ensureWindowAndSend(channel: string, data?: string): void {
+export function ensureWindowAndSend(channel: string, data?: unknown): void {
   const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
 
   if (win && !win.isDestroyed()) {
@@ -48,7 +48,7 @@ export function ensureWindowAndSend(channel: string, data?: string): void {
   app.emit('activate')
 }
 
-function sendWhenReady(win: BrowserWindow, channel: string, data?: string): void {
+function sendWhenReady(win: BrowserWindow, channel: string, data?: unknown): void {
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()

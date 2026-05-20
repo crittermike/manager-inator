@@ -152,10 +152,18 @@ export function AppShell({ children }: AppShellProps) {
         window.dispatchEvent(new CustomEvent('tray-capture-content', { detail: content }))
       }, 100)
     })
+    const cleanupWebhookCapture = window.api.onWebhookCapture((payload) => {
+      setCapturePanelOpen(true)
+      setAiPanelOpen(false)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('webhook-capture-content', { detail: payload }))
+      }, 100)
+    })
     return () => {
       cleanupNav()
       cleanupCapture()
       cleanupTrayCapture()
+      cleanupWebhookCapture()
     }
   }, [navigate])
 

@@ -60,7 +60,8 @@ describe('AppShell scroll-to-top on route change', () => {
         onPushStatus: vi.fn(() => vi.fn()),
         onNavigate: vi.fn(() => vi.fn()),
         onOpenCapture: vi.fn(() => vi.fn()),
-        onTrayCapture: vi.fn(() => vi.fn())
+        onTrayCapture: vi.fn(() => vi.fn()),
+        onWebhookCapture: vi.fn(() => vi.fn())
       }
     })
   })

@@ -30,6 +30,8 @@ interface StoreSchema {
   userGithub: string
   userManager: string
   userSkipLevel: string
+  captureWebhookEnabled: boolean
+  captureWebhookPort: number
 }
 
 const storeDefaults: StoreSchema = {
@@ -59,7 +61,9 @@ const storeDefaults: StoreSchema = {
   userName: '',
   userGithub: '',
   userManager: '',
-  userSkipLevel: ''
+  userSkipLevel: '',
+  captureWebhookEnabled: false,
+  captureWebhookPort: 47829
 }
 
 function createStore(): Store<StoreSchema> {
@@ -210,8 +214,22 @@ export function getSettingsForRenderer() {
     userName: store.get('userName'),
     userGithub: store.get('userGithub'),
     userManager: store.get('userManager'),
-    userSkipLevel: store.get('userSkipLevel')
+    userSkipLevel: store.get('userSkipLevel'),
+    captureWebhookEnabled: store.get('captureWebhookEnabled'),
+    captureWebhookPort: store.get('captureWebhookPort')
   }
+}
+
+export function getCaptureWebhookConfig(): { enabled: boolean; port: number } {
+  return {
+    enabled: store.get('captureWebhookEnabled'),
+    port: store.get('captureWebhookPort')
+  }
+}
+
+export function setCaptureWebhookConfig(cfg: { enabled?: boolean; port?: number }): void {
+  if (typeof cfg.enabled === 'boolean') store.set('captureWebhookEnabled', cfg.enabled)
+  if (typeof cfg.port === 'number' && Number.isFinite(cfg.port)) store.set('captureWebhookPort', cfg.port)
 }
 
 export function saveSettings(settings: Partial<StoreSchema>): void {
