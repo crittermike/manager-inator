@@ -1,5 +1,46 @@
 # AGENTS.md — Session Context for AI Agents
 
+## Recent Changes (May 2026)
+
+### Meeting attendees: distinguish actual participants from people merely mentioned (COMPLETE)
+The classify-content AI flow used to dump every name from `people_mentioned` into the `speakers:` frontmatter of captured meetings. Because `getRelevantSlugs` in `github.ts` uses `speakers:` as the authoritative attendance list, this caused meetings to be linked to reports who were only discussed (not present). It also made `isOneOnOneWith` in `syncToReport.ts` reject legitimate 1:1s whenever the manager mentioned a third party by name.
+
+**The split**
+- The `classify-content` prompt (both `src/main/copilot.ts` and the display copy in `src/shared/prompts.ts`) now requests two distinct JSON fields:
+  - `attendees: ["Exact Name"]` — meeting participants only. Empty for non-meeting sources.
+  - `people_mentioned: ["Exact Name"]` — anyone meaningfully discussed, regardless of presence.
+- The over-inclusive "ALWAYS include every attendee/participant of the meeting in this list, even if they only listened" line is gone. The new rules explicitly call out that a person can appear in one, the other, or both.
+
+**Deterministic transcript speaker extraction**
+- New pure helper in `src/renderer/utils/transcriptCleaners.ts`: `extractSpeakersFromCleanedTranscript(content)`. Scans `**Name:**` and `**Name**:` prefixes anchored to the start of a line (with optional list-marker prefixes like `- **Name:**`), dedupes case-insensitively while preserving first-seen casing, and filters out a small blocklist of section labels (`Summary`, `Attendees`, `Action items`, `Feedback`, `Notes`, `Context`, `Raw content`, `Type`, `Source`, `Date`, `Title`, `Tags`, `Overview`, `Agenda`, `Next steps`, `Decisions`, `Topic(s)`, `PR`, `Issue`, `Link`, `TL;DR`).
+- Tokens that don't look like a person name (1–4 capitalized-ish tokens) are also rejected. This protects against bolded sentences like `**This Is A Very Long Sentence That Was Bolded:**` being treated as a speaker.
+
+**`buildMeetingAttendees` contract change**
+- `src/renderer/utils/captureAttendees.ts#buildMeetingAttendees(currentUserName, attendees)` now takes an *explicit attendee list*, not `people_mentioned`. The JSDoc explicitly warns: *do not pass `people_mentioned` — that conflates mentioned-only people with actual attendees.*
+- `shouldRecordAttendees` is unchanged.
+
+**Capture wiring (`CaptureSession.tsx`)**
+- `ClassifiedResult` gains optional `attendees?: string[]` (defaults to `[]` after JSON parse, even if the AI omits it).
+- For meeting captures, `speakers:` is now built as:
+  ```
+  currentUser ∪ extractSpeakersFromCleanedTranscript(initialContent) ∪ ai.attendees
+  ```
+  Names are deduped case-insensitively. `people_mentioned` is **never** used for `speakers:`.
+- `people:` continues to be derived from `people_mentioned` (slugified). A meeting that discussed Tara without her presence still appears under `people: [tara]` so PersonDetail can surface it, but `speakers: [Mike, Steve]` keeps it out of Tara's `ReportDetail` stream.
+- If neither the deterministic extractor nor the AI yields any attendees, `speakers:` is omitted entirely (not faked up with just the current user). `getRelevantSlugs` then falls back to `people:`, matching the prior safe default for that edge case.
+
+**No migration for existing files (by choice)**
+- Existing capture files that already have over-inclusive `speakers:` continue to parse as-is. Users can edit them via the existing Attendees UI in `ContextDetail`. We didn't write a one-time rewriter because re-deriving attendees from already-summarized content would itself rely on AI heuristics.
+
+**Sync impact (positive side effect)**
+- This strictly tightens `speakers:`, so `isOneOnOneWith` in `syncToReport.ts` becomes more accurate going forward — 1:1s that were previously rejected because a third party was mentioned will now sync correctly when re-captured.
+
+**Tests**
+- `tests/renderer/captureAttendees.test.ts` — migrated to the new explicit-attendees contract.
+- `tests/renderer/transcriptCleaners.test.ts` — 9 new tests for `extractSpeakersFromCleanedTranscript` covering single/multiple speakers, both bold-colon forms, list markers, blocklist filtering, dedup, mid-paragraph false positives, and non-name rejection.
+- `tests/main/copilot.test.ts` — extended `classify-content` `buildMessages` coverage to assert the new `attendees` field is documented and the old over-inclusive sentence is gone.
+- `tests/renderer/captureAttendeesIntegration.test.tsx` (new, 5 tests) — mounts `CaptureSession` with stubbed AI responses and inspects the resulting `commitFile` payload to verify: `people_mentioned` never leaks into `speakers:`; AI `attendees` drives `speakers:` when present; deterministic transcript `**Name:**` extraction works when the AI returns empty; union/dedup behavior; non-meeting sources omit `speakers:`.
+
 ## Recent Changes (April 2026)
 
 ### Per-direct-report repo sync + transcript cleanup (COMPLETE)
