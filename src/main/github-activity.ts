@@ -57,6 +57,19 @@ export function clearRateLimit(): void {
   _rateLimitedUntil = null
 }
 
+/**
+ * Returns a formatted error message if the rate-limit gate is currently
+ * active (future reset), else null. Used by callers that want to surface
+ * the gate state when their fetch produced no items but also no
+ * caller-visible error (because the primitives' isRateLimited() pre-flight
+ * silently bails with []).
+ */
+export function getRateLimitErrorMessage(): string | null {
+  if (!_rateLimitedUntil) return null
+  if (Date.now() >= _rateLimitedUntil) return null
+  return `Rate limited — resets at ${new Date(_rateLimitedUntil).toLocaleTimeString()}`
+}
+
 function isSsoBlocked(response: Response): boolean {
   if (response.status !== 403) return false
   const headers = response.headers
@@ -495,6 +508,18 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
   // do not overwrite the cache below — the patched data wins.
   const generationAtStart = _cacheGeneration
 
+  // Snapshot the per-member items currently in cache so we can preserve them
+  // when a fresh refresh under an active rate-limit gate yields nothing
+  // useful for that member. Without this, a cache full of good data gets
+  // overwritten with empty items the moment the gate trips, making the UI
+  // look like "no recent activity" everywhere.
+  const cachedItemsByName = new Map<string, GitHubActivityItem[]>()
+  if (_cache) {
+    for (const m of _cache.data) {
+      if (m.items.length > 0) cachedItemsByName.set(m.reportName, m.items)
+    }
+  }
+
   const tasks = reportNames.map(name => async (): Promise<TeamMemberActivity> => {
     try {
       const profile = getReportProfile(name)
@@ -514,12 +539,34 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
       if (partialError) {
         console.error(`[GitHub Activity] Partial failure for ${name}:`, partialError)
       }
+
+      // Falls back to the gate state when the primitives silently bailed
+      // via the isRateLimited() pre-flight — otherwise the user sees
+      // "No recent activity" with no Retry-able error.
+      const gateError = (!partialError && items.length === 0) ? getRateLimitErrorMessage() : null
+      const effectiveError = items.length > 0 ? null : (partialError ?? gateError)
+
+      // If the fresh fetch produced nothing useful AND we have a rate-limit
+      // signal AND we had previously cached items for this member, keep the
+      // cached items so the user doesn't lose context. The error badge plus
+      // Retry button still tell them what happened.
+      const cachedItems = cachedItemsByName.get(name)
+      if (items.length === 0 && effectiveError && cachedItems && cachedItems.length > 0) {
+        return {
+          reportName: name,
+          displayName: profile.displayName,
+          githubUsername: ghUsername,
+          items: cachedItems,
+          error: effectiveError
+        }
+      }
+
       return {
         reportName: name,
         displayName: profile.displayName,
         githubUsername: ghUsername,
         items,
-        error: items.length > 0 ? null : partialError
+        error: effectiveError
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
@@ -531,11 +578,13 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
         displayName = p.displayName
         ghUsername = p.github || ''
       } catch { /* use dir name */ }
+      // Even in the hard-error path, preserve cached items if we have them.
+      const cachedItems = cachedItemsByName.get(name)
       return {
         reportName: name,
         displayName,
         githubUsername: ghUsername,
-        items: [],
+        items: cachedItems ?? [],
         error: errorMsg
       }
     }
@@ -618,12 +667,16 @@ export async function fetchTeamMemberActivity(
               profile.github, orgName, token, retryOptions
             )
             const items = await enrichItemsWithContent(rawItems, headers, MAX_TEAM_CONTENT_ITEMS)
+            // Surface the gate state when the primitives bailed silently
+            // (only matters for the non-force path; force=true already
+            // cleared the gate and runs single-shot).
+            const gateError = (!partialError && items.length === 0) ? getRateLimitErrorMessage() : null
             result = {
               reportName,
               displayName: profile.displayName,
               githubUsername: profile.github,
               items,
-              error: items.length > 0 ? null : partialError
+              error: items.length > 0 ? null : (partialError ?? gateError)
             }
           } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err)

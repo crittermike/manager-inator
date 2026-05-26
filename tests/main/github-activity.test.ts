@@ -11,7 +11,7 @@ vi.mock('../../src/main/github', () => ({
   commitFile: vi.fn()
 }))
 
-import { getTeamActivity, clearActivityCache, clearRateLimit, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot, fetchTeamMemberActivity, _setSleepForTests } from '../../src/main/github-activity'
+import { getTeamActivity, clearActivityCache, clearRateLimit, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot, fetchTeamMemberActivity, _setSleepForTests, getRateLimitErrorMessage } from '../../src/main/github-activity'
 import { getGithubOrgToken, getGithubOrgName } from '../../src/main/store'
 import { getReports, getReportProfile, commitFile } from '../../src/main/github'
 
@@ -1715,5 +1715,218 @@ describe('fetchTeamMemberActivity (per-member retry)', () => {
     // appear.
     expect(final[0].items.some(i => i.title === 'Manual patch item')).toBe(true)
     expect(final[0].items.some(i => i.title === 'Stale bg refresh data')).toBe(false)
+  })
+})
+
+// ── Regression: silent-bail surfacing + cached-items preservation ──
+
+describe('silent-bail surfacing when rate-limit gate is active', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearActivityCache()
+    clearRateLimit()
+    mockFetch.mockReset()
+    vi.unstubAllEnvs()
+    _setSleepForTests(async () => {})
+  })
+
+  afterEach(() => {
+    clearActivityCache()
+    clearRateLimit()
+    vi.unstubAllEnvs()
+    _setSleepForTests(null)
+  })
+
+  function makeRateLimitResponse(opts: { status?: number; remaining?: string; reset?: string } = {}) {
+    const headers = new Headers()
+    if (opts.remaining !== undefined) headers.set('X-RateLimit-Remaining', opts.remaining)
+    if (opts.reset !== undefined) headers.set('X-RateLimit-Reset', opts.reset)
+    return {
+      ok: false,
+      status: opts.status ?? 403,
+      headers,
+      json: async () => ({})
+    }
+  }
+
+  it('getRateLimitErrorMessage returns null when no gate is set', () => {
+    expect(getRateLimitErrorMessage()).toBeNull()
+  })
+
+  it('getRateLimitErrorMessage returns a formatted message when the gate is in the future', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Reset far enough in the future that the wrapper gives up immediately.
+    const farReset = String(Math.floor(Date.now() / 1000) + 3600)
+    mockFetch.mockResolvedValue(makeRateLimitResponse({ status: 403, remaining: '0', reset: farReset }))
+    await getTeamActivity()
+
+    const msg = getRateLimitErrorMessage()
+    expect(msg).toMatch(/Rate limited/)
+  })
+
+  it('REGRESSION: when the gate is set by a prior call, the next getTeamActivity surfaces the gate error (not silent empty)', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Step 1: trigger a rate-limit hit that sets the gate far in the future.
+    const farReset = String(Math.floor(Date.now() / 1000) + 3600)
+    mockFetch.mockResolvedValue(makeRateLimitResponse({ status: 403, remaining: '0', reset: farReset }))
+    await getTeamActivity()
+    clearActivityCache()
+
+    // Step 2: gate is still set. Subsequent call — every primitive's
+    // pre-flight isRateLimited() short-circuits with []. Before the fix
+    // this produced { items: [], error: null }. With the fix we surface
+    // the gate state as the error.
+    mockFetch.mockReset()
+    let callCount = 0
+    mockFetch.mockImplementation(async () => {
+      callCount++
+      return emptySearchResponse
+    })
+
+    const result = await getTeamActivity()
+
+    // No HTTP calls at all (everything bailed via the gate).
+    expect(callCount).toBe(0)
+    // The member surfaces the gate as an error so the UI shows the badge
+    // + Retry button instead of "No recent activity".
+    expect(result[0].items).toEqual([])
+    expect(result[0].error).toMatch(/Rate limited/)
+  })
+
+  it('REGRESSION: preserves cached items when a fresh refresh under an active gate yields nothing for that member', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Step 1: seed the cache with real data via a successful refresh.
+    mockFetch.mockReset()
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      if (typeof url === 'string' && url.includes('/search/issues')) {
+        return makeSearchResponse([{ id: 42, title: 'Real cached PR' }])
+      }
+      return { ok: true, headers: new Headers(), json: async () => ([]) }
+    })
+    const first = await getTeamActivity()
+    expect(first[0].items.some(i => i.title === 'Real cached PR')).toBe(true)
+
+    // Step 2: provoke a rate-limit hit that sets the gate far out, then
+    // clear the cache so the next call goes through refreshCache.
+    const farReset = String(Math.floor(Date.now() / 1000) + 3600)
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValue(makeRateLimitResponse({ status: 403, remaining: '0', reset: farReset }))
+    // Trigger one fetchTeamMemberActivity in non-force mode to set the gate
+    // without clearing it. Easier: just manually set _rateLimitedUntil via
+    // the public hook. Use a tiny "happy" sequence to keep cache populated,
+    // then trip the gate directly by calling getTeamActivity again — but
+    // that would clear the existing cache through refreshCache.
+    //
+    // Simplest: trigger the gate via fetchTeamMemberActivity force=false
+    // path... but that path also patches the cache. We need the cache to
+    // STILL have the original real data.
+    //
+    // Cleanest: call fetchSearchPage indirectly by calling getTeamActivity
+    // with all-rate-limit responses; the failure surfaces the error AND
+    // (after the fix) preserves the cached items.
+
+    // Re-seed the mock: all calls return rate-limit. clearActivityCache to
+    // force a fresh refresh (which will see _cache is null... wait, we
+    // want _cache to still be populated). Don't clearActivityCache. Let
+    // the TTL elapse via cache bypass.
+    //
+    // The cache TTL is 15 min, so within the same test we're inside TTL.
+    // To force the refresh we need to clear the cache OR call the
+    // refresh-only path. clearActivityCache() bumps generation but also
+    // sets _cache = null, which means the cachedItemsByName snapshot in
+    // refreshCache will be empty.
+    //
+    // Workaround: temporarily set the TTL via cache timestamp manipulation
+    // is not exposed. Instead: rely on the existing background-refresh
+    // path. getTeamActivity returns cached + kicks background refresh
+    // when within TTL. We can call getTeamActivity, wait for the
+    // background refresh, then check the cache.
+    //
+    // Implementation: queue the rate-limit responses, call getTeamActivity
+    // (returns cached data immediately), await the background refresh
+    // completion, then call getTeamActivity again to read the (now
+    // patched) cache.
+
+    const cachedReturn = await getTeamActivity() // returns cached, starts background refresh
+    void cachedReturn
+
+    // Yield enough microtasks for the background refresh to complete.
+    for (let i = 0; i < 30; i++) await Promise.resolve()
+
+    // Read the updated cache.
+    const second = await getTeamActivity()
+
+    // The cached items must still be present (not wiped to []).
+    expect(second[0].items.some(i => i.title === 'Real cached PR')).toBe(true)
+    // And the gate error must be surfaced so the user sees a Retry button.
+    expect(second[0].error).toMatch(/Rate limited/)
+  })
+
+  it('REGRESSION: fetchTeamMemberActivity (non-force) surfaces gate error when items end up empty', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Set the gate via a prior team-activity call.
+    const farReset = String(Math.floor(Date.now() / 1000) + 3600)
+    mockFetch.mockResolvedValue(makeRateLimitResponse({ status: 403, remaining: '0', reset: farReset }))
+    await getTeamActivity()
+    clearActivityCache()
+
+    // Now call fetchTeamMemberActivity with force=false (default). The
+    // primitives should silently bail, but the gate fallback should
+    // surface the error.
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValue(emptySearchResponse) // shouldn't be called
+
+    const result = await fetchTeamMemberActivity('alice')
+    expect(result.items).toEqual([])
+    expect(result.error).toMatch(/Rate limited/)
+  })
+
+  it('preserves cached items for hard errors too', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Seed cache with real data.
+    mockFetch.mockReset()
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      if (typeof url === 'string' && url.includes('/search/issues')) {
+        return makeSearchResponse([{ id: 100, title: 'Cached entry' }])
+      }
+      return { ok: true, headers: new Headers(), json: async () => ([]) }
+    })
+    await getTeamActivity()
+
+    // Force a hard error in the next refresh by throwing in getReportProfile.
+    mockedGetProfile.mockImplementation(() => { throw new Error('Profile load failed') })
+    mockFetch.mockReset()
+
+    // Trigger background refresh and wait for it.
+    await getTeamActivity()
+    for (let i = 0; i < 30; i++) await Promise.resolve()
+
+    const second = await getTeamActivity()
+    // Even with a hard error, cached items survive so the user doesn't
+    // lose their data.
+    expect(second[0].items.some(i => i.title === 'Cached entry')).toBe(true)
+    expect(second[0].error).toMatch(/Profile load failed/)
   })
 })
