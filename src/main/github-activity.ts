@@ -6,6 +6,30 @@ const CACHE_TTL_MS = 15 * 60 * 1000
 const MAX_CONCURRENT = 3
 const GITHUB_API = 'https://api.github.com'
 
+// Max time we'll sleep while waiting for a rate-limit window to open before
+// giving up on auto-retry. If the reset is further out, we set the gate
+// (so siblings bail) and surface the rate-limit error; the user can either
+// wait for the natural reset (gate self-clears) or use the per-member Retry
+// button to force a fresh attempt.
+const MAX_RATE_LIMIT_WAIT_MS = 5 * 60 * 1000
+const DEFAULT_MAX_RATE_LIMIT_RETRIES = 3
+const MAX_RATE_LIMIT_RETRIES_CAP = 5
+
+function getMaxRateLimitRetries(): number {
+  const raw = Number(process.env.MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES)
+  if (!Number.isInteger(raw) || raw < 0) return DEFAULT_MAX_RATE_LIMIT_RETRIES
+  return Math.min(raw, MAX_RATE_LIMIT_RETRIES_CAP)
+}
+
+// Injectable sleep so tests can run instantly. Default uses setTimeout.
+let _sleep: (ms: number) => Promise<void> = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Test-only: replace the sleep implementation. Pass null to restore default. */
+export function _setSleepForTests(fn: ((ms: number) => Promise<void>) | null): void {
+  _sleep = fn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+}
+
 // Module-level rate limit tracking: once any request is rate-limited,
 // all subsequent requests skip until the reset time to avoid error spam.
 let _rateLimitedUntil: number | null = null
@@ -33,13 +57,148 @@ export function clearRateLimit(): void {
   _rateLimitedUntil = null
 }
 
+function isSsoBlocked(response: Response): boolean {
+  if (response.status !== 403) return false
+  const headers = response.headers
+  if (!headers || typeof headers.get !== 'function') return false
+  return headers.get('X-GitHub-SSO') !== null
+}
+
+/**
+ * Returns the number of milliseconds we'd need to wait before retrying,
+ * or null if the response is not a rate-limit response. Considers both
+ * primary (X-RateLimit-Reset) and secondary (Retry-After) reset headers
+ * and prefers the larger.
+ */
+function parseRateLimitWaitMs(response: Response): { waitMs: number; resetHeader: string | null } | null {
+  const headers = response.headers
+  if (!headers || typeof headers.get !== 'function') return null
+
+  const remaining = headers.get('X-RateLimit-Remaining')
+  const retryAfter = headers.get('Retry-After')
+  const resetHeader = headers.get('X-RateLimit-Reset')
+
+  const isPrimary = response.status === 403 && remaining === '0'
+  const isSecondary429 = response.status === 429
+  const isSecondary403 = response.status === 403 && retryAfter !== null
+
+  if (!isPrimary && !isSecondary429 && !isSecondary403) return null
+
+  let waitMs = 0
+  if (retryAfter !== null) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      waitMs = Math.max(waitMs, Math.floor(seconds * 1000))
+    }
+  }
+  if (resetHeader !== null) {
+    const resetMs = Number(resetHeader) * 1000
+    if (Number.isFinite(resetMs)) {
+      waitMs = Math.max(waitMs, resetMs - Date.now())
+    }
+  }
+  if (waitMs < 0) waitMs = 0
+  return { waitMs, resetHeader }
+}
+
+function formatResetMessage(resetHeader: string | null): string {
+  if (!resetHeader) return ''
+  const resetDate = new Date(Number(resetHeader) * 1000)
+  if (Number.isNaN(resetDate.getTime())) return ''
+  return ` — resets at ${resetDate.toLocaleTimeString()}`
+}
+
+class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RateLimitError'
+  }
+}
+
+class SsoError extends Error {
+  constructor() {
+    super("SSO authorization required — visit your org's SSO page to authorize this token")
+    this.name = 'SsoError'
+  }
+}
+
+interface RetryOptions {
+  /** Override the env-var max retries. Use `0` to disable auto-retry. */
+  maxRetries?: number
+}
+
+/**
+ * Wraps a fetch call with rate-limit-aware retry behaviour. Detects 403
+ * primary, 429 secondary, and 403-with-Retry-After secondary rate limits;
+ * waits for the reset (capped at MAX_RATE_LIMIT_WAIT_MS) and retries up to
+ * the configured max. SSO 403s are surfaced immediately without retry.
+ *
+ * If we are already gated by `_rateLimitedUntil` from a prior request and
+ * the wait would exceed the cap, throws immediately without making any
+ * request.
+ */
+async function withRateLimitRetry(
+  makeRequest: () => Promise<Response>,
+  options: RetryOptions = {}
+): Promise<Response> {
+  const maxRetries = options.maxRetries ?? getMaxRateLimitRetries()
+
+  // Pre-flight: if we're already gated and the gate is within the cap,
+  // wait for it. If beyond the cap, throw without making a request.
+  if (_rateLimitedUntil) {
+    const remaining = _rateLimitedUntil - Date.now()
+    if (remaining > MAX_RATE_LIMIT_WAIT_MS) {
+      throw new RateLimitError(
+        `Rate limited — resets at ${new Date(_rateLimitedUntil).toLocaleTimeString()}`
+      )
+    }
+    if (remaining > 0) {
+      await _sleep(remaining)
+      _rateLimitedUntil = null
+    }
+  }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await makeRequest()
+
+    if (isSsoBlocked(response)) {
+      throw new SsoError()
+    }
+
+    const parsed = parseRateLimitWaitMs(response)
+    if (!parsed) {
+      return response
+    }
+
+    // Rate-limited response. Always set the gate so concurrent siblings bail.
+    setRateLimited(parsed.resetHeader)
+
+    const giveUp =
+      attempt >= maxRetries || parsed.waitMs > MAX_RATE_LIMIT_WAIT_MS
+
+    if (giveUp) {
+      throw new RateLimitError(`Rate limited${formatResetMessage(parsed.resetHeader)}`)
+    }
+
+    await _sleep(parsed.waitMs)
+    // After the wait, the natural reset has passed; clear the gate so the
+    // retry isn't immediately bounced by our own pre-flight check next loop.
+    _rateLimitedUntil = null
+  }
+
+  throw new RateLimitError('Rate limited — retries exhausted')
+}
+
 interface CacheEntry {
   data: TeamMemberActivity[]
   timestamp: number
   refreshing: boolean
+  /** Bumped on every patch/replace; refreshes only persist if generation matches. */
+  generation: number
 }
 
 let _cache: CacheEntry | null = null
+let _cacheGeneration = 0
 
 interface SearchIssueItem {
   id: number
@@ -90,11 +249,17 @@ function determineState(item: SearchIssueItem): 'open' | 'closed' | 'merged' {
   return item.state === 'open' ? 'open' : 'closed'
 }
 
+interface PartialUserActivity {
+  items: GitHubActivityItem[]
+  error: string | null
+}
+
 async function fetchUserActivity(
   username: string,
   org: string,
-  token: string
-): Promise<GitHubActivityItem[]> {
+  token: string,
+  options: RetryOptions = {}
+): Promise<PartialUserActivity> {
   const now = new Date()
   // On Monday, look back 72h to capture Friday's activity
   const lookbackDays = now.getDay() === 1 ? 3 : 1
@@ -114,54 +279,57 @@ async function fetchUserActivity(
   const authorIssueQuery = `org:${org} author:${username} created:>=${sinceStr}`
   const commenterQuery = `org:${org} commenter:${username} updated:>=${sinceStr}`
 
-  const [issueItems, prItems, commentedIssues, commentedPRs, authoredDiscussions, commentedDiscussions] = await Promise.all([
-    fetchSearchPage(`${authorIssueQuery} is:issue`, headers),
-    fetchSearchPage(`${authorQuery} is:pull-request`, headers),
-    fetchSearchPage(`${commenterQuery} is:issue`, headers),
-    fetchSearchPage(`${commenterQuery} is:pull-request`, headers),
-    fetchDiscussions(`org:${org} author:${username} updated:>=${sinceStr}`, headers),
-    fetchDiscussions(`org:${org} commenter:${username} updated:>=${sinceStr}`, headers)
+  const settled = await Promise.allSettled([
+    fetchSearchPage(`${authorIssueQuery} is:issue`, headers, options),
+    fetchSearchPage(`${authorQuery} is:pull-request`, headers, options),
+    fetchSearchPage(`${commenterQuery} is:issue`, headers, options),
+    fetchSearchPage(`${commenterQuery} is:pull-request`, headers, options),
+    fetchDiscussions(`org:${org} author:${username} updated:>=${sinceStr}`, headers, options),
+    fetchDiscussions(`org:${org} commenter:${username} updated:>=${sinceStr}`, headers, options)
   ])
 
+  const authorResults = settled.slice(0, 2).concat([settled[4]])
+  const commenterResults = settled.slice(2, 4).concat([settled[5]])
+
   const seen = new Map<number, GitHubActivityItem>()
-  for (const item of [...issueItems, ...prItems, ...authoredDiscussions]) {
-    seen.set(item.id, { ...item, role: 'author' })
+  for (const r of authorResults) {
+    if (r.status === 'fulfilled') {
+      for (const item of r.value) seen.set(item.id, { ...item, role: 'author' })
+    }
   }
-  for (const item of [...commentedIssues, ...commentedPRs, ...commentedDiscussions]) {
-    if (!seen.has(item.id)) {
-      seen.set(item.id, { ...item, role: 'commenter' })
+  for (const r of commenterResults) {
+    if (r.status === 'fulfilled') {
+      for (const item of r.value) {
+        if (!seen.has(item.id)) seen.set(item.id, { ...item, role: 'commenter' })
+      }
     }
   }
 
-  return Array.from(seen.values())
+  const firstRejection = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+  const error = firstRejection
+    ? (firstRejection.reason instanceof Error ? firstRejection.reason.message : String(firstRejection.reason))
+    : null
+
+  return { items: Array.from(seen.values()), error }
 }
 
 async function fetchSearchPage(
   query: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  options: RetryOptions = {}
 ): Promise<GitHubActivityItem[]> {
   if (isRateLimited()) return []
 
   const url = `${GITHUB_API}/search/issues?q=${encodeURIComponent(query)}&per_page=50&sort=updated`
 
-  const response = await fetch(url, { headers })
-
-  if (response.status === 403) {
-    const ssoHeader = response.headers.get('X-GitHub-SSO')
-    if (ssoHeader) {
-      throw new Error('SSO authorization required — visit your org\'s SSO page to authorize this token')
+  let response: Response
+  try {
+    response = await withRateLimitRetry(() => fetch(url, { headers }), options)
+  } catch (err) {
+    if (err instanceof RateLimitError || err instanceof SsoError) {
+      throw new Error(err.message)
     }
-
-    const remaining = response.headers.get('X-RateLimit-Remaining')
-    if (remaining === '0') {
-      const resetAt = response.headers.get('X-RateLimit-Reset')
-      setRateLimited(resetAt)
-      const resetDate = resetAt ? new Date(Number(resetAt) * 1000) : null
-      throw new Error(
-        `Rate limited${resetDate ? ` — resets at ${resetDate.toLocaleTimeString()}` : ''}`
-      )
-    }
-    throw new Error(`GitHub API returned 403`)
+    throw err
   }
 
   if (!response.ok) {
@@ -191,7 +359,8 @@ async function fetchSearchPage(
 
 async function fetchDiscussions(
   query: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  options: RetryOptions = {}
 ): Promise<GitHubActivityItem[]> {
   if (isRateLimited()) return []
 
@@ -216,29 +385,24 @@ async function fetchDiscussions(
     variables: { q: query }
   }
 
-  const response = await fetch(`${GITHUB_API}/graphql`, {
-    method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify(graphqlQuery)
-  })
+  let response: Response
+  try {
+    response = await withRateLimitRetry(
+      () => fetch(`${GITHUB_API}/graphql`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(graphqlQuery)
+      }),
+      options
+    )
+  } catch (err) {
+    if (err instanceof RateLimitError || err instanceof SsoError) {
+      throw new Error(err.message)
+    }
+    throw err
+  }
 
   if (!response.ok) {
-    if (response.status === 403) {
-      const ssoHeader = response.headers.get('X-GitHub-SSO')
-      if (ssoHeader) {
-        throw new Error('SSO authorization required — visit your org\'s SSO page to authorize this token')
-      }
-      const remaining = response.headers.get('X-RateLimit-Remaining')
-      if (remaining === '0') {
-        const resetAt = response.headers.get('X-RateLimit-Reset')
-        setRateLimited(resetAt)
-        const resetDate = resetAt ? new Date(Number(resetAt) * 1000) : null
-        throw new Error(
-          `Rate limited${resetDate ? ` — resets at ${resetDate.toLocaleTimeString()}` : ''}`
-        )
-      }
-      throw new Error('GitHub API returned 403')
-    }
     let detail = response.statusText
     try {
       const body = await response.json()
@@ -326,6 +490,11 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
     'X-GitHub-Api-Version': '2022-11-28'
   }
 
+  // Snapshot the cache generation at the start of this refresh; if it changes
+  // (because a manual single-member patch ran while we were refreshing) we
+  // do not overwrite the cache below — the patched data wins.
+  const generationAtStart = _cacheGeneration
+
   const tasks = reportNames.map(name => async (): Promise<TeamMemberActivity> => {
     try {
       const profile = getReportProfile(name)
@@ -340,14 +509,17 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
         }
       }
 
-      const rawItems = await fetchUserActivity(ghUsername, orgName, token)
+      const { items: rawItems, error: partialError } = await fetchUserActivity(ghUsername, orgName, token)
       const items = await enrichItemsWithContent(rawItems, headers, MAX_TEAM_CONTENT_ITEMS)
+      if (partialError) {
+        console.error(`[GitHub Activity] Partial failure for ${name}:`, partialError)
+      }
       return {
         reportName: name,
         displayName: profile.displayName,
         githubUsername: ghUsername,
         items,
-        error: null
+        error: items.length > 0 ? null : partialError
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
@@ -371,10 +543,15 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
 
   const results = await runWithConcurrency(tasks, MAX_CONCURRENT)
 
-  _cache = {
-    data: results,
-    timestamp: Date.now(),
-    refreshing: false
+  // Only persist if no patch happened mid-refresh. Otherwise the patched
+  // single-member data would be lost.
+  if (_cacheGeneration === generationAtStart) {
+    _cache = {
+      data: results,
+      timestamp: Date.now(),
+      refreshing: false,
+      generation: _cacheGeneration
+    }
   }
 
   return results
@@ -382,6 +559,103 @@ async function refreshCache(token: string, orgName: string): Promise<TeamMemberA
 
 export function clearActivityCache(): void {
   _cache = null
+  _cacheGeneration++
+}
+
+/**
+ * Fetch activity for a single team member. Used by the per-member Retry
+ * button in the Raw team activity view. When `force=true`, clears any
+ * active rate-limit gate and runs single-shot (no auto-retry on
+ * rate-limit) so the user gets fast feedback instead of a long spinner.
+ * Patches the result into the team activity cache via the generation
+ * counter so a concurrent background refresh can't overwrite it.
+ */
+export async function fetchTeamMemberActivity(
+  reportName: string,
+  options: { force?: boolean } = {}
+): Promise<TeamMemberActivity> {
+  if (options.force) {
+    _rateLimitedUntil = null
+  }
+
+  const retryOptions: RetryOptions = options.force ? { maxRetries: 0 } : {}
+
+  const buildErrorResult = (errorMsg: string, fallbackName?: string, fallbackGithub?: string): TeamMemberActivity => ({
+    reportName,
+    displayName: fallbackName ?? reportName,
+    githubUsername: fallbackGithub ?? '',
+    items: [],
+    error: errorMsg
+  })
+
+  let result: TeamMemberActivity
+  try {
+    const token = getGithubOrgToken()
+    if (!token) {
+      result = buildErrorResult('No GitHub org token configured')
+    } else {
+      const orgName = getGithubOrgName()
+      if (!orgName) {
+        result = buildErrorResult('No GitHub org name configured')
+      } else {
+        const profile = getReportProfile(reportName)
+        if (!profile.github) {
+          result = {
+            reportName,
+            displayName: profile.displayName,
+            githubUsername: '',
+            items: [],
+            error: 'No GitHub username in profile'
+          }
+        } else {
+          const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+          }
+          try {
+            const { items: rawItems, error: partialError } = await fetchUserActivity(
+              profile.github, orgName, token, retryOptions
+            )
+            const items = await enrichItemsWithContent(rawItems, headers, MAX_TEAM_CONTENT_ITEMS)
+            result = {
+              reportName,
+              displayName: profile.displayName,
+              githubUsername: profile.github,
+              items,
+              error: items.length > 0 ? null : partialError
+            }
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err)
+            console.error(`[GitHub Activity] Error refetching activity for ${reportName}:`, errorMsg)
+            result = buildErrorResult(errorMsg, profile.displayName, profile.github)
+          }
+        }
+      }
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    result = buildErrorResult(errorMsg)
+  }
+
+  // Patch the cache (if any) so subsequent reads see the fix and bump the
+  // generation counter so any in-flight background refresh discards itself.
+  _cacheGeneration++
+  if (_cache) {
+    const idx = _cache.data.findIndex(m => m.reportName === reportName)
+    if (idx >= 0) {
+      _cache.data = [
+        ..._cache.data.slice(0, idx),
+        result,
+        ..._cache.data.slice(idx + 1)
+      ]
+    } else {
+      _cache.data = [..._cache.data, result]
+    }
+    _cache.generation = _cacheGeneration
+  }
+
+  return result
 }
 
 export function getActivityLookbackHours(): number {
@@ -506,7 +780,7 @@ async function fetchPRReviews(
   if (isRateLimited()) return []
   const url = `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=30`
   try {
-    const response = await fetch(url, { headers })
+    const response = await withRateLimitRetry(() => fetch(url, { headers }))
     if (!response.ok) return []
     const data = (await response.json()) as ReviewApiItem[]
     return data
@@ -531,7 +805,7 @@ async function fetchIssueComments(
   if (isRateLimited()) return []
   const url = `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments?per_page=20&sort=created&direction=desc`
   try {
-    const response = await fetch(url, { headers })
+    const response = await withRateLimitRetry(() => fetch(url, { headers }))
     if (!response.ok) return []
     const data = (await response.json()) as CommentApiItem[]
     return data.map(c => ({

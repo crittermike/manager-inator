@@ -11,7 +11,7 @@ vi.mock('../../src/main/github', () => ({
   commitFile: vi.fn()
 }))
 
-import { getTeamActivity, clearActivityCache, clearRateLimit, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot } from '../../src/main/github-activity'
+import { getTeamActivity, clearActivityCache, clearRateLimit, getActivityLookbackHours, extractIssueNumber, enrichItemsWithContent, formatActivityAsMarkdown, fetchActivityForPerson, saveActivitySnapshot, fetchTeamMemberActivity, _setSleepForTests } from '../../src/main/github-activity'
 import { getGithubOrgToken, getGithubOrgName } from '../../src/main/store'
 import { getReports, getReportProfile, commitFile } from '../../src/main/github'
 
@@ -1221,5 +1221,499 @@ describe('saveActivitySnapshot', () => {
     expect(content).toContain('Alice')
     expect(message).toContain('Alice')
     expect(message).toContain('2026-03-15')
+  })
+})
+
+// ── Rate-limit retry behaviour (auto + per-member force-retry) ──
+
+describe('rate-limit retry behaviour', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearActivityCache()
+    clearRateLimit()
+    mockFetch.mockReset()
+    vi.unstubAllEnvs()
+    // No-op sleep so tests run instantly regardless of wait amounts.
+    _setSleepForTests(async () => {})
+  })
+
+  afterEach(() => {
+    clearActivityCache()
+    clearRateLimit()
+    vi.unstubAllEnvs()
+    _setSleepForTests(null)
+  })
+
+  function makeRateLimitResponse(
+    opts: { status?: number; remaining?: string; reset?: string; retryAfter?: string; sso?: boolean } = {}
+  ) {
+    const headers = new Headers()
+    if (opts.remaining !== undefined) headers.set('X-RateLimit-Remaining', opts.remaining)
+    if (opts.reset !== undefined) headers.set('X-RateLimit-Reset', opts.reset)
+    if (opts.retryAfter !== undefined) headers.set('Retry-After', opts.retryAfter)
+    if (opts.sso) headers.set('X-GitHub-SSO', 'required')
+    return {
+      ok: false,
+      status: opts.status ?? 403,
+      headers,
+      json: async () => ({})
+    }
+  }
+
+  // Helper: schedule one rate-limited response followed by success responses
+  // for the remaining 5 sibling queries within a fetchUserActivity call (5
+  // search/GraphQL + N enrichment). Returns the rate-limited response so
+  // tests can inspect it.
+  function setupSequence(responses: Array<ReturnType<typeof makeRateLimitResponse> | ReturnType<typeof makeSearchResponse> | ReturnType<typeof makeGraphQLResponse>>) {
+    let idx = 0
+    mockFetch.mockImplementation(async () => {
+      const r = responses[idx] ?? emptySearchResponse
+      idx++
+      return r
+    })
+  }
+
+  it('retries after a 403 with reset in the near future and succeeds', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    let callCount = 0
+    mockFetch.mockImplementation(async () => {
+      callCount++
+      if (callCount === 1) {
+        return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+      }
+      return emptySearchResponse
+    })
+
+    const result = await getTeamActivity()
+    expect(result[0].error).toBeNull()
+    // At least the rate-limited call was retried (otherwise callCount would
+    // stay at 1 forever and we'd never make any successful requests).
+    expect(callCount).toBeGreaterThan(1)
+  })
+
+  it('retries after a 429 with Retry-After: 0 and succeeds', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    let firstRequestSeen = false
+    mockFetch.mockImplementation(async () => {
+      if (!firstRequestSeen) {
+        firstRequestSeen = true
+        return makeRateLimitResponse({ status: 429, retryAfter: '0' })
+      }
+      return emptySearchResponse
+    })
+
+    const result = await getTeamActivity()
+    expect(result[0].error).toBeNull()
+  })
+
+  it('treats a 403 with only Retry-After (no X-RateLimit-Remaining) as a rate limit and retries', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    let firstRequestSeen = false
+    mockFetch.mockImplementation(async () => {
+      if (!firstRequestSeen) {
+        firstRequestSeen = true
+        return makeRateLimitResponse({ status: 403, retryAfter: '0' })
+      }
+      return emptySearchResponse
+    })
+
+    const result = await getTeamActivity()
+    expect(result[0].error).toBeNull()
+  })
+
+  it('gives up after MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES=1 and surfaces rate-limit error', async () => {
+    vi.stubEnv('MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES', '1')
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    mockFetch.mockResolvedValue(
+      makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    )
+
+    const result = await getTeamActivity()
+    // With maxRetries=1 and Promise.allSettled, all 6 sibling queries fail
+    // with rate-limit errors after one retry each. Result: empty items, the
+    // partial-error field captures the rate-limit message.
+    expect(result[0].items).toEqual([])
+    expect(result[0].error).toMatch(/Rate limited/)
+  })
+
+  it('respects upper clamp of 5 for the env var (huge value silently caps)', async () => {
+    vi.stubEnv('MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES', '1000')
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    let callCount = 0
+    mockFetch.mockImplementation(async () => {
+      callCount++
+      return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    })
+
+    await getTeamActivity()
+    // Each of the 6 sibling queries makes 1 initial + 5 retries = 6 calls
+    // max under the cap. Total upper bound: 36 calls. If env wasn't clamped,
+    // we'd see far more.
+    expect(callCount).toBeLessThanOrEqual(6 * 6)
+  })
+
+  it('falls back to default retries (3) when env var is NaN/garbage', async () => {
+    vi.stubEnv('MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES', 'not-a-number')
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    let callCount = 0
+    mockFetch.mockImplementation(async () => {
+      callCount++
+      return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    })
+
+    await getTeamActivity()
+    // 6 siblings × (1 initial + 3 retries) = 24 calls under default behaviour.
+    expect(callCount).toBeLessThanOrEqual(6 * 4)
+  })
+
+  it('falls back to default retries when env var is negative', async () => {
+    vi.stubEnv('MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES', '-5')
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    let callCount = 0
+    mockFetch.mockImplementation(async () => {
+      callCount++
+      return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    })
+
+    await getTeamActivity()
+    expect(callCount).toBeLessThanOrEqual(6 * 4)
+  })
+
+  it('fails fast (no retry) when reset is beyond the 5-minute wait cap', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Reset 10 minutes out — beyond the 5 minute cap, should give up immediately.
+    const farReset = String(Math.floor(Date.now() / 1000) + 600)
+    mockFetch.mockResolvedValue(
+      makeRateLimitResponse({ status: 403, remaining: '0', reset: farReset })
+    )
+
+    const result = await getTeamActivity()
+    expect(result[0].items).toEqual([])
+    expect(result[0].error).toMatch(/Rate limited/)
+    // The first sibling makes one request, hits the cap, sets the global
+    // gate. The other 5 siblings then bail fast via isRateLimited() without
+    // making a request. So we expect at most ~6 total fetch calls (one per
+    // sibling that managed to start before the gate was set), almost
+    // certainly less than 6×4 = 24 (which would imply retrying).
+    expect(mockFetch.mock.calls.length).toBeLessThan(12)
+  })
+
+  it('preserves partial success when one sibling rate-limits and others succeed', async () => {
+    vi.stubEnv('MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES', '0') // no retries — fail fast on rate limit
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Order in fetchUserActivity: 4 REST (issue, PR, commenter-issue, commenter-PR), 2 GraphQL discussions.
+    // Make the first REST call rate-limited; subsequent succeed.
+    let restIdx = 0
+    let graphqlIdx = 0
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) {
+        graphqlIdx++
+        return emptyGraphQLResponse
+      }
+      restIdx++
+      if (restIdx === 1) {
+        return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+      }
+      return makeSearchResponse([{ id: restIdx, title: `Item ${restIdx}` }])
+    })
+
+    const result = await getTeamActivity()
+    // Other REST queries should still produce items even though one failed.
+    expect(result[0].items.length).toBeGreaterThan(0)
+    // And the partial error should be exposed when items survive? Per
+    // refreshCache logic, error is only set if items is empty. With items
+    // present, error is null even on partial failure. Verify items survived.
+    expect(graphqlIdx).toBeGreaterThan(0) // Sanity: GraphQL was called
+  })
+
+  it('SSO 403 is not retried (single fetch call, immediate error)', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    let restCount = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      restCount++
+      return makeRateLimitResponse({ status: 403, sso: true })
+    })
+
+    const result = await getTeamActivity()
+    expect(result[0].error).toMatch(/SSO authorization required/)
+    // Each of the 4 REST sibling queries should make exactly 1 call, no retries.
+    expect(restCount).toBeLessThanOrEqual(4)
+  })
+
+  it('enrichment rate-limit does not fail the whole per-member fetch', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // The first REST search returns a PR item that will be enriched.
+    // Subsequent searches return empty. Enrichment calls (different URL
+    // shape: /repos/.../reviews or /comments) all rate-limit; per the
+    // catch-and-return-[] pattern these should silently swallow.
+    let searchCount = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      if (typeof url === 'string' && url.includes('/search/issues')) {
+        searchCount++
+        if (searchCount === 2) {
+          return makeSearchResponse([
+            {
+              id: 99,
+              title: 'PR with comments',
+              html_url: 'https://github.com/myorg/myrepo/pull/99',
+              pull_request: { merged_at: null },
+              comments: 5
+            }
+          ])
+        }
+        return emptySearchResponse
+      }
+      // Enrichment URLs (e.g. /repos/myorg/myrepo/pulls/99/reviews) — return rate-limit.
+      const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+      return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    })
+
+    const result = await getTeamActivity()
+    // We still get the PR item; enrichment silently dropped its extra data.
+    expect(result[0].error).toBeNull()
+    expect(result[0].items.some(i => i.title === 'PR with comments')).toBe(true)
+  })
+})
+
+describe('fetchTeamMemberActivity (per-member retry)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearActivityCache()
+    clearRateLimit()
+    mockFetch.mockReset()
+    vi.unstubAllEnvs()
+    _setSleepForTests(async () => {})
+  })
+
+  afterEach(() => {
+    clearActivityCache()
+    clearRateLimit()
+    vi.unstubAllEnvs()
+    _setSleepForTests(null)
+  })
+
+  function makeRateLimitResponse(
+    opts: { status?: number; remaining?: string; reset?: string; retryAfter?: string } = {}
+  ) {
+    const headers = new Headers()
+    if (opts.remaining !== undefined) headers.set('X-RateLimit-Remaining', opts.remaining)
+    if (opts.reset !== undefined) headers.set('X-RateLimit-Reset', opts.reset)
+    if (opts.retryAfter !== undefined) headers.set('Retry-After', opts.retryAfter)
+    return {
+      ok: false,
+      status: opts.status ?? 403,
+      headers,
+      json: async () => ({})
+    }
+  }
+
+  it('returns an error result when the org token is missing', async () => {
+    mockedGetToken.mockReturnValue(null)
+    const result = await fetchTeamMemberActivity('alice')
+    expect(result.error).toMatch(/token/i)
+    expect(result.items).toEqual([])
+  })
+
+  it('returns an error result when the report has no github username', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetProfile.mockReturnValue(makeProfile('alice', ''))
+    const result = await fetchTeamMemberActivity('alice')
+    expect(result.error).toMatch(/No GitHub username/)
+    expect(result.items).toEqual([])
+  })
+
+  it('fetches and returns activity for a single member', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      if (typeof url === 'string' && url.includes('/search/issues')) {
+        return makeSearchResponse([{ id: 42, title: 'Single fetch item' }])
+      }
+      return { ok: true, headers: new Headers(), json: async () => ([]) }
+    })
+
+    const result = await fetchTeamMemberActivity('alice')
+    expect(result.reportName).toBe('alice')
+    expect(result.items.some(i => i.title === 'Single fetch item')).toBe(true)
+    expect(result.error).toBeNull()
+  })
+
+  it('with force=true, clears the rate-limit gate and runs single-shot (no retry)', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // First: trigger getTeamActivity to set the rate-limit gate.
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    mockFetch.mockResolvedValue(
+      makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    )
+    await getTeamActivity()
+    clearActivityCache()
+
+    // Now configure: every request rate-limits. If force=true correctly
+    // bypasses the gate AND runs single-shot, we should see exactly N calls
+    // (one per sibling), not N×(1+retries).
+    mockFetch.mockReset()
+    let callCount = 0
+    mockFetch.mockImplementation(async () => {
+      callCount++
+      return makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    })
+
+    const result = await fetchTeamMemberActivity('alice', { force: true })
+
+    // single-shot: 6 sibling requests, no retries, then they each set the
+    // gate so subsequent ones bail. We expect at most 6 calls.
+    expect(callCount).toBeLessThanOrEqual(6)
+    expect(result.error).toMatch(/Rate limited/)
+    expect(result.items).toEqual([])
+  })
+
+  it('patches the cached team activity so subsequent getTeamActivity reflects the fix', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Seed the cache with an error result.
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    mockFetch.mockResolvedValue(
+      makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    )
+    const first = await getTeamActivity()
+    expect(first[0].error).toMatch(/Rate limited/)
+
+    // Now configure success and patch via single-member retry.
+    mockFetch.mockReset()
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      if (typeof url === 'string' && url.includes('/search/issues')) {
+        return makeSearchResponse([{ id: 7, title: 'Recovered item' }])
+      }
+      return { ok: true, headers: new Headers(), json: async () => ([]) }
+    })
+
+    await fetchTeamMemberActivity('alice', { force: true })
+
+    // Subsequent getTeamActivity should serve the patched data from cache.
+    const second = await getTeamActivity()
+    expect(second[0].error).toBeNull()
+    expect(second[0].items.some(i => i.title === 'Recovered item')).toBe(true)
+  })
+
+  it('a stale background refresh does not overwrite a fresh single-member patch', async () => {
+    mockedGetToken.mockReturnValue('ghp_test')
+    mockedGetOrgName.mockReturnValue('myorg')
+    mockedGetReports.mockReturnValue(['alice'])
+    mockedGetProfile.mockReturnValue(makeProfile('alice', 'alice-gh'))
+
+    // Seed the cache with stale rate-limited data.
+    const futureReset = String(Math.floor(Date.now() / 1000) + 1)
+    mockFetch.mockResolvedValue(
+      makeRateLimitResponse({ status: 403, remaining: '0', reset: futureReset })
+    )
+    await getTeamActivity()
+
+    // The cache is now populated with errored entries. A subsequent
+    // getTeamActivity call kicks off a background refresh while serving
+    // cached data. We hold the background refresh open by making it slow
+    // via a deferred fetch implementation, then run the manual patch.
+    let resolveBgFetch: (() => void) | null = null
+    const bgGate = new Promise<void>(resolve => { resolveBgFetch = resolve })
+    let bgFirstCall = true
+    mockFetch.mockImplementation(async () => {
+      if (bgFirstCall) {
+        bgFirstCall = false
+        await bgGate
+      }
+      // The background refresh's later calls return success (which would
+      // overwrite the cache if not for the generation counter guard).
+      return makeSearchResponse([{ id: 999, title: 'Stale bg refresh data' }])
+    })
+
+    // Trigger getTeamActivity — returns cache, kicks off background refresh
+    // (which is now blocked on bgGate).
+    const _cached = await getTeamActivity()
+    void _cached
+    // Give the background refresh a microtask to schedule its first fetch.
+    await Promise.resolve()
+
+    // Now run the manual patch with a successful response.
+    mockFetch.mockReset()
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/graphql')) return emptyGraphQLResponse
+      return makeSearchResponse([{ id: 7, title: 'Manual patch item' }])
+    })
+    await fetchTeamMemberActivity('alice', { force: true })
+
+    // Now let the background refresh complete.
+    if (resolveBgFetch) (resolveBgFetch as () => void)()
+    // Yield enough microtasks for the background refresh to attempt to
+    // assign _cache, see the changed generation, and bail.
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+
+    const final = await getTeamActivity()
+    // The manual patch should still win — the stale bg data should NOT
+    // appear.
+    expect(final[0].items.some(i => i.title === 'Manual patch item')).toBe(true)
+    expect(final[0].items.some(i => i.title === 'Stale bg refresh data')).toBe(false)
   })
 })

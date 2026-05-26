@@ -436,6 +436,12 @@ export interface IpcApi {
   getPrewarmStatus: () => Promise<boolean>
   getPrewarmProgress: () => Promise<{ ready: boolean; message: string }>
   getTeamActivity: () => Promise<TeamMemberActivity[]>
+  /**
+   * Force-fetch a single team member's activity (used by the per-member
+   * Retry button). Clears the rate-limit gate before fetching and runs
+   * single-shot (no auto-retry on rate-limit) for fast feedback.
+   */
+  fetchTeamMemberActivity: (reportName: string) => Promise<TeamMemberActivity>
   getRecentTeamContext: (days: number) => Promise<Record<string, { date: string; source: string; title: string; summary: string }[]>>
   getMonthlyActivity: (reportName: string, year: number, month: number) => Promise<MonthlyActivityStats | null>
   fetchActivityForPerson: (reportName: string, startDate: string, endDate: string) => Promise<PersonActivityResult | null>
