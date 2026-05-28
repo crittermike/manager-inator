@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAI } from '../../hooks/useAI'
 import { useSettings } from '../../hooks/useData'
 import { buildMeetingAttendees, shouldRecordAttendees } from '../../utils/captureAttendees'
+import { extractSpeakersFromCleanedTranscript } from '../../utils/transcriptCleaners'
 import { useToast } from './Toast'
 import { format } from 'date-fns'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
@@ -26,6 +27,7 @@ interface ClassifiedResult {
   detailed_summary: string
   tags: string[]
   people_mentioned: string[]
+  attendees?: string[]
   feedback: { person: string; type: 'positive' | 'constructive' | 'mixed'; content: string }[]
   action_items: { text: string; owner: string }[]
   resolved_action_items: { original_text: string; owner: string; reason: string }[]
@@ -113,11 +115,25 @@ export function CaptureSession({
       ? `people:\n${peopleSlugs.map(s => `  - ${s}`).join('\n')}`
       : 'people: []'
 
-    // For meeting captures, always record attendees (current user + people meaningfully discussed)
-    // so the meeting shows up under the right person and speakers render correctly.
+    // For meeting captures, build the `speakers:` frontmatter from ACTUAL
+    // attendees only — never from `people_mentioned` (which includes people
+    // who were merely discussed). Sources, in order of trust:
+    //   1. Deterministic `**Name:**` prefixes in the cleaned content (always
+    //      present for VTT/SRT transcripts after `cleanTranscript`).
+    //   2. The AI's separate `attendees` field from `classify-content`.
+    //   3. The current user (manager) — always added when known.
+    // When none of these sources yield any attendees, omit `speakers:` rather
+    // than fabricate one. `getRelevantSlugs` will then fall back to `people:`,
+    // matching prior behavior for that edge case.
     let speakersYaml = ''
     if (shouldRecordAttendees(classified.source, sourceHint)) {
-      const attendees = buildMeetingAttendees(settings?.userName, classified.people_mentioned)
+      const deterministic = extractSpeakersFromCleanedTranscript(initialContent)
+      const aiAttendees = Array.isArray(classified.attendees) ? classified.attendees : []
+      const union = [...deterministic, ...aiAttendees]
+      const haveAnyAttendee = union.length > 0
+      const attendees = haveAnyAttendee
+        ? buildMeetingAttendees(settings?.userName, union)
+        : []
       if (attendees.length > 0) {
         speakersYaml = `speakers:\n${attendees.map(n => `  - ${n}`).join('\n')}\n`
       }
@@ -302,6 +318,9 @@ export function CaptureSession({
           parsed = JSON.parse(jsonStr)
           if (!parsed.resolved_action_items) {
             parsed.resolved_action_items = []
+          }
+          if (!Array.isArray(parsed.attendees)) {
+            parsed.attendees = []
           }
         } catch (e) {
           console.error('Failed to parse AI classification JSON:', e)

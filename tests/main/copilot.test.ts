@@ -172,6 +172,24 @@ describe('buildMessages', () => {
     expect(userMsg.content).not.toContain('The user indicated this is from:')
   })
 
+  it('classify-content distinguishes attendees from people_mentioned', () => {
+    const result = buildMessages('classify-content', {
+      reportNames: 'Nic, Steve',
+      content: 'A meeting'
+    })
+    const userMsg = result.find(m => m.role === 'user')!
+    // Both fields are present in the JSON schema.
+    expect(userMsg.content).toContain('"people_mentioned"')
+    expect(userMsg.content).toContain('"attendees"')
+    // Attendees is explicitly described as actual participants.
+    expect(userMsg.content).toMatch(/"attendees" is ONLY for meetings/i)
+    // people_mentioned is explicitly described as discussed-not-necessarily-present.
+    expect(userMsg.content).toMatch(/regardless of whether they were present/i)
+    // The old over-inclusive sentence is gone.
+    expect(userMsg.content).not.toMatch(/ALWAYS include every attendee/i)
+    expect(userMsg.content).not.toMatch(/even if they only listened/i)
+  })
+
   it('builds summarize-team-activity messages', () => {
     const result = buildMessages('summarize-team-activity', {
       dateLabel: '2026-03-26',

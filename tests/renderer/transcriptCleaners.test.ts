@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cleanTranscript, __test } from '../../src/renderer/utils/transcriptCleaners'
+import { cleanTranscript, extractSpeakersFromCleanedTranscript, __test } from '../../src/renderer/utils/transcriptCleaners'
 
 describe('cleanTranscript', () => {
   it('passes through unknown extensions unchanged', () => {
@@ -152,5 +152,85 @@ Alice: Part two.`
   it('returns the original (trimmed) text if cleaning produces nothing', () => {
     const garbage = '   not a real transcript   '
     expect(cleanTranscript('weird.vtt', garbage)).toBe('not a real transcript')
+  })
+})
+
+describe('extractSpeakersFromCleanedTranscript', () => {
+  it('returns [] for empty or speakerless content', () => {
+    expect(extractSpeakersFromCleanedTranscript('')).toEqual([])
+    expect(extractSpeakersFromCleanedTranscript('Just a paragraph of narration.')).toEqual([])
+  })
+
+  it('extracts a single **Name:** speaker prefix', () => {
+    const content = '**Mike:** Hello there.'
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike'])
+  })
+
+  it('extracts multiple speakers in cleanTranscript output form', () => {
+    const content = '**Alice:** Hi.\n\n**Bob:** Hello Alice.\n\n**Alice:** How are you?'
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Alice', 'Bob'])
+  })
+
+  it('handles full first + last names', () => {
+    const content = '**Mike Crittenden:** Kicking off.\n\n**Steve Richert:** Sounds good.'
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike Crittenden', 'Steve Richert'])
+  })
+
+  it('also recognizes the **Name**: form (colon outside bold)', () => {
+    const content = '**Alice**: Hi.\n\n**Bob**: Hello.'
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Alice', 'Bob'])
+  })
+
+  it('skips known section labels via the blocklist', () => {
+    const content = `## Summary
+
+**Summary:** This meeting covered planning.
+
+**Action items:** none
+
+**Attendees:** Mike, Steve
+
+**Mike:** Let's start.
+
+**Steve:** Sure.`
+    // The blocklist filters Summary / Action items / Attendees out, leaving real people.
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike', 'Steve'])
+  })
+
+  it('deduplicates case-insensitively, preserving first-seen casing', () => {
+    const content = '**Mike:** Hi.\n\n**mike:** Still me.\n\n**MIKE:** Yep.'
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike'])
+  })
+
+  it('only matches prefixes at the start of a line (not mid-paragraph emphasis)', () => {
+    const content = `**Mike:** Hello there.
+
+Just talking about **Tara:** she did great work this sprint.
+
+**Steve:** Agreed.`
+    // "Tara:" appears mid-paragraph, so it should be ignored.
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike', 'Steve'])
+  })
+
+  it('handles list-marker prefixes like "- **Name:**"', () => {
+    const content = `- **Mike:** First point.
+- **Steve:** Second point.`
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike', 'Steve'])
+  })
+
+  it('rejects tokens that are not plausible person names', () => {
+    const content = `**1234:** weird.
+
+**::::** more weird.
+
+**Mike:** real person.`
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike'])
+  })
+
+  it('caps name length to 4 tokens (avoids matching long bolded sentences)', () => {
+    const content = `**This Is A Very Long Sentence That Was Bolded:** not a speaker.
+
+**Mike:** real speaker.`
+    expect(extractSpeakersFromCleanedTranscript(content)).toEqual(['Mike'])
   })
 })
