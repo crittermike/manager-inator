@@ -94,6 +94,35 @@ export function CapturePanel({ open, onClose }: { open: boolean; onClose: () => 
     return () => window.removeEventListener('tray-capture-content', handler)
   }, [])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { content: string; sourceHint?: SourceHint; fileName?: string }
+        | undefined
+      if (!detail || !detail.content) return
+      const isTranscript = detail.fileName ? /\.(vtt|srt)$/i.test(detail.fileName) : false
+      const cleaned = detail.fileName
+        ? cleanTranscript(detail.fileName, detail.content)
+        : detail.content
+      const finalHint: SourceHint = isTranscript
+        ? 'meeting'
+        : ((detail.sourceHint ?? '') as SourceHint)
+      const id = crypto.randomUUID()
+      setSessions(prev => [
+        {
+          id,
+          content: cleaned.trim(),
+          sourceHint: finalHint,
+          status: 'processing',
+          fileName: detail.fileName,
+        },
+        ...prev,
+      ])
+    }
+    window.addEventListener('webhook-capture-content', handler)
+    return () => window.removeEventListener('webhook-capture-content', handler)
+  }, [])
+
   const handleClose = useCallback(() => {
     if (processingCount > 0) {
       setMinimized(true)

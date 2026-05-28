@@ -155,6 +155,30 @@ export interface ReportStatus {
   checkInCount: number
 }
 
+// ── Local capture webhook ──
+export type CaptureWebhookSourceHint = 'slack' | 'github' | 'email' | 'meeting' | 'feedback' | 'other' | ''
+
+export interface CaptureWebhookPayload {
+  /** Markdown / text content to capture. Already-normalized (title prepended if any). */
+  content: string
+  /** Source hint, validated. Empty string means auto-detect. */
+  sourceHint: CaptureWebhookSourceHint
+  /** Optional original filename — used to drive VTT/SRT cleanup in the renderer. */
+  fileName?: string
+  /** Optional original title (also embedded in content as a heading). */
+  title?: string
+  /** Optional speaker list for meeting captures. */
+  speakers?: string[]
+}
+
+export interface CaptureWebhookStatus {
+  enabled: boolean
+  running: boolean
+  port: number
+  url: string
+  error?: string
+}
+
 // ── Per-report repo sync ──
 export interface ReportSyncStatus {
   canSync: boolean
@@ -487,6 +511,12 @@ export interface IpcApi {
   trayCaptureSubmit: (content: string) => Promise<void>
   trayCaptureClose: () => Promise<void>
   onTrayCaptureReset: (cb: () => void) => () => void
+
+  // Local capture webhook
+  getWebhookStatus: () => Promise<CaptureWebhookStatus>
+  setWebhookEnabled: (enabled: boolean) => Promise<CaptureWebhookStatus>
+  setWebhookPort: (port: number) => Promise<CaptureWebhookStatus>
+  onWebhookCapture: (cb: (payload: CaptureWebhookPayload) => void) => () => void
   findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) => Promise<{ matches: number; activeMatchOrdinal: number } | null>
   stopFindInPage: () => Promise<void>
   onFindToggle: (cb: () => void) => () => void

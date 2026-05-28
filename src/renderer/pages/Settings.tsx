@@ -26,10 +26,13 @@ import {
   UserPlus,
   RefreshCw,
   ExternalLink,
-  Loader2
+  Loader2,
+  Webhook,
+  Copy
 } from 'lucide-react'
 import { PROMPT_TEMPLATES } from '../../shared/prompts'
 import { GitHubMark } from '../components/common/GitHubMark'
+import type { CaptureWebhookStatus } from '../../shared/types'
 
 const cardClass = 'bg-surface rounded-2xl border border-border/80 p-5 shadow-[0_12px_32px_rgba(0,0,0,0.18)]'
 const fieldClass = 'w-full px-4 py-2.5 bg-zinc-950/70 shadow-inner shadow-black/20 border border-border/80 rounded-xl text-sm text-zinc-100 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15 transition-all'
@@ -931,6 +934,9 @@ export function Settings() {
         </section>
       )}
 
+      {/* Local Capture Webhook */}
+      <CaptureWebhookSection toast={toast} />
+
       {/* About */}
       <section className="space-y-4">
         <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
@@ -993,5 +999,200 @@ export function Settings() {
         onCancel={resetBlocker}
       />
     </div>
+  )
+}
+
+interface ToastApi {
+  success: (msg: string) => void
+  error: (msg: string) => void
+  warning?: (msg: string, title?: string) => void
+}
+
+function CaptureWebhookSection({ toast }: { toast: ToastApi }) {
+  const [status, setStatus] = useState<CaptureWebhookStatus | null>(null)
+  const [portInput, setPortInput] = useState('')
+  const [savingPort, setSavingPort] = useState(false)
+  const [toggling, setToggling] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    window.api.getWebhookStatus().then((s) => {
+      if (!mounted) return
+      setStatus(s)
+      setPortInput(String(s.port))
+    }).catch((err) => {
+      console.error('[Webhook] Failed to load status:', err)
+    })
+    return () => { mounted = false }
+  }, [])
+
+  const handleToggle = useCallback(async () => {
+    if (!status || toggling) return
+    setToggling(true)
+    try {
+      const next = await window.api.setWebhookEnabled(!status.enabled)
+      setStatus(next)
+      if (next.enabled && next.error) {
+        toast.error(next.error)
+      } else if (next.enabled && next.running) {
+        toast.success(`Capture webhook running on port ${next.port}`)
+      } else if (!next.enabled) {
+        toast.success('Capture webhook disabled')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setToggling(false)
+    }
+  }, [status, toggling, toast])
+
+  const handlePortSave = useCallback(async () => {
+    const portNum = parseInt(portInput, 10)
+    if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
+      toast.error('Port must be between 1 and 65535')
+      return
+    }
+    setSavingPort(true)
+    try {
+      const next = await window.api.setWebhookPort(portNum)
+      setStatus(next)
+      if (next.error) toast.error(next.error)
+      else toast.success(`Port saved (${next.port})`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSavingPort(false)
+    }
+  }, [portInput, toast])
+
+  const copyUrl = useCallback(() => {
+    if (!status) return
+    navigator.clipboard.writeText(status.url).then(() => {
+      toast.success('URL copied')
+    }).catch((err) => {
+      console.error('[Webhook] Clipboard write failed:', err)
+      toast.error('Failed to copy URL')
+    })
+  }, [status, toast])
+
+  if (!status) return null
+
+  const portChanged = String(status.port) !== portInput
+  const exampleCurl = `curl -X POST ${status.url} \\\n  -H 'Content-Type: application/json' \\\n  -d '{"title":"Standup","transcript":"..."}'`
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+        <Webhook className="w-4 h-4" aria-hidden="true" />
+        Local Capture Webhook
+      </h2>
+      <div className={cardClass + ' space-y-4'}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-sm text-zinc-200 font-medium">
+              Receive captures from other apps on this machine
+            </p>
+            <p className="text-xs text-zinc-500 mt-1">
+              Exposes a localhost-only HTTP endpoint that external tools (e.g. transcription apps) can POST to. Bound to <code className="text-zinc-400">127.0.0.1</code> only — not reachable from the network.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={status.enabled}
+            disabled={toggling}
+            onClick={handleToggle}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+              status.enabled ? 'bg-brand' : 'bg-zinc-700'
+            } disabled:opacity-50`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                status.enabled ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className={`inline-flex h-2 w-2 rounded-full ${
+            status.running ? 'bg-emerald-500' : status.enabled ? 'bg-amber-500' : 'bg-zinc-600'
+          }`} />
+          <span className="text-zinc-400">
+            {status.running ? `Running on port ${status.port}` : status.enabled ? 'Enabled but not running' : 'Disabled'}
+          </span>
+          {status.error && (
+            <span className="text-rose-400 ml-2">— {status.error}</span>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-zinc-400">Port</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={portInput}
+              onChange={(e) => setPortInput(e.target.value)}
+              className={`${textFieldClass} max-w-[140px]`}
+            />
+            <button
+              type="button"
+              disabled={!portChanged || savingPort}
+              onClick={handlePortSave}
+              className="px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {savingPort ? 'Saving…' : 'Save port'}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-zinc-400">Endpoint URL</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={status.url}
+              className={`${textFieldClass} font-mono text-xs flex-1`}
+            />
+            <button
+              type="button"
+              onClick={copyUrl}
+              className="px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <details className="text-xs text-zinc-400">
+          <summary className="cursor-pointer hover:text-zinc-200 transition-colors">
+            How to send a capture
+          </summary>
+          <div className="mt-3 space-y-3">
+            <div>
+              <p className="font-medium text-zinc-300 mb-1">Example (curl):</p>
+              <pre className="bg-zinc-950/70 border border-border/80 rounded-lg p-3 text-[11px] overflow-x-auto whitespace-pre">{exampleCurl}</pre>
+            </div>
+            <div>
+              <p className="font-medium text-zinc-300 mb-1">Accepted JSON fields:</p>
+              <ul className="list-disc list-inside space-y-1 text-zinc-500">
+                <li><code className="text-zinc-300">content</code> / <code>transcript</code> / <code>text</code> / <code>body</code> / <code>message</code> / <code>markdown</code> — the content (one is required)</li>
+                <li><code className="text-zinc-300">title</code> — optional; prepended as a heading</li>
+                <li><code className="text-zinc-300">sourceHint</code> / <code>source</code> / <code>type</code> — one of <code>meeting</code>, <code>slack</code>, <code>github</code>, <code>email</code>, <code>feedback</code>, <code>other</code>. Auto-detected if omitted. Sending <code>transcript</code> implies <code>meeting</code>.</li>
+                <li><code className="text-zinc-300">fileName</code> — optional; <code>.vtt</code>/<code>.srt</code> filenames trigger transcript cleanup</li>
+                <li><code className="text-zinc-300">speakers</code> — optional array of names</li>
+              </ul>
+            </div>
+            <p className="text-zinc-500">
+              Also accepts <code>text/plain</code> bodies with <code>?source=...</code> as a query param. Returns <code>202</code> on success. <code>GET /health</code> returns <code>{'{ ok: true }'}</code>.
+            </p>
+          </div>
+        </details>
+      </div>
+    </section>
   )
 }

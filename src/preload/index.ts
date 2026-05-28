@@ -169,6 +169,14 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('tray-capture:reset', handler)
     return () => ipcRenderer.removeListener('tray-capture:reset', handler)
   },
+  getWebhookStatus: () => ipcRenderer.invoke('webhook:get-status'),
+  setWebhookEnabled: (enabled: boolean) => ipcRenderer.invoke('webhook:set-enabled', enabled),
+  setWebhookPort: (port: number) => ipcRenderer.invoke('webhook:set-port', port),
+  onWebhookCapture: (cb: (payload: unknown) => void) => {
+    const handler = (_event: unknown, payload: unknown) => cb(payload)
+    ipcRenderer.on('webhook:capture', handler)
+    return () => ipcRenderer.removeListener('webhook:capture', handler)
+  },
   findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) =>
     ipcRenderer.invoke('find:find', text, options) as Promise<{ matches: number; activeMatchOrdinal: number } | null>,
   stopFindInPage: () => ipcRenderer.invoke('find:stop'),

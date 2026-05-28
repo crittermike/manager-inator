@@ -81,7 +81,8 @@ describe('aria-current="page" on navigation elements', () => {
         onPushStatus: vi.fn(() => vi.fn()),
         onNavigate: vi.fn(() => vi.fn()),
         onOpenCapture: vi.fn(() => vi.fn()),
-        onTrayCapture: vi.fn(() => vi.fn())
+        onTrayCapture: vi.fn(() => vi.fn()),
+        onWebhookCapture: vi.fn(() => vi.fn())
       }
     })
   })
