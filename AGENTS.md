@@ -28,6 +28,45 @@
   - `tests/renderer/captureWebhookListener.test.tsx` — 3 tests for `webhook-capture-content` session creation, VTT cleanup, and empty-event ignore.
   - Existing AppShell-related tests (`AppShell`, `scrollToTop`, `dialogAccessibility`, `ariaCurrentNav`, `trayIntegration`) updated to mock `onWebhookCapture`. `Settings.test.tsx` mocks the new `getWebhookStatus`/`setWebhookEnabled`/`setWebhookPort` IPC.
 
+### Meeting attendees: distinguish actual participants from people merely mentioned (COMPLETE)
+The classify-content AI flow used to dump every name from `people_mentioned` into the `speakers:` frontmatter of captured meetings. Because `getRelevantSlugs` in `github.ts` uses `speakers:` as the authoritative attendance list, this caused meetings to be linked to reports who were only discussed (not present). It also made `isOneOnOneWith` in `syncToReport.ts` reject legitimate 1:1s whenever the manager mentioned a third party by name.
+
+**The split**
+- The `classify-content` prompt (both `src/main/copilot.ts` and the display copy in `src/shared/prompts.ts`) now requests two distinct JSON fields:
+  - `attendees: ["Exact Name"]` — meeting participants only. Empty for non-meeting sources.
+  - `people_mentioned: ["Exact Name"]` — anyone meaningfully discussed, regardless of presence.
+- The over-inclusive "ALWAYS include every attendee/participant of the meeting in this list, even if they only listened" line is gone. The new rules explicitly call out that a person can appear in one, the other, or both.
+
+**Deterministic transcript speaker extraction**
+- New pure helper in `src/renderer/utils/transcriptCleaners.ts`: `extractSpeakersFromCleanedTranscript(content)`. Scans `**Name:**` and `**Name**:` prefixes anchored to the start of a line (with optional list-marker prefixes like `- **Name:**`), dedupes case-insensitively while preserving first-seen casing, and filters out a small blocklist of section labels (`Summary`, `Attendees`, `Action items`, `Feedback`, `Notes`, `Context`, `Raw content`, `Type`, `Source`, `Date`, `Title`, `Tags`, `Overview`, `Agenda`, `Next steps`, `Decisions`, `Topic(s)`, `PR`, `Issue`, `Link`, `TL;DR`).
+- Tokens that don't look like a person name (1–4 capitalized-ish tokens) are also rejected. This protects against bolded sentences like `**This Is A Very Long Sentence That Was Bolded:**` being treated as a speaker.
+
+**`buildMeetingAttendees` contract change**
+- `src/renderer/utils/captureAttendees.ts#buildMeetingAttendees(currentUserName, attendees)` now takes an *explicit attendee list*, not `people_mentioned`. The JSDoc explicitly warns: *do not pass `people_mentioned` — that conflates mentioned-only people with actual attendees.*
+- `shouldRecordAttendees` is unchanged.
+
+**Capture wiring (`CaptureSession.tsx`)**
+- `ClassifiedResult` gains optional `attendees?: string[]` (defaults to `[]` after JSON parse, even if the AI omits it).
+- For meeting captures, `speakers:` is now built as:
+  ```
+  currentUser ∪ extractSpeakersFromCleanedTranscript(initialContent) ∪ ai.attendees
+  ```
+  Names are deduped case-insensitively. `people_mentioned` is **never** used for `speakers:`.
+- `people:` continues to be derived from `people_mentioned` (slugified). A meeting that discussed Tara without her presence still appears under `people: [tara]` so PersonDetail can surface it, but `speakers: [Mike, Steve]` keeps it out of Tara's `ReportDetail` stream.
+- If neither the deterministic extractor nor the AI yields any attendees, `speakers:` is omitted entirely (not faked up with just the current user). `getRelevantSlugs` then falls back to `people:`, matching the prior safe default for that edge case.
+
+**No migration for existing files (by choice)**
+- Existing capture files that already have over-inclusive `speakers:` continue to parse as-is. Users can edit them via the existing Attendees UI in `ContextDetail`. We didn't write a one-time rewriter because re-deriving attendees from already-summarized content would itself rely on AI heuristics.
+
+**Sync impact (positive side effect)**
+- This strictly tightens `speakers:`, so `isOneOnOneWith` in `syncToReport.ts` becomes more accurate going forward — 1:1s that were previously rejected because a third party was mentioned will now sync correctly when re-captured.
+
+**Tests**
+- `tests/renderer/captureAttendees.test.ts` — migrated to the new explicit-attendees contract.
+- `tests/renderer/transcriptCleaners.test.ts` — 9 new tests for `extractSpeakersFromCleanedTranscript` covering single/multiple speakers, both bold-colon forms, list markers, blocklist filtering, dedup, mid-paragraph false positives, and non-name rejection.
+- `tests/main/copilot.test.ts` — extended `classify-content` `buildMessages` coverage to assert the new `attendees` field is documented and the old over-inclusive sentence is gone.
+- `tests/renderer/captureAttendeesIntegration.test.tsx` (new, 5 tests) — mounts `CaptureSession` with stubbed AI responses and inspects the resulting `commitFile` payload to verify: `people_mentioned` never leaks into `speakers:`; AI `attendees` drives `speakers:` when present; deterministic transcript `**Name:**` extraction works when the AI returns empty; union/dedup behavior; non-meeting sources omit `speakers:`.
+
 ## Recent Changes (April 2026)
 
 ### Per-direct-report repo sync + transcript cleanup (COMPLETE)
@@ -131,8 +170,14 @@ Two related features shipped together so that managers can keep their main repo 
 - **CaptureSession "View" button**: processed/saved captures now have a View action (alongside Edit/Delete) that navigates to `/context/{filename}?dir=contexts` — the same full-view page opened from Search. CapturePanel passes its `onClose` down as `onNavigateAway` so the panel dismisses before navigation. Tests wrap `<CapturePanel>` in `MemoryRouter` since `useNavigate` now fires inside CaptureSession.
 
 ### AI Rate Limit Handling (COMPLETE)
-- **Module-level rate limit tracking** in `src/main/github-activity.ts`: `_rateLimitedUntil` timestamp set when GitHub returns 403/429. All API functions (`fetchSearchPage`, `fetchDiscussions`, `fetchPRReviews`, `fetchIssueComments`) bail early when rate-limited instead of spamming errors.
-- `clearRateLimit()` exported for test isolation.
+- **Module-level rate limit tracking** in `src/main/github-activity.ts`: `_rateLimitedUntil` timestamp set when GitHub returns a rate-limit response. All fetch primitives (`fetchSearchPage`, `fetchDiscussions`, `fetchPRReviews`, `fetchIssueComments`) honour the gate.
+- **Auto-retry with bounded wait** via a shared `withRateLimitRetry(fn)` wrapper. Detects primary (`403 + X-RateLimit-Remaining: 0`), secondary 429, and secondary 403-with-Retry-After. Reads the reset (`X-RateLimit-Reset` and/or `Retry-After`, takes the larger), sleeps, and retries up to `MANAGER_INATOR_RATE_LIMIT_MAX_RETRIES` (default `3`, clamped to `[0, 5]`, NaN/negative falls back to default). Each individual wait is capped at **5 minutes**; if the reset is further out, the wrapper sets the gate to the real reset time and surfaces the rate-limit error so siblings bail and the user can act. SSO 403 stays non-retryable.
+- **Partial-success preservation**: `fetchUserActivity` uses `Promise.allSettled` so when one sibling query rate-limits but others succeed, the surviving items are preserved on the `TeamMemberActivity`.
+- **Gate-state surfacing** (`getRateLimitErrorMessage()`): when the silent-bail guard at the top of each primitive (`if (isRateLimited()) return []`) fires for every sibling — because a prior call set the gate far in the future — `refreshCache` and the non-force `fetchTeamMemberActivity` fall back to a formatted "Rate limited — resets at HH:MM" error so members always show a Retry-able badge instead of an empty "No recent activity" row.
+- **Cached-items preservation**: `refreshCache` snapshots the existing `_cache.data` per member at start. When a fresh refresh yields empty items under an active gate (or hits a hard error), the previously-cached items are kept on the member and the rate-limit/error badge is attached alongside. The user sees their data PLUS a Retry button instead of losing context.
+- **Per-member Retry button** in the Raw team activity view (`Today.tsx`). Calls `window.api.fetchTeamMemberActivity(reportName)` which routes through main's `fetchTeamMemberActivity(name, { force: true })`. `force=true` clears the rate-limit gate and runs **single-shot** (no auto-retry on rate-limit) for fast feedback — the user can click again later instead of watching a spinner for up to 5 minutes. Result is patched into the team-activity cache via a generation counter so a concurrent background `refreshCache` cannot overwrite the fix.
+- **Test sleep injection**: module exports `_setSleepForTests(fn)` so retry tests can run with a sync no-op sleep (instant + deterministic).
+- `clearRateLimit()`, `clearActivityCache()`, and `getRateLimitErrorMessage()` exported for test isolation and renderer-side surfaces.
 
 ### AI Token Limit Fix (COMPLETE)
 - **Centralized prompt truncation** in `src/main/copilot.ts`: `truncateMessagesToFit()` estimates token count (~3 chars/token) and truncates messages to fit within a 130K token budget (168K model limit minus safety margin). Chat actions trim oldest history first; non-chat actions trim context from the end.

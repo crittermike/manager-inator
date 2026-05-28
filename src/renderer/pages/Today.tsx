@@ -946,6 +946,7 @@ export function Today() {
   const [hasGithubOrgToken, setHasGithubOrgToken] = useState(false)
   const [expandedMembers, setExpandedMembers] = useState<Record<string, boolean>>({})
   const [expandedActivityItems, setExpandedActivityItems] = useState<Record<string, boolean>>({})
+  const [retryingMembers, setRetryingMembers] = useState<Set<string>>(new Set())
   const [addReportOpen, setAddReportOpen] = useState(false)
 
   const [activitySummary, setActivitySummary] = useState<string>(() => {
@@ -1170,6 +1171,33 @@ export function Today() {
       console.error(err)
     } finally {
       setActivityLoading(false)
+    }
+  }, [hasGithubOrgToken])
+
+  const handleRetryMember = useCallback(async (reportName: string) => {
+    if (!hasGithubOrgToken) return
+    setRetryingMembers(prev => {
+      const next = new Set(prev)
+      next.add(reportName)
+      return next
+    })
+    try {
+      const updated = await window.api.fetchTeamMemberActivity(reportName)
+      setTeamActivity(prev => {
+        const idx = prev.findIndex(m => m.reportName === reportName)
+        if (idx < 0) return [...prev, updated]
+        const next = prev.slice()
+        next[idx] = updated
+        return next
+      })
+    } catch (err) {
+      console.error(`[Today] Retry failed for ${reportName}:`, err)
+    } finally {
+      setRetryingMembers(prev => {
+        const next = new Set(prev)
+        next.delete(reportName)
+        return next
+      })
     }
   }, [hasGithubOrgToken])
 
@@ -1795,13 +1823,17 @@ export function Today() {
                   {teamActivity.map(member => {
                     const isMemberExpanded = expandedMembers[member.reportName]
                     const isEmpty = member.items.length === 0
+                    const isRetrying = retryingMembers.has(member.reportName)
+                    // Allow expansion when there are items, even if a partial
+                    // error is present (some sibling queries succeeded).
+                    const canExpand = !isEmpty
                     
                     return (
                       <div key={member.reportName}>
                         <div 
                           className="flex items-center justify-between px-5 py-4 group cursor-pointer hover:bg-surface-raised/30 transition-all duration-150"
                           onClick={() => {
-                            if (!isEmpty && !member.error) {
+                            if (canExpand) {
                               setExpandedMembers(prev => ({
                                 ...prev,
                                 [member.reportName]: !prev[member.reportName]
@@ -1819,18 +1851,32 @@ export function Today() {
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                            {member.error ? (
-                              <span className="text-xs font-medium text-warning px-2 py-1 bg-warning/10 rounded-md truncate max-w-[300px]">{member.error}</span>
-                            ) : isEmpty ? (
-                              <span className="text-xs text-zinc-500">No recent activity</span>
-                            ) : (
+                          <div className="flex items-center gap-2">
+                            {!isEmpty && (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
                                 {formatActivityCounts(member.items)}
                               </span>
                             )}
+                            {member.error && (
+                              <span className="text-xs font-medium text-warning px-2 py-1 bg-warning/10 rounded-md truncate max-w-[300px]" title={member.error}>{member.error}</span>
+                            )}
+                            {isEmpty && !member.error && (
+                              <span className="text-xs text-zinc-500">No recent activity</span>
+                            )}
+                            {member.error && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRetryMember(member.reportName) }}
+                                disabled={isRetrying}
+                                className="text-xs font-medium px-2 py-1 rounded-md bg-brand/15 text-brand-light hover:bg-brand/25 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                                title={`Retry fetching activity for ${member.displayName}`}
+                                aria-label={`Retry fetching activity for ${member.displayName}`}
+                              >
+                                <RefreshCw className={`w-3 h-3 ${isRetrying ? 'animate-spin' : ''}`} aria-hidden="true" />
+                                {isRetrying ? 'Retrying…' : 'Retry'}
+                              </button>
+                            )}
                             
-                            {!isEmpty && !member.error && (
+                            {canExpand && (
                               isMemberExpanded 
                 ? <ChevronDown className="w-4 h-4 text-zinc-600" aria-hidden="true" />
                 : <ChevronRight className="w-4 h-4 text-zinc-600" aria-hidden="true" />
@@ -1838,7 +1884,7 @@ export function Today() {
                           </div>
                         </div>
 
-                        {isMemberExpanded && !isEmpty && !member.error && (
+                        {isMemberExpanded && !isEmpty && (
                           <div className="border-t border-border/30 animate-slide-down">
                             {member.items.map(item => {
                               const hasComments = (item.reviewComments && item.reviewComments.length > 0) || (item.issueComments && item.issueComments.length > 0)

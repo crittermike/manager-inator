@@ -146,3 +146,81 @@ export function cleanTranscript(filename: string | undefined, raw: string): stri
 }
 
 export const __test = { parseVtt, parseSrt, mergeAdjacentSameSpeaker, extractSpeakerFromVoiceTag, extractInlineSpeakerPrefix }
+
+// Section/field labels that may appear in `**Label:**` form inside captured
+// markdown but are NOT speaker names. Lowercased for case-insensitive matching.
+const SPEAKER_BLOCKLIST = new Set([
+  'summary',
+  'attendees',
+  'attendee',
+  'action items',
+  'action item',
+  'feedback',
+  'notes',
+  'context',
+  'key context',
+  'raw content',
+  'type',
+  'source',
+  'date',
+  'title',
+  'tags',
+  'overview',
+  'agenda',
+  'next steps',
+  'decisions',
+  'topic',
+  'topics',
+  'pr',
+  'issue',
+  'link',
+  'tldr',
+  'tl;dr',
+  'tl dr',
+])
+
+// A plausible person name: 1-4 whitespace-separated tokens, each starting with
+// a letter and containing only letters, apostrophes, hyphens, or periods.
+const NAME_TOKEN = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'.\-]*$/
+
+function looksLikePersonName(raw: string): boolean {
+  const name = raw.trim()
+  if (!name) return false
+  if (SPEAKER_BLOCKLIST.has(name.toLowerCase())) return false
+  const tokens = name.split(/\s+/)
+  if (tokens.length < 1 || tokens.length > 4) return false
+  return tokens.every(t => NAME_TOKEN.test(t))
+}
+
+/**
+ * Extract a deduplicated list of speakers from content that already contains
+ * `**Speaker:**` prefixes at the start of paragraphs (the format produced by
+ * `cleanTranscript` for VTT/SRT inputs, and the convention used by some
+ * meeting note tools).
+ *
+ * Recognizes both `**Name:**` and `**Name**:` forms. Skips obvious section
+ * labels via a small blocklist (Summary, Attendees, Action items, etc.) and
+ * tokens that don't look like a person name. Dedup is case-insensitive but the
+ * first-seen casing is preserved.
+ *
+ * Returns `[]` when no speaker prefixes are detected — callers can then fall
+ * back to other sources (AI attendees, manual entry, etc.).
+ */
+export function extractSpeakersFromCleanedTranscript(content: string): string[] {
+  if (!content) return []
+  // Match `**Name:**` or `**Name**:` at the start of a line. The optional
+  // leading characters allow for list markers like `- **Name:**` too.
+  const pattern = /^[\s>*\-]*\*\*([^*:\n]{1,80})(?::\*\*|\*\*\s*:)/gm
+  const seen = new Set<string>()
+  const out: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(content)) !== null) {
+    const raw = match[1].trim().replace(/\s+/g, ' ')
+    if (!looksLikePersonName(raw)) continue
+    const key = raw.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(raw)
+  }
+  return out
+}

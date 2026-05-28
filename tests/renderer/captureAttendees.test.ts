@@ -20,13 +20,26 @@ describe('buildMeetingAttendees', () => {
     expect(buildMeetingAttendees('  Mike  ', ['  ', '\tJennifer\n', ''])).toEqual(['Mike', 'Jennifer'])
   })
 
-  it('handles a missing people_mentioned list', () => {
+  it('handles a missing attendees list', () => {
     expect(buildMeetingAttendees('Mike', null)).toEqual(['Mike'])
     expect(buildMeetingAttendees('Mike', undefined)).toEqual(['Mike'])
   })
 
   it('returns an empty list when there are no attendees at all', () => {
     expect(buildMeetingAttendees('', [])).toEqual([])
+  })
+
+  it('accepts a unioned attendee list (deterministic transcript + AI attendees)', () => {
+    // Simulates the wiring in CaptureSession: deterministic speakers from the
+    // cleaned transcript come first, then the AI's attendees field. Dedup
+    // collapses overlaps while preserving the order the caller built.
+    const deterministic = ['Steve Richert', 'Mike']
+    const aiAttendees = ['mike', 'Tara Kintner']
+    expect(buildMeetingAttendees('Mike', [...deterministic, ...aiAttendees])).toEqual([
+      'Mike',
+      'Steve Richert',
+      'Tara Kintner',
+    ])
   })
 })
 

@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld('api', {
   getPrewarmStatus: () => ipcRenderer.invoke('github:prewarm-status'),
   getPrewarmProgress: () => ipcRenderer.invoke('github:prewarm-progress'),
   getTeamActivity: () => ipcRenderer.invoke('github:team-activity'),
+  fetchTeamMemberActivity: (reportName: string) =>
+    ipcRenderer.invoke('github:fetch-team-member-activity', reportName),
   getRecentTeamContext: (days: number) => ipcRenderer.invoke('github:recent-team-context', days),
   getMonthlyActivity: (reportName: string, year: number, month: number) =>
     ipcRenderer.invoke('github:monthly-activity', reportName, year, month),

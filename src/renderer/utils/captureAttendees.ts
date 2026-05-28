@@ -2,14 +2,24 @@
  * Build the deduplicated list of attendees for a captured meeting.
  *
  * The current user (manager) is always included first when known, then any
- * people the AI extracted as meaningfully discussed. Names are compared
- * case-insensitively for de-duplication; the original casing is preserved.
+ * names supplied as the actual attendees of the meeting (NOT
+ * `people_mentioned` — those are people discussed, not necessarily present).
+ * Names are compared case-insensitively for dedup; the first-seen casing is
+ * preserved.
+ *
+ * Callers typically construct the `attendees` argument as the union of:
+ *   - deterministic speakers parsed from the transcript content
+ *   - the AI's `attendees` field from `classify-content`
+ *
+ * `people_mentioned` MUST NOT be passed in here. Passing mentioned-only people
+ * causes them to be incorrectly listed as meeting speakers, which then
+ * associates the meeting with their report stream in the UI.
  */
 export function buildMeetingAttendees(
   currentUserName: string | undefined | null,
-  peopleMentioned: string[] | undefined | null,
+  attendees: string[] | undefined | null,
 ): string[] {
-  const attendees: string[] = []
+  const out: string[] = []
   const seen = new Set<string>()
   const add = (raw: string) => {
     const name = (raw || '').trim()
@@ -17,13 +27,13 @@ export function buildMeetingAttendees(
     const key = name.toLowerCase()
     if (seen.has(key)) return
     seen.add(key)
-    attendees.push(name)
+    out.push(name)
   }
 
   if (currentUserName) add(currentUserName)
-  for (const p of peopleMentioned || []) add(p)
+  for (const p of attendees || []) add(p)
 
-  return attendees
+  return out
 }
 
 /**

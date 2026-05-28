@@ -44,7 +44,7 @@ import {
 } from './github'
 import { getSettings, getSettingsForRenderer, saveSettings, setGithubOrgToken, setToken, getGithubOrgToken, getGithubOrgName, getCaptureWebhookConfig, setCaptureWebhookConfig } from './store'
 import { aiGenerate, aiCancel } from './copilot'
-import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot } from './github-activity'
+import { getTeamActivity, getMonthlyActivityForPerson, fetchActivityForPerson, saveActivitySnapshot, fetchTeamMemberActivity } from './github-activity'
 import { detectTeam } from './hubbers'
 import { detectExternalApps, openInVSCode, openInObsidian, revealInFinder, openInGitHub } from './external'
 import { getRepoSyncStatus, previewSync, syncReport } from './syncToReport'
@@ -172,6 +172,9 @@ export function setupIpcHandlers(): void {
     })
   })
   safeHandle('github:team-activity', () => getTeamActivity())
+  safeHandle('github:fetch-team-member-activity', (_e, reportName) =>
+    fetchTeamMemberActivity(reportName as string, { force: true })
+  )
   safeHandle('github:recent-team-context', (_e, days) => getRecentTeamContext(days as number))
   safeHandle('github:monthly-activity', (_e, reportName, year, month) =>
     getMonthlyActivityForPerson(reportName as string, year as number, month as number)

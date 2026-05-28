@@ -595,6 +595,7 @@ Required JSON shape:
   "detailed_summary": "A thorough markdown summary. For meetings: key topics discussed, decisions made, wins, challenges, sentiment. For Slack/email: main thread of discussion, conclusions reached, open questions. Use bullet points and short paragraphs. This should be useful months later when reviewing what happened.",
   "tags": ["relevant", "tags"],
   "people_mentioned": ["Exact Name"],
+  "attendees": ["Exact Name"],
   "feedback": [
     {
       "person": "Exact Name",
@@ -624,7 +625,9 @@ Required JSON shape:
 }
 
 Rules:
-- "people_mentioned" should only include people who are meaningfully discussed, not just @mentioned in passing
+- "people_mentioned" is anyone meaningfully discussed in the content, regardless of whether they were present. For meetings, this includes people who are talked about but didn't attend. Skip mere passing @mentions with no substance.
+- "attendees" is ONLY for meetings: the actual participants who were present. Identify them from speaker turns, greetings ("Hi Alex"), sign-offs, transcript voice labels, or an explicit attendees list. Do NOT include people who were only discussed. For non-meeting sources (slack, github, email, feedback, other), use an empty array.
+- A person can appear in BOTH attendees and people_mentioned (an attendee discussed during the meeting). A person can also appear in only one (a quiet attendee → attendees only; a topic of conversation who wasn't present → people_mentioned only).
 - "feedback" should only contain concrete, behavior-anchored observations about my direct reports
 - For "person" fields, use the exact name from my reports list when possible
 - If no feedback, action items, or impact exist, use empty arrays
