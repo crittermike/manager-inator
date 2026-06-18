@@ -76,8 +76,17 @@ function PersonRow({ person, onClick, isSelected }: { person: PersonEntry; onCli
           : 'border-border/60 bg-surface hover:bg-surface-raised hover:border-border'
       }`}
     >
-      <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-300 shrink-0">
-        {person.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+      <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-300 shrink-0 overflow-hidden">
+        {person.github ? (
+          <img
+            src={`https://github.com/${person.github}.png?size=64`}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        ) : (
+          person.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-sm text-zinc-100 truncate">{person.name}</div>
