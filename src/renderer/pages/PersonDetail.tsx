@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { FormattedDate } from '../components/common/FormattedDate'
-import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2, ExternalLink, ListChecks } from 'lucide-react'
+import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2, ExternalLink, ListChecks, MessageSquare, Mail, Github, FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -28,6 +28,7 @@ export function PersonDetail() {
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [showCompleted, setShowCompleted] = useState(false)
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
+  const [contextFilter, setContextFilter] = useState<'all' | 'meeting' | 'slack' | 'email' | 'github' | 'other'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -518,32 +519,85 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
         )
       })()}
 
-      {/* Meeting history */}
-      {meetings.length > 0 && (
-        <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
-          <div className="px-6 py-3 border-b border-border/60">
-            <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-              Meeting History
-              <span className="ml-2 text-zinc-600">({meetings.length})</span>
-            </h2>
+      {/* Context */}
+      {meetings.length > 0 && (() => {
+        const SOURCE_META: Record<string, { label: string; icon: typeof Calendar }> = {
+          meeting: { label: 'Meeting', icon: Calendar },
+          slack: { label: 'Slack', icon: MessageSquare },
+          email: { label: 'Email', icon: Mail },
+          github: { label: 'GitHub', icon: Github },
+          other: { label: 'Note', icon: FileText },
+        }
+        const sourceOf = (m: MeetingRef) => (m.source && SOURCE_META[m.source]) ? m.source : 'other'
+        const counts = meetings.reduce<Record<string, number>>((acc, m) => {
+          const s = sourceOf(m)
+          acc[s] = (acc[s] || 0) + 1
+          return acc
+        }, {})
+        const visible = contextFilter === 'all'
+          ? meetings
+          : meetings.filter(m => sourceOf(m) === contextFilter)
+        const filterOptions: Array<{ id: typeof contextFilter; label: string; count: number }> = [
+          { id: 'all', label: 'All', count: meetings.length },
+          ...(['meeting','slack','email','github','other'] as const)
+            .filter(s => counts[s])
+            .map(s => ({ id: s, label: SOURCE_META[s].label, count: counts[s] })),
+        ]
+        return (
+          <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
+            <div className="px-6 py-3 border-b border-border/60 flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+                Context
+                <span className="ml-2 text-zinc-600">({meetings.length})</span>
+              </h2>
+              {filterOptions.length > 2 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {filterOptions.map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setContextFilter(opt.id)}
+                      className={`px-2 py-1 rounded-md text-xs transition-colors ${
+                        contextFilter === opt.id
+                          ? 'bg-brand/30 text-brand-light'
+                          : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised/50'
+                      }`}
+                    >
+                      {opt.label} <span className="opacity-60">({opt.count})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {visible.length === 0 ? (
+              <div className="px-6 py-5">
+                <p className="text-sm text-zinc-600 italic">No {contextFilter} entries.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/40">
+                {visible.map(m => {
+                  const s = sourceOf(m)
+                  const meta = SOURCE_META[s]
+                  const Icon = meta.icon
+                  return (
+                    <button
+                      key={m.filename}
+                      onClick={() => navigate(`/context/${encodeURIComponent(m.filename)}?dir=contexts`)}
+                      className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
+                    >
+                      <Icon className="w-4 h-4 text-zinc-600 shrink-0" aria-hidden="true" />
+                      <FormattedDate date={m.date} className="text-sm text-zinc-500 shrink-0 w-24" />
+                      <span className="text-xs text-zinc-600 shrink-0 w-16">{meta.label}</span>
+                      <span className="text-sm text-zinc-300 truncate group-hover:text-zinc-100 transition-colors">
+                        {m.title || m.filename.replace(/\.md$/, '')}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-          <div className="divide-y divide-border/40">
-            {meetings.map(m => (
-              <button
-                key={m.filename}
-                onClick={() => navigate(`/context/${encodeURIComponent(m.filename)}?dir=contexts`)}
-                className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
-              >
-                <Calendar className="w-4 h-4 text-zinc-600 shrink-0" aria-hidden="true" />
-                <FormattedDate date={m.date} className="text-sm text-zinc-500 shrink-0 w-24" />
-                <span className="text-sm text-zinc-300 truncate group-hover:text-zinc-100 transition-colors">
-                  {m.title || m.filename.replace(/\.md$/, '')}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

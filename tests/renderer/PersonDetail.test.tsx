@@ -34,14 +34,14 @@ async function render(
   slug: string,
   people: PersonEntry[],
   fileContent = '---\nname: x\n---\n# Body',
-  options: { actionItems?: ActionItem[]; toggleActionItem?: ReturnType<typeof vi.fn> } = {}
+  options: { actionItems?: ActionItem[]; toggleActionItem?: ReturnType<typeof vi.fn>; contexts?: Array<{ date: string; title: string; filename: string; source?: string }> } = {}
 ) {
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
       listPeople: vi.fn().mockResolvedValue(people),
       getFileContent: vi.fn().mockResolvedValue(fileContent),
-      getPersonContexts: vi.fn().mockResolvedValue([]),
+      getPersonContexts: vi.fn().mockResolvedValue(options.contexts ?? []),
       getPersonActionItems: vi.fn().mockResolvedValue(options.actionItems ?? []),
       toggleActionItem: options.toggleActionItem ?? vi.fn().mockResolvedValue({ ok: true }),
       getSettingsOptions: vi.fn().mockResolvedValue({ roles: [], relationships: ['Peer Manager', 'Stakeholder'] }),
@@ -193,6 +193,55 @@ describe('PersonDetail Action Items', () => {
     expect(checkbox).toBeTruthy()
     await act(async () => { checkbox!.click() })
     expect(toggleSpy).toHaveBeenCalledWith('contexts/2026-04-15-rayta-sync.md', 7)
+    await act(async () => { root.unmount() })
+  })
+})
+
+describe('PersonDetail Context list', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true, writable: true })
+    document.body.innerHTML = ''
+    navigate.mockReset()
+  })
+
+  it('renders "Context" heading with source labels and filter chips', async () => {
+    const { container, root } = await render(
+      'rayta',
+      [person({ name: 'Rayta', slug: 'rayta' })],
+      undefined,
+      {
+        contexts: [
+          { date: '2026-04-01', title: 'Sync', filename: 'a.md', source: 'meeting' },
+          { date: '2026-04-02', title: 'Slack thread', filename: 'b.md', source: 'slack' },
+        ],
+      }
+    )
+    expect(container.textContent).toContain('Context')
+    expect(container.textContent).toContain('Meeting')
+    expect(container.textContent).toContain('Slack')
+    // filter pills appear when >1 source type present
+    const allPill = Array.from(container.querySelectorAll('button')).find(b => /^All\s/.test(b.textContent || ''))
+    expect(allPill).toBeTruthy()
+    await act(async () => { root.unmount() })
+  })
+
+  it('filters context list when a source chip is clicked', async () => {
+    const { container, root } = await render(
+      'rayta',
+      [person({ name: 'Rayta', slug: 'rayta' })],
+      undefined,
+      {
+        contexts: [
+          { date: '2026-04-01', title: 'Sync', filename: 'sync.md', source: 'meeting' },
+          { date: '2026-04-02', title: 'Slack thread', filename: 'thread.md', source: 'slack' },
+        ],
+      }
+    )
+    const slackPill = Array.from(container.querySelectorAll('button')).find(b => /^Slack\s/.test(b.textContent || ''))
+    expect(slackPill).toBeTruthy()
+    await act(async () => { slackPill!.click() })
+    expect(container.textContent).toContain('Slack thread')
+    expect(container.textContent).not.toContain('Sync')
     await act(async () => { root.unmount() })
   })
 })

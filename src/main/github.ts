@@ -1745,7 +1745,7 @@ export function listPeople(): PersonEntry[] {
   return sorted
 }
 
-export function getPersonContexts(slug: string): { date: string; title: string; filename: string }[] {
+export function getPersonContexts(slug: string): { date: string; title: string; filename: string; source?: ContextSource }[] {
   const cache = getContextsCache()
   let files = cache.byPersonSlug.get(slug) || []
 
@@ -1767,7 +1767,8 @@ export function getPersonContexts(slug: string): { date: string; title: string; 
       return {
         date: entry?.date || dateMatch?.[1] || name,
         title: entry?.title || cache.titleMap.get(f) || filenameTitle,
-        filename: f
+        filename: f,
+        source: entry?.source as ContextSource | undefined
       }
     })
     .sort((a, b) => b.date.localeCompare(a.date))

@@ -378,6 +378,7 @@ export interface MeetingRef {
   date: string
   title: string
   filename: string
+  source?: ContextSource
 }
 
 // ── Settings options (from getSettingsOptions) ──
