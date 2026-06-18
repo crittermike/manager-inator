@@ -14,7 +14,7 @@
  *      If two known people tie for closest, no match is returned (don't guess).
  */
 
-export type MatchConfidence = 'exact' | 'alias' | 'first-name' | 'fuzzy' | 'none'
+export type MatchConfidence = 'exact' | 'alias' | 'first-name' | 'fuzzy' | 'ai' | 'none'
 
 export interface ReconcileResult {
   /** The original raw name (preserves casing). */

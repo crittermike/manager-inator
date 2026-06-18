@@ -413,6 +413,58 @@ export function CaptureSession({
           }
         } catch (e) { console.debug('Name reconciliation skipped:', e) }
 
+        // AI fallback: nickname pairs that Levenshtein can't bridge
+        // (Katherine↔Kate, Alphonso↔Fonzy). Only fires for confidence:'none'
+        // and only applies high-confidence matches. Failures stay silent.
+        if (allReconciliations.length > 0 && known.length > 0) {
+          const unmatched = allReconciliations.filter(r => r.confidence === 'none')
+          if (unmatched.length > 0) {
+            const knownForAI = known.map(p => ({
+              name: p.name,
+              slug: p.slug,
+              aliases: p.aliases,
+            }))
+            const aiCanonMap = new Map<string, string>()
+            await Promise.all(unmatched.map(async (r) => {
+              try {
+                const rid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                  ? crypto.randomUUID()
+                  : `reconcile-${Date.now()}-${Math.random()}`
+                const raw = await window.api.aiGenerate(
+                  'reconcile-name',
+                  { raw: r.raw, knownPeople: knownForAI },
+                  () => {},
+                  rid,
+                )
+                const cleaned = String(raw).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+                const parsedAI = JSON.parse(cleaned) as { slug?: string | null; confidence?: string }
+                if (!parsedAI || !parsedAI.slug || parsedAI.confidence !== 'high') return
+                const matchedPerson = known.find(p => p.slug === parsedAI.slug)
+                if (!matchedPerson) return
+                r.name = matchedPerson.name
+                r.matchedSlug = matchedPerson.slug
+                r.confidence = 'ai'
+                aiCanonMap.set(r.raw, matchedPerson.name)
+                if (mountedRef.current) {
+                  toast.success(`Linked "${r.raw}" → ${matchedPerson.name}`)
+                }
+              } catch (e) {
+                console.debug(`AI reconcile failed for "${r.raw}":`, e)
+              }
+            }))
+            if (aiCanonMap.size > 0) {
+              parsed.people_mentioned = parsed.people_mentioned.map(n => aiCanonMap.get(n) ?? n)
+              if (Array.isArray(parsed.attendees)) {
+                parsed.attendees = parsed.attendees.map(n => aiCanonMap.get(n) ?? n)
+              }
+              parsed.feedback = parsed.feedback.map(f => ({
+                ...f,
+                person: aiCanonMap.get(f.person) ?? f.person,
+              }))
+            }
+          }
+        }
+
         setReconciliations(allReconciliations)
         setResult(parsed)
         const confirmMap: Record<number, boolean> = {}

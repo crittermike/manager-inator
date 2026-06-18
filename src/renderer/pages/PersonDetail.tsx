@@ -35,7 +35,8 @@ export function PersonDetail() {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
-  const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
+  const [editFields, setEditFields] = useState<{ name: string; role: string; github: string; location: string; relationship: string; aliases: string[] }>({ name: '', role: '', github: '', location: '', relationship: '', aliases: [] })
+  const [aliasDraft, setAliasDraft] = useState('')
   const [roleOptions, setRoleOptions] = useState<string[]>([])
   const [relationshipOptions, setRelationshipOptions] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -185,7 +186,7 @@ export function PersonDetail() {
       const newContent = `---
 name: ${editFields.name}
 slug: ${slug}
-aliases: ${person.aliases.join(', ')}
+aliases: ${editFields.aliases.join(', ')}
 role: ${editFields.role}
 github: ${editFields.github}
 location: ${editFields.location}
@@ -198,7 +199,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
 `
       await window.api.commitFile(`people/${slug}.md`, newContent, `Update profile for ${editFields.name}`)
       setRawFileContent(newContent)
-      setPerson({ ...person, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship })
+      setPerson({ ...person, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship, aliases: editFields.aliases })
       setIsEditingProfile(false)
       success('Profile saved')
     } catch (e) {
@@ -287,6 +288,55 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Relationship</label>
                 <ComboInput value={editFields.relationship} onChange={v => setEditFields(f => ({ ...f, relationship: v }))} options={relationshipOptions} placeholder="e.g. Peer, Direct Report" />
               </div>
+              <div>
+                <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Also known as</label>
+                <p className="text-[11px] text-zinc-500 mb-1.5">Nicknames or other spellings used in captures (Katherine, Kat, Kathy). Press Enter or comma to add.</p>
+                <div className="flex flex-wrap items-center gap-1.5 bg-surface-raised border border-border rounded-lg px-2 py-1.5 focus-within:border-brand/40">
+                  {editFields.aliases.map(a => (
+                    <span key={a} className="inline-flex items-center gap-1 bg-brand/10 text-brand-light text-xs px-2 py-0.5 rounded-md">
+                      {a}
+                      <button
+                        type="button"
+                        onClick={() => setEditFields(f => ({ ...f, aliases: f.aliases.filter(x => x !== a) }))}
+                        className="text-brand-light/70 hover:text-brand-light"
+                        aria-label={`Remove alias ${a}`}
+                      >
+                        <X className="w-3 h-3" aria-hidden="true" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={aliasDraft}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (v.endsWith(',')) {
+                        const trimmed = v.slice(0, -1).trim()
+                        if (trimmed && !editFields.aliases.some(a => a.toLowerCase() === trimmed.toLowerCase())) {
+                          setEditFields(f => ({ ...f, aliases: [...f.aliases, trimmed] }))
+                        }
+                        setAliasDraft('')
+                      } else {
+                        setAliasDraft(v)
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const trimmed = aliasDraft.trim()
+                        if (trimmed && !editFields.aliases.some(a => a.toLowerCase() === trimmed.toLowerCase())) {
+                          setEditFields(f => ({ ...f, aliases: [...f.aliases, trimmed] }))
+                        }
+                        setAliasDraft('')
+                      } else if (e.key === 'Backspace' && !aliasDraft && editFields.aliases.length > 0) {
+                        setEditFields(f => ({ ...f, aliases: f.aliases.slice(0, -1) }))
+                      }
+                    }}
+                    placeholder={editFields.aliases.length === 0 ? 'Add an alias…' : ''}
+                    aria-label="Add alias"
+                    className="flex-1 min-w-[120px] bg-transparent text-sm text-zinc-100 focus:outline-none px-1 py-0.5"
+                  />
+                </div>
+              </div>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setIsEditingProfile(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
                 <button onClick={handleSaveProfile} disabled={saving} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none">
@@ -314,7 +364,8 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 </h1>
                 <button
                   onClick={() => {
-                    setEditFields({ name: person.name, role: person.role, github: person.github, location: person.location, relationship: person.relationship })
+                    setEditFields({ name: person.name, role: person.role, github: person.github, location: person.location, relationship: person.relationship, aliases: [...(person.aliases || [])] })
+                    setAliasDraft('')
                     setIsEditingProfile(true)
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-all"

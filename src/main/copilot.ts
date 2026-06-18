@@ -819,6 +819,41 @@ ${context.githubActivity ? `Current team GitHub activity (what's in-flight, what
       })
       break
 
+    case 'reconcile-name': {
+      const known = Array.isArray(context.knownPeople) ? context.knownPeople : []
+      const knownLines = (known as Array<{ name: string; slug: string; aliases?: string[]; role?: string }>)
+        .map(p => {
+          const aliases = (p.aliases || []).filter(Boolean).join(', ')
+          const role = p.role ? ` — ${p.role}` : ''
+          return `- slug: ${p.slug}; name: ${p.name}${aliases ? `; aliases: ${aliases}` : ''}${role}`
+        })
+        .join('\n')
+      messages.push({
+        role: 'system',
+        content: `You match a single raw name from a meeting transcript or message to a known person, when (and only when) the match is clearly a nickname, full-name/short-name pair, or other well-known equivalent.
+
+Examples of HIGH confidence: "Katherine" ↔ "Kate"; "William" ↔ "Bill"; "Alphonso" ↔ "Fonzy"; "Elizabeth" ↔ "Liz"; "Robert" ↔ "Bob"; "Margaret" ↔ "Maggie".
+Examples of LOW confidence (return slug:null): two different real people who happen to share a first name; ambiguous matches; speculative pairings.
+
+CRITICAL RULES:
+- Return ONLY a single JSON object. No markdown fences, no preamble, no explanation.
+- Shape: {"slug": "<known-slug>", "confidence": "high" | "low"}  OR  {"slug": null}.
+- Use "high" only when you are confident the names refer to the same person.
+- Use "low" or {"slug": null} when uncertain. The caller will discard low/null.
+- Never invent a slug. The slug MUST come verbatim from the candidate list.`
+      })
+      messages.push({
+        role: 'user',
+        content: `Raw name: ${String(context.raw || '').trim()}
+
+Known people:
+${knownLines || '(none)'}
+
+Return the JSON object now.`
+      })
+      break
+    }
+
     case 'refine-document': {
       const docType = (context.documentType as string) || 'document'
       messages.push({

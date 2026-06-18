@@ -34,7 +34,7 @@ async function render(
   slug: string,
   people: PersonEntry[],
   fileContent = '---\nname: x\n---\n# Body',
-  options: { actionItems?: ActionItem[]; toggleActionItem?: ReturnType<typeof vi.fn>; contexts?: Array<{ date: string; title: string; filename: string; source?: string }> } = {}
+  options: { actionItems?: ActionItem[]; toggleActionItem?: ReturnType<typeof vi.fn>; contexts?: Array<{ date: string; title: string; filename: string; source?: string }>; commitFile?: ReturnType<typeof vi.fn> } = {}
 ) {
   Object.defineProperty(window, 'api', {
     configurable: true,
@@ -55,6 +55,7 @@ async function render(
       detectExternalApps: vi.fn().mockResolvedValue({ vscode: false, obsidian: false, finder: true }),
       generateAI: vi.fn(),
       cancelAI: vi.fn(),
+      commitFile: options.commitFile ?? vi.fn().mockResolvedValue({ ok: true }),
     },
   })
 
@@ -242,6 +243,81 @@ describe('PersonDetail Context list', () => {
     await act(async () => { slackPill!.click() })
     expect(container.textContent).toContain('Slack thread')
     expect(container.textContent).not.toContain('Sync')
+    await act(async () => { root.unmount() })
+  })
+})
+
+describe('PersonDetail Aliases edit', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true, writable: true })
+    document.body.innerHTML = ''
+    navigate.mockReset()
+  })
+
+  it('adds an alias chip on Enter and saves it via commitFile', async () => {
+    const commitFile = vi.fn().mockResolvedValue({ ok: true })
+    const { container, root } = await render(
+      'kate-pate',
+      [person({ name: 'Kate Pate', slug: 'kate-pate', aliases: [] })],
+      '---\nname: Kate Pate\nslug: kate-pate\naliases: \nrole: PM\n---\n# Kate Pate\n',
+      { commitFile }
+    )
+    const editBtn = Array.from(container.querySelectorAll('button')).find(
+      b => b.getAttribute('aria-label') === 'Edit profile'
+    ) as HTMLButtonElement | undefined
+    expect(editBtn).toBeDefined()
+    await act(async () => { editBtn!.click() })
+
+    const aliasInput = container.querySelector('input[aria-label="Add alias"]') as HTMLInputElement | null
+    expect(aliasInput).toBeTruthy()
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      setter.call(aliasInput!, 'Katherine')
+      aliasInput!.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      aliasInput!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(container.textContent).toContain('Katherine')
+
+    const saveBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Save')
+    expect(saveBtn).toBeTruthy()
+    await act(async () => { (saveBtn as HTMLButtonElement).click() })
+    await act(async () => { await Promise.resolve() })
+
+    expect(commitFile).toHaveBeenCalled()
+    const [, savedContent] = commitFile.mock.calls[0]
+    expect(savedContent).toContain('aliases: Katherine')
+    await act(async () => { root.unmount() })
+  })
+
+  it('removes an alias chip via the × button and persists the reduced list', async () => {
+    const commitFile = vi.fn().mockResolvedValue({ ok: true })
+    const { container, root } = await render(
+      'kate-pate',
+      [person({ name: 'Kate Pate', slug: 'kate-pate', aliases: ['Katherine', 'Kat'] })],
+      '---\nname: Kate Pate\nslug: kate-pate\naliases: Katherine, Kat\nrole: PM\n---\n# Kate Pate\n',
+      { commitFile }
+    )
+    const editBtn = Array.from(container.querySelectorAll('button')).find(
+      b => b.getAttribute('aria-label') === 'Edit profile'
+    ) as HTMLButtonElement | undefined
+    await act(async () => { editBtn!.click() })
+
+    const removeBtn = Array.from(container.querySelectorAll('button')).find(
+      b => b.getAttribute('aria-label') === 'Remove alias Katherine'
+    ) as HTMLButtonElement | undefined
+    expect(removeBtn).toBeTruthy()
+    await act(async () => { removeBtn!.click() })
+
+    const saveBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Save')
+    await act(async () => { (saveBtn as HTMLButtonElement).click() })
+    await act(async () => { await Promise.resolve() })
+
+    expect(commitFile).toHaveBeenCalled()
+    const [, savedContent] = commitFile.mock.calls[0]
+    expect(savedContent).toContain('aliases: Kat')
+    expect(savedContent).not.toContain('Katherine')
     await act(async () => { root.unmount() })
   })
 })
