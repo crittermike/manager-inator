@@ -1760,6 +1760,7 @@ export function getPersonContexts(slug: string): { date: string; title: string; 
 
   return files
     .map(f => {
+      refreshContextCacheEntry(f)
       const entry = cache.entriesByFilename.get(f)
       const name = f.replace('.md', '')
       const dateMatch = name.match(/^(\d{4}-\d{2}-\d{2})-?(.*)/)
