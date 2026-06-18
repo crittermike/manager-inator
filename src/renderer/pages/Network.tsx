@@ -93,7 +93,7 @@ function PersonRow({ person, onClick, isSelected }: { person: PersonEntry; onCli
         <div className="text-[11px] text-zinc-500 truncate">
           {person.role || '—'}
           {person.location && <span className="ml-2">· {person.location}</span>}
-          {person.meetingCount > 0 && <span className="ml-2">· {person.meetingCount} meeting{person.meetingCount === 1 ? '' : 's'}</span>}
+          {person.meetingCount > 0 && <span className="ml-2">· {person.meetingCount} capture{person.meetingCount === 1 ? '' : 's'}</span>}
         </div>
       </div>
       <div className="text-[10px] text-zinc-500 shrink-0">{formatLastSeen(person.lastSeen)}</div>
