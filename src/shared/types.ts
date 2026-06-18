@@ -396,6 +396,15 @@ export interface CreateReportFields {
   startDate?: string
 }
 
+// ── Create person (network) optional fields ──
+export interface CreatePersonFields {
+  role?: string
+  github?: string
+  location?: string
+  relationship?: string
+  aliases?: string[]
+}
+
 // ── Team auto-detection from hubbers.yml ──
 export interface TeamDetectionResult {
   user: {
@@ -430,6 +439,7 @@ export interface IpcApi {
   initializeRepo: (repoDir: string) => Promise<void>
   isGitRepo: (path: string) => Promise<boolean>
   createReport: (displayName: string, fields?: CreateReportFields) => Promise<string>
+  createPerson: (displayName: string, fields?: CreatePersonFields) => Promise<string>
   getReportProfile: (name: string) => Promise<ReportProfile>
   getReportData: (name: string) => Promise<Report>
   getTeamOverview: () => Promise<TeamOverview>

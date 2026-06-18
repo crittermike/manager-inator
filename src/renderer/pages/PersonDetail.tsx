@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { FormattedDate } from '../components/common/FormattedDate'
-import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2, ExternalLink } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
@@ -310,6 +310,16 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                     <Users className="w-3 h-3 text-zinc-600" aria-hidden="true" />
                     {person.relationship}
                   </span>
+                )}
+                {person.relationship === 'Direct Report' && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/report/${person.slug}`)}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand/10 text-brand-light border border-brand/20 text-[10px] hover:bg-brand/15 transition-colors"
+                  >
+                    Open in Team
+                    <ExternalLink className="w-2.5 h-2.5" aria-hidden="true" />
+                  </button>
                 )}
                 {person.github && (
                   <a

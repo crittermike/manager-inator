@@ -4,6 +4,8 @@ import { useAI } from '../../hooks/useAI'
 import { useSettings } from '../../hooks/useData'
 import { buildMeetingAttendees, shouldRecordAttendees } from '../../utils/captureAttendees'
 import { extractSpeakersFromCleanedTranscript } from '../../utils/transcriptCleaners'
+import { reconcileNames, aliasAdditionsFromResults, type KnownPerson, type ReconcileResult } from '../../utils/reconcileNames'
+import { AddPersonModal } from '../layout/AddPersonModal'
 import { useToast } from './Toast'
 import { format } from 'date-fns'
 import { IMPACT_LOG_PATH } from '../../../shared/constants'
@@ -76,6 +78,8 @@ export function CaptureSession({
 
   const [state, setState] = useState<SessionState>('processing')
   const [result, setResult] = useState<ClassifiedResult | null>(null)
+  const [reconciliations, setReconciliations] = useState<ReconcileResult[]>([])
+  const [addPersonName, setAddPersonName] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedFilepath, setSavedFilepath] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -98,7 +102,12 @@ export function CaptureSession({
     onStatusChange(id, state)
   }, [id, onStatusChange, state])
 
-  const autoSave = useCallback(async (classified: ClassifiedResult, confirmedResolved?: Record<number, boolean>) => {
+  const autoSave = useCallback(async (
+    classified: ClassifiedResult,
+    confirmedResolved?: Record<number, boolean>,
+    reconciliation?: ReconcileResult[],
+    knownPeople?: KnownPerson[],
+  ) => {
     const today = format(new Date(), 'yyyy-MM-dd')
     const sourceSlug = classified.source || 'capture'
     const title = classified.title || classified.summary.split('.')[0] || 'Captured content'
@@ -257,6 +266,38 @@ export function CaptureSession({
         setState('saved')
         toast.success('Content captured and saved')
       }
+
+      // Self-improving alias enrichment: when we matched a misspelled name to
+      // a known person, append the raw spelling to that person's aliases so
+      // future captures match exactly.
+      if (reconciliation && reconciliation.length > 0 && knownPeople && knownPeople.length > 0) {
+        const additions = aliasAdditionsFromResults(reconciliation, knownPeople)
+        await Promise.all(additions.map(async ({ slug, alias }) => {
+          try {
+            const path = `people/${slug}.md`
+            const existing = await window.api.getFileContent(path)
+            const fmMatch = existing.match(/^---\n([\s\S]*?)\n---/)
+            if (!fmMatch) return
+            const fm = fmMatch[1]
+            const aliasLine = fm.match(/^aliases:\s*(.*)$/m)
+            let updated: string
+            if (aliasLine) {
+              const list = aliasLine[1].split(',').map(s => s.trim()).filter(Boolean)
+              if (list.some(a => a.toLowerCase() === alias.toLowerCase())) return
+              list.push(alias)
+              updated = existing.replace(/^aliases:\s*.*$/m, `aliases: ${list.join(', ')}`)
+            } else {
+              const slugLine = fm.match(/^slug:\s*.*$/m)
+              if (slugLine) {
+                updated = existing.replace(/(^slug:\s*.*$)/m, `$1\naliases: ${alias}`)
+              } else {
+                updated = existing.replace(/^---\n/, `---\naliases: ${alias}\n`)
+              }
+            }
+            await window.api.commitFile(path, updated, `Add alias "${alias}" to ${slug}`)
+          } catch (e) { console.debug(`Failed to append alias to ${slug}:`, e) }
+        }))
+      }
     } catch (e) {
       if (mountedRef.current) {
         setSaveError((e as Error).message || 'Failed to save')
@@ -335,11 +376,49 @@ export function CaptureSession({
         }
 
         retryCountRef.current = 0
+
+        // Reconcile names against known people (handles misspellings like Rita→Rayta).
+        let allReconciliations: ReconcileResult[] = []
+        let known: KnownPerson[] = []
+        try {
+          const knownPeopleRaw = await window.api.listPeople()
+          known = knownPeopleRaw.map(p => ({
+            name: p.name,
+            slug: p.slug,
+            aliases: p.aliases,
+          }))
+
+          const uniqueRaw = new Set<string>()
+          parsed.people_mentioned.forEach(n => uniqueRaw.add(n))
+          parsed.attendees?.forEach(n => uniqueRaw.add(n))
+          parsed.feedback.forEach(f => uniqueRaw.add(f.person))
+
+          const results = reconcileNames(Array.from(uniqueRaw), known)
+          allReconciliations = results
+
+          const canonMap = new Map<string, string>()
+          for (const r of results) {
+            if (r.matchedSlug && r.name !== r.raw) canonMap.set(r.raw, r.name)
+          }
+
+          if (canonMap.size > 0) {
+            parsed.people_mentioned = parsed.people_mentioned.map(n => canonMap.get(n) ?? n)
+            if (Array.isArray(parsed.attendees)) {
+              parsed.attendees = parsed.attendees.map(n => canonMap.get(n) ?? n)
+            }
+            parsed.feedback = parsed.feedback.map(f => ({
+              ...f,
+              person: canonMap.get(f.person) ?? f.person,
+            }))
+          }
+        } catch (e) { console.debug('Name reconciliation skipped:', e) }
+
+        setReconciliations(allReconciliations)
         setResult(parsed)
         const confirmMap: Record<number, boolean> = {}
         parsed.resolved_action_items.forEach((_, i) => { confirmMap[i] = true })
         setResolvedConfirmed(confirmMap)
-        await autoSave(parsed, confirmMap)
+        await autoSave(parsed, confirmMap, allReconciliations, known)
         return
       } catch (e) {
         if (!mountedRef.current) return
@@ -510,6 +589,45 @@ export function CaptureSession({
                   {result.people_mentioned.join(', ')}
                 </div>
               )}
+
+              {reconciliations.length > 0 && (() => {
+                const matched = reconciliations.filter(r => r.matchedSlug && r.raw !== r.name)
+                const unmatched = reconciliations.filter(r => !r.matchedSlug)
+                if (matched.length === 0 && unmatched.length === 0) return null
+                return (
+                  <div className="bg-surface-raised border border-border rounded-lg p-2.5 space-y-1.5">
+                    <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Detected people</span>
+                    {matched.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {matched.map(r => (
+                          <span
+                            key={r.raw}
+                            className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                            title={`Matched (${r.confidence})`}
+                          >
+                            {r.raw} → {r.name} ✓
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {unmatched.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-[10px] text-zinc-500">Not in network:</span>
+                        {unmatched.map(r => (
+                          <button
+                            key={r.raw}
+                            type="button"
+                            onClick={() => setAddPersonName(r.raw)}
+                            className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-border hover:bg-zinc-700 hover:text-white transition-colors"
+                          >
+                            + Add {r.raw}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {result.feedback.length > 0 && (
                 <div className="space-y-1.5">
@@ -694,6 +812,15 @@ export function CaptureSession({
         }}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      {addPersonName !== null && (
+        <AddPersonModal
+          open={true}
+          initialName={addPersonName}
+          onClose={() => setAddPersonName(null)}
+          onCreated={() => setAddPersonName(null)}
+        />
+      )}
     </div>
   )
 }

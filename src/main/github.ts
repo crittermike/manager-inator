@@ -3,7 +3,7 @@ import { join, dirname, resolve, relative, isAbsolute } from 'path'
 import { spawn } from 'child_process'
 import { BrowserWindow } from 'electron'
 import { getSettings } from './store'
-import { IMPACT_LOG_PATH } from '../shared/constants'
+import { IMPACT_LOG_PATH, RELATIONSHIP_CATEGORIES } from '../shared/constants'
 import type {
   ReportProfile,
   Report,
@@ -945,7 +945,47 @@ relationship: Direct Report
   return slug
 }
 
-// ── Report data cache ──
+/**
+ * Create a new person in the network (peer manager, partner, stakeholder, etc.).
+ * Writes only people/{slug}.md — no reports/ directory.
+ * Errors if the slug already collides with an existing person OR an existing direct report.
+ */
+export async function createPerson(
+  displayName: string,
+  fields?: { role?: string; github?: string; location?: string; relationship?: string; aliases?: string[] }
+): Promise<string> {
+  const trimmed = displayName.trim()
+  if (!trimmed) throw new Error('Name is required')
+  const slug = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '')
+  if (!slug) throw new Error('Invalid name')
+
+  const existingReports = getReports()
+  if (existingReports.includes(slug)) {
+    throw new Error(`A direct report "${slug}" already exists. Use the Team page instead.`)
+  }
+  const peoplePath = safePath(`people/${slug}.md`)
+  if (existsSync(peoplePath)) {
+    throw new Error(`Person "${slug}" already exists`)
+  }
+
+  const f = fields ?? {}
+  const aliasesLine = (f.aliases ?? []).filter(Boolean).join(', ')
+  const peopleContent = `---
+name: ${trimmed}
+slug: ${slug}
+aliases: ${aliasesLine}
+role: ${f.role ?? ''}
+github: ${f.github ?? ''}
+location: ${f.location ?? ''}
+relationship: ${f.relationship ?? 'Peer Manager'}
+---
+
+# ${trimmed}
+`
+
+  await commitFile(`people/${slug}.md`, peopleContent, `Add person: ${trimmed}`)
+  return slug
+}
 // Caches are only invalidated on writes (commitFile). No time-based expiry since we control all writes.
 
 let _reportDataCache: Map<string, Report> = new Map()
@@ -1916,10 +1956,12 @@ export function getSettingsOptions(): { roles: string[]; relationships: string[]
 
     return {
       roles: rolesMatch ? parseList(rolesMatch[1]) : [],
-      relationships: relsMatch ? parseList(relsMatch[1]) : []
+      relationships: relsMatch && parseList(relsMatch[1]).length > 0
+        ? parseList(relsMatch[1])
+        : [...RELATIONSHIP_CATEGORIES]
     }
   } catch {
-    return { roles: [], relationships: [] }
+    return { roles: [], relationships: [...RELATIONSHIP_CATEGORIES] }
   }
 }
 

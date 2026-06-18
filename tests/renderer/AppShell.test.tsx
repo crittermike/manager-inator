@@ -130,4 +130,38 @@ describe('AppShell navigation', () => {
       root.unmount()
     })
   })
+
+  it('includes Network in the sidebar with cmd+4 shortcut', async () => {
+    const { container, root } = await renderShell()
+
+    const networkBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('Network')) as HTMLButtonElement | undefined
+    expect(networkBtn).toBeDefined()
+    expect(networkBtn?.textContent).toContain('cmd+4')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('navigates to /network on Cmd+4', async () => {
+    const { root } = await renderShell()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '4', metaKey: true }))
+    })
+
+    expect(mockNavigate).toHaveBeenCalledWith('/network')
+
+    await act(async () => { root.unmount() })
+  })
+
+  it('navigates to /search on Cmd+6 (renumbered)', async () => {
+    const { root } = await renderShell()
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '6', metaKey: true }))
+    })
+
+    expect(mockNavigate).toHaveBeenCalledWith('/search')
+
+    await act(async () => { root.unmount() })
+  })
 })

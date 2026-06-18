@@ -1,6 +1,27 @@
 /** Path to the manager's impact log file within the data repo */
 export const IMPACT_LOG_PATH = 'impact-log.md'
 
+/**
+ * Default relationship categories for the Network of People feature.
+ * Used as fallback options when settings.md does not define a `## Relationships` list.
+ * Direct reports are auto-labelled "Direct Report" by `listPeople()` — that label is
+ * intentionally omitted here so it never appears as a manual choice.
+ */
+export const RELATIONSHIP_CATEGORIES = [
+  'Peer Manager',
+  'Skip-Level',
+  'Cross-functional Partner',
+  'Stakeholder',
+  'Mentor',
+  'Mentee',
+  'External',
+] as const
+
+export type RelationshipCategory = typeof RELATIONSHIP_CATEGORIES[number]
+
+/** Auto-applied to merged direct-report entries. Never shown as a manual option. */
+export const DIRECT_REPORT_RELATIONSHIP = 'Direct Report'
+
 /** Default AI model ID */
 export const DEFAULT_MODEL = 'claude-opus-4.7'
 

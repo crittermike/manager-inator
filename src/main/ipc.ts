@@ -6,6 +6,7 @@ import {
   getReportProfile,
   initializeRepo,
   createReport,
+  createPerson,
   isGitRepo,
   getReportData,
   getTeamOverview,
@@ -112,6 +113,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:initialize-repo', (_e, repoDir) => initializeRepo(repoDir as string))
   safeHandle('github:is-git-repo', (_e, path) => isGitRepo(path as string))
   safeHandle('github:create-report', (_e, displayName, fields) => createReport(displayName as string, fields as Record<string, string> | undefined))
+  safeHandle('github:create-person', (_e, displayName, fields) => createPerson(displayName as string, fields as { role?: string; github?: string; location?: string; relationship?: string; aliases?: string[] } | undefined))
   safeHandle('github:profile', (_e, name) => getReportProfile(name as string))
   safeHandle('github:report-data', (_e, name) => getReportData(name as string))
   safeHandle('github:team-overview', () => getTeamOverview())
