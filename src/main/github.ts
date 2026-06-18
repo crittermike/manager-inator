@@ -1773,6 +1773,27 @@ export function getPersonContexts(slug: string): { date: string; title: string; 
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
+/**
+ * Returns all action items parsed from contexts where this person is referenced
+ * (via people: frontmatter or filename slug match), regardless of who owns
+ * each action item. Use this to surface "tasks I owe Rayta" on Rayta's page
+ * even when the manager is the owner.
+ *
+ * Includes both completed and open items; callers can filter as needed.
+ */
+export function getPersonActionItems(slug: string): ActionItem[] {
+  const meetings = getPersonContexts(slug)
+  const items: ActionItem[] = []
+  for (const m of meetings) {
+    try {
+      const content = getFileContent(`contexts/${m.filename}`)
+      const parsed = parseActionItems(content, `contexts/${m.filename}`)
+      items.push(...parsed)
+    } catch { /* skip unreadable files */ }
+  }
+  return items
+}
+
 export function findPersonByName(name: string): string | null {
   const people = listPeople()
   // Strip parenthetical suffixes like "(VP Engineering)"

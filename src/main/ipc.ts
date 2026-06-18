@@ -20,6 +20,7 @@ import {
   listContexts,
   listPeople,
   getPersonContexts,
+  getPersonActionItems,
   findPersonByName,
   getImpactLog,
   listWeeklyLog,
@@ -130,6 +131,7 @@ export function setupIpcHandlers(): void {
   safeHandle('github:list-contexts', () => listContexts())
   safeHandle('github:list-people', () => listPeople())
   safeHandle('github:person-meetings', (_e, slug) => getPersonContexts(slug as string))
+  safeHandle('github:person-action-items', (_e, slug) => getPersonActionItems(slug as string))
   safeHandle('github:find-person', (_e, name) => findPersonByName(name as string))
   safeHandle('github:impact-log', () => getImpactLog())
   safeHandle('github:weekly-log', () => listWeeklyLog())

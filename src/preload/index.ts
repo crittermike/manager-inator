@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('api', {
   listPeople: () => ipcRenderer.invoke('github:list-people'),
   searchContent: (query: string) => ipcRenderer.invoke('github:search-content', query),
   getPersonContexts: (slug: string) => ipcRenderer.invoke('github:person-meetings', slug),
+  getPersonActionItems: (slug: string) => ipcRenderer.invoke('github:person-action-items', slug),
   findPersonByName: (name: string) => ipcRenderer.invoke('github:find-person', name),
   getImpactLog: () => ipcRenderer.invoke('github:impact-log'),
   listWeeklyLog: () => ipcRenderer.invoke('github:weekly-log'),

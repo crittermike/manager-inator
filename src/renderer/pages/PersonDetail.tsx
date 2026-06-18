@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { FormattedDate } from '../components/common/FormattedDate'
-import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2, ExternalLink, ListChecks } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
-import type { PersonEntry, MeetingRef } from '../../shared/types'
+import type { PersonEntry, MeetingRef, ActionItem } from '../../shared/types'
 import { GitHubMark } from '../components/common/GitHubMark'
 import { ComboInput } from '../components/common/ComboInput'
 import { useToast } from '../components/common/Toast'
@@ -25,6 +25,9 @@ export function PersonDetail() {
   const [bodyContent, setBodyContent] = useState('')
   const [rawFileContent, setRawFileContent] = useState('')
   const [meetings, setMeetings] = useState<MeetingRef[]>([])
+  const [actionItems, setActionItems] = useState<ActionItem[]>([])
+  const [showCompleted, setShowCompleted] = useState(false)
+  const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -54,9 +57,10 @@ export function PersonDetail() {
     Promise.all([
       window.api.listPeople(),
       window.api.getFileContent(`people/${slug}.md`),
-      window.api.getPersonContexts(slug)
+      window.api.getPersonContexts(slug),
+      window.api.getPersonActionItems(slug)
     ])
-      .then(([people, fileContent, meetingRefs]) => {
+      .then(([people, fileContent, meetingRefs, items]) => {
         if (!isMounted) return
 
         const found = people.find(p => p.slug === slug) || null
@@ -87,6 +91,7 @@ export function PersonDetail() {
         }
 
         setMeetings(meetingRefs.slice(0, 20))
+        setActionItems(items)
         setLoading(false)
       })
       .catch(err => {
@@ -143,6 +148,32 @@ export function PersonDetail() {
       setSaving(false)
     }
   }, [slug, rawFileContent, editValue, success, showError])
+
+  const handleToggleAction = useCallback(async (item: ActionItem) => {
+    if (!item.sourceFile || item.sourceLineNumber == null) return
+    const key = `${item.sourceFile}:${item.sourceLineNumber}`
+    setTogglingKey(key)
+    // Optimistic update
+    setActionItems(prev => prev.map(a =>
+      a.sourceFile === item.sourceFile && a.sourceLineNumber === item.sourceLineNumber
+        ? { ...a, completed: !a.completed }
+        : a
+    ))
+    try {
+      await window.api.toggleActionItem(item.sourceFile, item.sourceLineNumber)
+    } catch (err) {
+      console.error('Failed to toggle action item:', err)
+      showError('Failed to update task')
+      // Revert
+      setActionItems(prev => prev.map(a =>
+        a.sourceFile === item.sourceFile && a.sourceLineNumber === item.sourceLineNumber
+          ? { ...a, completed: !a.completed }
+          : a
+      ))
+    } finally {
+      setTogglingKey(null)
+    }
+  }, [showError])
 
   const handleSaveProfile = useCallback(async () => {
     if (!slug || !person) return
@@ -407,6 +438,85 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
           )}
         </div>
       </div>
+
+      {/* Action items */}
+      {actionItems.length > 0 && (() => {
+        const openItems = actionItems.filter(a => !a.completed)
+        const completedItems = actionItems.filter(a => a.completed)
+        const visible = showCompleted ? actionItems : openItems
+        return (
+          <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-border/60">
+              <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                <ListChecks className="w-4 h-4" aria-hidden="true" />
+                Action Items
+                <span className="text-zinc-600">({openItems.length} open{completedItems.length > 0 ? ` · ${completedItems.length} done` : ''})</span>
+              </h2>
+              {completedItems.length > 0 && (
+                <button
+                  onClick={() => setShowCompleted(s => !s)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {showCompleted ? 'Hide completed' : 'Show completed'}
+                </button>
+              )}
+            </div>
+            {visible.length === 0 ? (
+              <div className="px-6 py-5">
+                <p className="text-sm text-zinc-600 italic">All tasks completed.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/40">
+                {visible.map((a, i) => {
+                  const key = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? i}`
+                  const isToggling = togglingKey === key
+                  const canToggle = !!a.sourceFile && a.sourceLineNumber != null
+                  return (
+                    <div key={key} className="flex items-start gap-3 px-6 py-3 group">
+                      <button
+                        onClick={() => handleToggleAction(a)}
+                        disabled={isToggling || !canToggle}
+                        className="mt-0.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={canToggle ? (a.completed ? 'Mark as not done' : 'Mark as done') : 'Cannot toggle this item'}
+                        aria-label={a.completed ? 'Mark as not done' : 'Mark as done'}
+                      >
+                        {isToggling ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-brand" aria-hidden="true" />
+                        ) : a.completed ? (
+                          <div className="w-4 h-4 rounded border border-brand bg-brand/30 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-brand-light" aria-hidden="true" />
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded border border-zinc-600 hover:border-brand hover:bg-brand/20 transition-colors" />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm ${a.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+                          {a.text}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+                          {a.owner && a.owner !== 'Unknown' && (
+                            <span>Owner: <span className="text-zinc-400">{a.owner}</span></span>
+                          )}
+                          {a.due && <span>· Due {a.due}</span>}
+                          {a.sourceFile && (
+                            <button
+                              onClick={() => navigate(`/context/${encodeURIComponent(a.sourceFile!.replace('contexts/', ''))}?dir=contexts`)}
+                              className="text-brand-light hover:text-brand transition-colors"
+                            >
+                              · View source →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Meeting history */}
       {meetings.length > 0 && (

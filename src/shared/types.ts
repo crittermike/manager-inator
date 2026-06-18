@@ -454,6 +454,7 @@ export interface IpcApi {
   listContexts: () => Promise<ContextEntry[]>
   listPeople: () => Promise<PersonEntry[]>
   getPersonContexts: (slug: string) => Promise<MeetingRef[]>
+  getPersonActionItems: (slug: string) => Promise<ActionItem[]>
   findPersonByName: (name: string) => Promise<string | null>
   getImpactLog: () => Promise<string>
   listWeeklyLog: () => Promise<{ filename: string; title: string; date: string; category: string }[]>
