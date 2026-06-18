@@ -92,6 +92,7 @@ function PersonRow({ person, onClick, isSelected }: { person: PersonEntry; onCli
         <div className="text-sm text-zinc-100 truncate">{person.name}</div>
         <div className="text-[11px] text-zinc-500 truncate">
           {person.role || '—'}
+          {person.location && <span className="ml-2">· {person.location}</span>}
           {person.meetingCount > 0 && <span className="ml-2">· {person.meetingCount} meeting{person.meetingCount === 1 ? '' : 's'}</span>}
         </div>
       </div>
