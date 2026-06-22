@@ -315,6 +315,35 @@ describe('buildMessages', () => {
     })
     expect(result[1].content).toContain('editing a document')
   })
+
+  it('builds reconcile-name messages with strict JSON output and known people listing', () => {
+    const result = buildMessages('reconcile-name', {
+      raw: 'Katherine Pate',
+      knownPeople: [
+        { slug: 'kate-pate', name: 'Kate Pate', aliases: ['Kat'], role: 'Senior Engineer' },
+        { slug: 'fonzy', name: 'Fonzy', aliases: [] }
+      ]
+    })
+    const sys = result.find(m => m.role === 'system' && m.content.includes('match a single raw name'))
+    expect(sys).toBeDefined()
+    expect(sys!.content).toContain('"slug"')
+    expect(sys!.content).toContain('"confidence"')
+    expect(sys!.content).toContain('high')
+    expect(sys!.content).toContain('low')
+    const user = result[result.length - 1]
+    expect(user.role).toBe('user')
+    expect(user.content).toContain('Katherine Pate')
+    expect(user.content).toContain('kate-pate')
+    expect(user.content).toContain('Kat')
+    expect(user.content).toContain('Senior Engineer')
+    expect(user.content).toContain('fonzy')
+  })
+
+  it('reconcile-name handles empty known list', () => {
+    const result = buildMessages('reconcile-name', { raw: 'Bob', knownPeople: [] })
+    const user = result[result.length - 1]
+    expect(user.content).toContain('(none)')
+  })
 })
 
 describe('getClient authentication', () => {

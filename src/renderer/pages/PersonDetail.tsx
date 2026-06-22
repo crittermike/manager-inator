@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { FormattedDate } from '../components/common/FormattedDate'
-import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, Briefcase, MapPin, Users, Calendar, Pencil, Check, X, Loader2, ExternalLink, ListChecks, MessageSquare, Mail, Github, FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 const REMARK_PLUGINS = [remarkGfm]
-import type { PersonEntry, MeetingRef } from '../../shared/types'
+import type { PersonEntry, MeetingRef, ActionItem } from '../../shared/types'
 import { GitHubMark } from '../components/common/GitHubMark'
 import { ComboInput } from '../components/common/ComboInput'
 import { useToast } from '../components/common/Toast'
@@ -25,13 +25,18 @@ export function PersonDetail() {
   const [bodyContent, setBodyContent] = useState('')
   const [rawFileContent, setRawFileContent] = useState('')
   const [meetings, setMeetings] = useState<MeetingRef[]>([])
+  const [actionItems, setActionItems] = useState<ActionItem[]>([])
+  const [showCompleted, setShowCompleted] = useState(false)
+  const [togglingKey, setTogglingKey] = useState<string | null>(null)
+  const [contextFilter, setContextFilter] = useState<'all' | 'meeting' | 'slack' | 'email' | 'github' | 'other'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
-  const [editFields, setEditFields] = useState({ name: '', role: '', github: '', location: '', relationship: '' })
+  const [editFields, setEditFields] = useState<{ name: string; role: string; github: string; location: string; relationship: string; aliases: string[] }>({ name: '', role: '', github: '', location: '', relationship: '', aliases: [] })
+  const [aliasDraft, setAliasDraft] = useState('')
   const [roleOptions, setRoleOptions] = useState<string[]>([])
   const [relationshipOptions, setRelationshipOptions] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -54,9 +59,10 @@ export function PersonDetail() {
     Promise.all([
       window.api.listPeople(),
       window.api.getFileContent(`people/${slug}.md`),
-      window.api.getPersonContexts(slug)
+      window.api.getPersonContexts(slug),
+      window.api.getPersonActionItems(slug)
     ])
-      .then(([people, fileContent, meetingRefs]) => {
+      .then(([people, fileContent, meetingRefs, items]) => {
         if (!isMounted) return
 
         const found = people.find(p => p.slug === slug) || null
@@ -87,6 +93,7 @@ export function PersonDetail() {
         }
 
         setMeetings(meetingRefs.slice(0, 20))
+        setActionItems(items)
         setLoading(false)
       })
       .catch(err => {
@@ -144,6 +151,32 @@ export function PersonDetail() {
     }
   }, [slug, rawFileContent, editValue, success, showError])
 
+  const handleToggleAction = useCallback(async (item: ActionItem) => {
+    if (!item.sourceFile || item.sourceLineNumber == null) return
+    const key = `${item.sourceFile}:${item.sourceLineNumber}`
+    setTogglingKey(key)
+    // Optimistic update
+    setActionItems(prev => prev.map(a =>
+      a.sourceFile === item.sourceFile && a.sourceLineNumber === item.sourceLineNumber
+        ? { ...a, completed: !a.completed }
+        : a
+    ))
+    try {
+      await window.api.toggleActionItem(item.sourceFile, item.sourceLineNumber)
+    } catch (err) {
+      console.error('Failed to toggle action item:', err)
+      showError('Failed to update task')
+      // Revert
+      setActionItems(prev => prev.map(a =>
+        a.sourceFile === item.sourceFile && a.sourceLineNumber === item.sourceLineNumber
+          ? { ...a, completed: !a.completed }
+          : a
+      ))
+    } finally {
+      setTogglingKey(null)
+    }
+  }, [showError])
+
   const handleSaveProfile = useCallback(async () => {
     if (!slug || !person) return
     setSaving(true)
@@ -153,7 +186,7 @@ export function PersonDetail() {
       const newContent = `---
 name: ${editFields.name}
 slug: ${slug}
-aliases: ${person.aliases.join(', ')}
+aliases: ${editFields.aliases.join(', ')}
 role: ${editFields.role}
 github: ${editFields.github}
 location: ${editFields.location}
@@ -166,7 +199,7 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
 `
       await window.api.commitFile(`people/${slug}.md`, newContent, `Update profile for ${editFields.name}`)
       setRawFileContent(newContent)
-      setPerson({ ...person, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship })
+      setPerson({ ...person, name: editFields.name, role: editFields.role, github: editFields.github, location: editFields.location, relationship: editFields.relationship, aliases: editFields.aliases })
       setIsEditingProfile(false)
       success('Profile saved')
     } catch (e) {
@@ -255,6 +288,55 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Relationship</label>
                 <ComboInput value={editFields.relationship} onChange={v => setEditFields(f => ({ ...f, relationship: v }))} options={relationshipOptions} placeholder="e.g. Peer, Direct Report" />
               </div>
+              <div>
+                <label className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Also known as</label>
+                <p className="text-[11px] text-zinc-500 mb-1.5">Nicknames or other spellings used in captures (Katherine, Kat, Kathy). Press Enter or comma to add.</p>
+                <div className="flex flex-wrap items-center gap-1.5 bg-surface-raised border border-border rounded-lg px-2 py-1.5 focus-within:border-brand/40">
+                  {editFields.aliases.map(a => (
+                    <span key={a} className="inline-flex items-center gap-1 bg-brand/10 text-brand-light text-xs px-2 py-0.5 rounded-md">
+                      {a}
+                      <button
+                        type="button"
+                        onClick={() => setEditFields(f => ({ ...f, aliases: f.aliases.filter(x => x !== a) }))}
+                        className="text-brand-light/70 hover:text-brand-light"
+                        aria-label={`Remove alias ${a}`}
+                      >
+                        <X className="w-3 h-3" aria-hidden="true" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={aliasDraft}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (v.endsWith(',')) {
+                        const trimmed = v.slice(0, -1).trim()
+                        if (trimmed && !editFields.aliases.some(a => a.toLowerCase() === trimmed.toLowerCase())) {
+                          setEditFields(f => ({ ...f, aliases: [...f.aliases, trimmed] }))
+                        }
+                        setAliasDraft('')
+                      } else {
+                        setAliasDraft(v)
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const trimmed = aliasDraft.trim()
+                        if (trimmed && !editFields.aliases.some(a => a.toLowerCase() === trimmed.toLowerCase())) {
+                          setEditFields(f => ({ ...f, aliases: [...f.aliases, trimmed] }))
+                        }
+                        setAliasDraft('')
+                      } else if (e.key === 'Backspace' && !aliasDraft && editFields.aliases.length > 0) {
+                        setEditFields(f => ({ ...f, aliases: f.aliases.slice(0, -1) }))
+                      }
+                    }}
+                    placeholder={editFields.aliases.length === 0 ? 'Add an alias…' : ''}
+                    aria-label="Add alias"
+                    className="flex-1 min-w-[120px] bg-transparent text-sm text-zinc-100 focus:outline-none px-1 py-0.5"
+                  />
+                </div>
+              </div>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setIsEditingProfile(false)} className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Cancel</button>
                 <button onClick={handleSaveProfile} disabled={saving} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark text-white rounded-lg transition-all active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none">
@@ -282,7 +364,8 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                 </h1>
                 <button
                   onClick={() => {
-                    setEditFields({ name: person.name, role: person.role, github: person.github, location: person.location, relationship: person.relationship })
+                    setEditFields({ name: person.name, role: person.role, github: person.github, location: person.location, relationship: person.relationship, aliases: [...(person.aliases || [])] })
+                    setAliasDraft('')
                     setIsEditingProfile(true)
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-surface-raised rounded-lg transition-all"
@@ -310,6 +393,16 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
                     <Users className="w-3 h-3 text-zinc-600" aria-hidden="true" />
                     {person.relationship}
                   </span>
+                )}
+                {person.relationship === 'Direct Report' && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/report/${person.slug}`)}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand/10 text-brand-light border border-brand/20 text-[10px] hover:bg-brand/15 transition-colors"
+                  >
+                    Open in Team
+                    <ExternalLink className="w-2.5 h-2.5" aria-hidden="true" />
+                  </button>
                 )}
                 {person.github && (
                   <a
@@ -398,32 +491,164 @@ ${body.replace(/^#\s+.+\n*/, '').trim()}
         </div>
       </div>
 
-      {/* Meeting history */}
-      {meetings.length > 0 && (
-        <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
-          <div className="px-6 py-3 border-b border-border/60">
-            <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-              Meeting History
-              <span className="ml-2 text-zinc-600">({meetings.length})</span>
-            </h2>
+      {/* Action items */}
+      {actionItems.length > 0 && (() => {
+        const openItems = actionItems.filter(a => !a.completed)
+        const completedItems = actionItems.filter(a => a.completed)
+        const visible = showCompleted ? actionItems : openItems
+        return (
+          <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-border/60">
+              <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                <ListChecks className="w-4 h-4" aria-hidden="true" />
+                Action Items
+                <span className="text-zinc-600">({openItems.length} open{completedItems.length > 0 ? ` · ${completedItems.length} done` : ''})</span>
+              </h2>
+              {completedItems.length > 0 && (
+                <button
+                  onClick={() => setShowCompleted(s => !s)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {showCompleted ? 'Hide completed' : 'Show completed'}
+                </button>
+              )}
+            </div>
+            {visible.length === 0 ? (
+              <div className="px-6 py-5">
+                <p className="text-sm text-zinc-600 italic">All tasks completed.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/40">
+                {visible.map((a, i) => {
+                  const key = `${a.sourceFile ?? ''}:${a.sourceLineNumber ?? i}`
+                  const isToggling = togglingKey === key
+                  const canToggle = !!a.sourceFile && a.sourceLineNumber != null
+                  return (
+                    <div key={key} className="flex items-start gap-3 px-6 py-3 group">
+                      <button
+                        onClick={() => handleToggleAction(a)}
+                        disabled={isToggling || !canToggle}
+                        className="mt-0.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={canToggle ? (a.completed ? 'Mark as not done' : 'Mark as done') : 'Cannot toggle this item'}
+                        aria-label={a.completed ? 'Mark as not done' : 'Mark as done'}
+                      >
+                        {isToggling ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-brand" aria-hidden="true" />
+                        ) : a.completed ? (
+                          <div className="w-4 h-4 rounded border border-brand bg-brand/30 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-brand-light" aria-hidden="true" />
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded border border-zinc-600 hover:border-brand hover:bg-brand/20 transition-colors" />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm ${a.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+                          {a.text}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+                          {a.owner && a.owner !== 'Unknown' && (
+                            <span>Owner: <span className="text-zinc-400">{a.owner}</span></span>
+                          )}
+                          {a.due && <span>· Due {a.due}</span>}
+                          {a.sourceFile && (
+                            <button
+                              onClick={() => navigate(`/context/${encodeURIComponent(a.sourceFile!.replace('contexts/', ''))}?dir=contexts`)}
+                              className="text-brand-light hover:text-brand transition-colors"
+                            >
+                              · View source →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-          <div className="divide-y divide-border/40">
-            {meetings.map(m => (
-              <button
-                key={m.filename}
-                onClick={() => navigate(`/context/${encodeURIComponent(m.filename)}?dir=contexts`)}
-                className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
-              >
-                <Calendar className="w-4 h-4 text-zinc-600 shrink-0" aria-hidden="true" />
-                <FormattedDate date={m.date} className="text-sm text-zinc-500 shrink-0 w-24" />
-                <span className="text-sm text-zinc-300 truncate group-hover:text-zinc-100 transition-colors">
-                  {m.title || m.filename.replace(/\.md$/, '')}
-                </span>
-              </button>
-            ))}
+        )
+      })()}
+
+      {/* Context */}
+      {meetings.length > 0 && (() => {
+        const SOURCE_META: Record<string, { label: string; icon: typeof Calendar }> = {
+          meeting: { label: 'Meeting', icon: Calendar },
+          slack: { label: 'Slack', icon: MessageSquare },
+          email: { label: 'Email', icon: Mail },
+          github: { label: 'GitHub', icon: Github },
+          other: { label: 'Note', icon: FileText },
+        }
+        const sourceOf = (m: MeetingRef) => (m.source && SOURCE_META[m.source]) ? m.source : 'other'
+        const counts = meetings.reduce<Record<string, number>>((acc, m) => {
+          const s = sourceOf(m)
+          acc[s] = (acc[s] || 0) + 1
+          return acc
+        }, {})
+        const visible = contextFilter === 'all'
+          ? meetings
+          : meetings.filter(m => sourceOf(m) === contextFilter)
+        const filterOptions: Array<{ id: typeof contextFilter; label: string; count: number }> = [
+          { id: 'all', label: 'All', count: meetings.length },
+          ...(['meeting','slack','email','github','other'] as const)
+            .filter(s => counts[s])
+            .map(s => ({ id: s, label: SOURCE_META[s].label, count: counts[s] })),
+        ]
+        return (
+          <div className="rounded-2xl border border-border/60 bg-surface overflow-hidden">
+            <div className="px-6 py-3 border-b border-border/60 flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+                Context
+                <span className="ml-2 text-zinc-600">({meetings.length})</span>
+              </h2>
+              {filterOptions.length > 2 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {filterOptions.map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setContextFilter(opt.id)}
+                      className={`px-2 py-1 rounded-md text-xs transition-colors ${
+                        contextFilter === opt.id
+                          ? 'bg-brand/30 text-brand-light'
+                          : 'text-zinc-500 hover:text-zinc-300 hover:bg-surface-raised/50'
+                      }`}
+                    >
+                      {opt.label} <span className="opacity-60">({opt.count})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {visible.length === 0 ? (
+              <div className="px-6 py-5">
+                <p className="text-sm text-zinc-600 italic">No {contextFilter} entries.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/40">
+                {visible.map(m => {
+                  const s = sourceOf(m)
+                  const meta = SOURCE_META[s]
+                  const Icon = meta.icon
+                  return (
+                    <button
+                      key={m.filename}
+                      onClick={() => navigate(`/context/${encodeURIComponent(m.filename)}?dir=contexts`)}
+                      className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-surface-raised/50 transition-colors group"
+                    >
+                      <Icon className="w-4 h-4 text-zinc-600 shrink-0" aria-hidden="true" />
+                      <FormattedDate date={m.date} className="text-sm text-zinc-500 shrink-0 w-24" />
+                      <span className="text-xs text-zinc-600 shrink-0 w-16">{meta.label}</span>
+                      <span className="text-sm text-zinc-300 truncate group-hover:text-zinc-100 transition-colors">
+                        {m.title || m.filename.replace(/\.md$/, '')}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

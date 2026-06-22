@@ -24,6 +24,7 @@ const Today = lazy(() => import('./pages/Today').then(m => ({ default: m.Today }
 const SearchPage = lazy(() => import('./pages/Search').then(m => ({ default: m.SearchPage })))
 const Chat = lazy(() => import('./pages/Chat').then(m => ({ default: m.Chat })))
 const PersonDetail = lazy(() => import('./pages/PersonDetail').then(m => ({ default: m.PersonDetail })))
+const Network = lazy(() => import('./pages/Network').then(m => ({ default: m.Network })))
 
 function Layout() {
   return (
@@ -103,8 +104,9 @@ export default function App() {
         { path: '/search', element: <SearchPage /> },
         { path: '/impact', element: <Navigate to="/my-profile" replace /> },
         { path: '/settings', element: <Settings /> },
-        { path: '/people', element: <Navigate to="/search?tab=person" replace /> },
+        { path: '/people', element: <Navigate to="/network" replace /> },
         { path: '/people/:slug', element: <PersonDetail /> },
+        { path: '/network', element: <Network /> },
         { path: '/context/:filename', element: <ContextDetail /> },
         { path: '/my-profile', element: <MyProfile /> },
         { path: '*', element: <Navigate to="/" replace /> }
